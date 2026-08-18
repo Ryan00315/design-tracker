@@ -20,9 +20,8 @@
 
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v8.0 (排版精準對齊版)</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v8.0</span></div>
       <ul class="nav-list">
-        
         <div id="nav-sub-wrapper" style="display:none; margin-bottom: 8px;">
           <li class="nav-item" onclick="toggleSubMenu()">
             <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -49,7 +48,7 @@
             <div class="avatar" id="user-avatar">R</div>
             <div><div id="user-display-name" style="font-size: 13px; font-weight: 600;">Ryan</div><span id="user-role-badge" class="role-badge">ADMIN</span></div>
           </div>
-          <button class="btn-icon" onclick="switchNav('tab-profile', '個人帳號設定', null)" title="個人帳號設定"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+          <button class="btn-icon" onclick="switchNav('tab-profile', '個人帳號設定', null)"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
           <button id="btn-logout" class="btn-logout">登出</button>
         </div>
       </header>
@@ -80,6 +79,28 @@
 
           <div class="project-tabs-wrapper" id="project-tabs-container"></div>
 
+          <!-- 新增：⭐ 總覽檢視 -->
+          <div id="project-summary-view" style="display:none;">
+            <div class="section-panel" style="padding: 0; background: transparent; border: none; box-shadow: none;">
+              <div class="panel-head" style="margin-bottom: 8px;"><span>⭐ 專案與事件總覽排程</span></div>
+              <div class="gantt-master-layout">
+                <div class="gantt-left-panel" style="width: 320px;">
+                  <div class="gantt-head">
+                    <div class="col-name" style="flex:2.5">主專案 / 事件名稱</div>
+                    <div class="col-date" style="flex:1.5; text-align:left;">起訖日期</div>
+                    <div class="col-prog" style="flex:1; justify-content:center;">總進度</div>
+                  </div>
+                  <div class="gantt-body" id="gantt-summary-left-body"></div>
+                </div>
+                <!-- 總覽的甘特圖不允許拖曳，加上 locked-gantt -->
+                <div class="gantt-right-panel locked-gantt" id="gantt-chart-summary-container">
+                  <div id="gantt-chart-summary"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 原有：個別專案檢視 -->
           <div id="project-detail-view" style="display:none;">
             <div class="section-panel" style="padding: 0; background: transparent; border: none; box-shadow: none;">
               <div class="panel-head" style="margin-bottom: 8px;">
@@ -98,7 +119,6 @@
               </div>
             </div>
             
-            <!-- 下半部：歷史更新軌跡表 (嚴格對齊，不跑版) -->
             <div class="section-panel" style="margin-top: 24px;">
               <div class="panel-head">細項進度與備註紀錄 (可向下捲動)</div>
               <div class="table-responsive">
@@ -115,12 +135,12 @@
                 </table>
               </div>
             </div>
-            
           </div>
+
           <div id="empty-state" style="text-align: center; padding: 40px; color: var(--text-muted); display: none;">此分類下目前沒有專案。</div>
         </div>
 
-        <!-- 分頁 2：事件紀錄 -->
+        <!-- 其他分頁維持 -->
         <div id="tab-adhoc" class="tab-pane" style="display:none;">
           <div class="section-panel" id="adhoc-form-panel">
             <div class="panel-head">登記臨時插單事件</div>
@@ -141,7 +161,6 @@
           </div>
         </div>
 
-        <!-- 分頁 3：週報填寫 -->
         <div id="tab-weekly" class="tab-pane" style="display:none;">
           <div class="section-panel" id="weekly-form-panel">
             <div class="panel-head">填寫本週工作週報</div>
@@ -163,7 +182,6 @@
           </div>
         </div>
 
-        <!-- 分頁 4：組織架構與人員管理 -->
         <div id="tab-org" class="tab-pane" style="display:none;">
           <div class="section-panel">
             <div class="panel-head">新增人員與職稱階層設定</div>
@@ -191,7 +209,6 @@
           </div>
         </div>
 
-        <!-- 分頁 5：個人帳號設定 -->
         <div id="tab-profile" class="tab-pane" style="display:none;">
           <div class="section-panel" style="max-width: 600px;">
             <div class="panel-head">變更登入密碼</div>
