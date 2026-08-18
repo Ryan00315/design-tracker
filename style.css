@@ -201,3 +201,30 @@ tr:hover td { background: #fafafa; }
 .action-btn:hover { background: var(--border-light); }
 .action-btn.danger { color: var(--danger); border-color: #fca5a5; }
 .action-btn.danger:hover { background: var(--danger-bg); }
+
+/* ================= 彈出式視窗 (Modal) ================= */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000; opacity: 0; pointer-events: none; transition: all 0.2s ease;
+}
+.modal-overlay.active { opacity: 1; pointer-events: auto; }
+.modal-box {
+  background: var(--surface); width: 100%; max-width: 480px;
+  border-radius: var(--radius-lg); padding: 28px;
+  box-shadow: var(--shadow-card);
+  transform: translateY(-20px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.modal-overlay.active .modal-box { transform: translateY(0); }
+.modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 24px; font-size: 18px; font-weight: 700; color: #0f172a;
+}
+.btn-close {
+  background: none; border: none; font-size: 24px; line-height: 1;
+  cursor: pointer; color: var(--text-muted); transition: 0.2s;
+}
+.btn-close:hover { color: var(--danger); }
+.modal-actions { display: flex; gap: 12px; margin-top: 28px; }
+.modal-actions button { flex: 1; padding: 12px; }
