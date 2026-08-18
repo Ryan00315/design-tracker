@@ -5,7 +5,6 @@ import {
   signOut, 
   onAuthStateChanged,
   updatePassword,
-  updateProfile,
   createUserWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 import { 
@@ -81,7 +80,6 @@ onAuthStateChanged(auth, async (user) => {
     document.getElementById("user-display-name").innerText = displayName;
     document.getElementById("user-avatar").innerText = displayName.charAt(0).toUpperCase();
     document.getElementById("user-role-badge").innerText = roleNames[currentUserData.role] || (currentUserData.role || "STAFF").toUpperCase();
-    document.getElementById("profile-name").value = displayName;
 
     // 只有 Admin 顯示組織管理選單
     if (currentUserData.role === "admin") {
@@ -113,25 +111,8 @@ document.getElementById("btn-login").addEventListener("click", () => {
 // 登出事件
 document.getElementById("btn-logout").addEventListener("click", () => signOut(auth));
 
-/* ================= 1. 個人帳號設定 (改名 / 改密碼) ================= */
-// 更改顯示名稱
-document.getElementById("btn-update-profile").addEventListener("click", async () => {
-  const newName = document.getElementById("profile-name").value.trim();
-  if (!newName) return alert("請輸入姓名！");
 
-  try {
-    await updateProfile(auth.currentUser, { displayName: newName });
-    await updateDoc(doc(db, "users", auth.currentUser.uid), { name: newName });
-    currentUserData.name = newName;
-    document.getElementById("user-display-name").innerText = newName;
-    document.getElementById("user-avatar").innerText = newName.charAt(0).toUpperCase();
-    alert("個人顯示名稱已更新成功！");
-  } catch (err) {
-    alert("更新失敗: " + err.message);
-  }
-});
-
-// 更改密碼
+/* ================= 1. 個人帳號設定 (僅限改密碼) ================= */
 document.getElementById("btn-update-password").addEventListener("click", async () => {
   const newPass = document.getElementById("profile-new-pass").value;
   const confirmPass = document.getElementById("profile-confirm-pass").value;
@@ -258,8 +239,6 @@ function loadProjects() {
       if (!task) return;
 
       // 權限階層過濾：
-      // admin, top_manager -> 看全部
-      // staff -> 只看自己
       if (currentUserData.role === "staff" && proj.ownerId !== auth.currentUser.uid) {
         return;
       }
@@ -307,7 +286,6 @@ function loadProjects() {
   });
 }
 
-// 建立專案
 document.getElementById("btn-add-project").addEventListener("click", async () => {
   const title = document.getElementById("proj-name").value.trim();
   const taskName = document.getElementById("task-name").value.trim();
@@ -339,7 +317,6 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   alert("專案已成功建立並鎖定！");
 });
 
-// 完成任務
 window.completeTask = async (projId, plannedEnd) => {
   const today = new Date().toISOString().split('T')[0];
   let delayReason = "";
