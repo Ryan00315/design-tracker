@@ -1,1 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>專案進度系統</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Frappe Gantt CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.css">
+</head>
+<body>
 
+  <!-- 1. 登入區塊 -->
+  <div id="auth-section">
+    <h2>系統登入</h2>
+    <input type="email" id="login-email" placeholder="電子信箱">
+    <input type="password" id="login-password" placeholder="密碼">
+    <button id="btn-login">登入</button>
+  </div>
+
+  <!-- 2. 主操作介面 -->
+  <div id="app-section" style="display:none;">
+    <header>
+      <span id="user-info">載入中...</span>
+      <button id="btn-logout">登出</button>
+    </header>
+
+    <div class="tabs">
+      <button onclick="switchTab('tab-projects')">專案甘特圖</button>
+      <button onclick="switchTab('tab-adhoc')">臨時事件記錄</button>
+      <button onclick="switchTab('tab-weekly')">週報填寫</button>
+    </div>
+
+    <!-- 專案進度與甘特圖分頁 -->
+    <div id="tab-projects" class="tab-content">
+      <h3>新增專案規劃（上傳後將鎖定）</h3>
+      <input type="text" id="proj-name" placeholder="專案名稱">
+      <input type="text" id="task-name" placeholder="細項任務名稱">
+      <input type="date" id="task-start">
+      <input type="date" id="task-end">
+      <button id="btn-add-project">上傳並鎖定專案</button>
+
+      <h3>專案進度列表</h3>
+      <div id="gantt-chart"></div>
+      <div id="project-list"></div>
+    </div>
+
+    <!-- 臨時插單事件分頁 -->
+    <div id="tab-adhoc" class="tab-content" style="display:none;">
+      <h3>新增臨時事件</h3>
+      <input type="text" id="adhoc-title" placeholder="事項名稱">
+      <input type="text" id="adhoc-reason" placeholder="原因說明">
+      <button id="btn-add-adhoc">登記插單事件</button>
+      <div id="adhoc-list"></div>
+    </div>
+
+    <!-- 週報填寫分頁 -->
+    <div id="tab-weekly" class="tab-content" style="display:none;">
+      <h3>填寫週報</h3>
+      <input type="date" id="rep-start"> 至 <input type="date" id="rep-end">
+      <textarea id="rep-content" placeholder="本週工作進度說明..."></textarea>
+      <button id="btn-add-weekly">送出週報</button>
+      <div id="weekly-list"></div>
+    </div>
+  </div>
+
+  <!-- Frappe Gantt JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.js"></script>
+  <!-- 主程式腳本 -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>
