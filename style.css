@@ -27,6 +27,7 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .nav-item:hover { background: var(--sidebar-hover); color: #f8fafc; }
 .nav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 600; }
 .nav-divider { height: 1px; background: rgba(255, 255, 255, 0.08); margin: 12px 14px; }
+
 .main-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-page); }
 .top-header { height: 64px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; }
 .breadcrumb { font-size: 14px; color: var(--text-muted); }
@@ -43,17 +44,13 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 
 /* 頂部數據看板與新增按鈕佈局 */
 .kpi-row { display: flex; gap: 16px; flex: 1; }
-.kpi-card { 
-  background: var(--surface); padding: 18px 20px; border-radius: var(--radius-lg); 
-  border: 2px solid transparent; box-shadow: var(--shadow-sm); cursor: pointer;
-  transition: all 0.2s ease; flex: 1; 
-}
+.kpi-card { background: var(--surface); padding: 18px 20px; border-radius: var(--radius-lg); border: 2px solid transparent; box-shadow: var(--shadow-sm); cursor: pointer; transition: all 0.2s ease; flex: 1; }
 .kpi-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
 .kpi-card.active { border-color: var(--primary); background: var(--primary-soft); }
 .kpi-title { font-size: 13px; color: var(--text-muted); font-weight: 600; }
 .kpi-number { font-size: 26px; font-weight: 700; color: var(--text-main); margin-top: 6px; }
 
-/* 專案分頁標籤與卡片 */
+/* 專案分頁標籤 */
 .project-tabs-wrapper { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
 .proj-tab { padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); transition: 0.2s; white-space: nowrap; }
 .proj-tab:hover { border-color: var(--primary); color: var(--primary); }
@@ -62,6 +59,31 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .section-panel { background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 22px; margin-bottom: 24px; box-shadow: var(--shadow-sm); }
 .panel-head { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
 .form-row { display: flex; gap: 14px; align-items: flex-start; }
+
+/* ================= 核心：完美側邊合併甘特圖 ================= */
+.gantt-master-layout { display: flex; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); overflow: hidden; margin-top: 10px; box-shadow: var(--shadow-sm); }
+.gantt-left-panel { width: 380px; border-right: 1px solid var(--border); flex-shrink: 0; background: #fff; z-index: 10; display: flex; flex-direction: column; }
+.gantt-head { height: 50px; display: flex; border-bottom: 1px solid var(--border); background: #f8fafc; align-items: center; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.gantt-body { display: flex; flex-direction: column; }
+.gantt-row { height: 38px; display: flex; border-bottom: 1px solid var(--border-light); align-items: center; font-size: 12px; transition: background 0.15s; }
+.gantt-row:hover { background: #f1f5f9; }
+
+/* 左右面板欄寬設定 */
+.col-name { flex: 2; padding: 0 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.col-date { flex: 1.5; padding: 0 8px; font-size: 11px; color: var(--text-muted); }
+.col-prog { width: 75px; padding: 0 8px; display: flex; align-items: center; gap: 4px; }
+.col-prog input { width: 42px; padding: 4px; text-align: center; border: 1px solid var(--border); border-radius: 4px; outline: none; font-size: 11px; font-weight: 600; }
+.col-prog input:disabled { background: #f1f5f9; color: var(--success); border-color: transparent; }
+.col-act { width: 60px; padding: 0 8px; text-align: center; }
+
+/* 右側甘特圖區域 */
+.gantt-right-panel { flex: 1; overflow-x: auto; background: #fff; }
+/* 隱藏 Frappe 原生多餘標籤 */
+.gantt .bar-label { display: none !important; }
+
+/* 鎖定狀態的防拖曳 CSS (隱藏控制把手) */
+.locked-gantt .handle-group, .locked-gantt .bar-progress-handle { display: none !important; pointer-events: none; }
+/* ============================================================ */
 
 /* 表格與標籤 */
 .table-responsive { overflow-x: auto; margin-top: 10px; }
@@ -76,6 +98,7 @@ tr:hover td { background: #fafafa; }
 .pill-role { background: #e0f2fe; color: #0369a1; }
 .action-btn { background: #fff; border: 1px solid var(--border); padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.15s; }
 .action-btn:hover { background: var(--border-light); }
+.action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .action-btn.danger { color: var(--danger); border-color: #fca5a5; }
 .action-btn.danger:hover { background: var(--danger-bg); }
 
