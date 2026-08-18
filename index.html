@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>專案管理系統</title>
+  <title>PMS 專案管理系統</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.css">
 </head>
@@ -20,7 +20,7 @@
 
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v9.5 (電子簽核版)</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v9.9 (專業週報版)</span></div>
       <ul class="nav-list">
         
         <div id="nav-sub-wrapper" style="display:none; margin-bottom: 8px;">
@@ -97,7 +97,6 @@
 
           <div class="project-tabs-wrapper" id="project-tabs-container"></div>
 
-          <!-- 總覽檢視 -->
           <div id="project-summary-view" style="display:none;">
             <div class="section-panel" style="padding: 0; background: transparent; border: none; box-shadow: none;">
               <div class="panel-head" style="margin-bottom: 8px;"><span>⭐ 專案與事件總覽排程 (所有專案/事件皆顯示)</span></div>
@@ -117,7 +116,6 @@
             </div>
           </div>
 
-          <!-- 個別專案檢視 -->
           <div id="project-detail-view" style="display:none;">
             <div class="section-panel" style="padding: 0; background: transparent; border: none; box-shadow: none;">
               <div class="panel-head" style="margin-bottom: 8px;">
@@ -190,7 +188,6 @@
               </div>
             </div>
             
-            <!-- 動態進度項目容器 -->
             <div id="weekly-items-container"></div>
             
             <button class="action-btn" onclick="addWeeklyRow()" style="margin-bottom: 24px; border-style: dashed;">+ 新增進度項目</button>
@@ -248,7 +245,6 @@
           </div>
         </div>
 
-        <!-- 分頁 5：個人帳號設定 -->
         <div id="tab-profile" class="tab-pane" style="display:none;">
           <div class="section-panel" style="max-width: 600px;">
             <div class="panel-head">變更登入密碼</div>
@@ -278,11 +274,11 @@
     </div>
   </div>
 
-  <!-- 週報瀏覽與簽核 Modal -->
+  <!-- 週報瀏覽與簽核 Modal (加寬處理) -->
   <div id="weekly-detail-modal" class="modal-overlay">
-    <div class="modal-box" style="max-width: 650px;">
+    <div class="modal-box" style="max-width: 850px; width: 95%;">
       <div class="modal-header"><span>週報詳細內容</span><button class="btn-close" onclick="closeWeeklyModal()">×</button></div>
-      <div id="weekly-detail-content" style="margin-bottom: 20px; max-height: 450px; overflow-y:auto; padding-right: 8px;"></div>
+      <div id="weekly-detail-content" style="margin-bottom: 20px; max-height: 500px; overflow-y:auto; padding-right: 8px;"></div>
       <div class="modal-actions" style="justify-content: flex-end;">
         <button id="btn-supervisor-note" class="action-btn" style="display:none; color:var(--success); border-color:var(--success);" onclick="markWeeklyNoted('supervisor')">✔️ 主管已閱</button>
         <button id="btn-topmanager-note" class="action-btn" style="display:none; color:var(--success); border-color:var(--success);" onclick="markWeeklyNoted('top_manager')">✔️ 最高主管已閱</button>
