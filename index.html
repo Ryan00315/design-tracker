@@ -20,8 +20,9 @@
 
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v8.0</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v8.5 (色彩追蹤版)</span></div>
       <ul class="nav-list">
+        
         <div id="nav-sub-wrapper" style="display:none; margin-bottom: 8px;">
           <li class="nav-item" onclick="toggleSubMenu()">
             <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -48,7 +49,7 @@
             <div class="avatar" id="user-avatar">R</div>
             <div><div id="user-display-name" style="font-size: 13px; font-weight: 600;">Ryan</div><span id="user-role-badge" class="role-badge">ADMIN</span></div>
           </div>
-          <button class="btn-icon" onclick="switchNav('tab-profile', '個人帳號設定', null)"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+          <button class="btn-icon" onclick="switchNav('tab-profile', '個人帳號設定', null)" title="個人帳號設定"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
           <button id="btn-logout" class="btn-logout">登出</button>
         </div>
       </header>
@@ -70,7 +71,23 @@
 
           <div id="create-project-section" class="section-panel" style="display:none; border: 2px solid var(--primary-soft);">
             <div class="panel-head">建立專案與任務規劃 (送出後即鎖定)</div>
-            <div class="form-group"><label class="form-label">主專案名稱</label><input type="text" id="proj-name" class="input-control" placeholder="例：2026 產品外觀設計案" style="max-width: 400px;"></div>
+            
+            <div class="form-row" style="margin-bottom: 14px;">
+              <div class="form-group" style="flex:2;">
+                <label class="form-label">主專案名稱</label>
+                <input type="text" id="proj-name" class="input-control" placeholder="例：2026 產品外觀設計案">
+              </div>
+              <div class="form-group" style="flex:1;">
+                <label class="form-label">專案標籤顏色</label>
+                <select id="proj-color" class="input-control">
+                  <option value="bar-primary">預設藍色</option>
+                  <option value="bar-purple">優雅紫色</option>
+                  <option value="bar-orange">活力橘色</option>
+                  <option value="bar-teal">清新藍綠</option>
+                </select>
+              </div>
+            </div>
+
             <div style="margin-top: 20px; margin-bottom: 10px; font-weight: 600; font-size: 14px; color: #334155;">任務細項排程 (系統自動避開週末)</div>
             <div id="task-list-container"></div>
             <button class="action-btn" onclick="addTaskRow()" style="margin-top: 10px; border-style: dashed;">+ 新增任務細項</button>
@@ -82,7 +99,7 @@
           <!-- 新增：⭐ 總覽檢視 -->
           <div id="project-summary-view" style="display:none;">
             <div class="section-panel" style="padding: 0; background: transparent; border: none; box-shadow: none;">
-              <div class="panel-head" style="margin-bottom: 8px;"><span>⭐ 專案與事件總覽排程</span></div>
+              <div class="panel-head" style="margin-bottom: 8px;"><span>⭐ 專案與事件總覽排程 (所有專案/事件皆顯示)</span></div>
               <div class="gantt-master-layout">
                 <div class="gantt-left-panel" style="width: 320px;">
                   <div class="gantt-head">
@@ -92,7 +109,6 @@
                   </div>
                   <div class="gantt-body" id="gantt-summary-left-body"></div>
                 </div>
-                <!-- 總覽的甘特圖不允許拖曳，加上 locked-gantt -->
                 <div class="gantt-right-panel locked-gantt" id="gantt-chart-summary-container">
                   <div id="gantt-chart-summary"></div>
                 </div>
@@ -100,7 +116,6 @@
             </div>
           </div>
 
-          <!-- 原有：個別專案檢視 -->
           <div id="project-detail-view" style="display:none;">
             <div class="section-panel" style="padding: 0; background: transparent; border: none; box-shadow: none;">
               <div class="panel-head" style="margin-bottom: 8px;">
@@ -135,17 +150,18 @@
                 </table>
               </div>
             </div>
+            
           </div>
-
           <div id="empty-state" style="text-align: center; padding: 40px; color: var(--text-muted); display: none;">此分類下目前沒有專案。</div>
         </div>
 
-        <!-- 其他分頁維持 -->
+        <!-- 分頁 2：事件紀錄 -->
         <div id="tab-adhoc" class="tab-pane" style="display:none;">
           <div class="section-panel" id="adhoc-form-panel">
             <div class="panel-head">登記臨時插單事件</div>
             <div class="form-row">
-              <div class="form-group" style="flex:1;"><label class="form-label">事項名稱</label><input type="text" id="adhoc-title" class="input-control" placeholder="緊急樣品修改"></div>
+              <div class="form-group" style="flex:1.5;"><label class="form-label">事項名稱</label><input type="text" id="adhoc-title" class="input-control" placeholder="緊急樣品修改"></div>
+              <div class="form-group" style="flex:1;"><label class="form-label">預計開始日期</label><input type="date" id="adhoc-start" class="input-control" onchange="checkWorkingDay(this)"></div>
               <div class="form-group" style="flex:2;"><label class="form-label">原因說明</label><input type="text" id="adhoc-reason" class="input-control" placeholder="客戶尺寸變更"></div>
             </div>
             <button id="btn-add-adhoc" class="btn-primary" style="width: 160px; margin-top: 6px;">登記插單事件</button>
@@ -154,7 +170,7 @@
             <div class="panel-head">事件紀錄清單</div>
             <div class="table-responsive">
               <table>
-                <thead><tr><th>事項</th><th>原因說明</th><th>登記時間</th><th>狀態</th><th>操作</th></tr></thead>
+                <thead><tr><th>事項</th><th>原因說明</th><th>開始日期</th><th>實際完成時間</th><th>狀態</th><th>操作</th></tr></thead>
                 <tbody id="adhoc-list-tbody"></tbody>
               </table>
             </div>
