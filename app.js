@@ -34,7 +34,7 @@ let currentFilter = 'ongoing';
 let selectedProjectId = null;
 let ganttInstance = null;
 
-// === 介面切換 (加入防甘特圖消失保護) ===
+// === 介面切換 ===
 window.switchNav = (tabId, title, elem) => {
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -42,10 +42,8 @@ window.switchNav = (tabId, title, elem) => {
   if (elem) elem.classList.add('active');
   document.getElementById('current-title').innerText = title;
 
-  // 【防呆保護】：如果切換回專案進度，強制重新渲染甘特圖，避免 display:none 造成寬度被擠壓成 0 導致消失
-  if (tabId === 'tab-projects') {
-    setTimeout(renderProjects, 100);
-  }
+  // 強制重繪甘特圖防消失
+  if (tabId === 'tab-projects') setTimeout(renderProjects, 100);
 };
 
 document.getElementById('btn-toggle-create').addEventListener('click', () => {
@@ -172,11 +170,13 @@ function getNextWorkingDayStr(dateStr) {
   while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
   return d.toISOString().split('T')[0];
 }
+
 window.checkWorkingDay = (input) => {
   if (!input.value) return;
   const d = new Date(input.value);
   if (d.getDay() === 0 || d.getDay() === 6) { alert("僅能選擇工作日！"); input.value = ''; }
 };
+
 window.addTaskRow = () => {
   const container = document.getElementById("task-list-container");
   const rows = container.querySelectorAll('.task-row');
@@ -186,7 +186,6 @@ window.addTaskRow = () => {
   container.appendChild(div);
 };
 
-// === 專案邏輯 ===
 window.setProjectFilter = (status) => {
   currentFilter = status;
   document.getElementById('filter-ongoing').classList.toggle('active', status === 'ongoing');
@@ -194,6 +193,7 @@ window.setProjectFilter = (status) => {
   document.getElementById('filter-delayed').classList.toggle('active', status === 'delayed');
   selectedProjectId = null; renderProjects();
 };
+
 window.selectProject = (projId) => { selectedProjectId = projId; renderProjects(); };
 
 function loadProjects() {
@@ -262,8 +262,13 @@ function renderProjects() {
 
   const isOwner = activeProj.ownerId === auth.currentUser.uid;
   const leftBody = document.getElementById("gantt-left-body");
+  
+  // 安全取得下方表格
   const listBody = document.getElementById("project-list-tbody");
-  leftBody.innerHTML = ""; listBody.innerHTML = "";
+  
+  leftBody.innerHTML = ""; 
+  if(listBody) listBody.innerHTML = "";
+  
   const ganttTasks = [];
 
   activeProj.tasks.forEach((task, index) => {
@@ -281,30 +286,31 @@ function renderProjects() {
     `;
     leftBody.appendChild(row);
 
-    // 下方明細表格 (顯示更新時間)
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><strong>${task.name}</strong></td>
-      <td>${task.start} 至 ${task.end} (${workDays} 天)</td>
-      <td>${task.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">進行中</span>'}</td>
-      <td>
-        ${task.lastUpdatedAt ? `<small style="color:var(--primary);">更新: ${task.lastUpdatedAt}</small><br>` : ''}
-        ${task.completedAt ? `<small style="color:var(--success);">完成: ${task.completedAt}</small><br>` : ''}
-        ${task.delayReason ? `<span class="pill pill-danger" style="margin-top:4px;">Delay: ${task.delayReason}</span>` : (!task.lastUpdatedAt && !task.completedAt ? '-' : '')}
-      </td>
-    `;
-    listBody.appendChild(tr);
+    // 寫入下方明細表格
+    if (listBody) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><strong>${task.name}</strong></td>
+        <td>${task.start} 至 ${task.end} (${workDays} 天)</td>
+        <td>${task.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">進行中</span>'}</td>
+        <td>
+          ${task.lastUpdatedAt ? `<small style="color:var(--primary);">更新於: ${task.lastUpdatedAt}</small><br>` : ''}
+          ${task.completedAt ? `<small style="color:var(--success);">結案於: ${task.completedAt}</small><br>` : ''}
+          ${task.delayReason ? `<span class="pill pill-danger" style="margin-top:4px;">Delay: ${task.delayReason}</span>` : (!task.lastUpdatedAt && !task.completedAt ? '-' : '')}
+        </td>
+      `;
+      listBody.appendChild(tr);
+    }
   });
 
   if (ganttTasks.length > 0) {
     const chartContainer = document.getElementById("gantt-chart-container");
     chartContainer.className = activeProj.isLocked ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
     
-    // 【防呆保護】：徹底清除舊有的甘特圖 DOM，避免消失或殘留破圖
+    // 清空重繪
     chartContainer.innerHTML = '<div id="gantt-chart"></div>';
     
     setTimeout(() => {
-      // 若目前切換到別的分頁導致 display:none，就不繪製避免寬度變成 0
       if (document.getElementById("tab-projects").style.display === "none") return;
 
       ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
@@ -321,11 +327,11 @@ function renderProjects() {
           await updateDoc(doc(db, "projects", activeProj.id), { tasks: proj.tasks });
         }
       });
-    }, 150); // 稍微加長等待時間確保 DOM 撐開
+    }, 150);
   }
 }
 
-// === 確認與寫入進度時間 ===
+// === 確認與寫入進度 ===
 window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const proj = allProjectsData.find(p => p.id === projId);
   const tasks = [...proj.tasks];
@@ -335,7 +341,9 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
 
   if (newProg < oldProg) { alert(`錯誤：進度不能往回調整！`); inputElem.value = oldProg; return; }
 
-  tasks[taskIndex].lastUpdatedAt = new Date().toLocaleString();
+  // 紀錄更新時間
+  tasks[taskIndex].lastUpdatedAt = new Date().toLocaleString('zh-TW', { hour12: false });
+  
   let delayReason = tasks[taskIndex].delayReason || "";
   
   if (newProg === 100) {
