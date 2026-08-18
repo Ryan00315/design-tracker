@@ -20,7 +20,7 @@
 
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v8.5 (色彩追蹤版)</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v9.0 (無縫加單版)</span></div>
       <ul class="nav-list">
         
         <div id="nav-sub-wrapper" style="display:none; margin-bottom: 8px;">
@@ -74,8 +74,10 @@
             
             <div class="form-row" style="margin-bottom: 14px;">
               <div class="form-group" style="flex:2;">
-                <label class="form-label">主專案名稱</label>
-                <input type="text" id="proj-name" class="input-control" placeholder="例：2026 產品外觀設計案">
+                <!-- 加入 list="project-names-list" 使其具備自動帶入下拉選單功能 -->
+                <label class="form-label">主專案名稱 (可點擊選擇現有專案附加細項)</label>
+                <input type="text" id="proj-name" class="input-control" placeholder="例：2026 產品外觀設計案" list="project-names-list">
+                <datalist id="project-names-list"></datalist>
               </div>
               <div class="form-group" style="flex:1;">
                 <label class="form-label">專案標籤顏色</label>
@@ -96,7 +98,6 @@
 
           <div class="project-tabs-wrapper" id="project-tabs-container"></div>
 
-          <!-- 新增：⭐ 總覽檢視 -->
           <div id="project-summary-view" style="display:none;">
             <div class="section-panel" style="padding: 0; background: transparent; border: none; box-shadow: none;">
               <div class="panel-head" style="margin-bottom: 8px;"><span>⭐ 專案與事件總覽排程 (所有專案/事件皆顯示)</span></div>
