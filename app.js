@@ -24,18 +24,16 @@ const db = getFirestore(app);
 
 const roleNames = { admin: "系統管理員", top_manager: "高級主管", manager: "主管", assistant_manager: "副主管", staff: "人員" };
 let currentUserData = { role: "staff", name: "" };
-let allUsersList = [];
 
 let viewingUserId = null; 
 let allProjectsData = [];
 let allAdHocData = [];
 let allWeeklyData = [];
 let currentFilter = 'ongoing'; 
-let selectedProjectId = 'SUMMARY'; // 預設顯示總覽
+let selectedProjectId = 'SUMMARY'; 
 let ganttInstance = null;
 let summaryGanttInstance = null;
 
-// === 介面切換 ===
 window.switchNav = (tabId, title, elem) => {
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -49,6 +47,7 @@ document.getElementById('btn-toggle-create').addEventListener('click', () => {
   const form = document.getElementById('create-project-section');
   form.style.display = form.style.display === 'none' ? 'block' : 'none';
 });
+
 window.toggleSubMenu = () => document.getElementById('nav-sub-wrapper').classList.toggle('nav-menu-open');
 
 function getWorkingDays(startDate, endDate) {
@@ -61,7 +60,6 @@ function getWorkingDays(startDate, endDate) {
   return count;
 }
 
-// === 登入監聽 ===
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     document.getElementById("auth-section").style.display = "none";
@@ -82,25 +80,17 @@ onAuthStateChanged(auth, async (user) => {
     document.getElementById("user-role-badge").innerText = roleNames[currentUserData.role] || (currentUserData.role || "STAFF").toUpperCase();
 
     if (currentUserData.role === "admin") {
-      document.getElementById("nav-org-manage").style.display = "flex";
-      document.getElementById("nav-divider-org").style.display = "block";
-      loadOrgUsers();
+      document.getElementById("nav-org-manage").style.display = "flex"; document.getElementById("nav-divider-org").style.display = "block"; loadOrgUsers();
     } else {
-      document.getElementById("nav-org-manage").style.display = "none";
-      document.getElementById("nav-divider-org").style.display = "none";
+      document.getElementById("nav-org-manage").style.display = "none"; document.getElementById("nav-divider-org").style.display = "none";
     }
 
-    if (currentUserData.role !== 'staff') {
-      document.getElementById('nav-sub-wrapper').style.display = 'block';
-      loadSidebarSubordinates();
-    } else {
-      document.getElementById('nav-sub-wrapper').style.display = 'none';
-    }
+    if (currentUserData.role !== 'staff') { document.getElementById('nav-sub-wrapper').style.display = 'block'; loadSidebarSubordinates(); } 
+    else document.getElementById('nav-sub-wrapper').style.display = 'none';
 
     addTaskRow(); loadProjects(); loadAdHocEvents(); loadWeeklyReports();
   } else {
-    document.getElementById("auth-section").style.display = "flex";
-    document.getElementById("app-section").style.display = "none";
+    document.getElementById("auth-section").style.display = "flex"; document.getElementById("app-section").style.display = "none";
   }
 });
 
@@ -135,21 +125,22 @@ window.switchViewingUser = (uid, name) => {
   document.getElementById('adhoc-form-panel').style.display = isSelf ? 'block' : 'none';
   document.getElementById('weekly-form-panel').style.display = isSelf ? 'block' : 'none';
 
-  selectedProjectId = 'SUMMARY'; // 切換人時預設回總覽
+  selectedProjectId = 'SUMMARY'; 
   renderProjects(); renderAdHocEvents(); renderWeeklyReports();
 };
 
 document.getElementById("btn-login").addEventListener("click", () => { signInWithEmailAndPassword(auth, document.getElementById("login-email").value.trim(), document.getElementById("login-password").value.trim()).catch(e=>alert(e.message)); });
 document.getElementById("btn-logout").addEventListener("click", () => signOut(auth));
+
 function getNextWorkingDayStr(dateStr) {
   if (!dateStr) return ''; let d = new Date(dateStr); d.setDate(d.getDate() + 1);
   while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
   return d.toISOString().split('T')[0];
 }
 window.checkWorkingDay = (input) => { if (!input.value) return; const d = new Date(input.value); if (d.getDay() === 0 || d.getDay() === 6) { alert("系統規定只能點選工作日喔！"); input.value = ''; } };
+
 window.addTaskRow = () => {
-  const container = document.getElementById("task-list-container");
-  const rows = container.querySelectorAll('.task-row');
+  const container = document.getElementById("task-list-container"); const rows = container.querySelectorAll('.task-row');
   let defaultStart = rows.length > 0 ? getNextWorkingDayStr(rows[rows.length - 1].querySelector('.task-end').value) : "";
   const div = document.createElement('div'); div.className = "form-row task-row"; div.style.marginBottom = "8px";
   div.innerHTML = `<div class="form-group" style="margin:0; flex:2;"><input type="text" class="input-control task-name" placeholder="細項名稱"></div><div class="form-group" style="margin:0; flex:1;"><input type="date" class="input-control task-start" value="${defaultStart}" onchange="checkWorkingDay(this)"></div><div class="form-group" style="margin:0; flex:1;"><input type="date" class="input-control task-end" onchange="checkWorkingDay(this)"></div><div class="form-group" style="margin:0; max-width: 40px;"><button class="action-btn danger" onclick="this.parentElement.parentElement.remove()" style="padding: 10px;">X</button></div>`;
@@ -173,17 +164,6 @@ function loadProjects() {
 }
 function formatDateSafe(dateObj) { const y = dateObj.getFullYear(); const m = String(dateObj.getMonth() + 1).padStart(2, '0'); const d = String(dateObj.getDate()).padStart(2, '0'); return `${y}-${m}-${d}`; }
 
-// 取得事件日期 Helper
-function getAdHocDateStr(evt) {
-  if (evt.createdAt && evt.createdAt.toDate) return evt.createdAt.toDate().toISOString().split('T')[0];
-  try {
-    let parts = evt.startDateTime.split(' ')[0].split('/');
-    if(parts.length===3) return `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
-  } catch(e) {}
-  return new Date().toISOString().split('T')[0];
-}
-
-// === 核心渲染邏輯 (加入總覽分支) ===
 function renderProjects() {
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
@@ -207,40 +187,29 @@ function renderProjects() {
     return !isAllDone;
   });
 
-  const filteredAdHocs = userAdHocs.filter(e => {
-    if (currentFilter === 'completed') return e.isCompleted;
-    if (currentFilter === 'delayed') return false; // 事件沒有預設 Delay
-    return !e.isCompleted;
-  });
-
   const tabsContainer = document.getElementById("project-tabs-container");
   const detailView = document.getElementById("project-detail-view");
   const summaryView = document.getElementById("project-summary-view");
   const emptyState = document.getElementById("empty-state");
   tabsContainer.innerHTML = "";
 
-  if (filteredProjects.length === 0 && filteredAdHocs.length === 0) { 
+  if (userProjects.length === 0 && userAdHocs.length === 0) { 
     detailView.style.display = "none"; summaryView.style.display = "none"; emptyState.style.display = "block"; return; 
   }
 
-  // 1. 產生 [⭐ 總覽] 按鈕
   const summaryBtn = document.createElement("button");
   summaryBtn.className = `proj-tab ${selectedProjectId === 'SUMMARY' ? 'active' : ''}`;
-  summaryBtn.innerText = "⭐ 所有專案總覽";
-  summaryBtn.onclick = () => selectProject('SUMMARY');
-  tabsContainer.appendChild(summaryBtn);
+  summaryBtn.innerText = "⭐ 所有專案總覽"; summaryBtn.onclick = () => selectProject('SUMMARY'); tabsContainer.appendChild(summaryBtn);
 
-  // 2. 產生各別專案按鈕
   filteredProjects.forEach(p => {
-    const btn = document.createElement("button");
-    btn.className = `proj-tab ${p.id === selectedProjectId ? 'active' : ''}`;
+    const btn = document.createElement("button"); btn.className = `proj-tab ${p.id === selectedProjectId ? 'active' : ''}`;
     btn.innerText = p.title; btn.onclick = () => selectProject(p.id); tabsContainer.appendChild(btn);
   });
 
   emptyState.style.display = "none"; 
 
   // ==========================
-  // 分支 A：繪製總覽 (Summary)
+  // 分支 A：繪製總覽 (Summary) 所有皆顯示
   // ==========================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; summaryView.style.display = "block";
@@ -249,30 +218,30 @@ function renderProjects() {
     const ganttTasksSum = [];
     let sIdx = 0;
 
-    // A1. 加入專案
-    filteredProjects.forEach(p => {
+    userProjects.forEach(p => {
+      if(!p.tasks || p.tasks.length === 0) return;
       let minStart = "9999-12-31"; let maxEnd = "0000-01-01"; let totalProg = 0;
-      p.tasks.forEach(t => {
-        if (t.start < minStart) minStart = t.start; if (t.end > maxEnd) maxEnd = t.end; totalProg += (t.progress || 0);
-      });
+      p.tasks.forEach(t => { if (t.start < minStart) minStart = t.start; if (t.end > maxEnd) maxEnd = t.end; totalProg += (t.progress || 0); });
       let avgProg = Math.round(totalProg / p.tasks.length);
       let isDone = p.tasks.every(t => t.isCompleted);
       
-      ganttTasksSum.push({ id: `s_p_${sIdx}`, name: p.title, start: minStart, end: maxEnd, progress: avgProg, custom_class: isDone ? 'bar-success' : 'bar-primary' });
+      let projColorClass = p.color || 'bar-primary';
+      ganttTasksSum.push({ id: `s_p_${sIdx}`, name: p.title, start: minStart, end: maxEnd, progress: avgProg, custom_class: isDone ? 'bar-success' : projColorClass });
       
+      let statusText = isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : avgProg+'%';
       const row = document.createElement("div"); row.className = "gantt-row";
-      row.innerHTML = `<div class="col-name" style="flex:2.5" title="${p.title}">📁 ${p.title}</div><div class="col-date" style="flex:1.5; text-align:left;">${minStart.substring(5)} ~ ${maxEnd.substring(5)}</div><div class="col-prog" style="flex:1; justify-content:center;">${isDone ? '<span class="pill pill-success">完成</span>' : avgProg+'%'}</div>`;
+      row.innerHTML = `<div class="col-name" style="flex:2.5" title="${p.title}">📁 ${p.title}</div><div class="col-date" style="flex:1.5; text-align:left;">${minStart.substring(5)} ~ ${maxEnd.substring(5)}</div><div class="col-prog" style="flex:1; justify-content:center;">${statusText}</div>`;
       sumLeftBody.appendChild(row); sIdx++;
     });
 
-    // A2. 加入插單事件 (紅線)
-    filteredAdHocs.forEach(evt => {
-      let eDate = getAdHocDateStr(evt);
+    userAdHocs.forEach(evt => {
+      let eDate = evt.startDate || (evt.createdAt ? evt.createdAt.toDate().toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
       let prog = evt.isCompleted ? 100 : 0;
       ganttTasksSum.push({ id: `s_e_${sIdx}`, name: evt.title, start: eDate, end: eDate, progress: prog, custom_class: 'bar-danger' });
       
+      let statusText = evt.isCompleted ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
       const row = document.createElement("div"); row.className = "gantt-row";
-      row.innerHTML = `<div class="col-name" style="flex:2.5; color:var(--danger);" title="${evt.title}">🚨 ${evt.title}</div><div class="col-date" style="flex:1.5; text-align:left;">${eDate.substring(5)}</div><div class="col-prog" style="flex:1; justify-content:center;">${evt.isCompleted ? '<span class="pill pill-success">完成</span>' : '處理中'}</div>`;
+      row.innerHTML = `<div class="col-name" style="flex:2.5; color:var(--danger);" title="${evt.title}">🚨 ${evt.title}</div><div class="col-date" style="flex:1.5; text-align:left;">${eDate.substring(5)}</div><div class="col-prog" style="flex:1; justify-content:center;">${statusText}</div>`;
       sumLeftBody.appendChild(row); sIdx++;
     });
 
@@ -291,7 +260,7 @@ function renderProjects() {
   // ==========================
   summaryView.style.display = "none"; detailView.style.display = "block";
   const activeProj = filteredProjects.find(p => p.id === selectedProjectId);
-  if(!activeProj) return; // 防呆
+  if(!activeProj) return; 
 
   document.getElementById("current-gantt-title").innerText = `專案：${activeProj.title}`;
   const lockBtn = document.getElementById("btn-toggle-lock");
@@ -311,7 +280,10 @@ function renderProjects() {
   activeProj.tasks.forEach((task, index) => {
     const currentProgress = task.progress || 0;
     const workDays = getWorkingDays(task.start, task.end);
-    ganttTasks.push({ id: `t_${index}`, name: task.name, start: task.start, end: task.end, progress: currentProgress, custom_class: task.isCompleted ? 'bar-success' : '' });
+    
+    // 使用專案選擇的顏色
+    let projColorClass = activeProj.color || 'bar-primary';
+    ganttTasks.push({ id: `t_${index}`, name: task.name, start: task.start, end: task.end, progress: currentProgress, custom_class: task.isCompleted ? 'bar-success' : projColorClass });
 
     const isInputLocked = task.isCompleted || !isOwner; 
     const row = document.createElement("div"); row.className = "gantt-row";
@@ -322,33 +294,30 @@ function renderProjects() {
     `;
     leftBody.appendChild(row);
 
-    // 下半部獨立紀錄 (隱藏起訖，獨立備註欄)
     if (listBody) {
-      let historyHtml = ''; let remarkListHtml = '';
+      let historyHtml = '';
       const historyList = task.history || [];
       if (historyList.length > 0) {
         const sortedHistory = [...historyList].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        
-        historyHtml = `<div style="max-height: 120px; overflow-y: auto; padding-right:4px;">` + 
-          sortedHistory.map(h => `<div style="margin-bottom:8px; border-bottom:1px dashed var(--border-light); padding-bottom:6px;">
-            <span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span> 歷時 <b>${h.daysPassed}</b> 工作天
-          </div>`).join('') + `</div>`;
-
-        remarkListHtml = `<div style="max-height: 120px; overflow-y: auto; padding-right:4px;">` + 
-          sortedHistory.map(h => {
-            let r = '';
-            if (h.type === 'complete' && h.delayReason) r = `<span class="pill pill-danger" style="white-space:normal;">Delay: ${h.delayReason}</span>`;
-            else if (h.remark) r = `<span style="color: var(--text-muted);">${h.remark}</span>`;
-            else r = `<span style="color: #cbd5e1;">-</span>`;
-            return `<div style="margin-bottom:8px; border-bottom:1px dashed var(--border-light); padding-bottom:6px; min-height: 24px;">${r}</div>`;
-          }).join('') + `</div>`;
+        historyHtml = `<div style="max-height: 160px; overflow-y: auto;">` + 
+          `<table style="width:100%; table-layout:fixed; border-collapse:collapse; margin:0; background:transparent;"><colgroup><col style="width:50%;"><col style="width:50%;"></colgroup><tbody>` +
+          sortedHistory.map((h, i) => {
+            let note = h.type === 'create' ? '<span style="color:var(--text-muted)">(建立)</span>' : (h.type === 'complete' ? '<span style="color:var(--success)">(結案)</span>' : '');
+            let remarkHtml = '';
+            if (h.type === 'complete' && h.delayReason) remarkHtml = `<span class="pill pill-danger" style="white-space:normal; word-wrap:break-word;">Delay: ${h.delayReason}</span>`;
+            else if (h.remark) remarkHtml = `<span style="color: var(--text-muted); white-space:normal; word-wrap:break-word;">${h.remark}</span>`;
+            else remarkHtml = `<span style="color: #cbd5e1;">-</span>`;
+            
+            const borderStyle = i === sortedHistory.length - 1 ? "" : "border-bottom:1px dashed var(--border-light);";
+            return `<tr style="${borderStyle}"><td style="padding: 10px 14px 10px 0; vertical-align: top; font-size:12px; border-right: 1px solid var(--border-light);"><span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span><br><div style="margin-top:4px;">歷時 <b>${h.daysPassed}</b> 工作天</div></td><td style="padding: 10px 0 10px 14px; vertical-align: top; font-size:12px;">${remarkHtml}</td></tr>`;
+          }).join('') + `</tbody></table></div>`;
       } else {
-        historyHtml = `<div style="color:var(--text-muted); font-size: 12px;">尚無紀錄</div>`; remarkListHtml = `-`;
+        historyHtml = `<div style="padding: 12px 0; color:var(--text-muted); font-size: 12px;">尚無紀錄</div>`;
       }
 
-      const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="font-size:12px;">已完成</span>` : `<span class="pill pill-warning" style="font-size:12px;">進度: ${task.progress || 0}%</span>`;
+      const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="font-size:13px; padding:6px 10px;">已完成</span>` : `<span style="font-size:13px; font-weight:bold;">進度: ${task.progress || 0}%</span>`;
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td style="vertical-align: top;"><strong>${task.name}</strong></td><td style="vertical-align: top;">${statusHtml}</td><td style="vertical-align: top;">${historyHtml}</td><td style="vertical-align: top;">${remarkListHtml}</td>`;
+      tr.innerHTML = `<td style="vertical-align: top; font-size: 14px;"><strong>${task.name}</strong></td><td style="vertical-align: top;">${statusHtml}</td><td colspan="2" style="padding: 0 16px; vertical-align: top;">${historyHtml}</td>`;
       listBody.appendChild(tr);
     }
   });
@@ -402,6 +371,7 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
     tasks[taskIndex].isCompleted = false; tasks[taskIndex].completedAt = null; 
   }
   tasks[taskIndex].progress = newProg; tasks[taskIndex].lastUpdatedAt = ts;
+
   if (!tasks[taskIndex].history) tasks[taskIndex].history = [];
   tasks[taskIndex].history.push({ timestamp: ts, progress: newProg, type: newProg === 100 ? 'complete' : 'update', daysPassed: passedDays, remark: currentRemark, delayReason: delayReason || "" });
 
@@ -411,6 +381,7 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
 
 document.getElementById("btn-add-project").addEventListener("click", async () => {
   const title = document.getElementById("proj-name").value.trim();
+  const color = document.getElementById("proj-color").value;
   if (!title) return alert("請填寫主專案名稱！");
   const taskRows = document.querySelectorAll('.task-row'); const tasks = [];
   const todayStr = new Date().toISOString().split('T')[0]; const ts = new Date().toLocaleString('zh-TW', { hour12: false });
@@ -423,7 +394,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     tasks.push({ name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '專案建立' }] });
   }
   
-  await addDoc(collection(db, "projects"), { title, ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email, isLocked: true, tasks: tasks, createdAt: serverTimestamp() });
+  await addDoc(collection(db, "projects"), { title, color, ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email, isLocked: true, tasks: tasks, createdAt: serverTimestamp() });
   document.getElementById("proj-name").value = ""; document.getElementById("task-list-container").innerHTML = ""; addTaskRow(); document.getElementById('create-project-section').style.display = 'none'; alert("專案已建立！");
 });
 window.toggleCurrentProjectLock = async () => { await updateDoc(doc(db, "projects", selectedProjectId), { isLocked: !allProjectsData.find(p => p.id === selectedProjectId).isLocked }); };
@@ -436,15 +407,16 @@ function renderAdHocEvents() {
   filtered.forEach(evt => {
     let actionHtml = !evt.isCompleted && evt.ownerId === auth.currentUser.uid ? `<button class="action-btn" onclick="completeAdHoc('${evt.id}')">完成</button>` : '';
     if (currentUserData.role === 'admin' || currentUserData.role === 'top_manager') actionHtml += `<button class="action-btn danger" style="margin-left:4px;" onclick="deleteAdHoc('${evt.id}')">刪除</button>`;
-    const tr = document.createElement("tr"); tr.innerHTML = `<td><strong>${evt.title}</strong></td><td>${evt.reason}</td><td>${evt.startDateTime}</td><td>${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td><td>${actionHtml || '-'}</td>`; tbody.appendChild(tr);
+    const tr = document.createElement("tr"); 
+    tr.innerHTML = `<td><strong>${evt.title}</strong></td><td>${evt.reason}</td><td>${evt.startDate || '-'}</td><td>${evt.completedAt || '-'}</td><td>${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td><td>${actionHtml || '-'}</td>`; tbody.appendChild(tr);
   });
-  if(selectedProjectId === 'SUMMARY' && document.getElementById("tab-projects").style.display === "block") renderProjects(); // 更新總覽
+  if(selectedProjectId === 'SUMMARY' && document.getElementById("tab-projects").style.display === "block") renderProjects(); 
 }
 document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
-  const title = document.getElementById("adhoc-title").value.trim(); const reason = document.getElementById("adhoc-reason").value.trim();
-  if (!title || !reason) return alert("請填寫完整！");
-  await addDoc(collection(db, "ad_hoc_events"), { ownerId: auth.currentUser.uid, title, reason, startDateTime: new Date().toLocaleString(), isCompleted: false, createdAt: serverTimestamp() });
-  document.getElementById("adhoc-title").value = ""; document.getElementById("adhoc-reason").value = ""; alert("事件登記完成！");
+  const title = document.getElementById("adhoc-title").value.trim(); const reason = document.getElementById("adhoc-reason").value.trim(); const start = document.getElementById("adhoc-start").value;
+  if (!title || !reason || !start) return alert("請填寫完整名稱、開始日期與原因！");
+  await addDoc(collection(db, "ad_hoc_events"), { ownerId: auth.currentUser.uid, title, reason, startDate: start, startDateTime: new Date().toLocaleString(), isCompleted: false });
+  document.getElementById("adhoc-title").value = ""; document.getElementById("adhoc-reason").value = ""; document.getElementById("adhoc-start").value = ""; alert("事件登記完成！");
 });
 window.completeAdHoc = async (id) => { await updateDoc(doc(db, "ad_hoc_events", id), { isCompleted: true, completedAt: new Date().toLocaleString() }); };
 window.deleteAdHoc = async (id) => { if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); };
@@ -475,7 +447,8 @@ function loadOrgUsers() {
       if (["top_manager", "manager", "assistant_manager"].includes(u.role)) supervisorSelect.innerHTML += `<option value="${docSnap.id}">${u.name} (${roleNames[u.role] || u.role})</option>`;
     });
     allUsersList.forEach(u => {
-      const supUser = allUsersList.find(x => x.uid === u.supervisorId); const tr = document.createElement("tr");
+      const supUser = allUsersList.find(x => x.uid === u.supervisorId);
+      const tr = document.createElement("tr");
       tr.innerHTML = `<td><strong>${u.name || '未命名'}</strong></td><td>${u.email || '-'}</td><td><span class="pill pill-role">${roleNames[u.role] || u.role}</span></td><td>${supUser ? `${supUser.name}` : "-"}</td><td><button class="action-btn" onclick="openEditModal('${u.uid}')" style="margin-right:6px;">編輯</button>${u.uid !== auth.currentUser.uid ? `<button class="action-btn danger" onclick="deleteUserDoc('${u.uid}', '${u.name}')">刪除</button>` : ''}</td>`;
       tbody.appendChild(tr);
     });
