@@ -2,70 +2,181 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>專案進度系統</title>
   <link rel="stylesheet" href="style.css">
-  <!-- Frappe Gantt CSS -->
+  <!-- Frappe Gantt 樣式 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.css">
 </head>
 <body>
 
-  <!-- 1. 登入區塊 -->
-  <div id="auth-section">
-    <h2>系統登入</h2>
-    <input type="email" id="login-email" placeholder="電子信箱">
-    <input type="password" id="login-password" placeholder="密碼">
-    <button id="btn-login">登入</button>
-  </div>
-
-  <!-- 2. 主操作介面 -->
-  <div id="app-section" style="display:none;">
-    <header>
-      <span id="user-info">載入中...</span>
-      <button id="btn-logout">登出</button>
-    </header>
-
-    <div class="tabs">
-      <button onclick="switchTab('tab-projects')">專案甘特圖</button>
-      <button onclick="switchTab('tab-adhoc')">臨時事件記錄</button>
-      <button onclick="switchTab('tab-weekly')">週報填寫</button>
-    </div>
-
-    <!-- 專案進度與甘特圖分頁 -->
-    <div id="tab-projects" class="tab-content">
-      <h3>新增專案規劃（上傳後將鎖定）</h3>
-      <input type="text" id="proj-name" placeholder="專案名稱">
-      <input type="text" id="task-name" placeholder="細項任務名稱">
-      <input type="date" id="task-start">
-      <input type="date" id="task-end">
-      <button id="btn-add-project">上傳並鎖定專案</button>
-
-      <h3>專案進度列表</h3>
-      <div id="gantt-chart"></div>
-      <div id="project-list"></div>
-    </div>
-
-    <!-- 臨時插單事件分頁 -->
-    <div id="tab-adhoc" class="tab-content" style="display:none;">
-      <h3>新增臨時事件</h3>
-      <input type="text" id="adhoc-title" placeholder="事項名稱">
-      <input type="text" id="adhoc-reason" placeholder="原因說明">
-      <button id="btn-add-adhoc">登記插單事件</button>
-      <div id="adhoc-list"></div>
-    </div>
-
-    <!-- 週報填寫分頁 -->
-    <div id="tab-weekly" class="tab-content" style="display:none;">
-      <h3>填寫週報</h3>
-      <input type="date" id="rep-start"> 至 <input type="date" id="rep-end">
-      <textarea id="rep-content" placeholder="本週工作進度說明..."></textarea>
-      <button id="btn-add-weekly">送出週報</button>
-      <div id="weekly-list"></div>
+  <!-- 1. 登入介面 -->
+  <div id="auth-section" class="login-wrapper">
+    <div class="login-card">
+      <div class="login-header">
+        <h2>設計課專案追蹤系統</h2>
+        <p>請輸入企業帳號密碼登入</p>
+      </div>
+      <div class="form-group">
+        <label>電子信箱</label>
+        <input type="email" id="login-email" class="form-control" placeholder="例：Ryan@design.com">
+      </div>
+      <div class="form-group">
+        <label>密碼</label>
+        <input type="password" id="login-password" class="form-control" placeholder="請輸入密碼">
+      </div>
+      <button id="btn-login" class="btn btn-primary">登入系統</button>
     </div>
   </div>
 
-  <!-- Frappe Gantt JS -->
+  <!-- 2. 主系統後台介面 -->
+  <div id="app-section" class="layout" style="display:none;">
+    
+    <!-- 左側導覽列 -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        📊 DESIGN ERP
+      </div>
+      <ul class="sidebar-menu">
+        <li class="menu-item active" onclick="switchTab('tab-projects', this)">
+          <span>📌 專案進度甘特圖</span>
+        </li>
+        <li class="menu-item" onclick="switchTab('tab-adhoc', this)">
+          <span>⚡ 臨時事件記錄</span>
+        </li>
+        <li class="menu-item" onclick="switchTab('tab-weekly', this)">
+          <span>📝 週報工作記錄</span>
+        </li>
+      </ul>
+    </aside>
+
+    <!-- 右側主要區塊 -->
+    <div class="main-wrapper">
+      <!-- 頂部資訊列 -->
+      <header class="topbar">
+        <div class="page-title" id="current-tab-title">專案進度甘特圖</div>
+        <div class="user-badge">
+          <span id="user-display-name">載入中...</span>
+          <span id="user-role-badge" class="role-tag">Staff</span>
+          <button id="btn-logout" class="btn btn-outline" style="width: auto; padding: 6px 12px; font-size: 13px;">登出</button>
+        </div>
+      </header>
+
+      <!-- 內容視窗 -->
+      <main class="content-area">
+
+        <!-- 分頁 1：專案進度與甘特圖 -->
+        <section id="tab-projects" class="tab-pane">
+          <div class="panel">
+            <div class="panel-title">建立新專案規劃（上傳後鎖定）</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>專案名稱</label>
+                <input type="text" id="proj-name" class="form-control" placeholder="輸入專案名稱">
+              </div>
+              <div class="form-group">
+                <label>細項任務名稱</label>
+                <input type="text" id="task-name" class="form-control" placeholder="任務名稱 (例: 外觀草圖)">
+              </div>
+              <div class="form-group">
+                <label>預計起始日</label>
+                <input type="date" id="task-start" class="form-control">
+              </div>
+              <div class="form-group">
+                <label>預計完成日</label>
+                <input type="date" id="task-end" class="form-control">
+              </div>
+            </div>
+            <button id="btn-add-project" class="btn btn-primary" style="width: 200px; margin-top: 10px;">提交並鎖定</button>
+          </div>
+
+          <div class="panel">
+            <div class="panel-title">進度甘特圖</div>
+            <div id="gantt-chart" style="overflow-x: auto; padding-bottom: 10px;"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-title">專案列表與簽核狀態</div>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>專案 / 任務</th>
+                    <th>負責人</th>
+                    <th>預計起訖</th>
+                    <th>狀態</th>
+                    <th>完成/Delay 紀錄</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="project-list-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 分頁 2：臨時事件 -->
+        <section id="tab-adhoc" class="tab-pane" style="display:none;">
+          <div class="panel">
+            <div class="panel-title">登記臨時插單事件</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>事項名稱</label>
+                <input type="text" id="adhoc-title" class="form-control" placeholder="緊急修改事項">
+              </div>
+              <div class="form-group">
+                <label>原因說明</label>
+                <input type="text" id="adhoc-reason" class="form-control" placeholder="插單原因說明">
+              </div>
+            </div>
+            <button id="btn-add-adhoc" class="btn btn-primary" style="width: 200px; margin-top: 10px;">送出登記</button>
+          </div>
+          <div class="panel">
+            <div class="panel-title">臨時事件清單</div>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>事項</th>
+                    <th>原因</th>
+                    <th>登記時間</th>
+                    <th>狀態</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="adhoc-list-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 分頁 3：週報 -->
+        <section id="tab-weekly" class="tab-pane" style="display:none;">
+          <div class="panel">
+            <div class="panel-title">填寫本週工作週報</div>
+            <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+              <div class="form-group">
+                <label>開始日期</label>
+                <input type="date" id="rep-start" class="form-control">
+              </div>
+              <div class="form-group">
+                <label>結束日期</label>
+                <input type="date" id="rep-end" class="form-control">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>本週工作進度說明</label>
+              <textarea id="rep-content" class="form-control" rows="4" placeholder="詳細說明本週完成工作項目..."></textarea>
+            </div>
+            <button id="btn-add-weekly" class="btn btn-primary" style="width: 200px;">送出週報</button>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.js"></script>
-  <!-- 主程式腳本 -->
   <script type="module" src="app.js"></script>
 </body>
 </html>
