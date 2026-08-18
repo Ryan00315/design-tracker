@@ -34,12 +34,18 @@ let currentFilter = 'ongoing';
 let selectedProjectId = null;
 let ganttInstance = null;
 
+// === 介面切換 (加入防甘特圖消失保護) ===
 window.switchNav = (tabId, title, elem) => {
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById(tabId).style.display = 'block';
   if (elem) elem.classList.add('active');
   document.getElementById('current-title').innerText = title;
+
+  // 【防呆保護】：如果切換回專案進度，強制重新渲染甘特圖，避免 display:none 造成寬度被擠壓成 0 導致消失
+  if (tabId === 'tab-projects') {
+    setTimeout(renderProjects, 100);
+  }
 };
 
 document.getElementById('btn-toggle-create').addEventListener('click', () => {
@@ -61,6 +67,7 @@ function getWorkingDays(startDate, endDate) {
   return count;
 }
 
+// === 登入監聽 ===
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     document.getElementById("auth-section").style.display = "none";
@@ -165,17 +172,11 @@ function getNextWorkingDayStr(dateStr) {
   while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
   return d.toISOString().split('T')[0];
 }
-
-// 阻擋選擇六日
 window.checkWorkingDay = (input) => {
   if (!input.value) return;
   const d = new Date(input.value);
-  if (d.getDay() === 0 || d.getDay() === 6) { 
-    alert("系統規定僅能選擇工作日 (週一至週五)！"); 
-    input.value = ''; 
-  }
+  if (d.getDay() === 0 || d.getDay() === 6) { alert("僅能選擇工作日！"); input.value = ''; }
 };
-
 window.addTaskRow = () => {
   const container = document.getElementById("task-list-container");
   const rows = container.querySelectorAll('.task-row');
@@ -185,6 +186,7 @@ window.addTaskRow = () => {
   container.appendChild(div);
 };
 
+// === 專案邏輯 ===
 window.setProjectFilter = (status) => {
   currentFilter = status;
   document.getElementById('filter-ongoing').classList.toggle('active', status === 'ongoing');
@@ -297,8 +299,14 @@ function renderProjects() {
   if (ganttTasks.length > 0) {
     const chartContainer = document.getElementById("gantt-chart-container");
     chartContainer.className = activeProj.isLocked ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
-    document.getElementById("gantt-chart").innerHTML = "";
+    
+    // 【防呆保護】：徹底清除舊有的甘特圖 DOM，避免消失或殘留破圖
+    chartContainer.innerHTML = '<div id="gantt-chart"></div>';
+    
     setTimeout(() => {
+      // 若目前切換到別的分頁導致 display:none，就不繪製避免寬度變成 0
+      if (document.getElementById("tab-projects").style.display === "none") return;
+
       ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
         view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18,
         on_date_change: async (task, start, end) => {
@@ -313,7 +321,7 @@ function renderProjects() {
           await updateDoc(doc(db, "projects", activeProj.id), { tasks: proj.tasks });
         }
       });
-    }, 50);
+    }, 150); // 稍微加長等待時間確保 DOM 撐開
   }
 }
 
@@ -327,10 +335,9 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
 
   if (newProg < oldProg) { alert(`錯誤：進度不能往回調整！`); inputElem.value = oldProg; return; }
 
-  // 紀錄最新操作的時間
   tasks[taskIndex].lastUpdatedAt = new Date().toLocaleString();
-
   let delayReason = tasks[taskIndex].delayReason || "";
+  
   if (newProg === 100) {
     const today = new Date().toISOString().split('T')[0];
     if (today > plannedEnd && !delayReason) {
@@ -338,7 +345,7 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
       if (!delayReason) { inputElem.value = oldProg; return alert("必須填寫原因才能完成！"); }
     }
     tasks[taskIndex].isCompleted = true; 
-    tasks[taskIndex].completedAt = tasks[taskIndex].lastUpdatedAt; // 100%時，將完成時間設為當下
+    tasks[taskIndex].completedAt = tasks[taskIndex].lastUpdatedAt;
     tasks[taskIndex].delayReason = delayReason;
     alert("🎉 進度已達 100%！");
   } else { 
@@ -359,7 +366,6 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     const name = row.querySelector('.task-name').value.trim(); const start = row.querySelector('.task-start').value; const end = row.querySelector('.task-end').value;
     if (!name || !start || !end) return alert("任務細項不可有空白欄位！");
     if (start > end) return alert(`任務 [${name}] 的起始日不可大於完成日！`);
-    // 初始化加入 lastUpdatedAt
     tasks.push({ name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: null });
   }
   await addDoc(collection(db, "projects"), { title, ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email, isLocked: true, tasks: tasks, createdAt: serverTimestamp() });
