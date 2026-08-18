@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { 
   getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
-  updatePassword, createUserWithEmailAndPassword
+  updatePassword, createUserWithEmailAndPassword, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 import { 
   getFirestore, doc, getDoc, setDoc, deleteDoc, collection, addDoc, updateDoc, 
@@ -178,6 +178,9 @@ window.setProjectFilter = (status) => {
 
 window.selectProject = (projId) => { selectedProjectId = projId; renderProjects(); };
 
+// ==========================================
+// 🚀 核心優化：絕對防呆取得可回報任務
+// ==========================================
 window.getAvailableTasks = (projId) => {
   const proj = allProjectsData.find(p => p.id === projId);
   if(!proj || !proj.tasks) return [];
@@ -258,11 +261,8 @@ function renderProjects() {
     return !e.isCompleted;
   });
 
-  // 【核心修復】：確保 selectedProjectId 永遠合法，不會指向消失的專案導致畫面當機
   if (selectedProjectId !== 'SUMMARY') {
-    if (!filteredProjects.find(p => p.id === selectedProjectId)) {
-      selectedProjectId = 'SUMMARY';
-    }
+    if (!filteredProjects.find(p => p.id === selectedProjectId)) selectedProjectId = 'SUMMARY';
   }
 
   const tabsContainer = document.getElementById("project-tabs-container");
@@ -286,9 +286,7 @@ function renderProjects() {
 
   emptyState.style.display = "none"; 
 
-  // ==========================
-  // 分支 A：繪製總覽 (Summary) 所有皆顯示
-  // ==========================
+  // 總覽
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; summaryView.style.display = "block";
     const sumLeftBody = document.getElementById("gantt-summary-left-body");
@@ -333,9 +331,7 @@ function renderProjects() {
     return;
   }
 
-  // ==========================
-  // 分支 B：繪製個別專案詳細
-  // ==========================
+  // 個別專案
   summaryView.style.display = "none"; detailView.style.display = "block";
   const activeProj = filteredProjects.find(p => p.id === selectedProjectId);
   if(!activeProj) return; 
@@ -383,7 +379,6 @@ function renderProjects() {
             if (h.type === 'complete' && h.delayReason) remarkHtml = `<span class="pill pill-danger" style="white-space:normal; word-wrap:break-word;">Delay: ${h.delayReason}</span>`;
             else if (h.remark) remarkHtml = `<span style="color: var(--text-muted); white-space:normal; word-wrap:break-word;">${h.remark}</span>`;
             else remarkHtml = `<span style="color: #cbd5e1;">-</span>`;
-            
             const borderStyle = i === sortedHistory.length - 1 ? "" : "border-bottom:1px dashed var(--border-light);";
             return `<tr style="${borderStyle}"><td style="padding: 10px 14px 10px 0; vertical-align: top; font-size:12px; border-right: 1px solid var(--border-light);"><span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span><br><div style="margin-top:4px;">歷時 <b>${h.daysPassed}</b> 工作天</div></td><td style="padding: 10px 0 10px 14px; vertical-align: top; font-size:12px;">${remarkHtml}</td></tr>`;
           }).join('') + `</tbody></table></div>`;
@@ -455,7 +450,6 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   if(newProg !== 100) alert(`進度已更新為 ${newProg}%`);
 };
 
-// === 🚀 修復：新增專案後自動跳轉至該專案 ===
 document.getElementById("btn-add-project").addEventListener("click", async () => {
   const title = document.getElementById("proj-name").value.trim();
   const color = document.getElementById("proj-color").value;
@@ -487,21 +481,16 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
 
   document.getElementById("proj-name").value = ""; document.getElementById("task-list-container").innerHTML = ""; addTaskRow(); document.getElementById('create-project-section').style.display = 'none';
   
-  // 強制切換到「未完成專案」並聚焦在剛新增的專案上
   currentFilter = 'ongoing';
   document.getElementById('filter-ongoing').classList.add('active');
   document.getElementById('filter-completed').classList.remove('active');
   document.getElementById('filter-delayed').classList.remove('active');
   selectedProjectId = newProjId;
-  
-  // renderProjects() 會在 onSnapshot 觸發時自動帶入這個 selectedProjectId
 });
-
 window.toggleCurrentProjectLock = async () => { await updateDoc(doc(db, "projects", selectedProjectId), { isLocked: !allProjectsData.find(p => p.id === selectedProjectId).isLocked }); };
 window.deleteCurrentProject = async () => { if (!confirm("⚠️ 確定要永久刪除此專案嗎？")) return; await deleteDoc(doc(db, "projects", selectedProjectId)); alert("專案已刪除！"); selectedProjectId = 'SUMMARY'; renderProjects(); };
 
-// === 臨時事件 ===
-function loadAdHocEvents() { onSnapshot(query(collection(db, "ad_hoc_events")), (snapshot) => { allAdHocData = []; snapshot.forEach(docSnap => allAdHocData.push({ id: docSnap.id, ...docSnap.data() })); renderAdHocEvents(); }); }
+function loadAdHocEvents() { onSnapshot(query(collection(db, "ad_hoc_events")), (snapshot) => { allAdHocData = []; snapshot.forEach(docSnap => allAdHocData.push({ id: docSnap.id, ...docSnap.data() }); renderAdHocEvents(); }); }
 function renderAdHocEvents() {
   const tbody = document.getElementById("adhoc-list-tbody"); tbody.innerHTML = "";
   const filtered = allAdHocData.filter(e => e.ownerId === viewingUserId);
@@ -516,13 +505,16 @@ function renderAdHocEvents() {
 document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
   const title = document.getElementById("adhoc-title").value.trim(); const reason = document.getElementById("adhoc-reason").value.trim(); const start = document.getElementById("adhoc-start").value;
   if (!title || !reason || !start) return alert("請填寫完整名稱、開始日期與原因！");
-  await addDoc(collection(db, "ad_hoc_events"), { ownerId: auth.currentUser.uid, title, reason, startDate: start, startDateTime: new Date().toLocaleString(), isCompleted: false, createdAt: serverTimestamp() });
+  await addDoc(collection(db, "ad_hoc_events"), { ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email, title, reason, startDate: start, startDateTime: new Date().toLocaleString(), isCompleted: false, createdAt: serverTimestamp() });
   document.getElementById("adhoc-title").value = ""; document.getElementById("adhoc-reason").value = ""; document.getElementById("adhoc-start").value = ""; alert("事件登記完成！");
 });
 window.completeAdHoc = async (id) => { await updateDoc(doc(db, "ad_hoc_events", id), { isCompleted: true, completedAt: new Date().toLocaleString() }); };
 window.deleteAdHoc = async (id) => { if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); };
 
-// === 週報填寫 ===
+
+// ==========================================
+// 🚀 週報系統
+// ==========================================
 window.populateWeeklyProjSelect = (selectElem) => {
   selectElem.innerHTML = '<option value="">-- 請選擇主專案 --</option>';
   const myProjs = allProjectsData.filter(p => p.ownerId === auth.currentUser.uid);
@@ -597,6 +589,7 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
   alert("週報已送出！已結案(100%)的項目將不再出現在下次選單中。");
 });
 window.deleteWeekly = async (id) => { if(confirm("確定永久刪除此週報嗎？")) await deleteDoc(doc(db, "weekly_reports", id)); };
+
 window.openWeeklyModal = (id) => {
   currentWeeklyReportId = id; const report = allWeeklyData.find(w => w.id === id); if(!report) return;
   let contentHtml = `<div style="margin-bottom:16px;"><div style="font-size:16px; font-weight:bold; margin-bottom:4px;">${report.ownerName} 的工作週報</div><div style="font-size:13px; color:var(--text-muted);">週報日期：${report.reportDate || report.startDate || '-'}</div></div>`;
@@ -622,6 +615,44 @@ window.markWeeklyNoted = async (type) => {
   closeWeeklyModal(); alert('已成功標記為 Noted (已閱)！');
 };
 
+
+// ==========================================
+// 🚀 組織管理與資料救援功能
+// ==========================================
+window.resetUserPassword = (email) => {
+  if (confirm(`確定要發送「重設密碼」信件至 ${email} 嗎？\n系統將寄送一封專屬連結信件，員工點擊後即可自行重設密碼。`)) {
+    sendPasswordResetEmail(auth, email)
+      .then(() => alert(`✅ 重設密碼信件已成功發送至：${email}\n請員工前往信箱收信。`))
+      .catch(err => alert("發送失敗: " + err.message));
+  }
+};
+
+window.rescueUserProjects = async (uid, userName) => {
+  if (!userName) return alert("請先為該人員設定姓名！");
+  if (!confirm(`【資料救援】\n即將掃描系統中所有署名為「${userName}」的舊專案與週報，並強制重新綁定到此新帳號。\n若您是因為重建帳號導致資料消失，點擊確定即可救回！`)) return;
+  
+  try {
+    let pCount = 0, wCount = 0;
+    for (let p of allProjectsData) {
+      if (p.ownerName === userName && p.ownerId !== uid) {
+        await updateDoc(doc(db, "projects", p.id), { ownerId: uid }); pCount++;
+      }
+    }
+    for (let w of allWeeklyData) {
+      if (w.ownerName === userName && w.ownerId !== uid) {
+        await updateDoc(doc(db, "weekly_reports", w.id), { ownerId: uid }); wCount++;
+      }
+    }
+    // 救援事件紀錄
+    for (let a of allAdHocData) {
+      if (a.ownerName === userName && a.ownerId !== uid) {
+        await updateDoc(doc(db, "ad_hoc_events", a.id), { ownerId: uid });
+      }
+    }
+    alert(`🎉 救援成功！\n已為「${userName}」找回：\n- ${pCount} 個專案\n- ${wCount} 份週報\n請重新點擊左側人員檢視查看。`);
+  } catch (err) { alert("救援失敗：" + err.message); }
+};
+
 function loadOrgUsers() {
   onSnapshot(collection(db, "users"), (snapshot) => {
     const tbody = document.getElementById("user-list-tbody"); const supervisorSelect = document.getElementById("new-user-supervisor");
@@ -632,7 +663,17 @@ function loadOrgUsers() {
     });
     allUsersList.forEach(u => {
       const supUser = allUsersList.find(x => x.uid === u.supervisorId); const tr = document.createElement("tr");
-      tr.innerHTML = `<td><strong>${u.name || '未命名'}</strong></td><td>${u.email || '-'}</td><td><span class="pill pill-role">${roleNames[u.role] || u.role}</span></td><td>${supUser ? `${supUser.name}` : "-"}</td><td><button class="action-btn" onclick="openEditModal('${u.uid}')" style="margin-right:6px;">編輯</button>${u.uid !== auth.currentUser.uid ? `<button class="action-btn danger" onclick="deleteUserDoc('${u.uid}', '${u.name}')">刪除</button>` : ''}</td>`;
+      tr.innerHTML = `
+        <td><strong>${u.name || '未命名'}</strong></td>
+        <td>${u.email || '-'}</td>
+        <td><span class="pill pill-role">${roleNames[u.role] || u.role}</span></td>
+        <td>${supUser ? `${supUser.name}` : "-"}</td>
+        <td>
+          <button class="action-btn" onclick="openEditModal('${u.uid}')" style="margin-right:4px;">編輯</button>
+          <button class="action-btn" onclick="resetUserPassword('${u.email}')" style="margin-right:4px;">重設密碼</button>
+          <button class="action-btn" onclick="rescueUserProjects('${u.uid}', '${u.name}')" style="margin-right:4px; border-color:#f59e0b; color:#f59e0b;" title="找回因重建帳號遺失的資料">找回資料</button>
+          ${u.uid !== auth.currentUser.uid ? `<button class="action-btn danger" onclick="deleteUserDoc('${u.uid}', '${u.name}')">刪除</button>` : ''}
+        </td>`;
       tbody.appendChild(tr);
     });
   });
