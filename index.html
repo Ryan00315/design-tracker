@@ -20,8 +20,22 @@
 
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v4.5</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v5.0</span></div>
       <ul class="nav-list">
+        
+        <!-- 人員檢視切換 (下拉式) -->
+        <div id="nav-sub-wrapper" style="display:none; margin-bottom: 8px;">
+          <li class="nav-item" onclick="toggleSubMenu()">
+            <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span style="flex:1;">人員檢視切換</span>
+            <svg id="sub-menu-arrow" viewBox="0 0 24 24" style="width:16px; height:16px; transition:0.2s;"><polyline points="6 9 12 15 18 9"/></svg>
+          </li>
+          <ul class="nav-sub-list" id="nav-sub-list">
+            <!-- JS 動態生成人員名單 -->
+          </ul>
+        </div>
+        
+        <!-- 主要分頁 -->
         <li class="nav-item active" onclick="switchNav('tab-projects', '專案進度', this)">
           <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-3 3"/></svg><span>專案進度</span>
         </li>
@@ -31,16 +45,17 @@
         <li class="nav-item" onclick="switchNav('tab-weekly', '週報填寫', this)">
           <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg><span>週報填寫</span>
         </li>
+        
         <li class="nav-divider" id="nav-divider-org" style="display:none;"></li>
         <li class="nav-item" id="nav-org-manage" style="display:none;" onclick="switchNav('tab-org', '組織架構與人員管理', this)">
-          <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>組織架構管理</span>
+          <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span>組織架構管理</span>
         </li>
       </ul>
     </aside>
 
     <div class="main-wrapper">
       <header class="top-header">
-        <div class="breadcrumb">PMS / <b id="current-title">專案進度</b></div>
+        <div class="breadcrumb">PMS / <b id="current-title">專案進度</b> <span id="viewing-user-name" style="color:var(--primary); margin-left:8px; font-size:13px;"></span></div>
         <div class="header-right">
           <div class="user-info-box">
             <div class="avatar" id="user-avatar">R</div>
@@ -57,33 +72,17 @@
         
         <!-- 分頁 1：專案進度 -->
         <div id="tab-projects" class="tab-pane">
-          <!-- 主管視角的部屬切換標籤 (預設隱藏) -->
-          <div id="subordinate-selector" class="sub-tabs-wrapper" style="display:none;">
-            <span class="sub-tabs-label">人員檢視切換：</span>
-            <div id="sub-tabs-container" style="display: flex; gap: 8px;"></div>
-          </div>
-
           <div style="display: flex; justify-content: space-between; align-items: stretch; margin-bottom: 24px; gap: 20px;">
             <div class="kpi-row" style="margin: 0;">
-              <div class="kpi-card active" id="filter-ongoing" onclick="setProjectFilter('ongoing')">
-                <div class="kpi-title">未完成專案</div>
-                <div class="kpi-number" id="stat-ongoing">0</div>
-              </div>
-              <div class="kpi-card" id="filter-completed" onclick="setProjectFilter('completed')">
-                <div class="kpi-title">已完成專案</div>
-                <div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div>
-              </div>
-              <div class="kpi-card" id="filter-delayed" onclick="setProjectFilter('delayed')">
-                <div class="kpi-title">延遲 (Delay) 專案</div>
-                <div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div>
-              </div>
+              <div class="kpi-card active" id="filter-ongoing" onclick="setProjectFilter('ongoing')"><div class="kpi-title">未完成專案</div><div class="kpi-number" id="stat-ongoing">0</div></div>
+              <div class="kpi-card" id="filter-completed" onclick="setProjectFilter('completed')"><div class="kpi-title">已完成專案</div><div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div></div>
+              <div class="kpi-card" id="filter-delayed" onclick="setProjectFilter('delayed')"><div class="kpi-title">延遲 (Delay) 專案</div><div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div></div>
             </div>
             <div style="display: flex; align-items: center;" id="btn-create-wrapper">
               <button id="btn-toggle-create" class="btn-primary" style="height: 100%; padding: 0 24px; font-size: 15px;">➕ 新增專案規劃</button>
             </div>
           </div>
 
-          <!-- 新增專案區塊 -->
           <div id="create-project-section" class="section-panel" style="display:none; border: 2px solid var(--primary-soft);">
             <div class="panel-head">建立專案與任務規劃 (送出後即鎖定)</div>
             <div class="form-group"><label class="form-label">主專案名稱</label><input type="text" id="proj-name" class="input-control" placeholder="例：2026 產品外觀設計案" style="max-width: 400px;"></div>
@@ -99,44 +98,26 @@
             <div class="section-panel" style="padding: 0; background: transparent; border: none; box-shadow: none;">
               <div class="panel-head" style="margin-bottom: 8px;">
                 <span id="current-gantt-title">專案時程檢視</span>
-                <button id="btn-toggle-lock" class="action-btn danger" style="display:none;" onclick="toggleCurrentProjectLock()"></button>
+                <div>
+                  <button id="btn-toggle-lock" class="action-btn danger" style="display:none; margin-right: 6px;" onclick="toggleCurrentProjectLock()"></button>
+                  <button id="btn-delete-project" class="action-btn danger" style="display:none;" onclick="deleteCurrentProject()">刪除專案</button>
+                </div>
               </div>
-              
               <div class="gantt-master-layout">
                 <div class="gantt-left-panel">
-                  <div class="gantt-head">
-                    <div class="col-name">細項名稱</div>
-                    <div class="col-date">預計天數</div>
-                    <div class="col-prog">進度</div>
-                    <div class="col-act">確認</div>
-                  </div>
+                  <div class="gantt-head"><div class="col-name">細項名稱</div><div class="col-date">預計天數</div><div class="col-prog">進度</div><div class="col-act">確認</div></div>
                   <div class="gantt-body" id="gantt-left-body"></div>
                 </div>
-                <div class="gantt-right-panel" id="gantt-chart-container">
-                  <div id="gantt-chart"></div>
-                </div>
-              </div>
-            </div>
-            
-            <!-- 任務列表 (選填，保留原始數據追蹤用) -->
-            <div class="section-panel" style="margin-top: 20px;">
-              <div class="panel-head">任務清單與 Delay 紀錄</div>
-              <div class="table-responsive">
-                <table>
-                  <thead><tr><th>任務名稱</th><th>起訖日期 (工作天)</th><th>狀態</th><th>完成/Delay 紀錄</th></tr></thead>
-                  <tbody id="project-list-tbody"></tbody>
-                </table>
+                <div class="gantt-right-panel" id="gantt-chart-container"><div id="gantt-chart"></div></div>
               </div>
             </div>
           </div>
-          
           <div id="empty-state" style="text-align: center; padding: 40px; color: var(--text-muted); display: none;">此分類下目前沒有專案。</div>
         </div>
 
-        <!-- 其他分頁維持不變... -->
         <!-- 分頁 2：事件紀錄 -->
         <div id="tab-adhoc" class="tab-pane" style="display:none;">
-          <div class="section-panel">
+          <div class="section-panel" id="adhoc-form-panel">
             <div class="panel-head">登記臨時插單事件</div>
             <div class="form-row">
               <div class="form-group" style="flex:1;"><label class="form-label">事項名稱</label><input type="text" id="adhoc-title" class="input-control" placeholder="緊急樣品修改"></div>
@@ -157,17 +138,23 @@
 
         <!-- 分頁 3：週報填寫 -->
         <div id="tab-weekly" class="tab-pane" style="display:none;">
-          <div class="section-panel">
+          <div class="section-panel" id="weekly-form-panel">
             <div class="panel-head">填寫本週工作週報</div>
             <div class="form-row" style="grid-template-columns: 1fr 1fr;">
               <div class="form-group"><label class="form-label">起始日期</label><input type="date" id="rep-start" class="input-control"></div>
               <div class="form-group"><label class="form-label">結束日期</label><input type="date" id="rep-end" class="input-control"></div>
             </div>
-            <div class="form-group">
-              <label class="form-label">本週進度說明</label>
-              <textarea id="rep-content" class="input-control" rows="5" placeholder="條列本週進度、遭遇問題與下週規劃..."></textarea>
-            </div>
+            <div class="form-group"><label class="form-label">本週進度說明</label><textarea id="rep-content" class="input-control" rows="5" placeholder="條列本週進度、遭遇問題與下週規劃..."></textarea></div>
             <button id="btn-add-weekly" class="btn-primary" style="width: 160px;">送出週報</button>
+          </div>
+          <div class="section-panel">
+            <div class="panel-head">歷史週報清單</div>
+            <div class="table-responsive">
+              <table>
+                <thead><tr><th>起訖日期</th><th>進度說明</th><th>送出時間</th><th>操作</th></tr></thead>
+                <tbody id="weekly-list-tbody"></tbody>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -213,8 +200,8 @@
     </div>
   </div>
 
-  <!-- 管理員編輯人員視窗 (Modal) -->
   <div id="edit-user-modal" class="modal-overlay">
+    <!-- Modal 內容同前... -->
     <div class="modal-box">
       <div class="modal-header"><span>編輯人員組織資訊</span><button class="btn-close" onclick="closeEditModal()">×</button></div>
       <div class="form-group"><label class="form-label">姓名</label><input type="text" id="edit-user-name" class="input-control"></div>
