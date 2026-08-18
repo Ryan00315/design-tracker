@@ -39,11 +39,16 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-// 登入事件
+// 登入按鈕事件：完全由使用者在畫面上輸入，不寫死任何帳號密碼
 document.getElementById("btn-login").addEventListener("click", () => {
   const email = document.getElementById("login-email").value;
   const pass = document.getElementById("login-password").value;
-  signInWithEmailAndPassword(auth, email, pass).catch(err => alert("登入失敗: " + err.message));
+  
+  signInWithEmailAndPassword(auth, email, pass)
+    .then(() => {
+      alert("登入成功！");
+    })
+    .catch(err => alert("登入失敗: " + err.message));
 });
 
 // 登出事件
