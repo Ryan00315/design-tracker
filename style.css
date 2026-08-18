@@ -3,7 +3,6 @@
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, sans-serif; }
 body { background: var(--bg-page); color: var(--text-main); height: 100vh; overflow: hidden; }
 
-/* 登入頁 */
 .login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 10% 20%, #1e293b 0%, #0f172a 100%); padding: 24px; }
 .login-box { width: 100%; max-width: 420px; background: var(--surface); border-radius: var(--radius-lg); padding: 36px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
 .brand-logo-area { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
@@ -16,20 +15,29 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .btn-primary { width: 100%; background: var(--primary); color: white; padding: 11px; font-size: 14px; font-weight: 600; border: none; border-radius: var(--radius-md); cursor: pointer; transition: 0.2s; }
 .btn-primary:hover { background: var(--primary-hover); }
 
-/* 主後台 */
 .app-container { display: flex; height: 100vh; }
-.sidebar { width: 250px; background: var(--sidebar-bg); color: white; display: flex; flex-direction: column; flex-shrink: 0; border-right: 1px solid rgba(255,255,255,0.06); }
-.sidebar-header { height: 64px; display: flex; align-items: center; padding: 0 20px; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 16px; font-weight: 700; }
+.sidebar { width: 250px; background: var(--sidebar-bg); color: white; display: flex; flex-direction: column; flex-shrink: 0; border-right: 1px solid rgba(255,255,255,0.06); overflow-y: auto;}
+.sidebar-header { height: 64px; flex-shrink: 0; display: flex; align-items: center; padding: 0 20px; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 16px; font-weight: 700; }
 .version-tag { background: #334155; color: #94a3b8; font-size: 11px; padding: 2px 6px; border-radius: 4px; }
 .nav-list { list-style: none; padding: 16px 10px; flex: 1; display: flex; flex-direction: column; gap: 4px; }
-.nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--radius-md); color: #94a3b8; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s ease; }
-.nav-item svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; }
+.nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--radius-md); color: #94a3b8; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s ease; user-select: none;}
+.nav-item svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; flex-shrink: 0;}
 .nav-item:hover { background: var(--sidebar-hover); color: #f8fafc; }
 .nav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 600; }
-.nav-divider { height: 1px; background: rgba(255, 255, 255, 0.08); margin: 12px 14px; }
+.nav-divider { height: 1px; background: rgba(255, 255, 255, 0.08); margin: 12px 14px; flex-shrink: 0;}
+
+/* 左側子選單 (人員切換) */
+.nav-sub-list { list-style: none; padding: 0; margin: 0; display: none; flex-direction: column; gap: 2px; background: rgba(0,0,0,0.2); border-radius: var(--radius-md); overflow: hidden; margin-top: 4px;}
+.nav-sub-item { padding: 10px 14px 10px 44px; color: #94a3b8; font-size: 13px; font-weight: 500; cursor: pointer; transition: 0.15s; position: relative;}
+.nav-sub-item::before { content: ''; position: absolute; left: 22px; top: 50%; transform: translateY(-50%); width: 6px; height: 6px; border-radius: 50%; background: #475569; transition: 0.2s;}
+.nav-sub-item:hover { color: #f8fafc; background: rgba(255,255,255,0.05); }
+.nav-sub-item.active { color: #fff; font-weight: 600; background: var(--sidebar-active); }
+.nav-sub-item.active::before { background: #fff; }
+.nav-menu-open .nav-sub-list { display: flex; }
+.nav-menu-open #sub-menu-arrow { transform: rotate(180deg); }
 
 .main-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-page); }
-.top-header { height: 64px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; }
+.top-header { height: 64px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; flex-shrink:0;}
 .breadcrumb { font-size: 14px; color: var(--text-muted); }
 .breadcrumb b { color: var(--text-main); font-weight: 600; }
 .header-right { display: flex; align-items: center; gap: 14px; }
@@ -42,14 +50,6 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .btn-logout:hover { background: #f1f5f9; }
 .content-body { flex: 1; padding: 28px; overflow-y: auto; }
 
-/* 部屬切換區 (主管專用) */
-.sub-tabs-wrapper { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; align-items: center; }
-.sub-tabs-label { font-size: 13px; font-weight: 600; color: var(--text-muted); }
-.sub-tab { padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); transition: 0.2s; white-space: nowrap; }
-.sub-tab:hover { border-color: var(--sidebar-hover); color: var(--sidebar-hover); }
-.sub-tab.active { background: var(--sidebar-hover); color: #fff; border-color: var(--sidebar-hover); }
-
-/* 頂部數據看板與新增按鈕佈局 */
 .kpi-row { display: flex; gap: 16px; flex: 1; }
 .kpi-card { background: var(--surface); padding: 18px 20px; border-radius: var(--radius-lg); border: 2px solid transparent; box-shadow: var(--shadow-sm); cursor: pointer; transition: all 0.2s ease; flex: 1; }
 .kpi-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
@@ -57,7 +57,6 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .kpi-title { font-size: 13px; color: var(--text-muted); font-weight: 600; }
 .kpi-number { font-size: 26px; font-weight: 700; color: var(--text-main); margin-top: 6px; }
 
-/* 專案分頁標籤 */
 .project-tabs-wrapper { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
 .proj-tab { padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); transition: 0.2s; white-space: nowrap; }
 .proj-tab:hover { border-color: var(--primary); color: var(--primary); }
@@ -67,7 +66,6 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .panel-head { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
 .form-row { display: flex; gap: 14px; align-items: flex-start; }
 
-/* ================= 核心：完美側邊合併甘特圖 ================= */
 .gantt-master-layout { display: flex; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); overflow: hidden; margin-top: 10px; box-shadow: var(--shadow-sm); }
 .gantt-left-panel { width: 340px; border-right: 1px solid var(--border); flex-shrink: 0; background: #fff; z-index: 10; display: flex; flex-direction: column; }
 .gantt-head { height: 50px; display: flex; border-bottom: 1px solid var(--border); background: #f8fafc; align-items: center; font-size: 12px; font-weight: 600; color: var(--text-muted); }
@@ -82,7 +80,6 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .col-prog input:disabled { background: #f1f5f9; color: var(--success); border-color: transparent; }
 .col-act { width: 55px; padding: 0 8px; text-align: center; }
 
-/* 右側甘特圖區域設定 */
 .gantt-right-panel { flex: 1; overflow-x: auto; background: #fff; min-width: 0; }
 #gantt-chart { min-width: 100%; }
 .gantt .bar-label { display: none !important; }
@@ -90,7 +87,6 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .bar-success .bar { fill: #10b981 !important; }
 .bar-success .bar-progress { fill: #059669 !important; }
 
-/* 表格與標籤 */
 .table-responsive { overflow-x: auto; margin-top: 10px; }
 table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
 th { background: #f8fafc; color: var(--text-muted); font-weight: 600; padding: 12px 16px; border-bottom: 1px solid var(--border); }
@@ -106,11 +102,8 @@ tr:hover td { background: #fafafa; }
 .action-btn:disabled { opacity: 0.5; cursor: not-allowed; background: #f1f5f9; color: var(--text-muted); border-color: transparent; }
 .action-btn.danger { color: var(--danger); border-color: #fca5a5; }
 .action-btn.danger:hover:not(:disabled) { background: var(--danger-bg); }
-
-/* 縮小的確認按鈕 */
 .action-btn.btn-sm { padding: 4px 8px; font-size: 11px; border-radius: 4px; }
 
-/* Modal 樣式 */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; pointer-events: none; transition: all 0.2s ease; }
 .modal-overlay.active { opacity: 1; pointer-events: auto; }
 .modal-box { background: var(--surface); width: 100%; max-width: 480px; border-radius: var(--radius-lg); padding: 28px; box-shadow: var(--shadow-card); transform: translateY(-20px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
