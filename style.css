@@ -26,10 +26,19 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .nav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 600; }
 .nav-divider { height: 1px; background: rgba(255, 255, 255, 0.08); margin: 12px 14px; flex-shrink: 0;}
 
-.nav-sub-list { list-style: none; padding: 0; margin: 0; display: none; flex-direction: column; gap: 2px; background: rgba(0,0,0,0.2); border-radius: var(--radius-md); overflow: hidden; margin-top: 4px;}
-.nav-sub-item { padding: 10px 14px 10px 44px; color: #94a3b8; font-size: 13px; font-weight: 500; cursor: pointer; transition: 0.15s; position: relative;}
-.nav-sub-item::before { content: ''; position: absolute; left: 22px; top: 50%; transform: translateY(-50%); width: 6px; height: 6px; border-radius: 50%; background: #475569; transition: 0.2s;}
-.nav-sub-item:hover { color: #f8fafc; background: rgba(255,255,255,0.05); }
+/* 升級版左側子選單 (人員檢視切換方框底色變亮) */
+.nav-sub-list { 
+  list-style: none; padding: 6px; margin: 0; display: none; flex-direction: column; gap: 4px; 
+  background: rgba(255, 255, 255, 0.12); /* 讓區塊背景更亮更明顯 */
+  border: 1px solid rgba(255, 255, 255, 0.08); /* 加入微弱外框 */
+  border-radius: var(--radius-md); overflow: hidden; margin-top: 6px; margin-bottom: 6px;
+}
+.nav-sub-item { 
+  padding: 10px 14px 10px 44px; color: #cbd5e1; font-size: 13px; font-weight: 500; 
+  cursor: pointer; transition: 0.15s; position: relative; border-radius: 6px; 
+}
+.nav-sub-item::before { content: ''; position: absolute; left: 22px; top: 50%; transform: translateY(-50%); width: 6px; height: 6px; border-radius: 50%; background: #64748b; transition: 0.2s;}
+.nav-sub-item:hover { color: #fff; background: rgba(255,255,255,0.08); }
 .nav-sub-item.active { color: #fff; font-weight: 600; background: var(--sidebar-active); }
 .nav-sub-item.active::before { background: #fff; }
 .nav-menu-open .nav-sub-list { display: flex; }
@@ -86,7 +95,6 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .gantt .bar-label { display: none !important; }
 .locked-gantt .handle-group, .locked-gantt .bar-progress-handle { display: none !important; pointer-events: none; }
 
-/* 專案與事件自訂顏色特效 */
 .bar-primary .bar { fill: #93c5fd !important; }
 .bar-primary .bar-progress { fill: #3b82f6 !important; }
 .bar-success .bar { fill: #10b981 !important; }
