@@ -77,13 +77,13 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .col-prog { width: 75px; padding: 0 8px; display: flex; align-items: center; gap: 4px; }
 .col-prog input { width: 42px; padding: 4px; text-align: center; border: 1px solid var(--border); border-radius: 4px; outline: none; font-size: 11px; font-weight: 600; }
 .col-prog input:disabled { background: #f1f5f9; color: var(--success); border-color: transparent; }
-
-/* 修正按鈕為水平擺放防換行，並縮小字體 */
 .col-act { width: 60px; padding: 0 6px; display: flex; align-items: center; justify-content: center; }
 .action-btn.btn-sm { padding: 4px 8px; font-size: 11px; border-radius: 4px; white-space: nowrap; line-height: 1; }
 
-.gantt-right-panel { flex: 1; overflow-x: auto; background: #fff; min-width: 0; }
+/* 甘特圖容器保護，加入 min-width 避免被擠壓成 0 導致消失 */
+.gantt-right-panel { flex: 1; overflow-x: auto; background: #fff; min-width: 300px; }
 #gantt-chart { min-width: 100%; }
+
 .gantt .bar-label { display: none !important; }
 .locked-gantt .handle-group, .locked-gantt .bar-progress-handle { display: none !important; pointer-events: none; }
 .bar-success .bar { fill: #10b981 !important; }
