@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PMS 專案管理系統</title>
+  <title>PMS - 設計課專案管理系統</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.css">
 </head>
@@ -11,7 +11,7 @@
 
   <div id="auth-section" class="login-screen">
     <div class="login-box">
-      <div class="brand-logo-area"><div class="logo-icon">P</div><div><div class="brand-title">PMS 管理系統</div><div style="font-size: 12px; color: var(--text-muted);">專案進度追蹤平台</div></div></div>
+      <div class="brand-logo-area"><div class="logo-icon">P</div><div><div class="brand-title">PMS 管理系統</div><div style="font-size: 12px; color: var(--text-muted);">設計部專案進度追蹤平台</div></div></div>
       <div class="form-group"><label class="form-label">登入帳號 (Email)</label><input type="email" id="login-email" class="input-control" placeholder="例：Ryan@design.com"></div>
       <div class="form-group"><label class="form-label">密碼</label><input type="password" id="login-password" class="input-control" placeholder="輸入密碼"></div>
       <button id="btn-login" class="btn-primary" style="margin-top: 8px;">登入系統</button>
@@ -20,7 +20,7 @@
 
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v9.9 (專業週報版)</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v10.0 (編輯解鎖版)</span></div>
       <ul class="nav-list">
         
         <div id="nav-sub-wrapper" style="display:none; margin-bottom: 8px;">
@@ -45,6 +45,9 @@
       <header class="top-header">
         <div class="breadcrumb">PMS / <b id="current-title">專案進度</b> <span id="viewing-user-name" style="color:var(--primary); margin-left:8px; font-size:13px;"></span></div>
         <div class="header-right">
+          <!-- 核心新增：編輯模式開關按鈕 -->
+          <button id="btn-toggle-edit-mode" class="action-btn" style="border-color: var(--warning); color: var(--warning); display:none; font-weight:bold; margin-right: 8px; transition: 0.2s;">✏️ 開啟編輯模式</button>
+          
           <div class="user-info-box">
             <div class="avatar" id="user-avatar">R</div>
             <div><div id="user-display-name" style="font-size: 13px; font-weight: 600;">Ryan</div><span id="user-role-badge" class="role-badge">ADMIN</span></div>
@@ -150,7 +153,6 @@
                 </table>
               </div>
             </div>
-            
           </div>
           <div id="empty-state" style="text-align: center; padding: 40px; color: var(--text-muted); display: none;">此分類下目前沒有專案。</div>
         </div>
@@ -177,7 +179,7 @@
           </div>
         </div>
 
-        <!-- 分頁 3：週報填寫 (結構化表單版) -->
+        <!-- 分頁 3：週報填寫 -->
         <div id="tab-weekly" class="tab-pane" style="display:none;">
           <div class="section-panel" id="weekly-form-panel">
             <div class="panel-head">填寫本週工作週報</div>
@@ -187,9 +189,7 @@
                 <input type="date" id="rep-date" class="input-control">
               </div>
             </div>
-            
             <div id="weekly-items-container"></div>
-            
             <button class="action-btn" onclick="addWeeklyRow()" style="margin-bottom: 24px; border-style: dashed;">+ 新增進度項目</button>
             <div style="border-top: 1px solid var(--border); padding-top: 20px;">
               <button id="btn-add-weekly" class="btn-primary" style="width: 160px;">送出週報</button>
@@ -245,6 +245,7 @@
           </div>
         </div>
 
+        <!-- 分頁 5：個人帳號設定 -->
         <div id="tab-profile" class="tab-pane" style="display:none;">
           <div class="section-panel" style="max-width: 600px;">
             <div class="panel-head">變更登入密碼</div>
@@ -274,7 +275,7 @@
     </div>
   </div>
 
-  <!-- 週報瀏覽與簽核 Modal (加寬處理) -->
+  <!-- 週報瀏覽與簽核 Modal -->
   <div id="weekly-detail-modal" class="modal-overlay">
     <div class="modal-box" style="max-width: 850px; width: 95%;">
       <div class="modal-header"><span>週報詳細內容</span><button class="btn-close" onclick="closeWeeklyModal()">×</button></div>
@@ -283,6 +284,18 @@
         <button id="btn-supervisor-note" class="action-btn" style="display:none; color:var(--success); border-color:var(--success);" onclick="markWeeklyNoted('supervisor')">✔️ 主管已閱</button>
         <button id="btn-topmanager-note" class="action-btn" style="display:none; color:var(--success); border-color:var(--success);" onclick="markWeeklyNoted('top_manager')">✔️ 最高主管已閱</button>
         <button class="btn-primary" onclick="closeWeeklyModal()" style="max-width: 100px;">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🚀 共用編輯視窗 (專案/事件/週報 修改) -->
+  <div id="general-edit-modal" class="modal-overlay">
+    <div class="modal-box" style="max-width: 600px;">
+      <div class="modal-header"><span id="general-edit-title">編輯資料</span><button class="btn-close" onclick="closeGeneralEditModal()">×</button></div>
+      <div id="general-edit-form"></div>
+      <div class="modal-actions">
+        <button class="action-btn" onclick="closeGeneralEditModal()">取消</button>
+        <button class="btn-primary" onclick="saveGeneralEdit()">儲存修改</button>
       </div>
     </div>
   </div>
