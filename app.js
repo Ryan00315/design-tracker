@@ -23,7 +23,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const roleNames = { admin: "系統管理員", top_manager: "高級主管", manager: "主管", assistant_manager: "副主管", staff: "人員" };
-let currentUserData = { role: "staff", name: "" };
+let currentUserData = { role: "staff", name: "", canEdit: false };
 let allUsersList = [];
 
 let viewingUserId = null; 
@@ -36,6 +36,9 @@ let ganttInstance = null;
 let summaryGanttInstance = null;
 let currentWeeklyReportId = null;
 
+// 🚀 全局編輯模式狀態
+let isEditMode = false;
+
 window.switchNav = (tabId, title, elem) => {
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -44,6 +47,30 @@ window.switchNav = (tabId, title, elem) => {
   document.getElementById('current-title').innerText = title;
   if (tabId === 'tab-projects') setTimeout(renderProjects, 100);
 };
+
+document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => {
+  isEditMode = !isEditMode;
+  const btn = document.getElementById("btn-toggle-edit-mode");
+  if (isEditMode) {
+    btn.innerHTML = "❌ 關閉編輯模式"; btn.style.background = "var(--warning-bg)";
+  } else {
+    btn.innerHTML = "✏️ 開啟編輯模式"; btn.style.background = "transparent";
+  }
+  renderProjects(); renderAdHocEvents(); renderWeeklyReports();
+});
+
+function checkEditModeVisibility() {
+  const btn = document.getElementById("btn-toggle-edit-mode");
+  // 管理員 或 被授權可編輯的人員 可以看到按鈕
+  if (currentUserData.role === 'admin' || currentUserData.canEdit === true) {
+    btn.style.display = "inline-block";
+  } else {
+    btn.style.display = "none";
+    if (isEditMode) {
+      isEditMode = false; btn.innerHTML = "✏️ 開啟編輯模式"; btn.style.background = "transparent";
+    }
+  }
+}
 
 document.getElementById('btn-toggle-create').addEventListener('click', () => {
   const form = document.getElementById('create-project-section');
@@ -71,6 +98,20 @@ function getWorkingDays(startDate, endDate) {
   return count;
 }
 
+// 🚀 甘特圖月份補丁 (強制補上年份)
+function patchGanttYear(tasks, containerSelector) {
+  if (!tasks || tasks.length === 0) return;
+  const baseYear = tasks[0].start.substring(0, 4);
+  document.querySelectorAll(`${containerSelector} .gantt .upper-text`).forEach(el => {
+      const t = el.textContent.trim();
+      if (/^\d+月$/.test(t)) {
+          el.textContent = `${baseYear}年 ${t}`;
+      } else if (/^\d{4}\s+\d+月$/.test(t)) {
+          el.textContent = t.replace(/^(\d{4})\s+(\d+月)$/, '$1年 $2');
+      }
+  });
+}
+
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     document.getElementById("auth-section").style.display = "none";
@@ -81,10 +122,10 @@ onAuthStateChanged(auth, async (user) => {
       const userDoc = await getDoc(doc(db, "users", user.uid));
       if (userDoc.exists()) currentUserData = userDoc.data();
       else {
-        currentUserData = { name: user.email.split('@')[0], role: "admin" };
+        currentUserData = { name: user.email.split('@')[0], role: "admin", canEdit: false };
         await setDoc(doc(db, "users", user.uid), currentUserData, { merge: true });
       }
-    } catch (e) { currentUserData = { name: user.email.split('@')[0], role: "admin" }; }
+    } catch (e) { currentUserData = { name: user.email.split('@')[0], role: "admin", canEdit: false }; }
 
     document.getElementById("user-display-name").innerText = currentUserData.name || user.email.split('@')[0];
     document.getElementById("user-avatar").innerText = (currentUserData.name || user.email).charAt(0).toUpperCase();
@@ -99,6 +140,7 @@ onAuthStateChanged(auth, async (user) => {
     if (currentUserData.role !== 'staff') { document.getElementById('nav-sub-wrapper').style.display = 'block'; loadSidebarSubordinates(); } 
     else document.getElementById('nav-sub-wrapper').style.display = 'none';
 
+    checkEditModeVisibility();
     addTaskRow(); addWeeklyRow(); loadProjects(); loadAdHocEvents(); loadWeeklyReports();
   } else {
     document.getElementById("auth-section").style.display = "flex"; document.getElementById("app-section").style.display = "none";
@@ -138,6 +180,7 @@ window.switchViewingUser = (uid, name) => {
   document.getElementById('weekly-form-panel').style.display = isSelf ? 'block' : 'none';
 
   selectedProjectId = 'SUMMARY'; 
+  checkEditModeVisibility();
   renderProjects(); renderAdHocEvents(); renderWeeklyReports();
 };
 
@@ -166,7 +209,6 @@ window.setProjectFilter = (status) => {
   document.getElementById('filter-delayed').classList.toggle('active', status === 'delayed');
   selectedProjectId = 'SUMMARY'; renderProjects();
 };
-
 window.selectProject = (projId) => { selectedProjectId = projId; renderProjects(); };
 
 window.getAvailableTasks = (projId) => {
@@ -206,7 +248,6 @@ function loadProjects() {
     renderProjects(); refreshAllWeeklyProjSelects();
   });
 }
-
 function formatDateSafe(dateObj) { const y = dateObj.getFullYear(); const m = String(dateObj.getMonth() + 1).padStart(2, '0'); const d = String(dateObj.getDate()).padStart(2, '0'); return `${y}-${m}-${d}`; }
 function getAdHocDateStr(evt) {
   if (evt.startDate) return evt.startDate;
@@ -267,12 +308,9 @@ function renderProjects() {
     const btn = document.createElement("button"); btn.className = `proj-tab ${p.id === selectedProjectId ? 'active' : ''}`;
     btn.innerText = p.title; btn.onclick = () => selectProject(p.id); tabsContainer.appendChild(btn);
   });
-
   emptyState.style.display = "none"; 
 
-  // ==========================
   // 總覽
-  // ==========================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; summaryView.style.display = "block";
     const sumLeftBody = document.getElementById("gantt-summary-left-body");
@@ -312,19 +350,23 @@ function renderProjects() {
       setTimeout(() => {
         if (document.getElementById("tab-projects").style.display === "none") return;
         summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18 });
+        patchGanttYear(ganttTasksSum, '#gantt-chart-summary-container');
       }, 150); 
     } else { document.getElementById("gantt-chart-summary-container").innerHTML = ''; }
     return;
   }
 
-  // ==========================
   // 個別專案
-  // ==========================
   summaryView.style.display = "none"; detailView.style.display = "block";
   const activeProj = filteredProjects.find(p => p.id === selectedProjectId);
   if(!activeProj) return; 
 
-  document.getElementById("current-gantt-title").innerText = `專案：${activeProj.title}`;
+  const isOwner = activeProj.ownerId === auth.currentUser.uid;
+  let canEditUI = isEditMode && (isOwner || currentUserData.role === 'admin' || currentUserData.canEdit);
+  
+  let editProjBtn = canEditUI ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯專案</button>` : '';
+  document.getElementById("current-gantt-title").innerHTML = `專案：${activeProj.title} ${editProjBtn}`;
+  
   const lockBtn = document.getElementById("btn-toggle-lock");
   const delProjBtn = document.getElementById("btn-delete-project");
   
@@ -333,7 +375,6 @@ function renderProjects() {
     lockBtn.className = activeProj.isLocked ? "action-btn" : "action-btn danger"; delProjBtn.style.display = "inline-block";
   } else { lockBtn.style.display = "none"; delProjBtn.style.display = "none"; }
 
-  const isOwner = activeProj.ownerId === auth.currentUser.uid;
   const leftBody = document.getElementById("gantt-left-body");
   const listBody = document.getElementById("project-list-tbody");
   leftBody.innerHTML = ""; if(listBody) listBody.innerHTML = "";
@@ -346,9 +387,12 @@ function renderProjects() {
     ganttTasks.push({ id: `t_${index}`, name: task.name, start: task.start, end: task.end, progress: currentProgress, custom_class: task.isCompleted ? 'bar-success' : projColorClass });
 
     const isInputLocked = task.isCompleted || !isOwner; 
+    let editHtml = canEditUI ? `<button class="action-btn" onclick="openGeneralEdit('task', '${activeProj.id}', ${index})" style="margin-left:6px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️</button>` : '';
+
     const row = document.createElement("div"); row.className = "gantt-row";
     row.innerHTML = `
-      <div class="col-name" title="${task.name}">${task.name}</div><div class="col-date">${workDays} 天</div>
+      <div class="col-name" title="${task.name}"><div style="display:flex; align-items:center;"><span style="overflow:hidden; text-overflow:ellipsis;">${task.name}</span>${editHtml}</div></div>
+      <div class="col-date">${workDays} 天</div>
       <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''}> %</div>
       <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')">${task.isCompleted ? '完成' : '確認'}</button></div>
     `;
@@ -390,8 +434,8 @@ function renderProjects() {
       ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
         view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18,
         on_date_change: async (task, start, end) => {
-          if (activeProj.isLocked) { alert("🔒 專案已鎖定！"); renderProjects(); return; }
-          if (!isOwner) { alert("🔒 權限不足！"); renderProjects(); return; }
+          if (activeProj.isLocked && !isEditMode) { alert("🔒 專案已鎖定！若需修改請開啟編輯模式。"); renderProjects(); return; }
+          if (!isOwner && !isEditMode) { alert("🔒 權限不足！"); renderProjects(); return; }
           const idx = parseInt(task.id.split('_')[1]);
           const dStart = new Date(start); const newStart = `${dStart.getFullYear()}-${String(dStart.getMonth()+1).padStart(2,'0')}-${String(dStart.getDate()).padStart(2,'0')}`;
           let dEnd = new Date(end); dEnd.setDate(dEnd.getDate() - 1);
@@ -401,6 +445,7 @@ function renderProjects() {
           await updateDoc(doc(db, "projects", activeProj.id), { tasks: proj.tasks });
         }
       });
+      patchGanttYear(ganttTasks, '#gantt-chart-container');
     }, 150); 
   }
 }
@@ -438,9 +483,6 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   if(newProg !== 100) alert(`進度已更新為 ${newProg}%`);
 };
 
-// ==========================================
-// 🚀 核心修復：新增專案精準寫入 viewingUserId
-// ==========================================
 document.getElementById("btn-add-project").addEventListener("click", async () => {
   const title = document.getElementById("proj-name").value.trim();
   const color = document.getElementById("proj-color").value;
@@ -456,7 +498,6 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     tasks.push({ name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '專案建立' }] });
   }
   
-  // 精準取得當前畫面人員的姓名與 ID
   const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, uid: auth.currentUser.uid };
   const ownerNameToSave = targetUser.name || currentUserData.name;
 
@@ -470,9 +511,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     alert(`已成功將新細項附加至現有專案「${title}」底下！`);
   } else {
     const docRef = await addDoc(collection(db, "projects"), { 
-      title, color, 
-      ownerId: viewingUserId,          // 修復：寫入被檢視者的 ID
-      ownerName: ownerNameToSave,      // 修復：寫入被檢視者的 姓名
+      title, color, ownerId: viewingUserId, ownerName: ownerNameToSave, 
       isLocked: true, tasks: tasks, createdAt: serverTimestamp() 
     });
     newProjId = docRef.id;
@@ -486,7 +525,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   document.getElementById('filter-completed').classList.remove('active');
   document.getElementById('filter-delayed').classList.remove('active');
   selectedProjectId = newProjId;
-  renderProjects(); // 強制重繪
+  renderProjects(); 
 });
 window.toggleCurrentProjectLock = async () => { await updateDoc(doc(db, "projects", selectedProjectId), { isLocked: !allProjectsData.find(p => p.id === selectedProjectId).isLocked }); };
 window.deleteCurrentProject = async () => { if (!confirm("⚠️ 確定要永久刪除此專案嗎？")) return; await deleteDoc(doc(db, "projects", selectedProjectId)); alert("專案已刪除！"); selectedProjectId = 'SUMMARY'; renderProjects(); };
@@ -497,10 +536,16 @@ function renderAdHocEvents() {
   const tbody = document.getElementById("adhoc-list-tbody"); tbody.innerHTML = "";
   const filtered = allAdHocData.filter(e => e.ownerId === viewingUserId);
   filtered.forEach(evt => {
-    let actionHtml = !evt.isCompleted && evt.ownerId === auth.currentUser.uid ? `<button class="action-btn" onclick="completeAdHoc('${evt.id}')">完成</button>` : '';
-    if (currentUserData.role === 'admin' || currentUserData.role === 'top_manager') actionHtml += `<button class="action-btn danger" style="margin-left:4px;" onclick="deleteAdHoc('${evt.id}')">刪除</button>`;
+    let isOwner = (evt.ownerId === auth.currentUser.uid);
+    let canEditUI = isEditMode && (isOwner || currentUserData.role === 'admin' || currentUserData.canEdit);
+    
+    let editHtml = canEditUI ? `<button class="action-btn" style="margin-left:4px; border-color:var(--warning); color:var(--warning);" onclick="openGeneralEdit('adhoc', '${evt.id}')">✏️</button>` : '';
+    let actionHtml = !evt.isCompleted && isOwner ? `<button class="action-btn" onclick="completeAdHoc('${evt.id}')">完成</button>` : '';
+    let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || canEditUI) ? `<button class="action-btn danger" style="margin-left:4px;" onclick="deleteAdHoc('${evt.id}')">刪除</button>` : '';
+
     const tr = document.createElement("tr"); 
-    tr.innerHTML = `<td><strong>${evt.title}</strong></td><td>${evt.reason}</td><td>${evt.startDate || '-'}</td><td>${evt.completedAt || '-'}</td><td>${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td><td>${actionHtml || '-'}</td>`; tbody.appendChild(tr);
+    tr.innerHTML = `<td><strong>${evt.title}</strong></td><td>${evt.reason}</td><td>${evt.startDate || '-'}</td><td>${evt.completedAt || '-'}</td><td>${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td><td>${actionHtml}${editHtml}${delHtml}</td>`; 
+    tbody.appendChild(tr);
   });
   if(selectedProjectId === 'SUMMARY' && document.getElementById("tab-projects").style.display === "block") renderProjects(); 
 }
@@ -555,11 +600,17 @@ function renderWeeklyReports() {
   const filtered = allWeeklyData.filter(e => e.ownerId === viewingUserId);
   filtered.sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)); 
   filtered.forEach((w, index) => {
-    let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager') ? `<button class="action-btn danger" onclick="deleteWeekly('${w.id}')">刪除</button>` : '';
+    let isOwner = (w.ownerId === auth.currentUser.uid);
+    let canEditUI = isEditMode && (isOwner || currentUserData.role === 'admin' || currentUserData.canEdit);
+    
+    let editHtml = canEditUI ? `<button class="action-btn" style="margin-right:6px; border-color:var(--warning); color:var(--warning);" onclick="openGeneralEdit('weekly', '${w.id}')">✏️ 編輯</button>` : '';
+    let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || canEditUI) ? `<button class="action-btn danger" onclick="deleteWeekly('${w.id}')">刪除</button>` : '';
+    
     let supText = w.supervisorNoted ? '<span style="color:var(--success); font-weight:bold;">Noted</span>' : '<span style="color:var(--text-muted);">待閱</span>';
     let topText = w.topManagerNoted ? '<span style="color:var(--success); font-weight:bold;">Noted</span>' : '<span style="color:var(--text-muted);">待閱</span>';
+    
     const tr = document.createElement("tr"); 
-    tr.innerHTML = `<td>${index + 1}</td><td><strong>${w.ownerName}</strong></td><td>${w.reportDate || w.startDate || '-'}</td><td>${w.createdAt ? new Date(w.createdAt.toDate()).toLocaleString() : ''}</td><td>${supText}</td><td>${topText}</td><td><button class="action-btn" style="margin-right:6px;" onclick="openWeeklyModal('${w.id}')">瀏覽報告</button>${delHtml}</td>`; 
+    tr.innerHTML = `<td>${index + 1}</td><td><strong>${w.ownerName}</strong></td><td>${w.reportDate || w.startDate || '-'}</td><td>${w.createdAt ? new Date(w.createdAt.toDate()).toLocaleString() : ''}</td><td>${supText}</td><td>${topText}</td><td><button class="action-btn" style="margin-right:6px;" onclick="openWeeklyModal('${w.id}')">瀏覽報告</button>${editHtml}${delHtml}</td>`; 
     tbody.appendChild(tr);
   });
 }
@@ -627,36 +678,111 @@ window.markWeeklyNoted = async (type) => {
 
 
 // ==========================================
+// 🚀 全局編輯模式 Modal 邏輯 (支援專案/事件/週報修改)
+// ==========================================
+let currentEditData = {};
+
+window.openGeneralEdit = (type, id, extra) => {
+  currentEditData = { type, id, extra };
+  const form = document.getElementById("general-edit-form"); form.innerHTML = "";
+
+  if (type === 'project') {
+    const p = allProjectsData.find(x => x.id === id);
+    document.getElementById("general-edit-title").innerText = "編輯主專案名稱";
+    form.innerHTML = `<div class="form-group"><label class="form-label">專案名稱</label><input type="text" id="edit-val-proj-title" class="input-control" value="${p.title}"></div>`;
+  } else if (type === 'task') {
+    const proj = allProjectsData.find(p => p.id === id); const task = proj.tasks[extra];
+    document.getElementById("general-edit-title").innerText = "編輯專案細項";
+    form.innerHTML = `
+      <div class="form-group"><label class="form-label">細項名稱</label><input type="text" id="edit-val-name" class="input-control" value="${task.name}"></div>
+      <div class="form-group"><label class="form-label">開始日期</label><input type="date" id="edit-val-start" class="input-control" value="${task.start}"></div>
+      <div class="form-group"><label class="form-label">結束日期</label><input type="date" id="edit-val-end" class="input-control" value="${task.end}"></div>
+    `;
+  } else if (type === 'adhoc') {
+    const adhoc = allAdHocData.find(a => a.id === id);
+    document.getElementById("general-edit-title").innerText = "編輯事件紀錄";
+    form.innerHTML = `
+      <div class="form-group"><label class="form-label">事項名稱</label><input type="text" id="edit-val-title" class="input-control" value="${adhoc.title}"></div>
+      <div class="form-group"><label class="form-label">開始日期</label><input type="date" id="edit-val-start" class="input-control" value="${adhoc.startDate || ''}"></div>
+      <div class="form-group"><label class="form-label">原因說明</label><input type="text" id="edit-val-reason" class="input-control" value="${adhoc.reason}"></div>
+    `;
+  } else if (type === 'weekly') {
+    const weekly = allWeeklyData.find(w => w.id === id);
+    document.getElementById("general-edit-title").innerText = "編輯週報";
+    let html = `<div class="form-group"><label class="form-label">週報日期</label><input type="date" id="edit-val-date" class="input-control" value="${weekly.reportDate || weekly.startDate || ''}"></div>`;
+    if (weekly.items && weekly.items.length > 0) {
+      weekly.items.forEach((item, idx) => {
+        html += `<div class="form-group" style="padding:10px; background:#f8fafc; border:1px solid var(--border); border-radius:8px;">
+          <label class="form-label" style="color:var(--primary);">📁 ${item.projectName} - 📌 ${item.taskName}</label>
+          <textarea id="edit-val-item-${idx}" class="input-control" rows="3">${item.content}</textarea>
+        </div>`;
+      });
+    } else {
+      html += `<div class="form-group"><label class="form-label">進度說明</label><textarea id="edit-val-content" class="input-control" rows="4">${weekly.content || ''}</textarea></div>`;
+    }
+    form.innerHTML = html;
+  }
+  document.getElementById("general-edit-modal").classList.add("active");
+};
+
+window.closeGeneralEditModal = () => document.getElementById("general-edit-modal").classList.remove("active");
+
+window.saveGeneralEdit = async () => {
+  const { type, id, extra } = currentEditData;
+  try {
+    if (type === 'project') {
+      const title = document.getElementById("edit-val-proj-title").value.trim();
+      if(title) await updateDoc(doc(db, "projects", id), { title });
+      else return alert("專案名稱不可為空！");
+    } else if (type === 'task') {
+      const proj = allProjectsData.find(p => p.id === id); const tasks = [...proj.tasks];
+      tasks[extra].name = document.getElementById("edit-val-name").value.trim();
+      tasks[extra].start = document.getElementById("edit-val-start").value;
+      tasks[extra].end = document.getElementById("edit-val-end").value;
+      await updateDoc(doc(db, "projects", id), { tasks });
+    } else if (type === 'adhoc') {
+      await updateDoc(doc(db, "ad_hoc_events", id), {
+        title: document.getElementById("edit-val-title").value.trim(),
+        startDate: document.getElementById("edit-val-start").value,
+        reason: document.getElementById("edit-val-reason").value.trim()
+      });
+    } else if (type === 'weekly') {
+      const weekly = allWeeklyData.find(w => w.id === id);
+      const updateData = { reportDate: document.getElementById("edit-val-date").value };
+      if (weekly.items && weekly.items.length > 0) {
+        const newItems = [...weekly.items];
+        newItems.forEach((item, idx) => { item.content = document.getElementById(`edit-val-item-${idx}`).value.trim(); });
+        updateData.items = newItems;
+      } else updateData.content = document.getElementById("edit-val-content").value.trim();
+      await updateDoc(doc(db, "weekly_reports", id), updateData);
+    }
+    closeGeneralEditModal(); alert("✅ 資料修改成功！");
+  } catch (err) { alert("修改失敗：" + err.message); }
+};
+
+// ==========================================
 // 🚀 組織管理與資料救援功能
 // ==========================================
+window.toggleUserEditPermission = async (uid, checked) => {
+  if (currentUserData.role !== 'admin') return alert('權限不足！');
+  try { await updateDoc(doc(db, "users", uid), { canEdit: checked }); } 
+  catch(err) { alert('設定失敗：'+err.message); }
+};
+
 window.resetUserPassword = (email) => {
   if (confirm(`確定要發送「重設密碼」信件至 ${email} 嗎？\n系統將寄送一封專屬連結信件，員工點擊後即可自行重設密碼。`)) {
     sendPasswordResetEmail(auth, email).then(() => alert(`✅ 重設密碼信件已成功發送至：${email}\n請員工前往信箱收信。`)).catch(err => alert("發送失敗: " + err.message));
   }
 };
 
-// 救援舊專案程式碼
 window.rescueUserProjects = async (uid, userName) => {
   if (!userName) return alert("請先為該人員設定姓名！");
   if (!confirm(`【資料救援】\n即將掃描系統中所有署名為「${userName}」的舊專案與事件，強制綁回給這個帳號。\n確定要進行修復嗎？`)) return;
-  
   try {
     let pCount = 0, wCount = 0;
-    for (let p of allProjectsData) {
-      if (p.ownerName === userName && p.ownerId !== uid) {
-        await updateDoc(doc(db, "projects", p.id), { ownerId: uid }); pCount++;
-      }
-    }
-    for (let w of allWeeklyData) {
-      if (w.ownerName === userName && w.ownerId !== uid) {
-        await updateDoc(doc(db, "weekly_reports", w.id), { ownerId: uid }); wCount++;
-      }
-    }
-    for (let a of allAdHocData) {
-      if (a.ownerName === userName && a.ownerId !== uid) {
-        await updateDoc(doc(db, "ad_hoc_events", a.id), { ownerId: uid });
-      }
-    }
+    for (let p of allProjectsData) { if (p.ownerName === userName && p.ownerId !== uid) { await updateDoc(doc(db, "projects", p.id), { ownerId: uid }); pCount++; } }
+    for (let w of allWeeklyData) { if (w.ownerName === userName && w.ownerId !== uid) { await updateDoc(doc(db, "weekly_reports", w.id), { ownerId: uid }); wCount++; } }
+    for (let a of allAdHocData) { if (a.ownerName === userName && a.ownerId !== uid) { await updateDoc(doc(db, "ad_hoc_events", a.id), { ownerId: uid }); } }
     alert(`🎉 救援成功！\n已為「${userName}」找回：\n- ${pCount} 個專案\n- ${wCount} 份週報\n請重新點擊左側人員檢視查看。`);
   } catch (err) { alert("救援失敗：" + err.message); }
 };
@@ -676,6 +802,12 @@ function loadOrgUsers() {
         <td>${u.email || '-'}</td>
         <td><span class="pill pill-role">${roleNames[u.role] || u.role}</span></td>
         <td>${supUser ? `${supUser.name}` : "-"}</td>
+        <td>
+          <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+            <input type="checkbox" onchange="toggleUserEditPermission('${u.uid}', this.checked)" ${u.canEdit ? 'checked' : ''} ${currentUserData.role === 'admin' ? '' : 'disabled'}>
+            <span style="font-size:12px;">開放</span>
+          </label>
+        </td>
         <td>
           <button class="action-btn" onclick="openEditModal('${u.uid}')" style="margin-right:4px;">編輯</button>
           <button class="action-btn" onclick="resetUserPassword('${u.email}')" style="margin-right:4px;">重設密碼</button>
