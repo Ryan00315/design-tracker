@@ -1,6 +1,27 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, collection, addDoc, updateDoc, query, where, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+import { 
+  getAuth, 
+  signInWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged,
+  updatePassword,
+  updateProfile,
+  createUserWithEmailAndPassword
+} from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+import { 
+  getFirestore, 
+  doc, 
+  getDoc, 
+  setDoc,
+  deleteDoc,
+  collection, 
+  addDoc, 
+  updateDoc, 
+  query, 
+  where, 
+  onSnapshot, 
+  serverTimestamp 
+} from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBToAzkMoWVnWYIZnhdplJ50P6G9n6ZUtE",
@@ -16,50 +37,59 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-let currentUserData = { role: "admin", name: "Ryan" };
+// 職稱代碼轉換
+const roleNames = {
+  admin: "系統管理員",
+  top_manager: "高級主管",
+  manager: "主管",
+  assistant_manager: "副主管",
+  staff: "人員"
+};
 
-// 更新頂部系統時間
-function updateSystemTime() {
-  const now = new Date();
-  const dateStr = now.toISOString().split('T')[0];
-  const timeEl = document.getElementById("live-time");
-  if (timeEl) timeEl.innerText = `${dateStr}`;
-}
-updateSystemTime();
+let currentUserData = { role: "staff", name: "" };
+let allUsersList = [];
 
 // 分頁切換
 window.switchNav = (tabId, title, elem) => {
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById(tabId).style.display = 'block';
-  elem.classList.add('active');
+  if (elem) elem.classList.add('active');
   document.getElementById('current-title').innerText = title;
 };
 
-// 登入狀態監聽（強化防護：登入必定秒切介面）
+// 登入狀態監聽
 onAuthStateChanged(auth, async (user) => {
   if (user) {
-    // 1. 先切換 DOM 顯示
     document.getElementById("auth-section").style.display = "none";
     document.getElementById("app-section").style.display = "flex";
 
-    // 2. 非同步載入使用者角色，防止 Firestore 卡住
     try {
       const userDoc = await getDoc(doc(db, "users", user.uid));
       if (userDoc.exists()) {
         currentUserData = userDoc.data();
       } else {
         currentUserData = { name: user.email.split('@')[0], role: "admin" };
+        await setDoc(doc(db, "users", user.uid), currentUserData, { merge: true });
       }
-    } catch (err) {
-      console.warn("Firestore 讀取跳過，使用安全預設身分", err);
+    } catch (e) {
+      console.warn("無法取得用戶特定角色，使用預設", e);
       currentUserData = { name: user.email.split('@')[0], role: "admin" };
     }
 
     const displayName = currentUserData.name || user.email.split('@')[0];
     document.getElementById("user-display-name").innerText = displayName;
     document.getElementById("user-avatar").innerText = displayName.charAt(0).toUpperCase();
-    document.getElementById("user-role-badge").innerText = (currentUserData.role || "ADMIN").toUpperCase();
+    document.getElementById("user-role-badge").innerText = roleNames[currentUserData.role] || (currentUserData.role || "STAFF").toUpperCase();
+    document.getElementById("profile-name").value = displayName;
+
+    // 只有 Admin 顯示組織管理選單
+    if (currentUserData.role === "admin") {
+      document.getElementById("nav-org-manage").style.display = "flex";
+      loadOrgUsers();
+    } else {
+      document.getElementById("nav-org-manage").style.display = "none";
+    }
 
     loadProjects();
     loadAdHocEvents();
@@ -69,7 +99,7 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-// 登入動作
+// 登入事件
 document.getElementById("btn-login").addEventListener("click", () => {
   const email = document.getElementById("login-email").value.trim();
   const pass = document.getElementById("login-password").value.trim();
@@ -80,17 +110,137 @@ document.getElementById("btn-login").addEventListener("click", () => {
   });
 });
 
-// 登出動作
+// 登出事件
 document.getElementById("btn-logout").addEventListener("click", () => signOut(auth));
 
-// 讀取與渲染專案進度
-function loadProjects() {
-  let q;
-  if (currentUserData.role === "admin" || currentUserData.role === "top_manager") {
-    q = query(collection(db, "projects"));
-  } else {
-    q = query(collection(db, "projects"), where("ownerId", "==", auth.currentUser.uid));
+/* ================= 1. 個人帳號設定 (改名 / 改密碼) ================= */
+// 更改顯示名稱
+document.getElementById("btn-update-profile").addEventListener("click", async () => {
+  const newName = document.getElementById("profile-name").value.trim();
+  if (!newName) return alert("請輸入姓名！");
+
+  try {
+    await updateProfile(auth.currentUser, { displayName: newName });
+    await updateDoc(doc(db, "users", auth.currentUser.uid), { name: newName });
+    currentUserData.name = newName;
+    document.getElementById("user-display-name").innerText = newName;
+    document.getElementById("user-avatar").innerText = newName.charAt(0).toUpperCase();
+    alert("個人顯示名稱已更新成功！");
+  } catch (err) {
+    alert("更新失敗: " + err.message);
   }
+});
+
+// 更改密碼
+document.getElementById("btn-update-password").addEventListener("click", async () => {
+  const newPass = document.getElementById("profile-new-pass").value;
+  const confirmPass = document.getElementById("profile-confirm-pass").value;
+
+  if (!newPass || newPass.length < 6) return alert("新密碼長度至少需 6 碼！");
+  if (newPass !== confirmPass) return alert("兩次輸入的新密碼不一致！");
+
+  try {
+    await updatePassword(auth.currentUser, newPass);
+    document.getElementById("profile-new-pass").value = "";
+    document.getElementById("profile-confirm-pass").value = "";
+    alert("密碼變更成功！請妥善保存。");
+  } catch (err) {
+    alert("密碼更新失敗 (若登入時間過久需重新登入驗證): " + err.message);
+  }
+});
+
+/* ================= 2. 組織架構與人員管理 (僅 Admin) ================= */
+// 監聽與載入人員名單
+function loadOrgUsers() {
+  onSnapshot(collection(db, "users"), (snapshot) => {
+    const tbody = document.getElementById("user-list-tbody");
+    const supervisorSelect = document.getElementById("new-user-supervisor");
+    tbody.innerHTML = "";
+    supervisorSelect.innerHTML = '<option value="">-- 無 (或由最高主管管轄) --</option>';
+    allUsersList = [];
+
+    snapshot.forEach(docSnap => {
+      const u = docSnap.data();
+      const uid = docSnap.id;
+      allUsersList.push({ uid, ...u });
+
+      // 下拉選單只放入主管級別
+      if (["top_manager", "manager", "assistant_manager"].includes(u.role)) {
+        supervisorSelect.innerHTML += `<option value="${uid}">${u.name} (${roleNames[u.role] || u.role})</option>`;
+      }
+    });
+
+    allUsersList.forEach(u => {
+      const supUser = allUsersList.find(x => x.uid === u.supervisorId);
+      const supName = supUser ? `${supUser.name} (${roleNames[supUser.role]})` : "-";
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><strong>${u.name || '未命名'}</strong></td>
+        <td>${u.email || '-'}</td>
+        <td><span class="pill pill-role">${roleNames[u.role] || u.role}</span></td>
+        <td>${supName}</td>
+        <td>
+          ${u.uid !== auth.currentUser.uid ? `<button class="action-btn danger" onclick="deleteUserDoc('${u.uid}', '${u.name}')">刪除帳號</button>` : '<span style="color:#94a3b8;">本人</span>'}
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+// 新增人員帳號 (建立 Firebase Auth 與 Firestore 記錄)
+document.getElementById("btn-create-user").addEventListener("click", async () => {
+  const name = document.getElementById("new-user-name").value.trim();
+  const email = document.getElementById("new-user-email").value.trim();
+  const pass = document.getElementById("new-user-pass").value.trim();
+  const role = document.getElementById("new-user-role").value;
+  const supervisorId = document.getElementById("new-user-supervisor").value;
+
+  if (!name || !email || !pass) return alert("請完整填寫姓名、帳號與密碼！");
+  if (pass.length < 6) return alert("密碼長度至少需 6 碼！");
+
+  try {
+    // 透過 secondary app 建立帳號，避免當前管理員被自動登出
+    const secondaryApp = initializeApp(firebaseConfig, "Secondary");
+    const secondaryAuth = getAuth(secondaryApp);
+    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, pass);
+    const newUid = userCredential.user.uid;
+    await signOut(secondaryAuth);
+
+    // 寫入 Firestore
+    await setDoc(doc(db, "users", newUid), {
+      name,
+      email,
+      role,
+      supervisorId: supervisorId || null,
+      createdAt: serverTimestamp()
+    });
+
+    document.getElementById("new-user-name").value = "";
+    document.getElementById("new-user-email").value = "";
+    document.getElementById("new-user-pass").value = "";
+    alert(`人員 ${name} (${roleNames[role]}) 建立成功！`);
+  } catch (err) {
+    alert("建立失敗: " + err.message);
+  }
+});
+
+// 刪除人員資料
+window.deleteUserDoc = async (uid, name) => {
+  if (confirm(`確定要刪除人員「${name}」的系統資料與權限嗎？`)) {
+    try {
+      await deleteDoc(doc(db, "users", uid));
+      alert(`已成功移除 ${name}！`);
+    } catch (err) {
+      alert("刪除失敗: " + err.message);
+    }
+  }
+};
+
+/* ================= 3. 專案進度、甘特圖與部屬權限過濾 ================= */
+function loadProjects() {
+  let q = query(collection(db, "projects"));
 
   onSnapshot(q, (snapshot) => {
     const tbody = document.getElementById("project-list-tbody");
@@ -106,6 +256,13 @@ function loadProjects() {
       const pId = docSnap.id;
       const task = proj.tasks ? proj.tasks[0] : null;
       if (!task) return;
+
+      // 權限階層過濾：
+      // admin, top_manager -> 看全部
+      // staff -> 只看自己
+      if (currentUserData.role === "staff" && proj.ownerId !== auth.currentUser.uid) {
+        return;
+      }
 
       if (task.isCompleted) {
         completedCount++;
@@ -125,7 +282,7 @@ function loadProjects() {
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td><strong>${proj.title}</strong><br><small style="color:var(--text-muted)">${task.name}</small></td>
-        <td>${proj.ownerName || '未指定'}</td>
+        <td>${proj.ownerName || '未指定'} <small style="color:var(--text-muted)">(${roleNames[proj.ownerRole] || proj.ownerRole || '人員'})</small></td>
         <td>${task.start} 至 ${task.end}</td>
         <td>${task.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">進行中</span>'}</td>
         <td>
@@ -163,6 +320,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     title,
     ownerId: auth.currentUser.uid,
     ownerName: currentUserData.name || auth.currentUser.email,
+    ownerRole: currentUserData.role || "staff",
     isLocked: true,
     tasks: [{
       id: "t_1",
@@ -201,7 +359,7 @@ window.completeTask = async (projId, plannedEnd) => {
   await updateDoc(projRef, { tasks });
 };
 
-// 登記插單事件
+/* ================= 4. 臨時事件與週報 ================= */
 document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
   const title = document.getElementById("adhoc-title").value.trim();
   const reason = document.getElementById("adhoc-reason").value.trim();
@@ -223,10 +381,8 @@ document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
   alert("臨時事件已登記！");
 });
 
-// 監聽臨時事件
 function loadAdHocEvents() {
-  const q = query(collection(db, "ad_hoc_events"));
-  onSnapshot(q, (snapshot) => {
+  onSnapshot(query(collection(db, "ad_hoc_events")), (snapshot) => {
     const tbody = document.getElementById("adhoc-list-tbody");
     tbody.innerHTML = "";
     snapshot.forEach(docSnap => {
@@ -247,7 +403,6 @@ function loadAdHocEvents() {
   });
 }
 
-// 結案臨時事件
 window.completeAdHoc = async (id) => {
   await updateDoc(doc(db, "ad_hoc_events", id), {
     isCompleted: true,
@@ -255,7 +410,6 @@ window.completeAdHoc = async (id) => {
   });
 };
 
-// 週報送出
 document.getElementById("btn-add-weekly").addEventListener("click", async () => {
   const start = document.getElementById("rep-start").value;
   const end = document.getElementById("rep-end").value;
