@@ -41,6 +41,7 @@ window.switchNav = (tabId, title, elem) => {
   document.getElementById(tabId).style.display = 'block';
   if (elem) elem.classList.add('active');
   document.getElementById('current-title').innerText = title;
+
   if (tabId === 'tab-projects') setTimeout(renderProjects, 100);
 };
 
@@ -120,7 +121,11 @@ function loadSidebarSubordinates() {
     snapshot.forEach(docSnap => {
       const u = { uid: docSnap.id, ...docSnap.data() };
       if (u.uid === auth.currentUser.uid) return;
-      const myRole = currentUserData.role; const targetRole = u.role; let canView = false;
+      
+      const myRole = currentUserData.role;
+      const targetRole = u.role;
+      let canView = false;
+
       if (myRole === 'admin' || myRole === 'top_manager') canView = true;
       else if (myRole === 'manager' && (targetRole === 'assistant_manager' || targetRole === 'staff')) canView = true;
       else if (myRole === 'assistant_manager' && targetRole === 'staff') canView = true;
@@ -148,7 +153,9 @@ window.switchViewingUser = (uid, name) => {
   document.getElementById('weekly-form-panel').style.display = isSelf ? 'block' : 'none';
 
   selectedProjectId = null;
-  renderProjects(); renderAdHocEvents(); renderWeeklyReports();
+  renderProjects();
+  renderAdHocEvents();
+  renderWeeklyReports();
 };
 
 document.getElementById("btn-login").addEventListener("click", () => {
@@ -157,13 +164,15 @@ document.getElementById("btn-login").addEventListener("click", () => {
 document.getElementById("btn-logout").addEventListener("click", () => signOut(auth));
 
 function getNextWorkingDayStr(dateStr) {
-  if (!dateStr) return ''; let d = new Date(dateStr); d.setDate(d.getDate() + 1);
+  if (!dateStr) return '';
+  let d = new Date(dateStr); d.setDate(d.getDate() + 1);
   while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
   return d.toISOString().split('T')[0];
 }
 
 window.checkWorkingDay = (input) => {
-  if (!input.value) return; const d = new Date(input.value);
+  if (!input.value) return;
+  const d = new Date(input.value);
   if (d.getDay() === 0 || d.getDay() === 6) { alert("系統規定只能點選工作日喔！"); input.value = ''; }
 };
 
@@ -188,7 +197,9 @@ window.selectProject = (projId) => { selectedProjectId = projId; renderProjects(
 
 function loadProjects() {
   onSnapshot(query(collection(db, "projects")), (snapshot) => {
-    allProjectsData = []; snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); renderProjects();
+    allProjectsData = [];
+    snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() }));
+    renderProjects();
   });
 }
 
@@ -227,7 +238,8 @@ function renderProjects() {
   if (!selectedProjectId || !filteredProjects.find(p => p.id === selectedProjectId)) selectedProjectId = filteredProjects[0].id;
 
   filteredProjects.forEach(p => {
-    const btn = document.createElement("button"); btn.className = `proj-tab ${p.id === selectedProjectId ? 'active' : ''}`;
+    const btn = document.createElement("button");
+    btn.className = `proj-tab ${p.id === selectedProjectId ? 'active' : ''}`;
     btn.innerText = p.title; btn.onclick = () => selectProject(p.id); tabsContainer.appendChild(btn);
   });
 
@@ -239,14 +251,19 @@ function renderProjects() {
   const delProjBtn = document.getElementById("btn-delete-project");
   
   if (currentUserData.role === "admin" || currentUserData.role === "top_manager") {
-    lockBtn.style.display = "inline-block"; lockBtn.innerText = activeProj.isLocked ? "🔒 鎖定中 (解鎖供編輯)" : "🔓 已開放 (點擊鎖定)";
-    lockBtn.className = activeProj.isLocked ? "action-btn" : "action-btn danger"; delProjBtn.style.display = "inline-block";
-  } else { lockBtn.style.display = "none"; delProjBtn.style.display = "none"; }
+    lockBtn.style.display = "inline-block";
+    lockBtn.innerText = activeProj.isLocked ? "🔒 鎖定中 (解鎖供編輯)" : "🔓 已開放 (點擊鎖定)";
+    lockBtn.className = activeProj.isLocked ? "action-btn" : "action-btn danger";
+    delProjBtn.style.display = "inline-block";
+  } else {
+    lockBtn.style.display = "none"; delProjBtn.style.display = "none";
+  }
 
   const isOwner = activeProj.ownerId === auth.currentUser.uid;
   const leftBody = document.getElementById("gantt-left-body");
   const listBody = document.getElementById("project-list-tbody");
-  leftBody.innerHTML = ""; if(listBody) listBody.innerHTML = "";
+  leftBody.innerHTML = ""; 
+  if(listBody) listBody.innerHTML = "";
   
   const ganttTasks = [];
 
@@ -258,52 +275,59 @@ function renderProjects() {
     const isInputLocked = task.isCompleted || !isOwner; 
     const row = document.createElement("div"); row.className = "gantt-row";
     row.innerHTML = `
-      <div class="col-name" title="${task.name}">${task.name}</div><div class="col-date">${workDays} 天</div>
+      <div class="col-name" title="${task.name}">${task.name}</div>
+      <div class="col-date">${workDays} 天</div>
       <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''}> %</div>
       <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')">${task.isCompleted ? '完成' : '確認'}</button></div>
     `;
     leftBody.appendChild(row);
 
-    // 【核心恢復】：每個任務一列，內部有獨立的捲動式歷史紀錄
+    // ==========================================
+    // 渲染下方的獨立歷史紀錄表格 (巧妙併欄)
+    // ==========================================
     if (listBody) {
       let historyHtml = '';
       const historyList = task.history || [];
       
       if (historyList.length > 0) {
-        // 由新到舊排序
         const sortedHistory = [...historyList].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         
-        historyHtml = `<div style="max-height: 140px; overflow-y: auto; padding-right: 6px;">` + 
+        historyHtml = `<div style="max-height: 150px; overflow-y: auto;">` + 
+          `<table style="width:100%; table-layout:fixed; border-collapse:collapse; margin:0; background:transparent;">` +
+          `<colgroup><col style="width:50%;"><col style="width:50%;"></colgroup>` +
+          `<tbody>` +
           sortedHistory.map(h => {
             let note = h.type === 'create' ? '<span style="color:var(--text-muted)">(任務建立)</span>' : (h.type === 'complete' ? '<span style="color:var(--success)">(🎉 100% 結案)</span>' : '');
             let remarkHtml = '';
             if (h.type === 'complete' && h.delayReason) {
-                remarkHtml = `<span class="pill pill-danger">Delay: ${h.delayReason}</span>`;
+                remarkHtml = `<span class="pill pill-danger" style="white-space:normal; word-wrap:break-word; line-height:1.4;">Delay: ${h.delayReason}</span>`;
             } else if (h.remark) {
-                remarkHtml = `<span style="color: var(--text-muted);">備註: ${h.remark}</span>`;
+                remarkHtml = `<span style="color: var(--text-muted); white-space:normal; word-wrap:break-word;">備註: ${h.remark}</span>`;
+            } else {
+                remarkHtml = `<span style="color: #cbd5e1;">-</span>`;
             }
+            
             return `
-            <div style="margin-bottom:8px; border-bottom:1px dashed var(--border); padding-bottom:6px; font-size:12px; line-height:1.5;">
-              <div style="display:flex; justify-content:space-between;">
-                <span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span>
-                <span>進度: <b>${h.progress}%</b> ${note}</span>
-              </div>
-              <div style="display:flex; justify-content:space-between; margin-top:2px;">
-                <span>歷時: <b>${h.daysPassed}</b> 工作天</span>
-                <span>${remarkHtml}</span>
-              </div>
-            </div>`;
-          }).join('') + `</div>`;
+            <tr style="border-bottom:1px dashed var(--border-light);">
+              <td style="padding: 8px 12px 8px 0; vertical-align: top; font-size:12px; line-height:1.5; border-right: 1px solid var(--border-light);">
+                <span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span><br>
+                進度: <b>${h.progress}%</b> ${note}<br>
+                歷時: <b>${h.daysPassed}</b> 工作天
+              </td>
+              <td style="padding: 8px 0 8px 12px; vertical-align: top; font-size:12px; line-height:1.5;">
+                ${remarkHtml}
+              </td>
+            </tr>`;
+          }).join('') + `</tbody></table></div>`;
       } else {
-        historyHtml = '<span style="color:var(--text-muted);">尚無更新紀錄</span>';
+        historyHtml = `<div style="padding: 12px 0; color:var(--text-muted); font-size: 12px;">尚無更新紀錄</div>`;
       }
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td><strong>${task.name}</strong></td>
-        <td>${task.start} <br>至<br> ${task.end} <br><small>(${workDays} 工作天)</small></td>
-        <td>${task.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">進行中</span>'}</td>
-        <td>${historyHtml}</td>
+        <td style="word-wrap: break-word; vertical-align: top;"><strong>${task.name}</strong></td>
+        <td style="vertical-align: top;">${task.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">進行中</span>'}</td>
+        <td colspan="2" style="padding: 0 16px; vertical-align: top;">${historyHtml}</td>
       `;
       listBody.appendChild(tr);
     }
@@ -312,9 +336,12 @@ function renderProjects() {
   if (ganttTasks.length > 0) {
     const chartContainer = document.getElementById("gantt-chart-container");
     chartContainer.className = activeProj.isLocked ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
+    
     chartContainer.innerHTML = '<div id="gantt-chart"></div>';
+    
     setTimeout(() => {
       if (document.getElementById("tab-projects").style.display === "none") return;
+
       ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
         view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18,
         on_date_change: async (task, start, end) => {
@@ -333,18 +360,25 @@ function renderProjects() {
   }
 }
 
+// === 確認與寫入歷史進度 ===
 window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const proj = allProjectsData.find(p => p.id === projId);
   const tasks = [...proj.tasks];
   const inputElem = document.getElementById(`prog_input_${taskIndex}`);
-  let newProg = parseInt(inputElem.value); const oldProg = tasks[taskIndex].progress || 0;
-  if (isNaN(newProg) || newProg < 0) newProg = 0; if (newProg > 100) newProg = 100;
+  let newProg = parseInt(inputElem.value); 
+  const oldProg = tasks[taskIndex].progress || 0;
+  
+  if (isNaN(newProg) || newProg < 0) newProg = 0; 
+  if (newProg > 100) newProg = 100;
+
   if (newProg < oldProg) { alert(`錯誤：進度不能往回倒扣！目前已達成 ${oldProg}%。`); inputElem.value = oldProg; return; }
 
   const todayStr = new Date().toISOString().split('T')[0];
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   let passedDays = 0;
-  if (todayStr >= tasks[taskIndex].start) passedDays = getWorkingDays(tasks[taskIndex].start, todayStr);
+  if (todayStr >= tasks[taskIndex].start) {
+    passedDays = getWorkingDays(tasks[taskIndex].start, todayStr);
+  }
 
   let delayReason = tasks[taskIndex].delayReason || "";
   let currentRemark = "";
@@ -356,11 +390,14 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
     } else {
       currentRemark = prompt("即將結案！可填寫結案備註 (選填)：") || "";
     }
-    tasks[taskIndex].isCompleted = true; tasks[taskIndex].completedAt = ts; tasks[taskIndex].delayReason = delayReason;
+    tasks[taskIndex].isCompleted = true; 
+    tasks[taskIndex].completedAt = ts;
+    tasks[taskIndex].delayReason = delayReason;
     alert("🎉 進度已達 100%！該任務已結案。");
   } else { 
     currentRemark = prompt("請輸入此次進度更新的備註事項 (選填)：") || "";
-    tasks[taskIndex].isCompleted = false; tasks[taskIndex].completedAt = null; 
+    tasks[taskIndex].isCompleted = false; 
+    tasks[taskIndex].completedAt = null; 
   }
 
   tasks[taskIndex].progress = newProg;
@@ -368,8 +405,12 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
 
   if (!tasks[taskIndex].history) tasks[taskIndex].history = [];
   tasks[taskIndex].history.push({
-    timestamp: ts, progress: newProg, type: newProg === 100 ? 'complete' : 'update',
-    daysPassed: passedDays, remark: currentRemark, delayReason: delayReason || ""
+    timestamp: ts,
+    progress: newProg,
+    type: newProg === 100 ? 'complete' : 'update',
+    daysPassed: passedDays,
+    remark: currentRemark,
+    delayReason: delayReason || ""
   });
 
   await updateDoc(doc(db, "projects", projId), { tasks });
@@ -379,7 +420,9 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
 document.getElementById("btn-add-project").addEventListener("click", async () => {
   const title = document.getElementById("proj-name").value.trim();
   if (!title) return alert("請填寫主專案名稱！");
-  const taskRows = document.querySelectorAll('.task-row'); const tasks = [];
+  const taskRows = document.querySelectorAll('.task-row'); 
+  const tasks = [];
+  
   const todayStr = new Date().toISOString().split('T')[0];
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
 
@@ -387,6 +430,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     const name = row.querySelector('.task-name').value.trim(); 
     const start = row.querySelector('.task-start').value; 
     const end = row.querySelector('.task-end').value;
+    
     if (!name || !start || !end) return alert("任務細項不可有空白欄位！");
     if (start > end) return alert(`任務 [${name}] 的起始日不可大於完成日！`);
     
@@ -403,16 +447,26 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   document.getElementById("proj-name").value = ""; document.getElementById("task-list-container").innerHTML = ""; addTaskRow(); document.getElementById('create-project-section').style.display = 'none'; alert("專案已建立！");
 });
 window.toggleCurrentProjectLock = async () => { await updateDoc(doc(db, "projects", selectedProjectId), { isLocked: !allProjectsData.find(p => p.id === selectedProjectId).isLocked }); };
-window.deleteCurrentProject = async () => { if (!confirm("⚠️ 確定要永久刪除此專案嗎？")) return; await deleteDoc(doc(db, "projects", selectedProjectId)); alert("專案已刪除！"); selectedProjectId = null; renderProjects(); };
+window.deleteCurrentProject = async () => {
+  if (!confirm("⚠️ 確定要永久刪除此專案嗎？")) return;
+  await deleteDoc(doc(db, "projects", selectedProjectId)); alert("專案已刪除！"); selectedProjectId = null; renderProjects();
+};
 
-function loadAdHocEvents() { onSnapshot(query(collection(db, "ad_hoc_events")), (snapshot) => { allAdHocData = []; snapshot.forEach(docSnap => allAdHocData.push({ id: docSnap.id, ...docSnap.data() })); renderAdHocEvents(); }); }
+// === 以下皆維持不變 ===
+function loadAdHocEvents() {
+  onSnapshot(query(collection(db, "ad_hoc_events")), (snapshot) => {
+    allAdHocData = []; snapshot.forEach(docSnap => allAdHocData.push({ id: docSnap.id, ...docSnap.data() })); renderAdHocEvents();
+  });
+}
 function renderAdHocEvents() {
   const tbody = document.getElementById("adhoc-list-tbody"); tbody.innerHTML = "";
   const filtered = allAdHocData.filter(e => e.ownerId === viewingUserId);
   filtered.forEach(evt => {
+    const tr = document.createElement("tr");
     let actionHtml = !evt.isCompleted && evt.ownerId === auth.currentUser.uid ? `<button class="action-btn" onclick="completeAdHoc('${evt.id}')">完成</button>` : '';
     if (currentUserData.role === 'admin' || currentUserData.role === 'top_manager') actionHtml += `<button class="action-btn danger" style="margin-left:4px;" onclick="deleteAdHoc('${evt.id}')">刪除</button>`;
-    const tr = document.createElement("tr"); tr.innerHTML = `<td><strong>${evt.title}</strong></td><td>${evt.reason}</td><td>${evt.startDateTime}</td><td>${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td><td>${actionHtml || '-'}</td>`; tbody.appendChild(tr);
+    tr.innerHTML = `<td><strong>${evt.title}</strong></td><td>${evt.reason}</td><td>${evt.startDateTime}</td><td>${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td><td>${actionHtml || '-'}</td>`;
+    tbody.appendChild(tr);
   });
 }
 document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
@@ -424,13 +478,19 @@ document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
 window.completeAdHoc = async (id) => { await updateDoc(doc(db, "ad_hoc_events", id), { isCompleted: true, completedAt: new Date().toLocaleString() }); };
 window.deleteAdHoc = async (id) => { if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); };
 
-function loadWeeklyReports() { onSnapshot(query(collection(db, "weekly_reports")), (snapshot) => { allWeeklyData = []; snapshot.forEach(docSnap => allWeeklyData.push({ id: docSnap.id, ...docSnap.data() })); renderWeeklyReports(); }); }
+function loadWeeklyReports() {
+  onSnapshot(query(collection(db, "weekly_reports")), (snapshot) => {
+    allWeeklyData = []; snapshot.forEach(docSnap => allWeeklyData.push({ id: docSnap.id, ...docSnap.data() })); renderWeeklyReports();
+  });
+}
 function renderWeeklyReports() {
   const tbody = document.getElementById("weekly-list-tbody"); tbody.innerHTML = "";
   const filtered = allWeeklyData.filter(e => e.ownerId === viewingUserId);
   filtered.forEach(w => {
+    const tr = document.createElement("tr");
     let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager') ? `<button class="action-btn danger" onclick="deleteWeekly('${w.id}')">刪除</button>` : '-';
-    const tr = document.createElement("tr"); tr.innerHTML = `<td>${w.startDate} ~ ${w.endDate}</td><td style="white-space:pre-wrap;">${w.content}</td><td>${w.createdAt ? new Date(w.createdAt.toDate()).toLocaleString() : ''}</td><td>${delHtml}</td>`; tbody.appendChild(tr);
+    tr.innerHTML = `<td>${w.startDate} ~ ${w.endDate}</td><td style="white-space:pre-wrap;">${w.content}</td><td>${w.createdAt ? new Date(w.createdAt.toDate()).toLocaleString() : ''}</td><td>${delHtml}</td>`;
+    tbody.appendChild(tr);
   });
 }
 document.getElementById("btn-add-weekly").addEventListener("click", async () => {
@@ -451,7 +511,8 @@ function loadOrgUsers() {
     });
     allUsersList.forEach(u => {
       const supUser = allUsersList.find(x => x.uid === u.supervisorId); const tr = document.createElement("tr");
-      tr.innerHTML = `<td><strong>${u.name || '未命名'}</strong></td><td>${u.email || '-'}</td><td><span class="pill pill-role">${roleNames[u.role] || u.role}</span></td><td>${supUser ? `${supUser.name}` : "-"}</td><td><button class="action-btn" onclick="openEditModal('${u.uid}')" style="margin-right:6px;">編輯</button>${u.uid !== auth.currentUser.uid ? `<button class="action-btn danger" onclick="deleteUserDoc('${u.uid}', '${u.name}')">刪除</button>` : ''}</td>`; tbody.appendChild(tr);
+      tr.innerHTML = `<td><strong>${u.name || '未命名'}</strong></td><td>${u.email || '-'}</td><td><span class="pill pill-role">${roleNames[u.role] || u.role}</span></td><td>${supUser ? `${supUser.name}` : "-"}</td><td><button class="action-btn" onclick="openEditModal('${u.uid}')" style="margin-right:6px;">編輯</button>${u.uid !== auth.currentUser.uid ? `<button class="action-btn danger" onclick="deleteUserDoc('${u.uid}', '${u.name}')">刪除</button>` : ''}</td>`;
+      tbody.appendChild(tr);
     });
   });
 }
