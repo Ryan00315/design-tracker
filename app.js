@@ -41,7 +41,6 @@ window.switchNav = (tabId, title, elem) => {
   document.getElementById(tabId).style.display = 'block';
   if (elem) elem.classList.add('active');
   document.getElementById('current-title').innerText = title;
-
   if (tabId === 'tab-projects') setTimeout(renderProjects, 100);
 };
 
@@ -153,9 +152,7 @@ window.switchViewingUser = (uid, name) => {
   document.getElementById('weekly-form-panel').style.display = isSelf ? 'block' : 'none';
 
   selectedProjectId = null;
-  renderProjects();
-  renderAdHocEvents();
-  renderWeeklyReports();
+  renderProjects(); renderAdHocEvents(); renderWeeklyReports();
 };
 
 document.getElementById("btn-login").addEventListener("click", () => {
@@ -283,7 +280,7 @@ function renderProjects() {
     leftBody.appendChild(row);
 
     // ==========================================
-    // 渲染下方的獨立歷史紀錄表格 (巧妙併欄)
+    // 渲染下方的獨立歷史紀錄表格 (巢狀完美對齊)
     // ==========================================
     if (listBody) {
       let historyHtml = '';
@@ -292,29 +289,32 @@ function renderProjects() {
       if (historyList.length > 0) {
         const sortedHistory = [...historyList].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         
-        historyHtml = `<div style="max-height: 150px; overflow-y: auto;">` + 
+        historyHtml = `<div style="max-height: 160px; overflow-y: auto;">` + 
           `<table style="width:100%; table-layout:fixed; border-collapse:collapse; margin:0; background:transparent;">` +
           `<colgroup><col style="width:50%;"><col style="width:50%;"></colgroup>` +
           `<tbody>` +
-          sortedHistory.map(h => {
+          sortedHistory.map((h, i) => {
             let note = h.type === 'create' ? '<span style="color:var(--text-muted)">(任務建立)</span>' : (h.type === 'complete' ? '<span style="color:var(--success)">(🎉 100% 結案)</span>' : '');
             let remarkHtml = '';
+            
             if (h.type === 'complete' && h.delayReason) {
-                remarkHtml = `<span class="pill pill-danger" style="white-space:normal; word-wrap:break-word; line-height:1.4;">Delay: ${h.delayReason}</span>`;
+                remarkHtml = `<span class="pill pill-danger" style="white-space:normal; word-wrap:break-word;">Delay: ${h.delayReason}</span>`;
             } else if (h.remark) {
-                remarkHtml = `<span style="color: var(--text-muted); white-space:normal; word-wrap:break-word;">備註: ${h.remark}</span>`;
+                remarkHtml = `<span style="color: var(--text-muted); white-space:normal; word-wrap:break-word;">${h.remark}</span>`;
             } else {
                 remarkHtml = `<span style="color: #cbd5e1;">-</span>`;
             }
             
+            // 讓最後一項不要有底線，畫面更乾淨
+            const borderStyle = i === sortedHistory.length - 1 ? "" : "border-bottom:1px dashed var(--border-light);";
+            
             return `
-            <tr style="border-bottom:1px dashed var(--border-light);">
-              <td style="padding: 8px 12px 8px 0; vertical-align: top; font-size:12px; line-height:1.5; border-right: 1px solid var(--border-light);">
+            <tr style="${borderStyle}">
+              <td style="padding: 10px 14px 10px 0; vertical-align: top; font-size:12px; border-right: 1px solid var(--border-light);">
                 <span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span><br>
-                進度: <b>${h.progress}%</b> ${note}<br>
-                歷時: <b>${h.daysPassed}</b> 工作天
+                <div style="margin-top:4px;">歷時天數: <b>${h.daysPassed}</b> 工作天</div>
               </td>
-              <td style="padding: 8px 0 8px 12px; vertical-align: top; font-size:12px; line-height:1.5;">
+              <td style="padding: 10px 0 10px 14px; vertical-align: top; font-size:12px;">
                 ${remarkHtml}
               </td>
             </tr>`;
@@ -323,10 +323,14 @@ function renderProjects() {
         historyHtml = `<div style="padding: 12px 0; color:var(--text-muted); font-size: 12px;">尚無更新紀錄</div>`;
       }
 
+      const statusHtml = task.isCompleted 
+        ? `<span class="pill pill-success" style="font-size:13px; padding:6px 10px;">已完成</span>` 
+        : `<span class="pill pill-warning" style="font-size:13px; padding:6px 10px;">進度: ${task.progress || 0}%</span>`;
+
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td style="word-wrap: break-word; vertical-align: top;"><strong>${task.name}</strong></td>
-        <td style="vertical-align: top;">${task.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">進行中</span>'}</td>
+        <td style="vertical-align: top; font-size: 14px;"><strong>${task.name}</strong></td>
+        <td style="vertical-align: top;">${statusHtml}</td>
         <td colspan="2" style="padding: 0 16px; vertical-align: top;">${historyHtml}</td>
       `;
       listBody.appendChild(tr);
@@ -465,6 +469,7 @@ function renderAdHocEvents() {
     const tr = document.createElement("tr");
     let actionHtml = !evt.isCompleted && evt.ownerId === auth.currentUser.uid ? `<button class="action-btn" onclick="completeAdHoc('${evt.id}')">完成</button>` : '';
     if (currentUserData.role === 'admin' || currentUserData.role === 'top_manager') actionHtml += `<button class="action-btn danger" style="margin-left:4px;" onclick="deleteAdHoc('${evt.id}')">刪除</button>`;
+    
     tr.innerHTML = `<td><strong>${evt.title}</strong></td><td>${evt.reason}</td><td>${evt.startDateTime}</td><td>${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td><td>${actionHtml || '-'}</td>`;
     tbody.appendChild(tr);
   });
