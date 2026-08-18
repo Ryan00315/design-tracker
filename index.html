@@ -20,8 +20,9 @@
 
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v7.0 (分項捲動版)</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v7.5 (固定排版)</span></div>
       <ul class="nav-list">
+        
         <div id="nav-sub-wrapper" style="display:none; margin-bottom: 8px;">
           <li class="nav-item" onclick="toggleSubMenu()">
             <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -80,7 +81,6 @@
           <div class="project-tabs-wrapper" id="project-tabs-container"></div>
 
           <div id="project-detail-view" style="display:none;">
-            <!-- 上半部：甘特圖與進度填寫 -->
             <div class="section-panel" style="padding: 0; background: transparent; border: none; box-shadow: none;">
               <div class="panel-head" style="margin-bottom: 8px;">
                 <span id="current-gantt-title">專案時程檢視</span>
@@ -102,13 +102,14 @@
             <div class="section-panel" style="margin-top: 24px;">
               <div class="panel-head">細項進度與備註紀錄 (可向下捲動)</div>
               <div class="table-responsive">
-                <table>
+                <!-- 加入 table-layout: fixed 與 word-wrap 確保寬度固定 -->
+                <table style="width: 100%; table-layout: fixed; border-collapse: collapse; word-wrap: break-word;">
                   <thead>
                     <tr>
-                      <th style="width: 18%;">任務名稱</th>
-                      <th style="width: 18%;">起訖日期</th>
+                      <th style="width: 20%;">任務名稱</th>
                       <th style="width: 12%;">狀態</th>
-                      <th style="width: 52%;">歷史紀錄與備註 (最新在上)</th>
+                      <th style="width: 34%;">歷史更新紀錄 (最新在上)</th>
+                      <th style="width: 34%;">備註 / Delay 原因</th>
                     </tr>
                   </thead>
                   <tbody id="project-list-tbody"></tbody>
