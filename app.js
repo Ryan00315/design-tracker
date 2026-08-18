@@ -54,14 +54,9 @@ window.toggleSubMenu = () => {
   document.getElementById('nav-sub-wrapper').classList.toggle('nav-menu-open');
 };
 
-// 核心函式：計算兩個日期之間的「工作天數」
 function getWorkingDays(startDate, endDate) {
-  let count = 0; 
-  let curDate = new Date(startDate); 
-  let end = new Date(endDate);
-  curDate.setHours(0,0,0,0); 
-  end.setHours(0,0,0,0);
-  
+  let count = 0; let curDate = new Date(startDate); let end = new Date(endDate);
+  curDate.setHours(0,0,0,0); end.setHours(0,0,0,0);
   while (curDate <= end) {
     if (curDate.getDay() !== 0 && curDate.getDay() !== 6) count++;
     curDate.setDate(curDate.getDate() + 1);
@@ -266,11 +261,10 @@ function renderProjects() {
 
   const isOwner = activeProj.ownerId === auth.currentUser.uid;
   const leftBody = document.getElementById("gantt-left-body");
-  const listBody = document.getElementById("project-list-tbody");
   leftBody.innerHTML = ""; 
-  if(listBody) listBody.innerHTML = "";
   
   const ganttTasks = [];
+  let allHistoryLogs = []; // 收集此專案所有歷史紀錄
 
   activeProj.tasks.forEach((task, index) => {
     const currentProgress = task.progress || 0;
@@ -287,45 +281,46 @@ function renderProjects() {
     `;
     leftBody.appendChild(row);
 
-    // 歷史紀錄處理：若存在 history 陣列，則渲染成清單；否則相容舊版資料
-    let historyHtml = '';
-    const historyList = task.history || [];
-    if (historyList.length > 0) {
-      historyHtml = `<div style="max-height: 120px; overflow-y: auto; padding-right: 6px;">` + 
-        historyList.map(h => {
-          let note = h.type === 'create' ? '<span style="color:var(--text-muted)">(建立任務)</span>' : (h.type === 'complete' ? '<span style="color:var(--success)">(🎉 結案)</span>' : '');
-          let delayStr = h.delayReason ? `<br><span class="pill pill-danger" style="margin-top:2px;">Delay: ${h.delayReason}</span>` : '';
-          return `
-          <div style="margin-bottom:6px; border-bottom:1px dashed var(--border); padding-bottom:4px; font-size:12px;">
-            <span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span><br>
-            更新進度為: <b>${h.progress}%</b> ${note} | 距起始日歷時: <b>${h.daysPassed}</b> 工作天 ${delayStr}
-          </div>`;
-        }).join('') + `</div>`;
-    } else {
-      // 舊版相容顯示
-      historyHtml = `
-        ${task.lastUpdatedAt ? `<small style="color:var(--primary);">更新於: ${task.lastUpdatedAt}</small><br>` : '<small style="color:var(--text-muted);">尚無紀錄</small>'}
-        ${task.completedAt ? `<small style="color:var(--success);">結案於: ${task.completedAt}</small><br>` : ''}
-        ${task.delayReason ? `<span class="pill pill-danger" style="margin-top:4px;">Delay: ${task.delayReason}</span>` : ''}
-      `;
-    }
-
-    if (listBody) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><strong>${task.name}</strong></td>
-        <td>${task.start} <br>至<br> ${task.end}</td>
-        <td>${task.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">進行中</span>'}</td>
-        <td style="min-width: 300px;">${historyHtml}</td>
-      `;
-      listBody.appendChild(tr);
+    // 彙整此 Task 的歷史紀錄到全域陣列
+    if (task.history && task.history.length > 0) {
+      task.history.forEach(h => {
+        allHistoryLogs.push({ taskName: task.name, ...h });
+      });
     }
   });
 
+  // 渲染下方的獨立歷史紀錄表格 (流水帳)
+  const listBody = document.getElementById("project-list-tbody");
+  if (listBody) {
+    listBody.innerHTML = "";
+    
+    // 將所有紀錄依照時間新到舊排序 (越晚的越上面)
+    allHistoryLogs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    if (allHistoryLogs.length === 0) {
+      listBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:20px;">尚無任何更新紀錄</td></tr>`;
+    } else {
+      allHistoryLogs.forEach(h => {
+        let note = h.type === 'create' ? '<span style="color:var(--text-muted)">(任務建立)</span>' : (h.type === 'complete' ? '<span style="color:var(--success)">(🎉 100% 結案)</span>' : '');
+        let delayStr = h.delayReason ? `<span class="pill pill-danger">Delay: ${h.delayReason}</span>` : '-';
+        
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><span style="color:var(--primary); font-weight:600;">${h.timestamp}</span></td>
+          <td><strong>${h.taskName}</strong></td>
+          <td>${h.progress}% ${note}</td>
+          <td>歷時 <b>${h.daysPassed}</b> 天</td>
+          <td>${delayStr}</td>
+        `;
+        listBody.appendChild(tr);
+      });
+    }
+  }
+
+  // 繪製甘特圖
   if (ganttTasks.length > 0) {
     const chartContainer = document.getElementById("gantt-chart-container");
     chartContainer.className = activeProj.isLocked ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
-    
     chartContainer.innerHTML = '<div id="gantt-chart"></div>';
     
     setTimeout(() => {
@@ -380,7 +375,7 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
     tasks[taskIndex].isCompleted = true; 
     tasks[taskIndex].completedAt = ts;
     tasks[taskIndex].delayReason = delayReason;
-    alert("🎉 進度已達 100%！");
+    alert("🎉 進度已達 100%！該任務已結案。");
   } else { 
     tasks[taskIndex].isCompleted = false; 
     tasks[taskIndex].completedAt = null; 
@@ -390,9 +385,9 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   tasks[taskIndex].progress = newProg;
   tasks[taskIndex].lastUpdatedAt = ts;
 
-  // 將新紀錄寫入歷史陣列最上方 (unshift)
+  // 寫入歷史陣列
   if (!tasks[taskIndex].history) tasks[taskIndex].history = [];
-  tasks[taskIndex].history.unshift({
+  tasks[taskIndex].history.push({
     timestamp: ts,
     progress: newProg,
     type: newProg === 100 ? 'complete' : 'update',
