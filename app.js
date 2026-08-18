@@ -96,6 +96,7 @@ function getWorkingDays(startDate, endDate) {
   return count;
 }
 
+// 🚀 甘特圖視覺補丁 (年份 + 假日紅字紅底)
 function patchGanttVisuals(ganttInst, containerSelector) {
   if (!ganttInst || !ganttInst.dates || ganttInst.dates.length === 0) return;
   const svg = document.querySelector(`${containerSelector} .gantt`);
@@ -104,11 +105,18 @@ function patchGanttVisuals(ganttInst, containerSelector) {
   const baseYear = ganttInst.dates[0].getFullYear();
   svg.querySelectorAll('.upper-text').forEach(el => {
       const t = el.textContent.trim();
-      if (/^\d+月$/.test(t)) el.textContent = `${baseYear}年 ${t}`;
-      else if (/^\d{4}\s+\d+月$/.test(t)) el.textContent = t.replace(/^(\d{4})\s+(\d+月)$/, '$1年 $2');
+      if (/^\d+月$/.test(t)) {
+          el.textContent = `${baseYear}年 ${t}`;
+      } else if (/^\d{4}\s+\d+月$/.test(t)) {
+          el.textContent = t.replace(/^(\d{4})\s+(\d+月)$/, '$1年 $2');
+      }
   });
 
-  const holidays = [ '01-01', '01-02', '02-16', '02-17', '02-18', '02-19', '02-20', '02-28', '04-03', '04-04', '04-05', '04-06', '05-01', '06-19', '09-25', '10-10' ];
+  const holidays = [
+    '01-01', '01-02', '02-16', '02-17', '02-18', '02-19', '02-20', 
+    '02-28', '04-03', '04-04', '04-05', '04-06', '05-01', '06-19', '09-25', '10-10'
+  ];
+  
   const lowerTexts = Array.from(svg.querySelectorAll('.lower-text'));
   const dayTicks = Array.from(svg.querySelectorAll('.tick')).filter(t => !t.classList.contains('thick'));
 
@@ -264,6 +272,7 @@ function loadProjects() {
     renderProjects(); refreshAllWeeklyProjSelects();
   });
 }
+
 function formatDateSafe(dateObj) { const y = dateObj.getFullYear(); const m = String(dateObj.getMonth() + 1).padStart(2, '0'); const d = String(dateObj.getDate()).padStart(2, '0'); return `${y}-${m}-${d}`; }
 function getAdHocDateStr(evt) {
   if (evt.startDate) return evt.startDate;
@@ -324,9 +333,12 @@ function renderProjects() {
     const btn = document.createElement("button"); btn.className = `proj-tab ${p.id === selectedProjectId ? 'active' : ''}`;
     btn.innerText = p.title; btn.onclick = () => selectProject(p.id); tabsContainer.appendChild(btn);
   });
+
   emptyState.style.display = "none"; 
 
+  // ==========================
   // 總覽
+  // ==========================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; summaryView.style.display = "block";
     const sumLeftBody = document.getElementById("gantt-summary-left-body");
@@ -365,15 +377,21 @@ function renderProjects() {
       document.getElementById("gantt-chart-summary-container").innerHTML = '<div id="gantt-chart-summary"></div>';
       setTimeout(() => {
         if (document.getElementById("tab-projects").style.display === "none") return;
-        // 🚀 核心修改：移除 on_date_change 來徹底鎖死拖曳
-        summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18 });
+        
+        // 🚀 核心修改：無拖曳回呼函式，純檢視
+        summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { 
+          view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18,
+          readonly: true 
+        });
         patchGanttVisuals(summaryGanttInstance, '#gantt-chart-summary-container');
       }, 150); 
     } else { document.getElementById("gantt-chart-summary-container").innerHTML = ''; }
     return;
   }
 
+  // ==========================
   // 個別專案
+  // ==========================
   summaryView.style.display = "none"; detailView.style.display = "block";
   const activeProj = filteredProjects.find(p => p.id === selectedProjectId);
   if(!activeProj) return; 
@@ -388,7 +406,7 @@ function renderProjects() {
   const delProjBtn = document.getElementById("btn-delete-project");
   
   if (currentUserData.role === "admin" || currentUserData.role === "top_manager") {
-    lockBtn.style.display = "inline-block"; lockBtn.innerText = activeProj.isLocked ? "🔒 鎖定中" : "🔓 已開放 (點擊鎖定)";
+    lockBtn.style.display = "inline-block"; lockBtn.innerText = activeProj.isLocked ? "🔒 鎖定中 (解鎖供編輯)" : "🔓 已開放 (點擊鎖定)";
     lockBtn.className = activeProj.isLocked ? "action-btn" : "action-btn danger"; delProjBtn.style.display = "inline-block";
   } else { lockBtn.style.display = "none"; delProjBtn.style.display = "none"; }
 
@@ -444,13 +462,15 @@ function renderProjects() {
 
   if (ganttTasks.length > 0) {
     const chartContainer = document.getElementById("gantt-chart-container");
-    chartContainer.className = "gantt-right-panel locked-gantt"; // 🚀 強制鎖死顯示
+    chartContainer.className = activeProj.isLocked ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
     chartContainer.innerHTML = '<div id="gantt-chart"></div>';
     setTimeout(() => {
       if (document.getElementById("tab-projects").style.display === "none") return;
-      // 🚀 核心修改：移除 on_date_change 來徹底鎖死拖曳
+      
+      // 🚀 核心修改：無拖曳回呼函式，純檢視，所有修改走 ✏️
       ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
-        view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18
+        view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18,
+        readonly: true
       });
       patchGanttVisuals(ganttInstance, '#gantt-chart-container');
     }, 150); 
@@ -551,15 +571,15 @@ function renderAdHocEvents() {
     let actionHtml = !evt.isCompleted && isOwner ? `<button class="action-btn" onclick="completeAdHoc('${evt.id}')">完成</button>` : '';
     let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || canEditUI) ? `<button class="action-btn danger" style="margin-left:4px;" onclick="deleteAdHoc('${evt.id}')">刪除</button>` : '';
 
-    // 🚀 核心修改：使用 white-space: nowrap 將日期、狀態、按鈕縮到最小，讓 reason 展開到最大
+    // 🚀 核心修改：精準壓縮寬度
     const tr = document.createElement("tr"); 
     tr.innerHTML = `
-      <td style="white-space: nowrap;"><strong>${evt.title}</strong></td>
-      <td style="word-break: break-all; width: 100%; min-width: 200px;">${evt.reason}</td>
-      <td style="white-space: nowrap;">${evt.startDate || '-'}</td>
-      <td style="white-space: nowrap;">${evt.completedAt || '-'}</td>
-      <td style="white-space: nowrap;">${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td>
-      <td style="white-space: nowrap;">${actionHtml}${editHtml}${delHtml}</td>
+      <td style="white-space: nowrap; width: 1%;"><strong>${evt.title}</strong></td>
+      <td>${evt.reason}</td>
+      <td style="white-space: nowrap; width: 1%;">${evt.startDate || '-'}</td>
+      <td style="white-space: nowrap; width: 1%;">${evt.completedAt || '-'}</td>
+      <td style="white-space: nowrap; width: 1%;">${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td>
+      <td style="white-space: nowrap; width: 1%;">${actionHtml}${editHtml}${delHtml}</td>
     `; 
     tbody.appendChild(tr);
   });
@@ -695,7 +715,7 @@ window.markWeeklyNoted = async (type) => {
 
 
 // ==========================================
-// 🚀 全局編輯模式 Modal 邏輯 (支援專案/事件/週報修改)
+// 🚀 全局編輯模式 Modal 邏輯
 // ==========================================
 let currentEditData = {};
 
