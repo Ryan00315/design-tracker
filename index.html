@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PMS - 專案管理系統</title>
+  <title>PMS - 設計課專案管理系統</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.css">
 </head>
@@ -22,7 +22,7 @@
   <!-- 2. 主工作後台 -->
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v4.0</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v4.1</span></div>
       <ul class="nav-list">
         <li class="nav-item active" onclick="switchNav('tab-projects', '專案進度', this)">
           <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-3 3"/></svg><span>專案進度</span>
@@ -50,7 +50,6 @@
             <div class="avatar" id="user-avatar">R</div>
             <div><div id="user-display-name" style="font-size: 13px; font-weight: 600;">Ryan</div><span id="user-role-badge" class="role-badge">ADMIN</span></div>
           </div>
-          <!-- 獨立個人設定按鈕 -->
           <button class="btn-icon" onclick="switchNav('tab-profile', '個人帳號設定', null)" title="個人帳號設定">
             <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
           </button>
@@ -116,8 +115,10 @@
                   </div>
                   <div class="gantt-body" id="gantt-left-body"></div>
                 </div>
-                <!-- 右側 SVG 甘特圖 -->
-                <div class="gantt-right-panel" id="gantt-chart"></div>
+                <!-- 右側 SVG 甘特圖外層包覆防縮小容器 -->
+                <div class="gantt-right-panel" id="gantt-chart-container">
+                  <div id="gantt-chart"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -154,7 +155,10 @@
               <div class="form-group"><label class="form-label">起始日期</label><input type="date" id="rep-start" class="input-control"></div>
               <div class="form-group"><label class="form-label">結束日期</label><input type="date" id="rep-end" class="input-control"></div>
             </div>
-            <div class="form-group"><label class="form-label">本週進度說明</label><textarea id="rep-content" class="input-control" rows="5" placeholder="條列本週進度、遭遇問題與下週規劃..."></textarea></div>
+            <div class="form-group">
+              <label class="form-label">本週進度說明</label>
+              <textarea id="rep-content" class="input-control" rows="5" placeholder="條列本週進度、遭遇問題與下週規劃..."></textarea>
+            </div>
             <button id="btn-add-weekly" class="btn-primary" style="width: 160px;">送出週報</button>
           </div>
         </div>
@@ -198,22 +202,6 @@
         </div>
 
       </main>
-    </div>
-  </div>
-
-  <!-- 管理員編輯人員視窗 (Modal) -->
-  <div id="edit-user-modal" class="modal-overlay">
-    <div class="modal-box">
-      <div class="modal-header"><span>編輯人員組織資訊</span><button class="btn-close" onclick="closeEditModal()">×</button></div>
-      <div class="form-group"><label class="form-label">姓名</label><input type="text" id="edit-user-name" class="input-control"></div>
-      <div class="form-group"><label class="form-label">組織階層職稱</label>
-        <select id="edit-user-role" class="input-control">
-          <option value="staff">人員 (Staff)</option><option value="assistant_manager">副主管 (Assistant Manager)</option><option value="manager">主管 (Manager)</option><option value="top_manager">高級主管 (Top Manager)</option><option value="admin">系統管理員 (Admin)</option>
-        </select>
-      </div>
-      <div class="form-group"><label class="form-label">直屬主管</label><select id="edit-user-supervisor" class="input-control"></select></div>
-      <input type="hidden" id="edit-user-uid">
-      <div class="modal-actions"><button class="action-btn" onclick="closeEditModal()" style="font-size:14px;">取消</button><button class="btn-primary" onclick="submitEditUser()">儲存變更</button></div>
     </div>
   </div>
 
