@@ -42,7 +42,6 @@ window.switchNav = (tabId, title, elem) => {
   if (elem) elem.classList.add('active');
   document.getElementById('current-title').innerText = title;
 
-  // 強制重繪甘特圖防消失
   if (tabId === 'tab-projects') setTimeout(renderProjects, 100);
 };
 
@@ -55,9 +54,14 @@ window.toggleSubMenu = () => {
   document.getElementById('nav-sub-wrapper').classList.toggle('nav-menu-open');
 };
 
+// 核心函式：計算兩個日期之間的「工作天數」
 function getWorkingDays(startDate, endDate) {
-  let count = 0; let curDate = new Date(startDate); let end = new Date(endDate);
-  curDate.setHours(0,0,0,0); end.setHours(0,0,0,0);
+  let count = 0; 
+  let curDate = new Date(startDate); 
+  let end = new Date(endDate);
+  curDate.setHours(0,0,0,0); 
+  end.setHours(0,0,0,0);
+  
   while (curDate <= end) {
     if (curDate.getDay() !== 0 && curDate.getDay() !== 6) count++;
     curDate.setDate(curDate.getDate() + 1);
@@ -174,7 +178,7 @@ function getNextWorkingDayStr(dateStr) {
 window.checkWorkingDay = (input) => {
   if (!input.value) return;
   const d = new Date(input.value);
-  if (d.getDay() === 0 || d.getDay() === 6) { alert("僅能選擇工作日！"); input.value = ''; }
+  if (d.getDay() === 0 || d.getDay() === 6) { alert("系統規定只能點選工作日喔！"); input.value = ''; }
 };
 
 window.addTaskRow = () => {
@@ -262,10 +266,7 @@ function renderProjects() {
 
   const isOwner = activeProj.ownerId === auth.currentUser.uid;
   const leftBody = document.getElementById("gantt-left-body");
-  
-  // 安全取得下方表格
   const listBody = document.getElementById("project-list-tbody");
-  
   leftBody.innerHTML = ""; 
   if(listBody) listBody.innerHTML = "";
   
@@ -286,18 +287,36 @@ function renderProjects() {
     `;
     leftBody.appendChild(row);
 
-    // 寫入下方明細表格
+    // 歷史紀錄處理：若存在 history 陣列，則渲染成清單；否則相容舊版資料
+    let historyHtml = '';
+    const historyList = task.history || [];
+    if (historyList.length > 0) {
+      historyHtml = `<div style="max-height: 120px; overflow-y: auto; padding-right: 6px;">` + 
+        historyList.map(h => {
+          let note = h.type === 'create' ? '<span style="color:var(--text-muted)">(建立任務)</span>' : (h.type === 'complete' ? '<span style="color:var(--success)">(🎉 結案)</span>' : '');
+          let delayStr = h.delayReason ? `<br><span class="pill pill-danger" style="margin-top:2px;">Delay: ${h.delayReason}</span>` : '';
+          return `
+          <div style="margin-bottom:6px; border-bottom:1px dashed var(--border); padding-bottom:4px; font-size:12px;">
+            <span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span><br>
+            更新進度為: <b>${h.progress}%</b> ${note} | 距起始日歷時: <b>${h.daysPassed}</b> 工作天 ${delayStr}
+          </div>`;
+        }).join('') + `</div>`;
+    } else {
+      // 舊版相容顯示
+      historyHtml = `
+        ${task.lastUpdatedAt ? `<small style="color:var(--primary);">更新於: ${task.lastUpdatedAt}</small><br>` : '<small style="color:var(--text-muted);">尚無紀錄</small>'}
+        ${task.completedAt ? `<small style="color:var(--success);">結案於: ${task.completedAt}</small><br>` : ''}
+        ${task.delayReason ? `<span class="pill pill-danger" style="margin-top:4px;">Delay: ${task.delayReason}</span>` : ''}
+      `;
+    }
+
     if (listBody) {
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td><strong>${task.name}</strong></td>
-        <td>${task.start} 至 ${task.end} (${workDays} 天)</td>
+        <td>${task.start} <br>至<br> ${task.end}</td>
         <td>${task.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">進行中</span>'}</td>
-        <td>
-          ${task.lastUpdatedAt ? `<small style="color:var(--primary);">更新於: ${task.lastUpdatedAt}</small><br>` : ''}
-          ${task.completedAt ? `<small style="color:var(--success);">結案於: ${task.completedAt}</small><br>` : ''}
-          ${task.delayReason ? `<span class="pill pill-danger" style="margin-top:4px;">Delay: ${task.delayReason}</span>` : (!task.lastUpdatedAt && !task.completedAt ? '-' : '')}
-        </td>
+        <td style="min-width: 300px;">${historyHtml}</td>
       `;
       listBody.appendChild(tr);
     }
@@ -307,7 +326,6 @@ function renderProjects() {
     const chartContainer = document.getElementById("gantt-chart-container");
     chartContainer.className = activeProj.isLocked ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
     
-    // 清空重繪
     chartContainer.innerHTML = '<div id="gantt-chart"></div>';
     
     setTimeout(() => {
@@ -327,33 +345,40 @@ function renderProjects() {
           await updateDoc(doc(db, "projects", activeProj.id), { tasks: proj.tasks });
         }
       });
-    }, 150);
+    }, 150); 
   }
 }
 
-// === 確認與寫入進度 ===
+// === 確認與寫入歷史進度 ===
 window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const proj = allProjectsData.find(p => p.id === projId);
   const tasks = [...proj.tasks];
   const inputElem = document.getElementById(`prog_input_${taskIndex}`);
-  let newProg = parseInt(inputElem.value); const oldProg = tasks[taskIndex].progress || 0;
-  if (isNaN(newProg) || newProg < 0) newProg = 0; if (newProg > 100) newProg = 100;
-
-  if (newProg < oldProg) { alert(`錯誤：進度不能往回調整！`); inputElem.value = oldProg; return; }
-
-  // 紀錄更新時間
-  tasks[taskIndex].lastUpdatedAt = new Date().toLocaleString('zh-TW', { hour12: false });
+  let newProg = parseInt(inputElem.value); 
+  const oldProg = tasks[taskIndex].progress || 0;
   
+  if (isNaN(newProg) || newProg < 0) newProg = 0; 
+  if (newProg > 100) newProg = 100;
+
+  if (newProg < oldProg) { alert(`錯誤：進度不能往回倒扣！目前已達成 ${oldProg}%。`); inputElem.value = oldProg; return; }
+
+  // 計算經過的工作天數
+  const todayStr = new Date().toISOString().split('T')[0];
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+  let passedDays = 0;
+  if (todayStr >= tasks[taskIndex].start) {
+    passedDays = getWorkingDays(tasks[taskIndex].start, todayStr);
+  }
+
   let delayReason = tasks[taskIndex].delayReason || "";
   
   if (newProg === 100) {
-    const today = new Date().toISOString().split('T')[0];
-    if (today > plannedEnd && !delayReason) {
+    if (todayStr > plannedEnd && !delayReason) {
       delayReason = prompt("此任務已超出預計完成日，請填寫 Delay 原因：");
       if (!delayReason) { inputElem.value = oldProg; return alert("必須填寫原因才能完成！"); }
     }
     tasks[taskIndex].isCompleted = true; 
-    tasks[taskIndex].completedAt = tasks[taskIndex].lastUpdatedAt;
+    tasks[taskIndex].completedAt = ts;
     tasks[taskIndex].delayReason = delayReason;
     alert("🎉 進度已達 100%！");
   } else { 
@@ -363,19 +388,48 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   }
 
   tasks[taskIndex].progress = newProg;
+  tasks[taskIndex].lastUpdatedAt = ts;
+
+  // 將新紀錄寫入歷史陣列最上方 (unshift)
+  if (!tasks[taskIndex].history) tasks[taskIndex].history = [];
+  tasks[taskIndex].history.unshift({
+    timestamp: ts,
+    progress: newProg,
+    type: newProg === 100 ? 'complete' : 'update',
+    daysPassed: passedDays,
+    delayReason: delayReason || ""
+  });
+
   await updateDoc(doc(db, "projects", projId), { tasks });
 };
 
 document.getElementById("btn-add-project").addEventListener("click", async () => {
   const title = document.getElementById("proj-name").value.trim();
   if (!title) return alert("請填寫主專案名稱！");
-  const taskRows = document.querySelectorAll('.task-row'); const tasks = [];
+  const taskRows = document.querySelectorAll('.task-row'); 
+  const tasks = [];
+  
+  const todayStr = new Date().toISOString().split('T')[0];
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+
   for (let row of taskRows) {
-    const name = row.querySelector('.task-name').value.trim(); const start = row.querySelector('.task-start').value; const end = row.querySelector('.task-end').value;
+    const name = row.querySelector('.task-name').value.trim(); 
+    const start = row.querySelector('.task-start').value; 
+    const end = row.querySelector('.task-end').value;
+    
     if (!name || !start || !end) return alert("任務細項不可有空白欄位！");
     if (start > end) return alert(`任務 [${name}] 的起始日不可大於完成日！`);
-    tasks.push({ name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: null });
+    
+    // 初始化時如果有提早建立，經歷天數算 0
+    let passedDays = 0;
+    if (todayStr >= start) passedDays = getWorkingDays(start, todayStr);
+
+    tasks.push({ 
+      name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts,
+      history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '' }]
+    });
   }
+  
   await addDoc(collection(db, "projects"), { title, ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email, isLocked: true, tasks: tasks, createdAt: serverTimestamp() });
   document.getElementById("proj-name").value = ""; document.getElementById("task-list-container").innerHTML = ""; addTaskRow(); document.getElementById('create-project-section').style.display = 'none'; alert("專案已建立！");
 });
