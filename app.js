@@ -26,6 +26,13 @@ const roleNames = { admin: "系統管理員", top_manager: "高級主管", manag
 let currentUserData = { role: "staff", name: "" };
 let allUsersList = [];
 
+// 檢視狀態變數
+let viewingUserId = null; // 當前正在看誰的專案
+let allProjectsData = [];
+let currentFilter = 'ongoing'; 
+let selectedProjectId = null;
+let ganttInstance = null;
+
 window.switchNav = (tabId, title, elem) => {
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -39,10 +46,26 @@ document.getElementById('btn-toggle-create').addEventListener('click', () => {
   form.style.display = form.style.display === 'none' ? 'block' : 'none';
 });
 
+// 計算實際工作天數
+function getWorkingDays(startDate, endDate) {
+  let count = 0;
+  let curDate = new Date(startDate);
+  let end = new Date(endDate);
+  curDate.setHours(0,0,0,0);
+  end.setHours(0,0,0,0);
+  while (curDate <= end) {
+    if (curDate.getDay() !== 0 && curDate.getDay() !== 6) count++;
+    curDate.setDate(curDate.getDate() + 1);
+  }
+  return count;
+}
+
+// === 登入監聽與權限配發 ===
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     document.getElementById("auth-section").style.display = "none";
     document.getElementById("app-section").style.display = "flex";
+    viewingUserId = user.uid; // 預設看自己
 
     try {
       const userDoc = await getDoc(doc(db, "users", user.uid));
@@ -55,18 +78,21 @@ onAuthStateChanged(auth, async (user) => {
       currentUserData = { name: user.email.split('@')[0], role: "admin" };
     }
 
-    const displayName = currentUserData.name || user.email.split('@')[0];
-    document.getElementById("user-display-name").innerText = displayName;
-    document.getElementById("user-avatar").innerText = displayName.charAt(0).toUpperCase();
+    document.getElementById("user-display-name").innerText = currentUserData.name || user.email.split('@')[0];
+    document.getElementById("user-avatar").innerText = (currentUserData.name || user.email).charAt(0).toUpperCase();
     document.getElementById("user-role-badge").innerText = roleNames[currentUserData.role] || (currentUserData.role || "STAFF").toUpperCase();
 
+    // 處理管理員選單
     if (currentUserData.role === "admin") {
       document.getElementById("nav-org-manage").style.display = "flex";
       document.getElementById("nav-divider-org").style.display = "block";
-      loadOrgUsers();
-    } else {
-      document.getElementById("nav-org-manage").style.display = "none";
-      document.getElementById("nav-divider-org").style.display = "none";
+      loadOrgUsers(); // Admin 的組織管理列表
+    }
+
+    // 處理主管的人員切換列
+    if (currentUserData.role !== 'staff') {
+      document.getElementById('subordinate-selector').style.display = 'flex';
+      loadSubordinateTabs();
     }
 
     addTaskRow(); 
@@ -78,10 +104,45 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
+// 載入主管的部屬名單 (切換用)
+function loadSubordinateTabs() {
+  onSnapshot(collection(db, "users"), (snapshot) => {
+    const container = document.getElementById("sub-tabs-container");
+    container.innerHTML = `<button class="sub-tab active" id="sub-tab-${auth.currentUser.uid}" onclick="switchViewingUser('${auth.currentUser.uid}')">我的專案</button>`;
+    
+    snapshot.forEach(docSnap => {
+      const u = { uid: docSnap.id, ...docSnap.data() };
+      if (u.uid === auth.currentUser.uid) return;
+      
+      // Admin/TopManager 看全部，Manager 看直屬
+      if (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || u.supervisorId === auth.currentUser.uid) {
+        container.innerHTML += `<button class="sub-tab" id="sub-tab-${u.uid}" onclick="switchViewingUser('${u.uid}')">${u.name}</button>`;
+      }
+    });
+  });
+}
+
+window.switchViewingUser = (uid) => {
+  viewingUserId = uid;
+  document.querySelectorAll('.sub-tab').forEach(el => el.classList.remove('active'));
+  const targetTab = document.getElementById(`sub-tab-${uid}`);
+  if (targetTab) targetTab.classList.add('active');
+  
+  // 隱藏新增按鈕 (不能幫別人新增專案)
+  if (viewingUserId !== auth.currentUser.uid) {
+    document.getElementById('btn-create-wrapper').style.display = 'none';
+    document.getElementById('create-project-section').style.display = 'none';
+  } else {
+    document.getElementById('btn-create-wrapper').style.display = 'flex';
+  }
+
+  selectedProjectId = null;
+  renderProjects();
+};
+
 document.getElementById("btn-login").addEventListener("click", () => {
   const email = document.getElementById("login-email").value.trim();
   const pass = document.getElementById("login-password").value.trim();
-  if (!email || !pass) return alert("請輸入信箱與密碼！");
   signInWithEmailAndPassword(auth, email, pass).catch(err => alert("登入失敗: " + err.message));
 });
 document.getElementById("btn-logout").addEventListener("click", () => signOut(auth));
@@ -89,16 +150,16 @@ document.getElementById("btn-update-password").addEventListener("click", async (
   const newPass = document.getElementById("profile-new-pass").value;
   const confirmPass = document.getElementById("profile-confirm-pass").value;
   if (!newPass || newPass.length < 6) return alert("新密碼長度至少需 6 碼！");
-  if (newPass !== confirmPass) return alert("兩次輸入的新密碼不一致！");
+  if (newPass !== confirmPass) return alert("密碼不一致！");
   try {
     await updatePassword(auth.currentUser, newPass);
     alert("密碼變更成功！請妥善保存。");
     document.getElementById("profile-new-pass").value = "";
     document.getElementById("profile-confirm-pass").value = "";
-  } catch (err) { alert("密碼更新失敗: " + err.message); }
+  } catch (err) { alert("更新失敗: " + err.message); }
 });
 
-function getNextWorkingDay(dateStr) {
+function getNextWorkingDayStr(dateStr) {
   if (!dateStr) return '';
   let d = new Date(dateStr);
   d.setDate(d.getDate() + 1);
@@ -121,7 +182,7 @@ window.addTaskRow = () => {
   let defaultStart = "";
   if (rows.length > 0) {
     const lastEnd = rows[rows.length - 1].querySelector('.task-end').value;
-    defaultStart = getNextWorkingDay(lastEnd);
+    defaultStart = getNextWorkingDayStr(lastEnd);
   }
   const div = document.createElement('div');
   div.className = "form-row task-row"; div.style.marginBottom = "8px";
@@ -133,12 +194,6 @@ window.addTaskRow = () => {
   `;
   container.appendChild(div);
 };
-
-// === 專案渲染與甘特圖聯動 ===
-let allProjectsData = [];
-let currentFilter = 'ongoing'; 
-let selectedProjectId = null;
-let ganttInstance = null;
 
 window.setProjectFilter = (status) => {
   currentFilter = status;
@@ -158,24 +213,8 @@ function loadProjects() {
   onSnapshot(query(collection(db, "projects")), (snapshot) => {
     allProjectsData = [];
     snapshot.forEach(docSnap => {
-      const proj = { id: docSnap.id, ...docSnap.data() };
-      if (currentUserData.role === "staff" && proj.ownerId !== auth.currentUser.uid) return;
-      allProjectsData.push(proj);
+      allProjectsData.push({ id: docSnap.id, ...docSnap.data() });
     });
-    
-    let countOngoing = 0, countCompleted = 0, countDelayed = 0;
-    allProjectsData.forEach(p => {
-      if (!p.tasks || p.tasks.length === 0) return;
-      const isAllDone = p.tasks.every(t => t.isCompleted);
-      const hasDelay = p.tasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
-      if (isAllDone) countCompleted++; else countOngoing++;
-      if (hasDelay) countDelayed++;
-    });
-
-    document.getElementById('stat-ongoing').innerText = countOngoing;
-    document.getElementById('stat-completed').innerText = countCompleted;
-    document.getElementById('stat-delay').innerText = countDelayed;
-
     renderProjects();
   });
 }
@@ -188,12 +227,25 @@ function formatDateSafe(dateObj) {
 }
 
 function renderProjects() {
-  const tabsContainer = document.getElementById("project-tabs-container");
-  const detailView = document.getElementById("project-detail-view");
-  const emptyState = document.getElementById("empty-state");
-  tabsContainer.innerHTML = "";
+  // 1. 過濾出當前正在檢視的使用者專案
+  const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
 
-  const filteredProjects = allProjectsData.filter(p => {
+  // 2. 計算該人員的 KPI
+  let countOngoing = 0, countCompleted = 0, countDelayed = 0;
+  userProjects.forEach(p => {
+    if (!p.tasks || p.tasks.length === 0) return;
+    const isAllDone = p.tasks.every(t => t.isCompleted);
+    const hasDelay = p.tasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
+    if (isAllDone) countCompleted++; else countOngoing++;
+    if (hasDelay) countDelayed++;
+  });
+
+  document.getElementById('stat-ongoing').innerText = countOngoing;
+  document.getElementById('stat-completed').innerText = countCompleted;
+  document.getElementById('stat-delay').innerText = countDelayed;
+
+  // 3. 依據完成狀態過濾
+  const filteredProjects = userProjects.filter(p => {
     if (!p.tasks || p.tasks.length === 0) return false;
     const isAllDone = p.tasks.every(t => t.isCompleted);
     const hasDelay = p.tasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
@@ -201,6 +253,11 @@ function renderProjects() {
     if (currentFilter === 'delayed') return hasDelay;
     return !isAllDone;
   });
+
+  const tabsContainer = document.getElementById("project-tabs-container");
+  const detailView = document.getElementById("project-detail-view");
+  const emptyState = document.getElementById("empty-state");
+  tabsContainer.innerHTML = "";
 
   if (filteredProjects.length === 0) {
     detailView.style.display = "none";
@@ -229,41 +286,60 @@ function renderProjects() {
   const lockBtn = document.getElementById("btn-toggle-lock");
   if (currentUserData.role === "admin" || currentUserData.role === "top_manager") {
     lockBtn.style.display = "inline-block";
-    lockBtn.innerText = activeProj.isLocked ? "🔒 鎖定中 (點擊解鎖編輯時間)" : "🔓 已開放編輯 (點擊鎖定)";
+    lockBtn.innerText = activeProj.isLocked ? "🔒 鎖定中 (點擊解鎖允許負責人修改時間)" : "🔓 已開放編輯 (點擊鎖定)";
     lockBtn.className = activeProj.isLocked ? "action-btn" : "action-btn danger";
   } else {
     lockBtn.style.display = "none";
   }
 
+  // 是否為主負責人
+  const isOwner = activeProj.ownerId === auth.currentUser.uid;
+
   // 渲染左側對齊面板
   const leftBody = document.getElementById("gantt-left-body");
+  const listBody = document.getElementById("project-list-tbody");
   leftBody.innerHTML = "";
+  listBody.innerHTML = "";
   const ganttTasks = [];
 
   activeProj.tasks.forEach((task, index) => {
     const currentProgress = task.progress || 0;
+    const workDays = getWorkingDays(task.start, task.end);
     
     ganttTasks.push({
       id: `t_${index}`, name: task.name, start: task.start, end: task.end, 
       progress: currentProgress, custom_class: task.isCompleted ? 'bar-success' : ''
     });
 
-    const isLockedUI = task.isCompleted; // 100% 結案鎖定
+    // 防呆：非負責人 或 任務已完成，皆鎖定輸入
+    const isInputLocked = task.isCompleted || !isOwner; 
+
+    // 左側面板列
     const row = document.createElement("div");
     row.className = "gantt-row";
     row.innerHTML = `
       <div class="col-name" title="${task.name}">${task.name}</div>
-      <div class="col-date">${task.start.substring(5)} ~ ${task.end.substring(5)}</div>
+      <div class="col-date">${workDays} 天</div>
       <div class="col-prog">
-        <input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isLockedUI ? 'disabled' : ''}> %
+        <input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''}> %
       </div>
       <div class="col-act">
-        <button class="action-btn" ${isLockedUI ? 'disabled' : ''} onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')">
-          ${isLockedUI ? '已結案' : '確認'}
+        <button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')">
+          ${task.isCompleted ? '完成' : '確認'}
         </button>
       </div>
     `;
     leftBody.appendChild(row);
+
+    // 下方明細表格
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><strong>${task.name}</strong></td>
+      <td>${task.start} 至 ${task.end} (${workDays} 天)</td>
+      <td>${task.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">進行中</span>'}</td>
+      <td>${task.completedAt ? `<small>${task.completedAt}</small><br>` : ''}${task.delayReason ? `<span class="pill pill-danger">Delay: ${task.delayReason}</span>` : '-'}</td>
+    `;
+    listBody.appendChild(tr);
   });
 
   // 渲染右側 SVG 甘特圖
@@ -271,22 +347,21 @@ function renderProjects() {
     const chartContainer = document.getElementById("gantt-chart-container");
     const chartDiv = document.getElementById("gantt-chart");
     
-    // 如果主管設為鎖定，容器套用防拖曳 CSS
     chartContainer.className = activeProj.isLocked ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
     chartDiv.innerHTML = "";
     
-    // 強制等待 DOM 重繪以取得正確寬度，避免 SVG 消失
     setTimeout(() => {
       ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
-        view_mode: 'Day', 
-        language: 'zh',
-        header_height: 50,
-        bar_height: 20,
-        padding: 18,
+        view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18,
         on_date_change: async (task, start, end) => {
           if (activeProj.isLocked) {
-            alert("🔒 專案鎖定中！必須由最高主管解鎖後才能拖曳修改時間。");
+            alert("🔒 專案時間已鎖定！若需延期修改，請向最高主管申請解鎖。");
             renderProjects(); 
+            return;
+          }
+          if (!isOwner) {
+            alert("🔒 權限不足！您只能查看該人員排程，無法代為修改時間。");
+            renderProjects();
             return;
           }
 
@@ -308,33 +383,42 @@ function renderProjects() {
   }
 }
 
-// 提交進度更新
+// 提交進度更新 (只能變大)
 window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const proj = allProjectsData.find(p => p.id === projId);
   const tasks = [...proj.tasks];
   
   const inputElem = document.getElementById(`prog_input_${taskIndex}`);
   let newProg = parseInt(inputElem.value);
+  const oldProg = tasks[taskIndex].progress || 0;
 
   if (isNaN(newProg) || newProg < 0) newProg = 0;
   if (newProg > 100) newProg = 100;
 
-  // Delay 檢查邏輯
+  if (newProg < oldProg) {
+    alert(`錯誤：進度不能往回調整！目前已達成 ${oldProg}%。`);
+    inputElem.value = oldProg;
+    return;
+  }
+
   let delayReason = tasks[taskIndex].delayReason || "";
   if (newProg === 100) {
     const today = new Date().toISOString().split('T')[0];
     if (today > plannedEnd && !delayReason) {
       delayReason = prompt("此任務已超出預計完成日，請填寫 Delay 原因：");
-      if (!delayReason) return alert("必須填寫原因才能完成！");
+      if (!delayReason) {
+        inputElem.value = oldProg;
+        return alert("必須填寫原因才能完成！");
+      }
     }
     tasks[taskIndex].isCompleted = true;
     tasks[taskIndex].completedAt = new Date().toLocaleString();
     tasks[taskIndex].delayReason = delayReason;
-    alert("🎉 進度 100% 確認！該任務已永久鎖定並結案。");
+    alert("🎉 進度已達 100%！該任務已永久鎖定並結案。");
   } else {
     tasks[taskIndex].isCompleted = false;
     tasks[taskIndex].completedAt = null;
-    alert(`進度已更新為 ${newProg}%`);
+    alert(`任務進度已更新為 ${newProg}%`);
   }
 
   tasks[taskIndex].progress = newProg;
@@ -380,7 +464,7 @@ window.toggleCurrentProjectLock = async () => {
   await updateDoc(doc(db, "projects", proj.id), { isLocked: !proj.isLocked });
 };
 
-/* ================= 組織、事件、週報 (維持不變) ================= */
+// ... 以下組織管理/事件紀錄/週報邏輯皆維持不變 ...
 function loadOrgUsers() {
   onSnapshot(collection(db, "users"), (snapshot) => {
     const tbody = document.getElementById("user-list-tbody");
@@ -410,7 +494,6 @@ function loadOrgUsers() {
     });
   });
 }
-
 document.getElementById("btn-create-user").addEventListener("click", async () => {
   const name = document.getElementById("new-user-name").value.trim();
   const email = document.getElementById("new-user-email").value.trim();
@@ -429,7 +512,6 @@ document.getElementById("btn-create-user").addEventListener("click", async () =>
     alert(`人員 ${name} 建立成功！`);
   } catch (err) { alert("建立失敗: " + err.message); }
 });
-
 window.openEditModal = (uid) => {
   const u = allUsersList.find(x => x.uid === uid);
   document.getElementById("edit-user-uid").value = u.uid;
@@ -445,9 +527,7 @@ window.openEditModal = (uid) => {
   supSelect.value = u.supervisorId || '';
   document.getElementById("edit-user-modal").classList.add("active");
 };
-
 window.closeEditModal = () => document.getElementById("edit-user-modal").classList.remove("active");
-
 window.submitEditUser = async () => {
   try {
     await updateDoc(doc(db, "users", document.getElementById("edit-user-uid").value), {
@@ -458,9 +538,48 @@ window.submitEditUser = async () => {
     closeEditModal(); alert("人員資訊更新成功！");
   } catch (err) { alert("更新失敗: " + err.message); }
 };
-
 window.deleteUserDoc = async (uid, name) => {
   if (confirm(`確定刪除 ${name} 嗎？`)) {
     try { await deleteDoc(doc(db, "users", uid)); alert(`已移除 ${name}！`); } catch (err) { alert("刪除失敗: " + err.message); }
   }
 };
+
+document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
+  const title = document.getElementById("adhoc-title").value.trim();
+  const reason = document.getElementById("adhoc-reason").value.trim();
+  if (!title || !reason) return alert("請完整填寫！");
+  await addDoc(collection(db, "ad_hoc_events"), {
+    ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email,
+    title, reason, startDateTime: new Date().toLocaleString(), isCompleted: false, completedAt: null
+  });
+  alert("事件已登記！");
+});
+function loadAdHocEvents() {
+  onSnapshot(query(collection(db, "ad_hoc_events")), (snapshot) => {
+    const tbody = document.getElementById("adhoc-list-tbody");
+    tbody.innerHTML = "";
+    snapshot.forEach(docSnap => {
+      const evt = docSnap.data();
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><strong>${evt.title}</strong></td><td>${evt.reason}</td><td>${evt.startDateTime}</td>
+        <td>${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td>
+        <td>${!evt.isCompleted ? `<button class="action-btn" onclick="completeAdHoc('${docSnap.id}')">點選完成</button>` : '-'}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  });
+}
+window.completeAdHoc = async (id) => { await updateDoc(doc(db, "ad_hoc_events", id), { isCompleted: true, completedAt: new Date().toLocaleString() }); };
+
+document.getElementById("btn-add-weekly").addEventListener("click", async () => {
+  const start = document.getElementById("rep-start").value;
+  const end = document.getElementById("rep-end").value;
+  const content = document.getElementById("rep-content").value.trim();
+  if (!start || !end || !content) return alert("請完整填寫週報內容！");
+  await addDoc(collection(db, "weekly_reports"), {
+    ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email,
+    startDate: start, endDate: end, content
+  });
+  alert("週報已送出！");
+});
