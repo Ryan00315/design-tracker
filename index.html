@@ -282,6 +282,40 @@
     </div>
   </div>
 
+  <!-- 3. 管理員編輯人員視窗 (Modal) -->
+  <div id="edit-user-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <span>編輯人員組織資訊</span>
+        <button class="btn-close" onclick="closeEditModal()">×</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">姓名</label>
+        <input type="text" id="edit-user-name" class="input-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label">組織階層職稱</label>
+        <select id="edit-user-role" class="input-control">
+          <option value="staff">人員 (Staff)</option>
+          <option value="assistant_manager">副主管 (Assistant Manager)</option>
+          <option value="manager">主管 (Manager)</option>
+          <option value="top_manager">高級主管 (Top Manager)</option>
+          <option value="admin">系統管理員 (Admin)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">直屬主管</label>
+        <select id="edit-user-supervisor" class="input-control"></select>
+      </div>
+      <input type="hidden" id="edit-user-uid">
+      
+      <div class="modal-actions">
+        <button class="action-btn" onclick="closeEditModal()" style="font-size:14px;">取消</button>
+        <button class="btn-primary" onclick="submitEditUser()">儲存變更</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.js"></script>
   <script type="module" src="app.js"></script>
 </body>
