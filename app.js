@@ -36,7 +36,6 @@ let ganttInstance = null;
 let summaryGanttInstance = null;
 let currentWeeklyReportId = null;
 
-// === 介面切換 ===
 window.switchNav = (tabId, title, elem) => {
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -109,17 +108,27 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
+// === 嚴格過濾階層檢視 ===
 function loadSidebarSubordinates() {
   onSnapshot(collection(db, "users"), (snapshot) => {
     const list = document.getElementById("nav-sub-list");
     list.innerHTML = `<li class="nav-sub-item active" id="sub-li-${auth.currentUser.uid}" onclick="switchViewingUser('${auth.currentUser.uid}', '自己 (我的資料)')">我的資料</li>`;
+    
     snapshot.forEach(docSnap => {
       const u = { uid: docSnap.id, ...docSnap.data() };
       if (u.uid === auth.currentUser.uid) return;
-      const myRole = currentUserData.role; const targetRole = u.role; let canView = false;
-      if (myRole === 'admin' || myRole === 'top_manager') canView = true;
+      
+      const myRole = currentUserData.role;
+      const targetRole = u.role;
+      let canView = false;
+
+      // Admin 看全部，但 top_manager 看不到 admin 與其他 top_manager
+      if (myRole === 'admin') canView = true;
+      else if (myRole === 'top_manager' && targetRole !== 'admin' && targetRole !== 'top_manager') canView = true;
       else if (myRole === 'manager' && (targetRole === 'assistant_manager' || targetRole === 'staff')) canView = true;
       else if (myRole === 'assistant_manager' && targetRole === 'staff') canView = true;
+
+      // 如果被特別指定為直屬主管，也開放
       if (canView || u.supervisorId === auth.currentUser.uid) {
         list.innerHTML += `<li class="nav-sub-item" id="sub-li-${u.uid}" onclick="switchViewingUser('${u.uid}', '${u.name}')">${u.name} <small style="color:#cbd5e1">(${roleNames[u.role]||'人員'})</small></li>`;
       }
@@ -172,30 +181,46 @@ window.setProjectFilter = (status) => {
 
 window.selectProject = (projId) => { selectedProjectId = projId; renderProjects(); };
 
-// === Datalist 防呆：過濾已 100% 完成的專案 ===
+// === 取得可呈報的任務細項 (100%過濾機制) ===
+window.getAvailableTasks = (projId) => {
+  const proj = allProjectsData.find(p => p.id === projId);
+  if(!proj || !proj.tasks) return [];
+  
+  return proj.tasks.map((t, i) => ({...t, index: i})).filter(t => {
+      // 沒 100% 的任務一律可選
+      if(!t.isCompleted) return true; 
+      
+      // 如果 100% 了，檢查是否曾在週報中送出過
+      const taskCompletedTime = t.completedAt ? new Date(t.completedAt).getTime() : 0;
+      const alreadyReported = allWeeklyData.some(w => {
+          if(w.ownerId !== auth.currentUser.uid) return false;
+          const reportTime = w.createdAt ? w.createdAt.toDate().getTime() : new Date().getTime();
+          const hasTask = (w.items || []).some(item => item.projectId === proj.id && String(item.taskId) === String(t.index));
+          // 如果週報送出時間晚於任務完成時間 (減1分鐘容錯)，代表已報過
+          return hasTask && reportTime >= (taskCompletedTime - 60000); 
+      });
+      return !alreadyReported;
+  });
+};
+
 function updateProjectDatalist(userProjects) {
   const datalist = document.getElementById("project-names-list");
   if (!datalist) return;
   datalist.innerHTML = "";
   
-  const activeProjects = userProjects.filter(p => {
-    if (!p.tasks || p.tasks.length === 0) return true;
-    return !p.tasks.every(t => t.isCompleted); // 只要有任何細項未完成，就顯示
-  });
+  // 主專案表單防呆：如果專案底下的任務「全部都已經 100% 且被週報報完了」，就隱藏
+  const activeProjects = userProjects.filter(p => window.getAvailableTasks(p.id).length > 0);
   
   const uniqueNames = [...new Set(activeProjects.map(p => p.title))];
   uniqueNames.forEach(name => {
-    const option = document.createElement("option");
-    option.value = name;
-    datalist.appendChild(option);
+    const option = document.createElement("option"); option.value = name; datalist.appendChild(option);
   });
 }
 
 function loadProjects() {
   onSnapshot(query(collection(db, "projects")), (snapshot) => {
     allProjectsData = []; snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
-    renderProjects();
-    refreshAllWeeklyProjSelects(); // 更新週報選單
+    renderProjects(); refreshAllWeeklyProjSelects();
   });
 }
 
@@ -253,7 +278,7 @@ function renderProjects() {
   emptyState.style.display = "none"; 
 
   // ==========================
-  // 分支 A：繪製總覽 (Summary) 所有皆顯示
+  // 總覽
   // ==========================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; summaryView.style.display = "block";
@@ -300,7 +325,7 @@ function renderProjects() {
   }
 
   // ==========================
-  // 分支 B：繪製個別專案詳細
+  // 個別專案
   // ==========================
   summaryView.style.display = "none"; detailView.style.display = "block";
   const activeProj = filteredProjects.find(p => p.id === selectedProjectId);
@@ -437,7 +462,6 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   }
   
   const existingProj = allProjectsData.find(p => p.title === title && p.ownerId === auth.currentUser.uid);
-  
   if (existingProj) {
     const updatedTasks = [...existingProj.tasks, ...tasks];
     await updateDoc(doc(db, "projects", existingProj.id), { tasks: updatedTasks, color: color });
@@ -476,12 +500,14 @@ window.deleteAdHoc = async (id) => { if(confirm("確定刪除此紀錄？")) awa
 
 
 // ==========================================
-// 🚀 核心升級：結構化週報系統與簽核
+// 🚀 週報系統 (結構化表單、防呆過濾與簽核)
 // ==========================================
 window.populateWeeklyProjSelect = (selectElem) => {
   selectElem.innerHTML = '<option value="">-- 請選擇主專案 --</option>';
   const myProjs = allProjectsData.filter(p => p.ownerId === auth.currentUser.uid);
-  myProjs.forEach(p => {
+  const availableProjs = myProjs.filter(p => window.getAvailableTasks(p.id).length > 0);
+  
+  availableProjs.forEach(p => {
      selectElem.innerHTML += `<option value="${p.id}">${p.title}</option>`;
   });
 };
@@ -490,28 +516,28 @@ window.updateWeeklyTaskSelect = (selectElem) => {
   const taskSelect = selectElem.parentElement.querySelector('.weekly-task-select');
   taskSelect.innerHTML = '<option value="">-- 請選擇細項 --</option>';
   const projId = selectElem.value;
-  const proj = allProjectsData.find(p => p.id === projId);
-  if(proj && proj.tasks) {
-     proj.tasks.forEach((t, i) => {
-        taskSelect.innerHTML += `<option value="${i}">${t.name}</option>`;
-     });
-  }
+  if(!projId) return;
+  
+  const availableTasks = window.getAvailableTasks(projId);
+  availableTasks.forEach(t => {
+     taskSelect.innerHTML += `<option value="${t.index}">${t.name}</option>`;
+  });
 };
 
 window.addWeeklyRow = () => {
   const container = document.getElementById("weekly-items-container");
   const div = document.createElement('div');
   div.className = "weekly-item-row";
-  div.style.cssText = "display:flex; gap:14px; margin-bottom:12px; align-items:flex-start; border: 1px solid var(--border-light); padding: 12px; border-radius: 8px; background: #fafafa;";
+  div.style.cssText = "display:flex; gap:16px; margin-bottom:12px; align-items:flex-start; border: 1px solid var(--border-light); padding: 14px; border-radius: 8px; background: #fafafa;";
   div.innerHTML = `
-    <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
-      <select class="input-control weekly-proj-select" onchange="updateWeeklyTaskSelect(this)"></select>
-      <select class="input-control weekly-task-select"><option value="">-- 請先選擇主專案 --</option></select>
+    <div style="flex:1; display:flex; flex-direction:column; gap:10px; border-right: 1px dashed var(--border); padding-right:16px;">
+      <select class="input-control weekly-proj-select" onchange="updateWeeklyTaskSelect(this)" style="background:#fff;"></select>
+      <select class="input-control weekly-task-select" style="background:#fff;"><option value="">-- 請先選擇主專案 --</option></select>
     </div>
-    <div style="flex:2;">
-      <textarea class="input-control weekly-content" rows="3" placeholder="請填寫此任務的進度說明..."></textarea>
+    <div style="flex:2.5;">
+      <textarea class="input-control weekly-content" rows="3" placeholder="請填寫此任務的進度說明..." style="background:#fff;"></textarea>
     </div>
-    <button class="action-btn danger" onclick="this.parentElement.remove()" style="padding: 10px;">X</button>
+    <button class="action-btn danger" onclick="this.parentElement.remove()" style="padding: 10px; margin-left: 8px;">X</button>
   `;
   container.appendChild(div);
   populateWeeklyProjSelect(div.querySelector('.weekly-proj-select'));
@@ -522,7 +548,7 @@ function refreshAllWeeklyProjSelects() {
   selects.forEach(sel => {
     const currentVal = sel.value;
     populateWeeklyProjSelect(sel);
-    sel.value = currentVal;
+    sel.value = currentVal; // 保留原選擇
   });
 }
 
@@ -531,13 +557,14 @@ function loadWeeklyReports() {
     allWeeklyData = []; 
     snapshot.forEach(docSnap => allWeeklyData.push({ id: docSnap.id, ...docSnap.data() })); 
     renderWeeklyReports(); 
+    if(viewingUserId === auth.currentUser.uid) refreshAllWeeklyProjSelects();
   }); 
 }
 
 function renderWeeklyReports() {
   const tbody = document.getElementById("weekly-list-tbody"); tbody.innerHTML = "";
   const filtered = allWeeklyData.filter(e => e.ownerId === viewingUserId);
-  filtered.sort((a,b) => b.createdAt - a.createdAt); // 最新在上
+  filtered.sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)); 
 
   filtered.forEach((w, index) => {
     let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager') ? `<button class="action-btn danger" onclick="deleteWeekly('${w.id}')">刪除</button>` : '';
@@ -573,10 +600,8 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
       const content = r.querySelector('.weekly-content').value.trim();
       if(pSel.value && tSel.value && content) {
           items.push({
-              projectId: pSel.value,
-              projectName: pSel.options[pSel.selectedIndex].text,
-              taskId: tSel.value,
-              taskName: tSel.options[tSel.selectedIndex].text,
+              projectId: pSel.value, projectName: pSel.options[pSel.selectedIndex].text,
+              taskId: tSel.value, taskName: tSel.options[tSel.selectedIndex].text,
               content: content
           });
       }
@@ -588,18 +613,13 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
   const supervisorId = myUser ? myUser.supervisorId : null;
 
   await addDoc(collection(db, "weekly_reports"), { 
-    ownerId: auth.currentUser.uid, 
-    ownerName: currentUserData.name || auth.currentUser.email, 
-    ownerSupervisorId: supervisorId,
-    reportDate: date, 
-    items: items, 
-    createdAt: serverTimestamp(),
-    supervisorNoted: false,
-    topManagerNoted: false
+    ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email, 
+    ownerSupervisorId: supervisorId, reportDate: date, items: items, 
+    createdAt: serverTimestamp(), supervisorNoted: false, topManagerNoted: false
   });
   
   document.getElementById("weekly-items-container").innerHTML = "";
-  addWeeklyRow(); // 重置一行
+  addWeeklyRow(); 
   alert("週報已送出！");
 });
 
@@ -610,22 +630,17 @@ window.openWeeklyModal = (id) => {
   const report = allWeeklyData.find(w => w.id === id);
   if(!report) return;
 
-  let contentHtml = `
-    <div style="margin-bottom:16px;">
-      <div style="font-size:16px; font-weight:bold; margin-bottom:4px;">${report.ownerName} 的工作週報</div>
-      <div style="font-size:13px; color:var(--text-muted);">週報日期：${report.reportDate || report.startDate || '-'}</div>
-    </div>
-  `;
+  let contentHtml = `<div style="margin-bottom:16px;"><div style="font-size:16px; font-weight:bold; margin-bottom:4px;">${report.ownerName} 的工作週報</div><div style="font-size:13px; color:var(--text-muted);">週報日期：${report.reportDate || report.startDate || '-'}</div></div>`;
   
-  // 兼容舊版資料
   if (report.items && report.items.length > 0) {
     report.items.forEach((item, i) => {
         contentHtml += `
-        <div style="margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px;">
-          <div style="font-size:13px; font-weight:600; color:var(--primary); margin-bottom:8px; border-bottom:1px dashed var(--border-light); padding-bottom:6px;">
-            📁 ${item.projectName} &nbsp;&nbsp;|&nbsp;&nbsp; 📌 ${item.taskName}
+        <div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;">
+          <div style="flex:1; font-size:13px; font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px;">
+            <div style="margin-bottom:6px; word-break: break-all;">📁 ${item.projectName}</div>
+            <div style="word-break: break-all;">📌 ${item.taskName}</div>
           </div>
-          <div style="font-size:13px; white-space:pre-wrap; line-height:1.6;">${item.content}</div>
+          <div style="flex:2.5; font-size:13px; white-space:pre-wrap; line-height:1.6; padding-left:4px;">${item.content}</div>
         </div>`;
     });
   } else if (report.content) {
@@ -634,32 +649,27 @@ window.openWeeklyModal = (id) => {
 
   document.getElementById('weekly-detail-content').innerHTML = contentHtml;
 
-  // 判斷簽核按鈕權限顯示
   const btnSup = document.getElementById('btn-supervisor-note');
   const btnTop = document.getElementById('btn-topmanager-note');
   btnSup.style.display = 'none'; btnTop.style.display = 'none';
 
   const ownerUser = allUsersList.find(u => u.uid === report.ownerId);
   const isDirectSupervisor = ownerUser && (ownerUser.supervisorId === auth.currentUser.uid);
-  const isTopManager = currentUserData.role === 'top_manager';
+  const isTopManager = currentUserData.role === 'top_manager' || currentUserData.role === 'admin'; // admin 兼任 top 功能
 
   if (isDirectSupervisor && !report.supervisorNoted) btnSup.style.display = 'inline-block';
   if (isTopManager && !report.topManagerNoted) btnTop.style.display = 'inline-block';
 
   document.getElementById('weekly-detail-modal').classList.add('active');
 };
-
 window.closeWeeklyModal = () => document.getElementById('weekly-detail-modal').classList.remove('active');
-
 window.markWeeklyNoted = async (type) => {
   if(!currentWeeklyReportId) return;
   const updateData = {};
   if(type === 'supervisor') updateData.supervisorNoted = true;
   if(type === 'top_manager') updateData.topManagerNoted = true;
-  
   await updateDoc(doc(db, "weekly_reports", currentWeeklyReportId), updateData);
-  closeWeeklyModal();
-  alert('已成功標記為 Noted (已閱)！');
+  closeWeeklyModal(); alert('已成功標記為 Noted (已閱)！');
 };
 
 // === 組織管理 ===
