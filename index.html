@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PMS - 專案管理系統</title>
+  <title>PMS - 設計課專案管理系統</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.css">
 </head>
@@ -22,7 +22,7 @@
   <!-- 2. 主工作後台 -->
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v5.1 (修復版)</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v5.5 (歷史追蹤版)</span></div>
       <ul class="nav-list">
         
         <!-- 人員檢視切換 (下拉式) -->
@@ -114,12 +114,12 @@
               </div>
             </div>
             
-            <!-- ！！！補回這個遺失的表格區塊，這是導致崩潰的主因！！！ -->
+            <!-- 下半部：歷史軌跡表 -->
             <div class="section-panel" style="margin-top: 24px;">
-              <div class="panel-head">細項進度與時間紀錄</div>
+              <div class="panel-head">細項進度與歷史時間紀錄</div>
               <div class="table-responsive">
                 <table>
-                  <thead><tr><th>任務名稱</th><th>起訖日期 (工作天)</th><th>狀態</th><th>更新 / 完成 / Delay 紀錄</th></tr></thead>
+                  <thead><tr><th>任務名稱</th><th>預計期程</th><th>當前狀態</th><th>歷史更新紀錄 (最新紀錄在最上層)</th></tr></thead>
                   <tbody id="project-list-tbody"></tbody>
                 </table>
               </div>
