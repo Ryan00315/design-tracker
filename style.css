@@ -22,14 +22,13 @@
   --radius-lg: 12px;
   --radius-md: 8px;
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-card: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, sans-serif; }
 body { background: var(--bg-page); color: var(--text-main); height: 100vh; overflow: hidden; }
 
-/* ================= 登入頁面 (Kingtex PMS 企業版) ================= */
+/* 登入頁 */
 .login-screen {
   min-height: 100vh;
   display: flex;
@@ -45,7 +44,6 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
   border-radius: var(--radius-lg);
   padding: 36px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255,255,255,0.1);
 }
 .brand-logo-area { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
 .logo-icon {
@@ -54,19 +52,18 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
   font-weight: 700; font-size: 18px;
 }
 .brand-title { font-size: 20px; font-weight: 700; color: #0f172a; }
-.brand-subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
 
-.form-group { margin-bottom: 18px; }
+.form-group { margin-bottom: 16px; }
 .form-label { display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px; }
-.input-control {
+.input-control, select.input-control {
   width: 100%;
   padding: 10px 14px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   outline: none;
   font-size: 14px;
-  transition: all 0.2s ease;
   background: #fdfdfd;
+  transition: all 0.2s ease;
 }
 .input-control:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); background: #fff; }
 
@@ -82,20 +79,18 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
   cursor: pointer;
   transition: all 0.2s;
 }
-.btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
+.btn-primary:hover { background: var(--primary-hover); }
 
-/* ================= 系統主後台框架 ================= */
+/* 主後台 */
 .app-container { display: flex; height: 100vh; }
-
-/* 側邊導覽欄 */
 .sidebar {
   width: 250px;
   background: var(--sidebar-bg);
   color: white;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid rgba(255,255,255,0.06);
   flex-shrink: 0;
+  border-right: 1px solid rgba(255,255,255,0.06);
 }
 .sidebar-header {
   height: 64px;
@@ -126,10 +121,8 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .nav-item:hover { background: var(--sidebar-hover); color: #f8fafc; }
 .nav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 600; }
 
-/* 主工作區 */
 .main-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-page); }
 
-/* 頂部 Header */
 .top-header {
   height: 64px;
   background: var(--surface);
@@ -143,8 +136,7 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .breadcrumb b { color: var(--text-main); font-weight: 600; }
 
 .header-right { display: flex; align-items: center; gap: 16px; }
-.time-badge { font-size: 13px; color: var(--text-muted); background: var(--border-light); padding: 4px 10px; border-radius: 20px; }
-.user-info-box { display: flex; align-items: center; gap: 10px; }
+.user-info-box { display: flex; align-items: center; gap: 10px; cursor: pointer; }
 .avatar {
   width: 34px; height: 34px; border-radius: 50%;
   background: #e2e8f0; color: #475569; display: flex;
@@ -156,14 +148,12 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
   background: transparent; border: 1px solid var(--border);
   padding: 5px 12px; border-radius: 6px; font-size: 12px;
   font-weight: 600; color: #475569; cursor: pointer;
-  transition: all 0.2s;
 }
-.btn-logout:hover { background: #f1f5f9; border-color: #cbd5e1; }
+.btn-logout:hover { background: #f1f5f9; }
 
-/* 內容滑動區 */
 .content-body { flex: 1; padding: 28px; overflow-y: auto; }
 
-/* 統計指標卡 (KPI Cards) */
+/* KPI 與卡片 */
 .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
 .kpi-card {
   background: var(--surface);
@@ -171,14 +161,10 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
 }
 .kpi-title { font-size: 13px; color: var(--text-muted); font-weight: 500; }
 .kpi-number { font-size: 26px; font-weight: 700; color: var(--text-main); margin-top: 6px; }
 
-/* 功能卡片面板 */
 .section-panel {
   background: var(--surface);
   border-radius: var(--radius-lg);
@@ -190,7 +176,7 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .panel-head { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 16px; }
 .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
 
-/* 資料表格 */
+/* 表格 */
 .table-responsive { overflow-x: auto; margin-top: 10px; }
 table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
 th { background: #f8fafc; color: var(--text-muted); font-weight: 600; padding: 12px 16px; border-bottom: 1px solid var(--border); }
@@ -201,6 +187,7 @@ tr:hover td { background: #fafafa; }
 .pill-success { background: var(--success-bg); color: var(--success); }
 .pill-warning { background: var(--warning-bg); color: var(--warning); }
 .pill-danger { background: var(--danger-bg); color: var(--danger); }
+.pill-role { background: #e0f2fe; color: #0369a1; }
 
 .action-btn {
   background: #fff;
@@ -210,6 +197,7 @@ tr:hover td { background: #fafafa; }
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
 }
-.action-btn:hover { background: var(--border-light); border-color: #cbd5e1; }
+.action-btn:hover { background: var(--border-light); }
+.action-btn.danger { color: var(--danger); border-color: #fca5a5; }
+.action-btn.danger:hover { background: var(--danger-bg); }
