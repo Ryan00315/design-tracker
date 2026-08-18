@@ -83,18 +83,19 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .gantt-right-panel { flex: 1; overflow-x: auto; background: #fff; min-width: 300px; }
 #gantt-chart, #gantt-chart-summary { min-width: 100%; }
 
-.gantt .bar-label { display: none !important; }
-.locked-gantt .handle-group, .locked-gantt .bar-progress-handle { display: none !important; pointer-events: none; }
+/* 🚀 終極防護：徹底鎖死甘特圖的所有拖曳與點擊互動，滑鼠事件完全穿透，絕對無法拖曳 */
+.gantt .bar-wrapper { pointer-events: none !important; cursor: default !important; }
+.gantt .bar-group { pointer-events: none !important; }
+.gantt .handle-group { display: none !important; pointer-events: none !important; }
+.gantt .bar-progress-handle { display: none !important; pointer-events: none !important; }
 
-/* 🚀 終極防護：絕對鎖死甘特圖內的元件，滑鼠事件完全穿透，絕對無法拖曳，但外層滾動軸依然有效 */
-.gantt-right-panel svg { pointer-events: none !important; }
-
-/* 🚀 視覺優化：更深、更飽和的黃色當天標記 */
+/* 視覺優化：更飽和的黃色當天標記 */
 .gantt .today-highlight { fill: rgba(245, 158, 11, 0.6) !important; }
 
 /* 假日底色 */
 .gantt .tick.weekend { fill: rgba(239, 68, 68, 0.08) !important; }
 
+/* 專案與事件自訂顏色特效 */
 .bar-primary .bar { fill: #93c5fd !important; }
 .bar-primary .bar-progress { fill: #3b82f6 !important; }
 .bar-success .bar { fill: #10b981 !important; }
