@@ -26,7 +26,6 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .nav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 600; }
 .nav-divider { height: 1px; background: rgba(255, 255, 255, 0.08); margin: 12px 14px; flex-shrink: 0;}
 
-/* 左側子選單 (人員切換) */
 .nav-sub-list { list-style: none; padding: 0; margin: 0; display: none; flex-direction: column; gap: 2px; background: rgba(0,0,0,0.2); border-radius: var(--radius-md); overflow: hidden; margin-top: 4px;}
 .nav-sub-item { padding: 10px 14px 10px 44px; color: #94a3b8; font-size: 13px; font-weight: 500; cursor: pointer; transition: 0.15s; position: relative;}
 .nav-sub-item::before { content: ''; position: absolute; left: 22px; top: 50%; transform: translateY(-50%); width: 6px; height: 6px; border-radius: 50%; background: #475569; transition: 0.2s;}
@@ -78,7 +77,10 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .col-prog { width: 75px; padding: 0 8px; display: flex; align-items: center; gap: 4px; }
 .col-prog input { width: 42px; padding: 4px; text-align: center; border: 1px solid var(--border); border-radius: 4px; outline: none; font-size: 11px; font-weight: 600; }
 .col-prog input:disabled { background: #f1f5f9; color: var(--success); border-color: transparent; }
-.col-act { width: 55px; padding: 0 8px; text-align: center; }
+
+/* 修正按鈕為水平擺放防換行，並縮小字體 */
+.col-act { width: 60px; padding: 0 6px; display: flex; align-items: center; justify-content: center; }
+.action-btn.btn-sm { padding: 4px 8px; font-size: 11px; border-radius: 4px; white-space: nowrap; line-height: 1; }
 
 .gantt-right-panel { flex: 1; overflow-x: auto; background: #fff; min-width: 0; }
 #gantt-chart { min-width: 100%; }
@@ -102,7 +104,6 @@ tr:hover td { background: #fafafa; }
 .action-btn:disabled { opacity: 0.5; cursor: not-allowed; background: #f1f5f9; color: var(--text-muted); border-color: transparent; }
 .action-btn.danger { color: var(--danger); border-color: #fca5a5; }
 .action-btn.danger:hover:not(:disabled) { background: var(--danger-bg); }
-.action-btn.btn-sm { padding: 4px 8px; font-size: 11px; border-radius: 4px; }
 
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; pointer-events: none; transition: all 0.2s ease; }
 .modal-overlay.active { opacity: 1; pointer-events: auto; }
