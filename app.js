@@ -26,7 +26,6 @@ const roleNames = { admin: "系統管理員", top_manager: "高級主管", manag
 let currentUserData = { role: "staff", name: "" };
 let allUsersList = [];
 
-// 全域資料陣列與檢視狀態
 let viewingUserId = null; 
 let allProjectsData = [];
 let allAdHocData = [];
@@ -80,8 +79,9 @@ onAuthStateChanged(auth, async (user) => {
       currentUserData = { name: user.email.split('@')[0], role: "admin" };
     }
 
-    document.getElementById("user-display-name").innerText = currentUserData.name || user.email.split('@')[0];
-    document.getElementById("user-avatar").innerText = (currentUserData.name || user.email).charAt(0).toUpperCase();
+    const displayName = currentUserData.name || user.email.split('@')[0];
+    document.getElementById("user-display-name").innerText = displayName;
+    document.getElementById("user-avatar").innerText = displayName.charAt(0).toUpperCase();
     document.getElementById("user-role-badge").innerText = roleNames[currentUserData.role] || (currentUserData.role || "STAFF").toUpperCase();
 
     if (currentUserData.role === "admin") {
@@ -110,7 +110,7 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-// === 左側人員選單 ===
+// === 左側人員選單 (加入嚴謹的階層判斷) ===
 function loadSidebarSubordinates() {
   onSnapshot(collection(db, "users"), (snapshot) => {
     const list = document.getElementById("nav-sub-list");
@@ -119,8 +119,29 @@ function loadSidebarSubordinates() {
     snapshot.forEach(docSnap => {
       const u = { uid: docSnap.id, ...docSnap.data() };
       if (u.uid === auth.currentUser.uid) return;
-      if (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || u.supervisorId === auth.currentUser.uid) {
-        list.innerHTML += `<li class="nav-sub-item" id="sub-li-${u.uid}" onclick="switchViewingUser('${u.uid}', '${u.name}')">${u.name}</li>`;
+      
+      const myRole = currentUserData.role;
+      const targetRole = u.role;
+      let canView = false;
+
+      // 1. 系統管理員 / 高級主管：可以看所有人
+      if (myRole === 'admin' || myRole === 'top_manager') {
+        canView = true;
+      } 
+      // 2. 主管：可以看副主管、人員
+      else if (myRole === 'manager' && (targetRole === 'assistant_manager' || targetRole === 'staff')) {
+        canView = true;
+      } 
+      // 3. 副主管：可以看人員
+      else if (myRole === 'assistant_manager' && targetRole === 'staff') {
+        canView = true;
+      }
+
+      // 若符合階層邏輯，或有被特別指派為直屬主管，即開放檢視
+      if (canView || u.supervisorId === auth.currentUser.uid) {
+        // 在選單上順便標示對方的職稱，方便主管辨識
+        const roleLabel = roleNames[u.role] || '人員';
+        list.innerHTML += `<li class="nav-sub-item" id="sub-li-${u.uid}" onclick="switchViewingUser('${u.uid}', '${u.name}')">${u.name} <small style="color:#64748b">(${roleLabel})</small></li>`;
       }
     });
   });
@@ -135,7 +156,6 @@ window.switchViewingUser = (uid, name) => {
   const isSelf = viewingUserId === auth.currentUser.uid;
   document.getElementById('viewing-user-name').innerText = isSelf ? '' : `[ 正在檢視：${name} ]`;
   
-  // 隱藏非自己的新增表單
   document.getElementById('btn-create-wrapper').style.display = isSelf ? 'flex' : 'none';
   document.getElementById('create-project-section').style.display = 'none';
   document.getElementById('adhoc-form-panel').style.display = isSelf ? 'block' : 'none';
@@ -374,7 +394,49 @@ function renderWeeklyReports() {
 document.getElementById("btn-add-weekly").addEventListener("click", async () => {
   const start = document.getElementById("rep-start").value; const end = document.getElementById("rep-end").value; const content = document.getElementById("rep-content").value.trim();
   if (!start || !end || !content) return alert("請填寫完整！");
-  await addDoc(collection(db, "weekly_reports"), { ownerId: auth.currentUser.uid, startDate: start, endDate: end, content, createdAt: serverTimestamp() });
+  await addDoc(collection(db, "weekly_reports"), { ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email, startDate: start, endDate: end, content, createdAt: serverTimestamp() });
   document.getElementById("rep-content").value = ""; alert("週報已送出！");
 });
 window.deleteWeekly = async (id) => { if(confirm("確定刪除此週報？")) await deleteDoc(doc(db, "weekly_reports", id)); };
+
+// === 組織管理 ===
+function loadOrgUsers() {
+  onSnapshot(collection(db, "users"), (snapshot) => {
+    const tbody = document.getElementById("user-list-tbody"); const supervisorSelect = document.getElementById("new-user-supervisor");
+    tbody.innerHTML = ""; supervisorSelect.innerHTML = '<option value="">-- 無 --</option>'; allUsersList = [];
+    snapshot.forEach(docSnap => {
+      const u = docSnap.data(); allUsersList.push({ uid: docSnap.id, ...u });
+      if (["top_manager", "manager", "assistant_manager"].includes(u.role)) supervisorSelect.innerHTML += `<option value="${docSnap.id}">${u.name} (${roleNames[u.role] || u.role})</option>`;
+    });
+    allUsersList.forEach(u => {
+      const supUser = allUsersList.find(x => x.uid === u.supervisorId); const tr = document.createElement("tr");
+      tr.innerHTML = `<td><strong>${u.name || '未命名'}</strong></td><td>${u.email || '-'}</td><td><span class="pill pill-role">${roleNames[u.role] || u.role}</span></td><td>${supUser ? `${supUser.name}` : "-"}</td><td><button class="action-btn" onclick="openEditModal('${u.uid}')" style="margin-right:6px;">編輯</button>${u.uid !== auth.currentUser.uid ? `<button class="action-btn danger" onclick="deleteUserDoc('${u.uid}', '${u.name}')">刪除</button>` : ''}</td>`;
+      tbody.appendChild(tr);
+    });
+  });
+}
+document.getElementById("btn-create-user").addEventListener("click", async () => {
+  const name = document.getElementById("new-user-name").value.trim(); const email = document.getElementById("new-user-email").value.trim(); const pass = document.getElementById("new-user-pass").value.trim();
+  if (!name || !email || pass.length < 6) return alert("資料填寫不全或密碼太短！");
+  try {
+    const secApp = initializeApp(firebaseConfig, "Secondary"); const secAuth = getAuth(secApp);
+    const userCred = await createUserWithEmailAndPassword(secAuth, email, pass); await signOut(secAuth);
+    await setDoc(doc(db, "users", userCred.user.uid), { name, email, role: document.getElementById("new-user-role").value, supervisorId: document.getElementById("new-user-supervisor").value || null, createdAt: serverTimestamp() });
+    alert(`人員 ${name} 建立成功！`);
+  } catch (err) { alert("建立失敗: " + err.message); }
+});
+window.openEditModal = (uid) => {
+  const u = allUsersList.find(x => x.uid === uid);
+  document.getElementById("edit-user-uid").value = u.uid; document.getElementById("edit-user-name").value = u.name || ''; document.getElementById("edit-user-role").value = u.role || 'staff';
+  const supSelect = document.getElementById("edit-user-supervisor"); supSelect.innerHTML = '<option value="">-- 無 --</option>';
+  allUsersList.forEach(user => { if (user.uid !== uid && ["top_manager", "manager", "assistant_manager"].includes(user.role)) supSelect.innerHTML += `<option value="${user.uid}">${user.name}</option>`; });
+  supSelect.value = u.supervisorId || ''; document.getElementById("edit-user-modal").classList.add("active");
+};
+window.closeEditModal = () => document.getElementById("edit-user-modal").classList.remove("active");
+window.submitEditUser = async () => {
+  try {
+    await updateDoc(doc(db, "users", document.getElementById("edit-user-uid").value), { name: document.getElementById("edit-user-name").value.trim(), role: document.getElementById("edit-user-role").value, supervisorId: document.getElementById("edit-user-supervisor").value || null });
+    closeEditModal(); alert("人員資訊更新成功！");
+  } catch (err) { alert("更新失敗: " + err.message); }
+};
+window.deleteUserDoc = async (uid, name) => { if (confirm(`確定刪除 ${name} 嗎？`)) { try { await deleteDoc(doc(db, "users", uid)); alert(`已移除 ${name}！`); } catch (err) { alert("刪除失敗: " + err.message); } } };
