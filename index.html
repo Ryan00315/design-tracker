@@ -20,7 +20,7 @@
 
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v10.5 (全能編輯版)</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v11.0 (甘特圖防護版)</span></div>
       <ul class="nav-list">
         
         <div id="nav-sub-wrapper" style="display:none; margin-bottom: 8px;">
@@ -73,6 +73,7 @@
 
           <div id="create-project-section" class="section-panel" style="display:none; border: 2px solid var(--primary-soft);">
             <div class="panel-head">建立專案與任務規劃 (送出後即鎖定)</div>
+            
             <div class="form-row" style="margin-bottom: 14px;">
               <div class="form-group" style="flex:2;">
                 <label class="form-label">主專案名稱 (已完成專案不顯示於選單)</label>
@@ -89,6 +90,7 @@
                 </select>
               </div>
             </div>
+
             <div style="margin-top: 20px; margin-bottom: 10px; font-weight: 600; font-size: 14px; color: #334155;">任務細項排程 (系統自動避開週末)</div>
             <div id="task-list-container"></div>
             <button class="action-btn" onclick="addTaskRow()" style="margin-top: 10px; border-style: dashed;">+ 新增任務細項</button>
@@ -130,7 +132,8 @@
                   <div class="gantt-head"><div class="col-name">細項名稱</div><div class="col-date">預計天數</div><div class="col-prog">進度</div><div class="col-act">確認</div></div>
                   <div class="gantt-body" id="gantt-left-body"></div>
                 </div>
-                <div class="gantt-right-panel" id="gantt-chart-container"><div id="gantt-chart"></div></div>
+                <!-- 🚀 甘特圖強制套用 locked-gantt 鎖死拖曳 -->
+                <div class="gantt-right-panel locked-gantt" id="gantt-chart-container"><div id="gantt-chart"></div></div>
               </div>
             </div>
             
@@ -154,7 +157,7 @@
           <div id="empty-state" style="text-align: center; padding: 40px; color: var(--text-muted); display: none;">此分類下目前沒有專案。</div>
         </div>
 
-        <!-- 分頁 2：事件紀錄 -->
+        <!-- 分頁 2：事件紀錄 (🚀 更新此區表格欄位寬度) -->
         <div id="tab-adhoc" class="tab-pane" style="display:none;">
           <div class="section-panel" id="adhoc-form-panel">
             <div class="panel-head">登記臨時插單事件</div>
@@ -168,8 +171,17 @@
           <div class="section-panel">
             <div class="panel-head">事件紀錄清單</div>
             <div class="table-responsive">
-              <table>
-                <thead><tr><th>事項</th><th>原因說明</th><th>開始日期</th><th>實際完成時間</th><th>狀態</th><th>操作</th></tr></thead>
+              <table style="width: 100%;">
+                <thead>
+                  <tr>
+                    <th style="white-space: nowrap;">事項</th>
+                    <th style="width: 100%;">原因說明</th> <!-- 給予最大寬度 -->
+                    <th style="white-space: nowrap;">開始日期</th>
+                    <th style="white-space: nowrap;">實際完成時間</th>
+                    <th style="white-space: nowrap;">狀態</th>
+                    <th style="white-space: nowrap;">操作</th>
+                  </tr>
+                </thead>
                 <tbody id="adhoc-list-tbody"></tbody>
               </table>
             </div>
@@ -286,7 +298,6 @@
     </div>
   </div>
 
-  <!-- 🚀 共用編輯視窗 (專案/事件/週報 修改) -->
   <div id="general-edit-modal" class="modal-overlay">
     <div class="modal-box" style="max-width: 600px;">
       <div class="modal-header"><span id="general-edit-title">編輯資料</span><button class="btn-close" onclick="closeGeneralEditModal()">×</button></div>
