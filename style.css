@@ -3,6 +3,7 @@
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, sans-serif; }
 body { background: var(--bg-page); color: var(--text-main); height: 100vh; overflow: hidden; }
 
+/* 登入頁 */
 .login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 10% 20%, #1e293b 0%, #0f172a 100%); padding: 24px; }
 .login-box { width: 100%; max-width: 420px; background: var(--surface); border-radius: var(--radius-lg); padding: 36px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
 .brand-logo-area { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
@@ -15,6 +16,7 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .btn-primary { width: 100%; background: var(--primary); color: white; padding: 11px; font-size: 14px; font-weight: 600; border: none; border-radius: var(--radius-md); cursor: pointer; transition: 0.2s; }
 .btn-primary:hover { background: var(--primary-hover); }
 
+/* 主後台 */
 .app-container { display: flex; height: 100vh; }
 .sidebar { width: 250px; background: var(--sidebar-bg); color: white; display: flex; flex-direction: column; flex-shrink: 0; border-right: 1px solid rgba(255,255,255,0.06); }
 .sidebar-header { height: 64px; display: flex; align-items: center; padding: 0 20px; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 16px; font-weight: 700; }
@@ -40,6 +42,13 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .btn-logout:hover { background: #f1f5f9; }
 .content-body { flex: 1; padding: 28px; overflow-y: auto; }
 
+/* 部屬切換區 (主管專用) */
+.sub-tabs-wrapper { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; align-items: center; }
+.sub-tabs-label { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.sub-tab { padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); transition: 0.2s; white-space: nowrap; }
+.sub-tab:hover { border-color: var(--sidebar-hover); color: var(--sidebar-hover); }
+.sub-tab.active { background: var(--sidebar-hover); color: #fff; border-color: var(--sidebar-hover); }
+
 /* 頂部數據看板與新增按鈕佈局 */
 .kpi-row { display: flex; gap: 16px; flex: 1; }
 .kpi-card { background: var(--surface); padding: 18px 20px; border-radius: var(--radius-lg); border: 2px solid transparent; box-shadow: var(--shadow-sm); cursor: pointer; transition: all 0.2s ease; flex: 1; }
@@ -60,33 +69,26 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 
 /* ================= 核心：完美側邊合併甘特圖 ================= */
 .gantt-master-layout { display: flex; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); overflow: hidden; margin-top: 10px; box-shadow: var(--shadow-sm); }
-.gantt-left-panel { width: 380px; border-right: 1px solid var(--border); flex-shrink: 0; background: #fff; z-index: 10; display: flex; flex-direction: column; }
+.gantt-left-panel { width: 340px; border-right: 1px solid var(--border); flex-shrink: 0; background: #fff; z-index: 10; display: flex; flex-direction: column; }
 .gantt-head { height: 50px; display: flex; border-bottom: 1px solid var(--border); background: #f8fafc; align-items: center; font-size: 12px; font-weight: 600; color: var(--text-muted); }
 .gantt-body { display: flex; flex-direction: column; }
 .gantt-row { height: 38px; display: flex; border-bottom: 1px solid var(--border-light); align-items: center; font-size: 12px; transition: background 0.15s; }
 .gantt-row:hover { background: #f1f5f9; }
 
 .col-name { flex: 2; padding: 0 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.col-date { flex: 1.5; padding: 0 8px; font-size: 11px; color: var(--text-muted); }
+.col-date { width: 65px; padding: 0 8px; font-size: 11px; color: var(--text-muted); text-align: center; }
 .col-prog { width: 75px; padding: 0 8px; display: flex; align-items: center; gap: 4px; }
 .col-prog input { width: 42px; padding: 4px; text-align: center; border: 1px solid var(--border); border-radius: 4px; outline: none; font-size: 11px; font-weight: 600; }
 .col-prog input:disabled { background: #f1f5f9; color: var(--success); border-color: transparent; }
-.col-act { width: 60px; padding: 0 8px; text-align: center; }
+.col-act { width: 55px; padding: 0 8px; text-align: center; }
 
-/* 右側甘特圖區域設定 (修正 Flex 消失問題) */
+/* 右側甘特圖區域設定 */
 .gantt-right-panel { flex: 1; overflow-x: auto; background: #fff; min-width: 0; }
 #gantt-chart { min-width: 100%; }
-
-/* 隱藏 Frappe 原生多餘標籤 */
 .gantt .bar-label { display: none !important; }
-
-/* 鎖定狀態的防拖曳 CSS (隱藏控制把手) */
 .locked-gantt .handle-group, .locked-gantt .bar-progress-handle { display: none !important; pointer-events: none; }
-
-/* 完成任務的綠色進度條特效 */
 .bar-success .bar { fill: #10b981 !important; }
 .bar-success .bar-progress { fill: #059669 !important; }
-/* ============================================================ */
 
 /* 表格與標籤 */
 .table-responsive { overflow-x: auto; margin-top: 10px; }
@@ -100,10 +102,13 @@ tr:hover td { background: #fafafa; }
 .pill-danger { background: var(--danger-bg); color: var(--danger); }
 .pill-role { background: #e0f2fe; color: #0369a1; }
 .action-btn { background: #fff; border: 1px solid var(--border); padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.15s; }
-.action-btn:hover { background: var(--border-light); }
-.action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.action-btn:hover:not(:disabled) { background: var(--border-light); }
+.action-btn:disabled { opacity: 0.5; cursor: not-allowed; background: #f1f5f9; color: var(--text-muted); border-color: transparent; }
 .action-btn.danger { color: var(--danger); border-color: #fca5a5; }
-.action-btn.danger:hover { background: var(--danger-bg); }
+.action-btn.danger:hover:not(:disabled) { background: var(--danger-bg); }
+
+/* 縮小的確認按鈕 */
+.action-btn.btn-sm { padding: 4px 8px; font-size: 11px; border-radius: 4px; }
 
 /* Modal 樣式 */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; pointer-events: none; transition: all 0.2s ease; }
