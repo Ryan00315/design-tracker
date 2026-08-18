@@ -20,7 +20,7 @@
 
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v10.0 (編輯解鎖版)</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v10.5 (全能編輯版)</span></div>
       <ul class="nav-list">
         
         <div id="nav-sub-wrapper" style="display:none; margin-bottom: 8px;">
@@ -45,7 +45,6 @@
       <header class="top-header">
         <div class="breadcrumb">PMS / <b id="current-title">專案進度</b> <span id="viewing-user-name" style="color:var(--primary); margin-left:8px; font-size:13px;"></span></div>
         <div class="header-right">
-          <!-- 核心新增：編輯模式開關按鈕 -->
           <button id="btn-toggle-edit-mode" class="action-btn" style="border-color: var(--warning); color: var(--warning); display:none; font-weight:bold; margin-right: 8px; transition: 0.2s;">✏️ 開啟編輯模式</button>
           
           <div class="user-info-box">
@@ -74,7 +73,6 @@
 
           <div id="create-project-section" class="section-panel" style="display:none; border: 2px solid var(--primary-soft);">
             <div class="panel-head">建立專案與任務規劃 (送出後即鎖定)</div>
-            
             <div class="form-row" style="margin-bottom: 14px;">
               <div class="form-group" style="flex:2;">
                 <label class="form-label">主專案名稱 (已完成專案不顯示於選單)</label>
@@ -91,7 +89,6 @@
                 </select>
               </div>
             </div>
-
             <div style="margin-top: 20px; margin-bottom: 10px; font-weight: 600; font-size: 14px; color: #334155;">任務細項排程 (系統自動避開週末)</div>
             <div id="task-list-container"></div>
             <button class="action-btn" onclick="addTaskRow()" style="margin-top: 10px; border-style: dashed;">+ 新增任務細項</button>
@@ -238,14 +235,17 @@
             <div class="panel-head">組織人員名單與管理</div>
             <div class="table-responsive">
               <table>
-                <thead><tr><th>姓名</th><th>帳號 (Email)</th><th>組織階層</th><th>直屬主管</th><th>操作</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>姓名</th><th>帳號 (Email)</th><th>組織階層</th><th>直屬主管</th><th>編輯權限</th><th>操作</th>
+                  </tr>
+                </thead>
                 <tbody id="user-list-tbody"></tbody>
               </table>
             </div>
           </div>
         </div>
 
-        <!-- 分頁 5：個人帳號設定 -->
         <div id="tab-profile" class="tab-pane" style="display:none;">
           <div class="section-panel" style="max-width: 600px;">
             <div class="panel-head">變更登入密碼</div>
@@ -259,7 +259,6 @@
     </div>
   </div>
 
-  <!-- 人員編輯 Modal -->
   <div id="edit-user-modal" class="modal-overlay">
     <div class="modal-box">
       <div class="modal-header"><span>編輯人員組織資訊</span><button class="btn-close" onclick="closeEditModal()">×</button></div>
@@ -275,7 +274,6 @@
     </div>
   </div>
 
-  <!-- 週報瀏覽與簽核 Modal -->
   <div id="weekly-detail-modal" class="modal-overlay">
     <div class="modal-box" style="max-width: 850px; width: 95%;">
       <div class="modal-header"><span>週報詳細內容</span><button class="btn-close" onclick="closeWeeklyModal()">×</button></div>
