@@ -21,10 +21,8 @@
 
   <!-- 2. 主工作後台 -->
   <div id="app-section" class="app-container" style="display:none;">
-    
-    <!-- 左側導航列 -->
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v3.0</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v3.5</span></div>
       <ul class="nav-list">
         <li class="nav-item active" onclick="switchNav('tab-projects', '專案進度', this)">
           <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-3 3"/></svg><span>專案進度</span>
@@ -59,14 +57,27 @@
       </header>
 
       <main class="content-body">
+        
         <!-- 分頁 1：專案進度 -->
         <div id="tab-projects" class="tab-pane">
-          <!-- 頂部控制列 -->
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <button id="btn-toggle-create" class="btn-primary" style="width: auto; padding: 10px 20px;">➕ 新增專案規劃</button>
-            <div class="filter-group">
-              <button class="filter-btn active" id="filter-ongoing" onclick="setProjectFilter('ongoing')">未完成專案</button>
-              <button class="filter-btn" id="filter-completed" onclick="setProjectFilter('completed')">已完成專案</button>
+          <!-- 頂部：數據看板與新增按鈕 -->
+          <div style="display: flex; justify-content: space-between; align-items: stretch; margin-bottom: 24px; gap: 20px;">
+            <div class="kpi-row" style="margin: 0;">
+              <div class="kpi-card active" id="filter-ongoing" onclick="setProjectFilter('ongoing')">
+                <div class="kpi-title">未完成專案</div>
+                <div class="kpi-number" id="stat-ongoing">0</div>
+              </div>
+              <div class="kpi-card" id="filter-completed" onclick="setProjectFilter('completed')">
+                <div class="kpi-title">已完成專案</div>
+                <div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div>
+              </div>
+              <div class="kpi-card" id="filter-delayed" onclick="setProjectFilter('delayed')">
+                <div class="kpi-title">延遲 (Delay) 專案</div>
+                <div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center;">
+              <button id="btn-toggle-create" class="btn-primary" style="height: 100%; padding: 0 24px; font-size: 15px;">➕ 新增專案規劃</button>
             </div>
           </div>
 
@@ -90,9 +101,7 @@
           </div>
 
           <!-- 專案切換分頁 (Tabs) -->
-          <div class="project-tabs-wrapper" id="project-tabs-container">
-             <!-- 依據過濾狀態動態產生專案按鈕 -->
-          </div>
+          <div class="project-tabs-wrapper" id="project-tabs-container"></div>
 
           <!-- 甘特圖與列表區域 -->
           <div id="project-detail-view" style="display:none;">
