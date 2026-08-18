@@ -241,7 +241,6 @@ function renderProjects() {
   const ganttTasks = [];
 
   activeProj.tasks.forEach((task, index) => {
-    // 防呆：沒有 progress 預設給 0
     const currentProgress = task.progress || 0;
     
     ganttTasks.push({
@@ -267,41 +266,45 @@ function renderProjects() {
     leftBody.appendChild(row);
   });
 
+  // 渲染右側 SVG 甘特圖
   if (ganttTasks.length > 0) {
+    const chartContainer = document.getElementById("gantt-chart-container");
     const chartDiv = document.getElementById("gantt-chart");
+    
+    // 如果主管設為鎖定，容器套用防拖曳 CSS
+    chartContainer.className = activeProj.isLocked ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
     chartDiv.innerHTML = "";
     
-    // 如果主管設為鎖定，甘特圖套用防拖曳 CSS
-    chartDiv.className = activeProj.isLocked ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
+    // 強制等待 DOM 重繪以取得正確寬度，避免 SVG 消失
+    setTimeout(() => {
+      ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
+        view_mode: 'Day', 
+        language: 'zh',
+        header_height: 50,
+        bar_height: 20,
+        padding: 18,
+        on_date_change: async (task, start, end) => {
+          if (activeProj.isLocked) {
+            alert("🔒 專案鎖定中！必須由最高主管解鎖後才能拖曳修改時間。");
+            renderProjects(); 
+            return;
+          }
 
-    // 初始化甘特圖，精準對齊 50px header 與 38px row
-    ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
-      view_mode: 'Day', 
-      language: 'zh',
-      header_height: 50,
-      bar_height: 20,
-      padding: 18,
-      on_date_change: async (task, start, end) => {
-        if (activeProj.isLocked) {
-          alert("🔒 專案鎖定中！必須由最高主管解鎖後才能拖曳修改時間。");
-          renderProjects(); 
-          return;
+          const idx = parseInt(task.id.split('_')[1]);
+          const newStart = formatDateSafe(start);
+          let dEnd = new Date(end);
+          dEnd.setDate(dEnd.getDate() - 1);
+          const newEnd = formatDateSafe(dEnd);
+          
+          const proj = allProjectsData.find(p => p.id === activeProj.id);
+          proj.tasks[idx].start = newStart;
+          proj.tasks[idx].end = newEnd;
+
+          try { await updateDoc(doc(db, "projects", activeProj.id), { tasks: proj.tasks }); } 
+          catch (err) { alert("更新失敗：" + err.message); }
         }
-
-        const idx = parseInt(task.id.split('_')[1]);
-        const newStart = formatDateSafe(start);
-        let dEnd = new Date(end);
-        dEnd.setDate(dEnd.getDate() - 1);
-        const newEnd = formatDateSafe(dEnd);
-        
-        const proj = allProjectsData.find(p => p.id === activeProj.id);
-        proj.tasks[idx].start = newStart;
-        proj.tasks[idx].end = newEnd;
-
-        try { await updateDoc(doc(db, "projects", activeProj.id), { tasks: proj.tasks }); } 
-        catch (err) { alert("更新失敗：" + err.message); }
-      }
-    });
+      });
+    }, 50);
   }
 }
 
@@ -407,6 +410,7 @@ function loadOrgUsers() {
     });
   });
 }
+
 document.getElementById("btn-create-user").addEventListener("click", async () => {
   const name = document.getElementById("new-user-name").value.trim();
   const email = document.getElementById("new-user-email").value.trim();
@@ -425,6 +429,7 @@ document.getElementById("btn-create-user").addEventListener("click", async () =>
     alert(`人員 ${name} 建立成功！`);
   } catch (err) { alert("建立失敗: " + err.message); }
 });
+
 window.openEditModal = (uid) => {
   const u = allUsersList.find(x => x.uid === uid);
   document.getElementById("edit-user-uid").value = u.uid;
@@ -440,7 +445,9 @@ window.openEditModal = (uid) => {
   supSelect.value = u.supervisorId || '';
   document.getElementById("edit-user-modal").classList.add("active");
 };
+
 window.closeEditModal = () => document.getElementById("edit-user-modal").classList.remove("active");
+
 window.submitEditUser = async () => {
   try {
     await updateDoc(doc(db, "users", document.getElementById("edit-user-uid").value), {
@@ -451,48 +458,9 @@ window.submitEditUser = async () => {
     closeEditModal(); alert("人員資訊更新成功！");
   } catch (err) { alert("更新失敗: " + err.message); }
 };
+
 window.deleteUserDoc = async (uid, name) => {
   if (confirm(`確定刪除 ${name} 嗎？`)) {
     try { await deleteDoc(doc(db, "users", uid)); alert(`已移除 ${name}！`); } catch (err) { alert("刪除失敗: " + err.message); }
   }
 };
-
-document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
-  const title = document.getElementById("adhoc-title").value.trim();
-  const reason = document.getElementById("adhoc-reason").value.trim();
-  if (!title || !reason) return alert("請完整填寫！");
-  await addDoc(collection(db, "ad_hoc_events"), {
-    ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email,
-    title, reason, startDateTime: new Date().toLocaleString(), isCompleted: false, completedAt: null
-  });
-  alert("事件已登記！");
-});
-function loadAdHocEvents() {
-  onSnapshot(query(collection(db, "ad_hoc_events")), (snapshot) => {
-    const tbody = document.getElementById("adhoc-list-tbody");
-    tbody.innerHTML = "";
-    snapshot.forEach(docSnap => {
-      const evt = docSnap.data();
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><strong>${evt.title}</strong></td><td>${evt.reason}</td><td>${evt.startDateTime}</td>
-        <td>${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td>
-        <td>${!evt.isCompleted ? `<button class="action-btn" onclick="completeAdHoc('${docSnap.id}')">點選完成</button>` : '-'}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-  });
-}
-window.completeAdHoc = async (id) => { await updateDoc(doc(db, "ad_hoc_events", id), { isCompleted: true, completedAt: new Date().toLocaleString() }); };
-
-document.getElementById("btn-add-weekly").addEventListener("click", async () => {
-  const start = document.getElementById("rep-start").value;
-  const end = document.getElementById("rep-end").value;
-  const content = document.getElementById("rep-content").value.trim();
-  if (!start || !end || !content) return alert("請完整填寫週報內容！");
-  await addDoc(collection(db, "weekly_reports"), {
-    ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email,
-    startDate: start, endDate: end, content
-  });
-  alert("週報已送出！");
-});
