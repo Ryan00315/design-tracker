@@ -22,7 +22,7 @@
   <!-- 2. 主工作後台 -->
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v3.5</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v4.0</span></div>
       <ul class="nav-list">
         <li class="nav-item active" onclick="switchNav('tab-projects', '專案進度', this)">
           <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-3 3"/></svg><span>專案進度</span>
@@ -34,6 +34,7 @@
           <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg><span>週報填寫</span>
         </li>
         
+        <!-- 分隔線 (Admin 專屬) -->
         <li class="nav-divider" id="nav-divider-org" style="display:none;"></li>
         <li class="nav-item" id="nav-org-manage" style="display:none;" onclick="switchNav('tab-org', '組織架構與人員管理', this)">
           <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>組織架構管理</span>
@@ -49,6 +50,7 @@
             <div class="avatar" id="user-avatar">R</div>
             <div><div id="user-display-name" style="font-size: 13px; font-weight: 600;">Ryan</div><span id="user-role-badge" class="role-badge">ADMIN</span></div>
           </div>
+          <!-- 獨立個人設定按鈕 -->
           <button class="btn-icon" onclick="switchNav('tab-profile', '個人帳號設定', null)" title="個人帳號設定">
             <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
           </button>
@@ -60,7 +62,7 @@
         
         <!-- 分頁 1：專案進度 -->
         <div id="tab-projects" class="tab-pane">
-          <!-- 頂部：數據看板與新增按鈕 -->
+          <!-- 頂部數據跳轉 與 新增按鈕 -->
           <div style="display: flex; justify-content: space-between; align-items: stretch; margin-bottom: 24px; gap: 20px;">
             <div class="kpi-row" style="margin: 0;">
               <div class="kpi-card active" id="filter-ongoing" onclick="setProjectFilter('ongoing')">
@@ -81,53 +83,46 @@
             </div>
           </div>
 
-          <!-- 建立專案表單 (預設隱藏) -->
+          <!-- 新增專案區塊 -->
           <div id="create-project-section" class="section-panel" style="display:none; border: 2px solid var(--primary-soft);">
             <div class="panel-head">建立專案與任務規劃 (送出後即鎖定)</div>
-            <div class="form-group">
-              <label class="form-label">主專案名稱</label>
-              <input type="text" id="proj-name" class="input-control" placeholder="例：2026 產品外觀設計案" style="max-width: 400px;">
-            </div>
-            
+            <div class="form-group"><label class="form-label">主專案名稱</label><input type="text" id="proj-name" class="input-control" placeholder="例：2026 產品外觀設計案" style="max-width: 400px;"></div>
             <div style="margin-top: 20px; margin-bottom: 10px; font-weight: 600; font-size: 14px; color: #334155;">任務細項排程 (系統自動避開週末)</div>
-            <div id="task-list-container">
-              <!-- 動態細項將產生於此 -->
-            </div>
+            <div id="task-list-container"></div>
             <button class="action-btn" onclick="addTaskRow()" style="margin-top: 10px; border-style: dashed;">+ 新增任務細項</button>
-            
-            <div style="margin-top: 24px; border-top: 1px solid var(--border); padding-top: 20px;">
-              <button id="btn-add-project" class="btn-primary" style="width: 180px;">送出並鎖定專案</button>
-            </div>
+            <div style="margin-top: 24px; border-top: 1px solid var(--border); padding-top: 20px;"><button id="btn-add-project" class="btn-primary" style="width: 180px;">送出並鎖定專案</button></div>
           </div>
 
           <!-- 專案切換分頁 (Tabs) -->
           <div class="project-tabs-wrapper" id="project-tabs-container"></div>
 
-          <!-- 甘特圖與列表區域 -->
+          <!-- 完美的甘特圖並排佈局 -->
           <div id="project-detail-view" style="display:none;">
-            <div class="section-panel">
-              <div class="panel-head" style="margin-bottom: 0;">
+            <div class="section-panel" style="padding: 0; background: transparent; border: none; box-shadow: none;">
+              <div class="panel-head" style="margin-bottom: 8px;">
                 <span id="current-gantt-title">專案時程檢視</span>
-                <!-- 最高主管解鎖按鈕 -->
                 <button id="btn-toggle-lock" class="action-btn danger" style="display:none;" onclick="toggleCurrentProjectLock()"></button>
               </div>
-              <div id="gantt-chart" style="overflow-x: auto; padding: 20px 0 10px 0;"></div>
-            </div>
-
-            <div class="section-panel">
-              <div class="panel-head">任務細項列表與進度回報</div>
-              <div class="table-responsive">
-                <table>
-                  <thead><tr><th>任務名稱</th><th>預計期程</th><th>狀態</th><th>完成/Delay 紀錄</th><th>操作</th></tr></thead>
-                  <tbody id="project-list-tbody"></tbody>
-                </table>
+              
+              <!-- 核心左右連動佈局 -->
+              <div class="gantt-master-layout">
+                <!-- 左側固定列表 -->
+                <div class="gantt-left-panel">
+                  <div class="gantt-head">
+                    <div class="col-name">細項名稱</div>
+                    <div class="col-date">預計期程</div>
+                    <div class="col-prog">進度</div>
+                    <div class="col-act">確認</div>
+                  </div>
+                  <div class="gantt-body" id="gantt-left-body"></div>
+                </div>
+                <!-- 右側 SVG 甘特圖 -->
+                <div class="gantt-right-panel" id="gantt-chart"></div>
               </div>
             </div>
           </div>
           
-          <div id="empty-state" style="text-align: center; padding: 40px; color: var(--text-muted); display: none;">
-            此分類下目前沒有專案。
-          </div>
+          <div id="empty-state" style="text-align: center; padding: 40px; color: var(--text-muted); display: none;">此分類下目前沒有專案。</div>
         </div>
 
         <!-- 分頁 2：事件紀錄 -->
@@ -159,10 +154,7 @@
               <div class="form-group"><label class="form-label">起始日期</label><input type="date" id="rep-start" class="input-control"></div>
               <div class="form-group"><label class="form-label">結束日期</label><input type="date" id="rep-end" class="input-control"></div>
             </div>
-            <div class="form-group">
-              <label class="form-label">本週進度說明</label>
-              <textarea id="rep-content" class="input-control" rows="5" placeholder="條列本週進度、遭遇問題與下週規劃..."></textarea>
-            </div>
+            <div class="form-group"><label class="form-label">本週進度說明</label><textarea id="rep-content" class="input-control" rows="5" placeholder="條列本週進度、遭遇問題與下週規劃..."></textarea></div>
             <button id="btn-add-weekly" class="btn-primary" style="width: 160px;">送出週報</button>
           </div>
         </div>
