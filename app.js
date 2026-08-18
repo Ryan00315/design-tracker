@@ -26,7 +26,6 @@ const roleNames = { admin: "系統管理員", top_manager: "高級主管", manag
 let currentUserData = { role: "staff", name: "" };
 let allUsersList = [];
 
-// === 介面切換 ===
 window.switchNav = (tabId, title, elem) => {
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -35,13 +34,11 @@ window.switchNav = (tabId, title, elem) => {
   document.getElementById('current-title').innerText = title;
 };
 
-// 顯示/隱藏 新增專案表單
 document.getElementById('btn-toggle-create').addEventListener('click', () => {
   const form = document.getElementById('create-project-section');
   form.style.display = form.style.display === 'none' ? 'block' : 'none';
 });
 
-// === 登入監聽 ===
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     document.getElementById("auth-section").style.display = "none";
@@ -101,7 +98,6 @@ document.getElementById("btn-update-password").addEventListener("click", async (
   } catch (err) { alert("密碼更新失敗: " + err.message); }
 });
 
-// === 動態任務細項與工作日檢查 ===
 function getNextWorkingDay(dateStr) {
   if (!dateStr) return '';
   let d = new Date(dateStr);
@@ -138,13 +134,12 @@ window.addTaskRow = () => {
   container.appendChild(div);
 };
 
-// === 專案過濾與渲染邏輯 ===
+// === 專案渲染與甘特圖聯動 ===
 let allProjectsData = [];
-let currentFilter = 'ongoing'; // 'ongoing' | 'completed' | 'delayed'
+let currentFilter = 'ongoing'; 
 let selectedProjectId = null;
 let ganttInstance = null;
 
-// 點擊頂部數據卡片跳轉
 window.setProjectFilter = (status) => {
   currentFilter = status;
   document.getElementById('filter-ongoing').classList.toggle('active', status === 'ongoing');
@@ -168,16 +163,12 @@ function loadProjects() {
       allProjectsData.push(proj);
     });
     
-    // 計算 KPI 面板數據 (以專案為單位)
     let countOngoing = 0, countCompleted = 0, countDelayed = 0;
     allProjectsData.forEach(p => {
       if (!p.tasks || p.tasks.length === 0) return;
       const isAllDone = p.tasks.every(t => t.isCompleted);
       const hasDelay = p.tasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
-      
-      if (isAllDone) countCompleted++;
-      else countOngoing++;
-      
+      if (isAllDone) countCompleted++; else countOngoing++;
       if (hasDelay) countDelayed++;
     });
 
@@ -206,7 +197,6 @@ function renderProjects() {
     if (!p.tasks || p.tasks.length === 0) return false;
     const isAllDone = p.tasks.every(t => t.isCompleted);
     const hasDelay = p.tasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
-    
     if (currentFilter === 'completed') return isAllDone;
     if (currentFilter === 'delayed') return hasDelay;
     return !isAllDone;
@@ -239,55 +229,67 @@ function renderProjects() {
   const lockBtn = document.getElementById("btn-toggle-lock");
   if (currentUserData.role === "admin" || currentUserData.role === "top_manager") {
     lockBtn.style.display = "inline-block";
-    lockBtn.innerText = activeProj.isLocked ? "🔒 鎖定中 (點擊解鎖編輯)" : "🔓 已開放編輯 (點擊鎖定)";
+    lockBtn.innerText = activeProj.isLocked ? "🔒 鎖定中 (點擊解鎖編輯時間)" : "🔓 已開放編輯 (點擊鎖定)";
     lockBtn.className = activeProj.isLocked ? "action-btn" : "action-btn danger";
   } else {
     lockBtn.style.display = "none";
   }
 
-  const tbody = document.getElementById("project-list-tbody");
-  tbody.innerHTML = "";
+  // 渲染左側對齊面板
+  const leftBody = document.getElementById("gantt-left-body");
+  leftBody.innerHTML = "";
   const ganttTasks = [];
 
   activeProj.tasks.forEach((task, index) => {
+    // 防呆：沒有 progress 預設給 0
+    const currentProgress = task.progress || 0;
+    
     ganttTasks.push({
-      id: `t_${index}`, name: task.name, start: task.start, end: task.end, progress: task.isCompleted ? 100 : 0
+      id: `t_${index}`, name: task.name, start: task.start, end: task.end, 
+      progress: currentProgress, custom_class: task.isCompleted ? 'bar-success' : ''
     });
 
-    const canEditDates = !activeProj.isLocked;
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><strong>${task.name}</strong></td>
-      <td>
-        ${task.start} 至 ${task.end}
-        ${canEditDates && !task.isCompleted ? `<br><button class="action-btn" style="padding:2px 6px; font-size:10px; margin-top:4px;" onclick="editTaskDate('${activeProj.id}', ${index}, '${task.end}')">修改日期</button>` : ''}
-      </td>
-      <td>${task.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">進行中</span>'}</td>
-      <td>${task.completedAt ? `<small>${task.completedAt}</small><br>` : ''}${task.delayReason ? `<span class="pill pill-danger">Delay: ${task.delayReason}</span>` : '-'}</td>
-      <td>${!task.isCompleted ? `<button class="action-btn" onclick="completeTask('${activeProj.id}', ${index}, '${task.end}')">標記完成</button>` : '<span style="color:#94a3b8;">結案</span>'}</td>
+    const isLockedUI = task.isCompleted; // 100% 結案鎖定
+    const row = document.createElement("div");
+    row.className = "gantt-row";
+    row.innerHTML = `
+      <div class="col-name" title="${task.name}">${task.name}</div>
+      <div class="col-date">${task.start.substring(5)} ~ ${task.end.substring(5)}</div>
+      <div class="col-prog">
+        <input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isLockedUI ? 'disabled' : ''}> %
+      </div>
+      <div class="col-act">
+        <button class="action-btn" ${isLockedUI ? 'disabled' : ''} onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')">
+          ${isLockedUI ? '已結案' : '確認'}
+        </button>
+      </div>
     `;
-    tbody.appendChild(tr);
+    leftBody.appendChild(row);
   });
 
   if (ganttTasks.length > 0) {
-    document.getElementById("gantt-chart").innerHTML = "";
+    const chartDiv = document.getElementById("gantt-chart");
+    chartDiv.innerHTML = "";
     
-    // 建立甘特圖，並加入防呆：若鎖定則拒絕拖曳並重畫
+    // 如果主管設為鎖定，甘特圖套用防拖曳 CSS
+    chartDiv.className = activeProj.isLocked ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
+
+    // 初始化甘特圖，精準對齊 50px header 與 38px row
     ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
       view_mode: 'Day', 
       language: 'zh',
+      header_height: 50,
+      bar_height: 20,
+      padding: 18,
       on_date_change: async (task, start, end) => {
         if (activeProj.isLocked) {
-          alert("🔒 專案鎖定中！必須由最高主管或管理員解鎖後才能拖曳修改時間。");
-          renderProjects(); // 重畫還原位置
+          alert("🔒 專案鎖定中！必須由最高主管解鎖後才能拖曳修改時間。");
+          renderProjects(); 
           return;
         }
 
-        // 允許拖曳，寫回資料庫
         const idx = parseInt(task.id.split('_')[1]);
         const newStart = formatDateSafe(start);
-        
-        // FrappeGantt 的 end date 參數本身是隔天的 00:00，必須減一天才是實際結束日
         let dEnd = new Date(end);
         dEnd.setDate(dEnd.getDate() - 1);
         const newEnd = formatDateSafe(dEnd);
@@ -303,7 +305,40 @@ function renderProjects() {
   }
 }
 
-// 提交新專案
+// 提交進度更新
+window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
+  const proj = allProjectsData.find(p => p.id === projId);
+  const tasks = [...proj.tasks];
+  
+  const inputElem = document.getElementById(`prog_input_${taskIndex}`);
+  let newProg = parseInt(inputElem.value);
+
+  if (isNaN(newProg) || newProg < 0) newProg = 0;
+  if (newProg > 100) newProg = 100;
+
+  // Delay 檢查邏輯
+  let delayReason = tasks[taskIndex].delayReason || "";
+  if (newProg === 100) {
+    const today = new Date().toISOString().split('T')[0];
+    if (today > plannedEnd && !delayReason) {
+      delayReason = prompt("此任務已超出預計完成日，請填寫 Delay 原因：");
+      if (!delayReason) return alert("必須填寫原因才能完成！");
+    }
+    tasks[taskIndex].isCompleted = true;
+    tasks[taskIndex].completedAt = new Date().toLocaleString();
+    tasks[taskIndex].delayReason = delayReason;
+    alert("🎉 進度 100% 確認！該任務已永久鎖定並結案。");
+  } else {
+    tasks[taskIndex].isCompleted = false;
+    tasks[taskIndex].completedAt = null;
+    alert(`進度已更新為 ${newProg}%`);
+  }
+
+  tasks[taskIndex].progress = newProg;
+  await updateDoc(doc(db, "projects", projId), { tasks });
+};
+
+
 document.getElementById("btn-add-project").addEventListener("click", async () => {
   const title = document.getElementById("proj-name").value.trim();
   if (!title) return alert("請填寫主專案名稱！");
@@ -318,7 +353,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     if (!name || !start || !end) return alert("任務細項不可有空白欄位！");
     if (start > end) return alert(`任務 [${name}] 的起始日不可大於完成日！`);
     
-    tasks.push({ name, start, end, isCompleted: false, completedAt: null, delayReason: "" });
+    tasks.push({ name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "" });
   }
 
   if (tasks.length === 0) return alert("請至少新增一筆任務細項！");
@@ -340,34 +375,6 @@ window.toggleCurrentProjectLock = async () => {
   if (!selectedProjectId) return;
   const proj = allProjectsData.find(p => p.id === selectedProjectId);
   await updateDoc(doc(db, "projects", proj.id), { isLocked: !proj.isLocked });
-};
-
-window.editTaskDate = async (projId, taskIndex, oldEnd) => {
-  const newEnd = prompt("請輸入新的預計完成日期 (格式 YYYY-MM-DD)：", oldEnd);
-  if (!newEnd || newEnd === oldEnd) return;
-  const d = new Date(newEnd);
-  if (isNaN(d.getTime())) return alert("日期格式錯誤！");
-  if (d.getDay() === 0 || d.getDay() === 6) return alert("完成日僅能設定為工作日 (週一至週五)！");
-
-  const proj = allProjectsData.find(p => p.id === projId);
-  proj.tasks[taskIndex].end = newEnd;
-  await updateDoc(doc(db, "projects", projId), { tasks: proj.tasks });
-};
-
-window.completeTask = async (projId, taskIndex, plannedEnd) => {
-  const today = new Date().toISOString().split('T')[0];
-  let delayReason = "";
-
-  if (today > plannedEnd) {
-    delayReason = prompt("此任務已超出預計完成日，請填寫 Delay 原因：");
-    if (!delayReason) return alert("必須填寫原因才能完成！");
-  }
-
-  const proj = allProjectsData.find(p => p.id === projId);
-  proj.tasks[taskIndex].isCompleted = true;
-  proj.tasks[taskIndex].completedAt = new Date().toLocaleString();
-  proj.tasks[taskIndex].delayReason = delayReason;
-  await updateDoc(doc(db, "projects", projId), { tasks: proj.tasks });
 };
 
 /* ================= 組織、事件、週報 (維持不變) ================= */
@@ -449,6 +456,7 @@ window.deleteUserDoc = async (uid, name) => {
     try { await deleteDoc(doc(db, "users", uid)); alert(`已移除 ${name}！`); } catch (err) { alert("刪除失敗: " + err.message); }
   }
 };
+
 document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
   const title = document.getElementById("adhoc-title").value.trim();
   const reason = document.getElementById("adhoc-reason").value.trim();
@@ -476,6 +484,7 @@ function loadAdHocEvents() {
   });
 }
 window.completeAdHoc = async (id) => { await updateDoc(doc(db, "ad_hoc_events", id), { isCompleted: true, completedAt: new Date().toLocaleString() }); };
+
 document.getElementById("btn-add-weekly").addEventListener("click", async () => {
   const start = document.getElementById("rep-start").value;
   const end = document.getElementById("rep-end").value;
