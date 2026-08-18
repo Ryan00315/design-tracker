@@ -23,6 +23,7 @@
   --radius-md: 8px;
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07);
+  --shadow-card: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, sans-serif; }
@@ -30,149 +31,87 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 
 /* 登入頁 */
 .login-screen {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: radial-gradient(circle at 10% 20%, #1e293b 0%, #0f172a 100%);
-  padding: 24px;
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 10% 20%, #1e293b 0%, #0f172a 100%); padding: 24px;
 }
 .login-box {
-  width: 100%;
-  max-width: 420px;
-  background: var(--surface);
-  border-radius: var(--radius-lg);
-  padding: 36px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  width: 100%; max-width: 420px; background: var(--surface);
+  border-radius: var(--radius-lg); padding: 36px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
 }
 .brand-logo-area { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
 .logo-icon {
   width: 36px; height: 36px; background: var(--primary); color: #fff;
-  border-radius: 8px; display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 18px;
+  border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px;
 }
 .brand-title { font-size: 20px; font-weight: 700; color: #0f172a; }
 
 .form-group { margin-bottom: 16px; }
 .form-label { display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px; }
 .input-control, select.input-control {
-  width: 100%;
-  padding: 10px 14px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  outline: none;
-  font-size: 14px;
-  background: #fdfdfd;
-  transition: all 0.2s ease;
+  width: 100%; padding: 10px 14px; border-radius: var(--radius-md); border: 1px solid var(--border);
+  outline: none; font-size: 14px; background: #fdfdfd; transition: all 0.2s ease;
 }
 .input-control:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); background: #fff; }
 
 .btn-primary {
-  width: 100%;
-  background: var(--primary);
-  color: white;
-  padding: 11px;
-  font-size: 14px;
-  font-weight: 600;
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all 0.2s;
+  width: 100%; background: var(--primary); color: white; padding: 11px;
+  font-size: 14px; font-weight: 600; border: none; border-radius: var(--radius-md); cursor: pointer; transition: 0.2s;
 }
 .btn-primary:hover { background: var(--primary-hover); }
 
 /* 主後台 */
 .app-container { display: flex; height: 100vh; }
-.sidebar {
-  width: 250px;
-  background: var(--sidebar-bg);
-  color: white;
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  border-right: 1px solid rgba(255,255,255,0.06);
-}
-.sidebar-header {
-  height: 64px;
-  display: flex;
-  align-items: center;
-  padding: 0 20px;
-  gap: 10px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  font-size: 16px;
-  font-weight: 700;
-}
+.sidebar { width: 250px; background: var(--sidebar-bg); color: white; display: flex; flex-direction: column; flex-shrink: 0; border-right: 1px solid rgba(255,255,255,0.06); }
+.sidebar-header { height: 64px; display: flex; align-items: center; padding: 0 20px; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 16px; font-weight: 700; }
 .version-tag { background: #334155; color: #94a3b8; font-size: 11px; padding: 2px 6px; border-radius: 4px; }
 
 .nav-list { list-style: none; padding: 16px 10px; flex: 1; display: flex; flex-direction: column; gap: 4px; }
 .nav-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  border-radius: var(--radius-md);
-  color: #94a3b8;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--radius-md);
+  color: #94a3b8; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s ease;
 }
 .nav-item svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; }
 .nav-item:hover { background: var(--sidebar-hover); color: #f8fafc; }
 .nav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 600; }
 
-.main-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-page); }
+/* 側邊欄分隔線 */
+.nav-divider { height: 1px; background: rgba(255, 255, 255, 0.08); margin: 12px 14px; }
 
+.main-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-page); }
 .top-header {
-  height: 64px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 28px;
+  height: 64px; background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; padding: 0 28px;
 }
 .breadcrumb { font-size: 14px; color: var(--text-muted); }
 .breadcrumb b { color: var(--text-main); font-weight: 600; }
 
-.header-right { display: flex; align-items: center; gap: 16px; }
-.user-info-box { display: flex; align-items: center; gap: 10px; cursor: pointer; }
-.avatar {
-  width: 34px; height: 34px; border-radius: 50%;
-  background: #e2e8f0; color: #475569; display: flex;
-  align-items: center; justify-content: center; font-weight: 700; font-size: 13px;
-}
+.header-right { display: flex; align-items: center; gap: 14px; }
+.user-info-box { display: flex; align-items: center; gap: 10px; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; background: #e2e8f0; color: #475569; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
 .role-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 12px; background: var(--primary-soft); color: var(--primary); }
 
+/* 齒輪圖示按鈕 */
+.btn-icon {
+  background: transparent; border: none; color: #64748b; padding: 6px;
+  border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s;
+}
+.btn-icon:hover { background: #f1f5f9; color: var(--primary); }
+
 .btn-logout {
-  background: transparent; border: 1px solid var(--border);
-  padding: 5px 12px; border-radius: 6px; font-size: 12px;
-  font-weight: 600; color: #475569; cursor: pointer;
+  background: transparent; border: 1px solid var(--border); padding: 5px 12px; border-radius: 6px;
+  font-size: 12px; font-weight: 600; color: #475569; cursor: pointer; transition: 0.2s;
 }
 .btn-logout:hover { background: #f1f5f9; }
 
 .content-body { flex: 1; padding: 28px; overflow-y: auto; }
 
-/* KPI 與卡片 */
+/* KPI與面板 */
 .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
-.kpi-card {
-  background: var(--surface);
-  padding: 18px 20px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
-}
+.kpi-card { background: var(--surface); padding: 18px 20px; border-radius: var(--radius-lg); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
 .kpi-title { font-size: 13px; color: var(--text-muted); font-weight: 500; }
 .kpi-number { font-size: 26px; font-weight: 700; color: var(--text-main); margin-top: 6px; }
 
-.section-panel {
-  background: var(--surface);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  padding: 22px;
-  margin-bottom: 24px;
-  box-shadow: var(--shadow-sm);
-}
+.section-panel { background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 22px; margin-bottom: 24px; box-shadow: var(--shadow-sm); }
 .panel-head { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 16px; }
 .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
 
@@ -189,42 +128,18 @@ tr:hover td { background: #fafafa; }
 .pill-danger { background: var(--danger-bg); color: var(--danger); }
 .pill-role { background: #e0f2fe; color: #0369a1; }
 
-.action-btn {
-  background: #fff;
-  border: 1px solid var(--border);
-  padding: 5px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
+.action-btn { background: #fff; border: 1px solid var(--border); padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.15s; }
 .action-btn:hover { background: var(--border-light); }
 .action-btn.danger { color: var(--danger); border-color: #fca5a5; }
 .action-btn.danger:hover { background: var(--danger-bg); }
 
-/* ================= 彈出式視窗 (Modal) ================= */
-.modal-overlay {
-  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 1000; opacity: 0; pointer-events: none; transition: all 0.2s ease;
-}
+/* Modal 樣式 */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; pointer-events: none; transition: all 0.2s ease; }
 .modal-overlay.active { opacity: 1; pointer-events: auto; }
-.modal-box {
-  background: var(--surface); width: 100%; max-width: 480px;
-  border-radius: var(--radius-lg); padding: 28px;
-  box-shadow: var(--shadow-card);
-  transform: translateY(-20px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
+.modal-box { background: var(--surface); width: 100%; max-width: 480px; border-radius: var(--radius-lg); padding: 28px; box-shadow: var(--shadow-card); transform: translateY(-20px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
 .modal-overlay.active .modal-box { transform: translateY(0); }
-.modal-header {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 24px; font-size: 18px; font-weight: 700; color: #0f172a;
-}
-.btn-close {
-  background: none; border: none; font-size: 24px; line-height: 1;
-  cursor: pointer; color: var(--text-muted); transition: 0.2s;
-}
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; font-size: 18px; font-weight: 700; color: #0f172a; }
+.btn-close { background: none; border: none; font-size: 24px; line-height: 1; cursor: pointer; color: var(--text-muted); transition: 0.2s; }
 .btn-close:hover { color: var(--danger); }
 .modal-actions { display: flex; gap: 12px; margin-top: 28px; }
 .modal-actions button { flex: 1; padding: 12px; }
