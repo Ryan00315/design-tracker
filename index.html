@@ -11,7 +11,7 @@
 
   <div id="auth-section" class="login-screen">
     <div class="login-box">
-      <div class="brand-logo-area"><div class="logo-icon">P</div><div><div class="brand-title">PMS 管理系統</div><div style="font-size: 12px; color: var(--text-muted);">設計部專案進度追蹤平台</div></div></div>
+      <div class="brand-logo-area"><div class="logo-icon">P</div><div><div class="brand-title">PMS 管理系統</div><div style="font-size: 12px; color: var(--text-muted);">專案進度追蹤平台</div></div></div>
       <div class="form-group"><label class="form-label">登入帳號 (Email)</label><input type="email" id="login-email" class="input-control" placeholder="例：Ryan@design.com"></div>
       <div class="form-group"><label class="form-label">密碼</label><input type="password" id="login-password" class="input-control" placeholder="輸入密碼"></div>
       <button id="btn-login" class="btn-primary" style="margin-top: 8px;">登入系統</button>
@@ -20,7 +20,7 @@
 
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v9.0 (無縫加單版)</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v9.5 (電子簽核版)</span></div>
       <ul class="nav-list">
         
         <div id="nav-sub-wrapper" style="display:none; margin-bottom: 8px;">
@@ -74,8 +74,7 @@
             
             <div class="form-row" style="margin-bottom: 14px;">
               <div class="form-group" style="flex:2;">
-                <!-- 加入 list="project-names-list" 使其具備自動帶入下拉選單功能 -->
-                <label class="form-label">主專案名稱 (可點擊選擇現有專案附加細項)</label>
+                <label class="form-label">主專案名稱 (已完成專案不顯示於選單)</label>
                 <input type="text" id="proj-name" class="input-control" placeholder="例：2026 產品外觀設計案" list="project-names-list">
                 <datalist id="project-names-list"></datalist>
               </div>
@@ -98,6 +97,7 @@
 
           <div class="project-tabs-wrapper" id="project-tabs-container"></div>
 
+          <!-- 總覽檢視 -->
           <div id="project-summary-view" style="display:none;">
             <div class="section-panel" style="padding: 0; background: transparent; border: none; box-shadow: none;">
               <div class="panel-head" style="margin-bottom: 8px;"><span>⭐ 專案與事件總覽排程 (所有專案/事件皆顯示)</span></div>
@@ -117,6 +117,7 @@
             </div>
           </div>
 
+          <!-- 個別專案檢視 -->
           <div id="project-detail-view" style="display:none;">
             <div class="section-panel" style="padding: 0; background: transparent; border: none; box-shadow: none;">
               <div class="panel-head" style="margin-bottom: 8px;">
@@ -178,27 +179,48 @@
           </div>
         </div>
 
+        <!-- 分頁 3：週報填寫 (結構化表單版) -->
         <div id="tab-weekly" class="tab-pane" style="display:none;">
           <div class="section-panel" id="weekly-form-panel">
             <div class="panel-head">填寫本週工作週報</div>
-            <div class="form-row" style="grid-template-columns: 1fr 1fr;">
-              <div class="form-group"><label class="form-label">起始日期</label><input type="date" id="rep-start" class="input-control"></div>
-              <div class="form-group"><label class="form-label">結束日期</label><input type="date" id="rep-end" class="input-control"></div>
+            <div class="form-row" style="margin-bottom: 16px;">
+              <div class="form-group" style="width: 250px;">
+                <label class="form-label">週報日期</label>
+                <input type="date" id="rep-date" class="input-control">
+              </div>
             </div>
-            <div class="form-group"><label class="form-label">本週進度說明</label><textarea id="rep-content" class="input-control" rows="5" placeholder="條列本週進度、遭遇問題與下週規劃..."></textarea></div>
-            <button id="btn-add-weekly" class="btn-primary" style="width: 160px;">送出週報</button>
+            
+            <!-- 動態進度項目容器 -->
+            <div id="weekly-items-container"></div>
+            
+            <button class="action-btn" onclick="addWeeklyRow()" style="margin-bottom: 24px; border-style: dashed;">+ 新增進度項目</button>
+            <div style="border-top: 1px solid var(--border); padding-top: 20px;">
+              <button id="btn-add-weekly" class="btn-primary" style="width: 160px;">送出週報</button>
+            </div>
           </div>
+          
           <div class="section-panel">
-            <div class="panel-head">歷史週報清單</div>
+            <div class="panel-head">歷史週報清單與審閱狀態</div>
             <div class="table-responsive">
               <table>
-                <thead><tr><th>起訖日期</th><th>進度說明</th><th>送出時間</th><th>操作</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th style="width: 60px;">項次</th>
+                    <th>名字</th>
+                    <th>週報日期</th>
+                    <th>送出時間</th>
+                    <th>主管</th>
+                    <th>最高主管</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
                 <tbody id="weekly-list-tbody"></tbody>
               </table>
             </div>
           </div>
         </div>
 
+        <!-- 分頁 4：組織架構與人員管理 -->
         <div id="tab-org" class="tab-pane" style="display:none;">
           <div class="section-panel">
             <div class="panel-head">新增人員與職稱階層設定</div>
@@ -226,6 +248,7 @@
           </div>
         </div>
 
+        <!-- 分頁 5：個人帳號設定 -->
         <div id="tab-profile" class="tab-pane" style="display:none;">
           <div class="section-panel" style="max-width: 600px;">
             <div class="panel-head">變更登入密碼</div>
@@ -239,6 +262,7 @@
     </div>
   </div>
 
+  <!-- 人員編輯 Modal -->
   <div id="edit-user-modal" class="modal-overlay">
     <div class="modal-box">
       <div class="modal-header"><span>編輯人員組織資訊</span><button class="btn-close" onclick="closeEditModal()">×</button></div>
@@ -251,6 +275,19 @@
       <div class="form-group"><label class="form-label">直屬主管</label><select id="edit-user-supervisor" class="input-control"></select></div>
       <input type="hidden" id="edit-user-uid">
       <div class="modal-actions"><button class="action-btn" onclick="closeEditModal()" style="font-size:14px;">取消</button><button class="btn-primary" onclick="submitEditUser()">儲存變更</button></div>
+    </div>
+  </div>
+
+  <!-- 週報瀏覽與簽核 Modal -->
+  <div id="weekly-detail-modal" class="modal-overlay">
+    <div class="modal-box" style="max-width: 650px;">
+      <div class="modal-header"><span>週報詳細內容</span><button class="btn-close" onclick="closeWeeklyModal()">×</button></div>
+      <div id="weekly-detail-content" style="margin-bottom: 20px; max-height: 450px; overflow-y:auto; padding-right: 8px;"></div>
+      <div class="modal-actions" style="justify-content: flex-end;">
+        <button id="btn-supervisor-note" class="action-btn" style="display:none; color:var(--success); border-color:var(--success);" onclick="markWeeklyNoted('supervisor')">✔️ 主管已閱</button>
+        <button id="btn-topmanager-note" class="action-btn" style="display:none; color:var(--success); border-color:var(--success);" onclick="markWeeklyNoted('top_manager')">✔️ 最高主管已閱</button>
+        <button class="btn-primary" onclick="closeWeeklyModal()" style="max-width: 100px;">關閉</button>
+      </div>
     </div>
   </div>
 
