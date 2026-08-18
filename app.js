@@ -53,7 +53,7 @@ window.switchNav = (tabId, title, elem) => {
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById(tabId).style.display = 'block';
-  if (elem) elem.classList.add('active');
+  if (elem) elem.classList.add('active'); // 因為點擊齒輪時 elem 會傳入 null，所以加上檢查避免報錯
   document.getElementById('current-title').innerText = title;
 };
 
@@ -81,12 +81,14 @@ onAuthStateChanged(auth, async (user) => {
     document.getElementById("user-avatar").innerText = displayName.charAt(0).toUpperCase();
     document.getElementById("user-role-badge").innerText = roleNames[currentUserData.role] || (currentUserData.role || "STAFF").toUpperCase();
 
-    // 只有 Admin 顯示組織管理選單
+    // 只有 Admin 顯示組織管理選單與分隔線
     if (currentUserData.role === "admin") {
       document.getElementById("nav-org-manage").style.display = "flex";
+      document.getElementById("nav-divider-org").style.display = "block";
       loadOrgUsers();
     } else {
       document.getElementById("nav-org-manage").style.display = "none";
+      document.getElementById("nav-divider-org").style.display = "none";
     }
 
     loadProjects();
@@ -111,7 +113,6 @@ document.getElementById("btn-login").addEventListener("click", () => {
 // 登出事件
 document.getElementById("btn-logout").addEventListener("click", () => signOut(auth));
 
-
 /* ================= 1. 個人帳號設定 (僅限改密碼) ================= */
 document.getElementById("btn-update-password").addEventListener("click", async () => {
   const newPass = document.getElementById("profile-new-pass").value;
@@ -131,7 +132,6 @@ document.getElementById("btn-update-password").addEventListener("click", async (
 });
 
 /* ================= 2. 組織架構與人員管理 (僅 Admin) ================= */
-// 監聽與載入人員名單
 function loadOrgUsers() {
   onSnapshot(collection(db, "users"), (snapshot) => {
     const tbody = document.getElementById("user-list-tbody");
@@ -145,7 +145,6 @@ function loadOrgUsers() {
       const uid = docSnap.id;
       allUsersList.push({ uid, ...u });
 
-      // 下拉選單只放入主管級別
       if (["top_manager", "manager", "assistant_manager"].includes(u.role)) {
         supervisorSelect.innerHTML += `<option value="${uid}">${u.name} (${roleNames[u.role] || u.role})</option>`;
       }
@@ -171,7 +170,6 @@ function loadOrgUsers() {
   });
 }
 
-// 新增人員帳號 (建立 Firebase Auth 與 Firestore 記錄)
 document.getElementById("btn-create-user").addEventListener("click", async () => {
   const name = document.getElementById("new-user-name").value.trim();
   const email = document.getElementById("new-user-email").value.trim();
@@ -204,7 +202,6 @@ document.getElementById("btn-create-user").addEventListener("click", async () =>
   }
 });
 
-// 打開編輯視窗 (Modal)
 window.openEditModal = (uid) => {
   const u = allUsersList.find(x => x.uid === uid);
   if (!u) return;
@@ -213,7 +210,6 @@ window.openEditModal = (uid) => {
   document.getElementById("edit-user-name").value = u.name || '';
   document.getElementById("edit-user-role").value = u.role || 'staff';
 
-  // 動態生成可選的直屬主管 (排除自己)
   const supSelect = document.getElementById("edit-user-supervisor");
   supSelect.innerHTML = '<option value="">-- 無 (或由最高主管管轄) --</option>';
   allUsersList.forEach(user => {
@@ -222,17 +218,13 @@ window.openEditModal = (uid) => {
     }
   });
   supSelect.value = u.supervisorId || '';
-
-  // 顯示視窗
   document.getElementById("edit-user-modal").classList.add("active");
 };
 
-// 關閉編輯視窗
 window.closeEditModal = () => {
   document.getElementById("edit-user-modal").classList.remove("active");
 };
 
-// 提交人員編輯資料
 window.submitEditUser = async () => {
   const uid = document.getElementById("edit-user-uid").value;
   const name = document.getElementById("edit-user-name").value.trim();
@@ -243,9 +235,7 @@ window.submitEditUser = async () => {
 
   try {
     await updateDoc(doc(db, "users", uid), {
-      name,
-      role,
-      supervisorId: supervisorId || null
+      name, role, supervisorId: supervisorId || null
     });
     alert("人員資訊已成功更新！");
     closeEditModal();
@@ -254,7 +244,6 @@ window.submitEditUser = async () => {
   }
 };
 
-// 刪除人員資料
 window.deleteUserDoc = async (uid, name) => {
   if (confirm(`確定要刪除人員「${name}」的系統資料與權限嗎？`)) {
     try {
@@ -274,10 +263,7 @@ function loadProjects() {
     const tbody = document.getElementById("project-list-tbody");
     tbody.innerHTML = "";
     const ganttTasks = [];
-
-    let ongoingCount = 0;
-    let completedCount = 0;
-    let delayCount = 0;
+    let ongoingCount = 0; let completedCount = 0; let delayCount = 0;
 
     snapshot.forEach(docSnap => {
       const proj = docSnap.data();
@@ -285,7 +271,6 @@ function loadProjects() {
       const task = proj.tasks ? proj.tasks[0] : null;
       if (!task) return;
 
-      // 權限階層過濾：
       if (currentUserData.role === "staff" && proj.ownerId !== auth.currentUser.uid) {
         return;
       }
@@ -298,11 +283,7 @@ function loadProjects() {
       }
 
       ganttTasks.push({
-        id: pId,
-        name: `${proj.title} - ${task.name}`,
-        start: task.start,
-        end: task.end,
-        progress: task.isCompleted ? 100 : 0
+        id: pId, name: `${proj.title} - ${task.name}`, start: task.start, end: task.end, progress: task.isCompleted ? 100 : 0
       });
 
       const tr = document.createElement("tr");
@@ -311,13 +292,8 @@ function loadProjects() {
         <td>${proj.ownerName || '未指定'} <small style="color:var(--text-muted)">(${roleNames[proj.ownerRole] || proj.ownerRole || '人員'})</small></td>
         <td>${task.start} 至 ${task.end}</td>
         <td>${task.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">進行中</span>'}</td>
-        <td>
-          ${task.completedAt ? `<small>${task.completedAt}</small><br>` : ''}
-          ${task.delayReason ? `<span class="pill pill-danger">Delay: ${task.delayReason}</span>` : '-'}
-        </td>
-        <td>
-          ${!task.isCompleted ? `<button class="action-btn" onclick="completeTask('${pId}', '${task.end}')">完成任務</button>` : '<span style="color:#94a3b8;">已結案</span>'}
-        </td>
+        <td>${task.completedAt ? `<small>${task.completedAt}</small><br>` : ''}${task.delayReason ? `<span class="pill pill-danger">Delay: ${task.delayReason}</span>` : '-'}</td>
+        <td>${!task.isCompleted ? `<button class="action-btn" onclick="completeTask('${pId}', '${task.end}')">完成任務</button>` : '<span style="color:#94a3b8;">已結案</span>'}</td>
       `;
       tbody.appendChild(tr);
     });
@@ -342,20 +318,9 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   if (!title || !taskName || !start || !end) return alert("請完整填寫所有欄位！");
 
   await addDoc(collection(db, "projects"), {
-    title,
-    ownerId: auth.currentUser.uid,
-    ownerName: currentUserData.name || auth.currentUser.email,
-    ownerRole: currentUserData.role || "staff",
-    isLocked: true,
-    tasks: [{
-      id: "t_1",
-      name: taskName,
-      start,
-      end,
-      isCompleted: false,
-      completedAt: null,
-      delayReason: ""
-    }],
+    title, ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email,
+    ownerRole: currentUserData.role || "staff", isLocked: true,
+    tasks: [{ id: "t_1", name: taskName, start, end, isCompleted: false, completedAt: null, delayReason: "" }],
     createdAt: serverTimestamp()
   });
 
@@ -390,13 +355,8 @@ document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
   if (!title || !reason) return alert("請完整填寫事項與原因！");
 
   await addDoc(collection(db, "ad_hoc_events"), {
-    ownerId: auth.currentUser.uid,
-    ownerName: currentUserData.name || auth.currentUser.email,
-    title,
-    reason,
-    startDateTime: new Date().toLocaleString(),
-    isCompleted: false,
-    completedAt: null,
+    ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email,
+    title, reason, startDateTime: new Date().toLocaleString(), isCompleted: false, completedAt: null,
     createdAt: serverTimestamp()
   });
 
@@ -414,13 +374,9 @@ function loadAdHocEvents() {
       const id = docSnap.id;
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td><strong>${evt.title}</strong></td>
-        <td>${evt.reason}</td>
-        <td>${evt.startDateTime}</td>
+        <td><strong>${evt.title}</strong></td><td>${evt.reason}</td><td>${evt.startDateTime}</td>
         <td>${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td>
-        <td>
-          ${!evt.isCompleted ? `<button class="action-btn" onclick="completeAdHoc('${id}')">點選完成</button>` : '<span style="color:#94a3b8;">已結案</span>'}
-        </td>
+        <td>${!evt.isCompleted ? `<button class="action-btn" onclick="completeAdHoc('${id}')">點選完成</button>` : '<span style="color:#94a3b8;">已結案</span>'}</td>
       `;
       tbody.appendChild(tr);
     });
@@ -429,8 +385,7 @@ function loadAdHocEvents() {
 
 window.completeAdHoc = async (id) => {
   await updateDoc(doc(db, "ad_hoc_events", id), {
-    isCompleted: true,
-    completedAt: new Date().toLocaleString()
+    isCompleted: true, completedAt: new Date().toLocaleString()
   });
 };
 
@@ -442,11 +397,8 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
   if (!start || !end || !content) return alert("請完整填寫週報內容！");
 
   await addDoc(collection(db, "weekly_reports"), {
-    ownerId: auth.currentUser.uid,
-    ownerName: currentUserData.name || auth.currentUser.email,
-    startDate: start,
-    endDate: end,
-    content,
+    ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email,
+    startDate: start, endDate: end, content,
     createdAt: serverTimestamp()
   });
 
