@@ -3,13 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PMS - 設計課專案管理系統</title>
+  <title>PMS - 專案管理系統</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.css">
 </head>
 <body>
 
-  <!-- 1. 登入介面 -->
   <div id="auth-section" class="login-screen">
     <div class="login-box">
       <div class="brand-logo-area"><div class="logo-icon">P</div><div><div class="brand-title">PMS 管理系統</div><div style="font-size: 12px; color: var(--text-muted);">設計部專案進度追蹤平台</div></div></div>
@@ -19,10 +18,9 @@
     </div>
   </div>
 
-  <!-- 2. 主工作後台 -->
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v5.5 (歷史追蹤版)</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v6.0</span></div>
       <ul class="nav-list">
         
         <!-- 人員檢視切換 (下拉式) -->
@@ -32,9 +30,7 @@
             <span style="flex:1;">人員檢視切換</span>
             <svg id="sub-menu-arrow" viewBox="0 0 24 24" style="width:16px; height:16px; transition:0.2s;"><polyline points="6 9 12 15 18 9"/></svg>
           </li>
-          <ul class="nav-sub-list" id="nav-sub-list">
-            <!-- JS 動態生成人員名單 -->
-          </ul>
+          <ul class="nav-sub-list" id="nav-sub-list"></ul>
         </div>
         
         <li class="nav-item active" onclick="switchNav('tab-projects', '專案進度', this)">
@@ -114,12 +110,20 @@
               </div>
             </div>
             
-            <!-- 下半部：歷史軌跡表 -->
+            <!-- 下半部：流水帳歷史更新軌跡表 -->
             <div class="section-panel" style="margin-top: 24px;">
-              <div class="panel-head">細項進度與歷史時間紀錄</div>
+              <div class="panel-head">專案歷史更新軌跡 (Activity Log)</div>
               <div class="table-responsive">
                 <table>
-                  <thead><tr><th>任務名稱</th><th>預計期程</th><th>當前狀態</th><th>歷史更新紀錄 (最新紀錄在最上層)</th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th style="width: 200px;">更新時間</th>
+                      <th>任務細項名稱</th>
+                      <th>進度紀錄</th>
+                      <th>經過工作天數</th>
+                      <th>備註 / Delay 原因</th>
+                    </tr>
+                  </thead>
                   <tbody id="project-list-tbody"></tbody>
                 </table>
               </div>
@@ -214,7 +218,7 @@
     </div>
   </div>
 
-  <!-- 管理員編輯人員視窗 (Modal) -->
+  <!-- 管理員編輯人員視窗 -->
   <div id="edit-user-modal" class="modal-overlay">
     <div class="modal-box">
       <div class="modal-header"><span>編輯人員組織資訊</span><button class="btn-close" onclick="closeEditModal()">×</button></div>
