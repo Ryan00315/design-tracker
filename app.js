@@ -335,9 +335,7 @@ function renderProjects() {
 
   emptyState.style.display = "none"; 
 
-  // ==========================
   // 總覽
-  // ==========================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; summaryView.style.display = "block";
     const sumLeftBody = document.getElementById("gantt-summary-left-body");
@@ -376,16 +374,14 @@ function renderProjects() {
       document.getElementById("gantt-chart-summary-container").innerHTML = '<div id="gantt-chart-summary"></div>';
       setTimeout(() => {
         if (document.getElementById("tab-projects").style.display === "none") return;
-        summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18 });
+        summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true });
         patchGanttVisuals(summaryGanttInstance, '#gantt-chart-summary-container');
       }, 150); 
     } else { document.getElementById("gantt-chart-summary-container").innerHTML = ''; }
     return;
   }
 
-  // ==========================
   // 個別專案
-  // ==========================
   summaryView.style.display = "none"; detailView.style.display = "block";
   const activeProj = filteredProjects.find(p => p.id === selectedProjectId);
   if(!activeProj) return; 
@@ -400,7 +396,7 @@ function renderProjects() {
   const delProjBtn = document.getElementById("btn-delete-project");
   
   if (currentUserData.role === "admin" || currentUserData.role === "top_manager") {
-    lockBtn.style.display = "inline-block"; lockBtn.innerText = activeProj.isLocked ? "🔒 鎖定中 (解鎖供編輯)" : "🔓 已開放 (點擊鎖定)";
+    lockBtn.style.display = "inline-block"; lockBtn.innerText = activeProj.isLocked ? "🔒 鎖定中" : "🔓 已開放 (點擊鎖定)";
     lockBtn.className = activeProj.isLocked ? "action-btn" : "action-btn danger"; delProjBtn.style.display = "inline-block";
   } else { lockBtn.style.display = "none"; delProjBtn.style.display = "none"; }
 
@@ -456,14 +452,12 @@ function renderProjects() {
 
   if (ganttTasks.length > 0) {
     const chartContainer = document.getElementById("gantt-chart-container");
-    chartContainer.className = "gantt-right-panel"; 
+    chartContainer.className = "gantt-right-panel locked-gantt"; 
     chartContainer.innerHTML = '<div id="gantt-chart"></div>';
     setTimeout(() => {
       if (document.getElementById("tab-projects").style.display === "none") return;
-      
-      // 🚀 徹底不綁定 on_date_change 以防萬一，並且依靠 CSS pointer-events 鎖死
       ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
-        view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18
+        view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true
       });
       patchGanttVisuals(ganttInstance, '#gantt-chart-container');
     }, 150); 
@@ -557,10 +551,10 @@ function renderAdHocEvents() {
   const tbody = document.getElementById("adhoc-list-tbody"); tbody.innerHTML = "";
   const filtered = allAdHocData.filter(e => e.ownerId === viewingUserId);
   
-  // 🚀 事件紀錄：最新建立的在最上方 (由新到舊)
+  // 🚀 核心修復：強制時間排序 (新到舊)
   filtered.sort((a, b) => {
-    let tA = a.createdAt ? a.createdAt.toMillis() : new Date(a.startDateTime || 0).getTime();
-    let tB = b.createdAt ? b.createdAt.toMillis() : new Date(b.startDateTime || 0).getTime();
+    let tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : Date.now();
+    let tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : Date.now();
     return tB - tA;
   });
 
@@ -712,7 +706,6 @@ window.markWeeklyNoted = async (type) => {
   await updateDoc(doc(db, "weekly_reports", currentWeeklyReportId), updateData);
   closeWeeklyModal(); alert('已成功標記為 Noted (已閱)！');
 };
-
 
 // ==========================================
 // 🚀 全局編輯模式 Modal 邏輯
