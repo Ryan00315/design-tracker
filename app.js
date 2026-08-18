@@ -261,10 +261,12 @@ function renderProjects() {
 
   const isOwner = activeProj.ownerId === auth.currentUser.uid;
   const leftBody = document.getElementById("gantt-left-body");
+  const listBody = document.getElementById("project-list-tbody");
   leftBody.innerHTML = ""; 
+  if(listBody) listBody.innerHTML = "";
   
   const ganttTasks = [];
-  let allHistoryLogs = []; // 收集此專案所有歷史紀錄
+  let allHistoryLogs = [];
 
   activeProj.tasks.forEach((task, index) => {
     const currentProgress = task.progress || 0;
@@ -281,7 +283,6 @@ function renderProjects() {
     `;
     leftBody.appendChild(row);
 
-    // 彙整此 Task 的歷史紀錄到全域陣列
     if (task.history && task.history.length > 0) {
       task.history.forEach(h => {
         allHistoryLogs.push({ taskName: task.name, ...h });
@@ -289,20 +290,21 @@ function renderProjects() {
     }
   });
 
-  // 渲染下方的獨立歷史紀錄表格 (流水帳)
-  const listBody = document.getElementById("project-list-tbody");
   if (listBody) {
-    listBody.innerHTML = "";
-    
-    // 將所有紀錄依照時間新到舊排序 (越晚的越上面)
     allHistoryLogs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     if (allHistoryLogs.length === 0) {
       listBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:20px;">尚無任何更新紀錄</td></tr>`;
     } else {
       allHistoryLogs.forEach(h => {
-        let note = h.type === 'create' ? '<span style="color:var(--text-muted)">(任務建立)</span>' : (h.type === 'complete' ? '<span style="color:var(--success)">(🎉 100% 結案)</span>' : '');
-        let delayStr = h.delayReason ? `<span class="pill pill-danger">Delay: ${h.delayReason}</span>` : '-';
+        let note = h.type === 'create' ? '<span style="color:var(--text-muted)">(任務建立)</span>' : (h.type === 'complete' ? '<span style="color:var(--success)">(🎉 結案)</span>' : '');
+        
+        let remarkHtml = '-';
+        if (h.type === 'complete' && h.delayReason) {
+            remarkHtml = `<span class="pill pill-danger">Delay: ${h.delayReason}</span>`;
+        } else if (h.remark) {
+            remarkHtml = `<span style="color: var(--text-muted);">${h.remark}</span>`;
+        }
         
         const tr = document.createElement("tr");
         tr.innerHTML = `
@@ -310,14 +312,13 @@ function renderProjects() {
           <td><strong>${h.taskName}</strong></td>
           <td>${h.progress}% ${note}</td>
           <td>歷時 <b>${h.daysPassed}</b> 天</td>
-          <td>${delayStr}</td>
+          <td>${remarkHtml}</td>
         `;
         listBody.appendChild(tr);
       });
     }
   }
 
-  // 繪製甘特圖
   if (ganttTasks.length > 0) {
     const chartContainer = document.getElementById("gantt-chart-container");
     chartContainer.className = activeProj.isLocked ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
@@ -344,7 +345,7 @@ function renderProjects() {
   }
 }
 
-// === 確認與寫入歷史進度 ===
+// === 確認與寫入歷史進度 (加入日常備註) ===
 window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const proj = allProjectsData.find(p => p.id === projId);
   const tasks = [...proj.tasks];
@@ -357,7 +358,6 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
 
   if (newProg < oldProg) { alert(`錯誤：進度不能往回倒扣！目前已達成 ${oldProg}%。`); inputElem.value = oldProg; return; }
 
-  // 計算經過的工作天數
   const todayStr = new Date().toISOString().split('T')[0];
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   let passedDays = 0;
@@ -366,36 +366,40 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   }
 
   let delayReason = tasks[taskIndex].delayReason || "";
+  let currentRemark = "";
   
   if (newProg === 100) {
     if (todayStr > plannedEnd && !delayReason) {
-      delayReason = prompt("此任務已超出預計完成日，請填寫 Delay 原因：");
+      delayReason = prompt("⚠️ 此任務已超出預計完成日，請填寫 Delay 原因 (必填)：");
       if (!delayReason) { inputElem.value = oldProg; return alert("必須填寫原因才能完成！"); }
+    } else {
+      currentRemark = prompt("即將結案！可填寫結案備註 (選填)：") || "";
     }
     tasks[taskIndex].isCompleted = true; 
     tasks[taskIndex].completedAt = ts;
     tasks[taskIndex].delayReason = delayReason;
     alert("🎉 進度已達 100%！該任務已結案。");
   } else { 
+    currentRemark = prompt("請輸入此次進度更新的備註事項 (選填)：") || "";
     tasks[taskIndex].isCompleted = false; 
     tasks[taskIndex].completedAt = null; 
-    alert(`進度已更新為 ${newProg}%`); 
   }
 
   tasks[taskIndex].progress = newProg;
   tasks[taskIndex].lastUpdatedAt = ts;
 
-  // 寫入歷史陣列
   if (!tasks[taskIndex].history) tasks[taskIndex].history = [];
   tasks[taskIndex].history.push({
     timestamp: ts,
     progress: newProg,
     type: newProg === 100 ? 'complete' : 'update',
     daysPassed: passedDays,
+    remark: currentRemark,
     delayReason: delayReason || ""
   });
 
   await updateDoc(doc(db, "projects", projId), { tasks });
+  if(newProg !== 100) alert(`進度已更新為 ${newProg}%`);
 };
 
 document.getElementById("btn-add-project").addEventListener("click", async () => {
@@ -415,13 +419,12 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     if (!name || !start || !end) return alert("任務細項不可有空白欄位！");
     if (start > end) return alert(`任務 [${name}] 的起始日不可大於完成日！`);
     
-    // 初始化時如果有提早建立，經歷天數算 0
     let passedDays = 0;
     if (todayStr >= start) passedDays = getWorkingDays(start, todayStr);
 
     tasks.push({ 
       name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts,
-      history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '' }]
+      history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '專案建立' }]
     });
   }
   
@@ -434,7 +437,7 @@ window.deleteCurrentProject = async () => {
   await deleteDoc(doc(db, "projects", selectedProjectId)); alert("專案已刪除！"); selectedProjectId = null; renderProjects();
 };
 
-// === 事件紀錄 ===
+// === 以下不變 ===
 function loadAdHocEvents() {
   onSnapshot(query(collection(db, "ad_hoc_events")), (snapshot) => {
     allAdHocData = []; snapshot.forEach(docSnap => allAdHocData.push({ id: docSnap.id, ...docSnap.data() })); renderAdHocEvents();
@@ -461,7 +464,6 @@ document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
 window.completeAdHoc = async (id) => { await updateDoc(doc(db, "ad_hoc_events", id), { isCompleted: true, completedAt: new Date().toLocaleString() }); };
 window.deleteAdHoc = async (id) => { if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); };
 
-// === 週報填寫 ===
 function loadWeeklyReports() {
   onSnapshot(query(collection(db, "weekly_reports")), (snapshot) => {
     allWeeklyData = []; snapshot.forEach(docSnap => allWeeklyData.push({ id: docSnap.id, ...docSnap.data() })); renderWeeklyReports();
@@ -485,7 +487,6 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
 });
 window.deleteWeekly = async (id) => { if(confirm("確定刪除此週報？")) await deleteDoc(doc(db, "weekly_reports", id)); };
 
-// === 組織管理 ===
 function loadOrgUsers() {
   onSnapshot(collection(db, "users"), (snapshot) => {
     const tbody = document.getElementById("user-list-tbody"); const supervisorSelect = document.getElementById("new-user-supervisor");
