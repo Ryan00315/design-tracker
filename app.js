@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { 
   getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
-  updatePassword, createUserWithEmailAndPassword, sendPasswordResetEmail
+  updatePassword, createUserWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 import { 
   getFirestore, doc, getDoc, setDoc, deleteDoc, collection, addDoc, updateDoc, 
@@ -101,9 +101,7 @@ onAuthStateChanged(auth, async (user) => {
     if (currentUserData.role !== 'staff') { document.getElementById('nav-sub-wrapper').style.display = 'block'; loadSidebarSubordinates(); } 
     else document.getElementById('nav-sub-wrapper').style.display = 'none';
 
-    addTaskRow(); 
-    addWeeklyRow(); 
-    loadProjects(); loadAdHocEvents(); loadWeeklyReports();
+    addTaskRow(); addWeeklyRow(); loadProjects(); loadAdHocEvents(); loadWeeklyReports();
   } else {
     document.getElementById("auth-section").style.display = "flex"; document.getElementById("app-section").style.display = "none";
   }
@@ -180,18 +178,14 @@ window.setProjectFilter = (status) => {
 
 window.selectProject = (projId) => { selectedProjectId = projId; renderProjects(); };
 
-// ==========================================
-// 🚀 核心優化：絕對防呆取得可回報任務
-// ==========================================
 window.getAvailableTasks = (projId) => {
   const proj = allProjectsData.find(p => p.id === projId);
   if(!proj || !proj.tasks) return [];
   
   return proj.tasks.map((t, i) => ({...t, index: i})).filter(t => {
-      if (!t.isCompleted) return true; // 沒 100% 的絕對可以選
-      if (t.reportedCompleted === true) return false; // 只要有這個絕對鎖死標記，就永遠不顯示！
+      if (!t.isCompleted) return true; 
+      if (t.reportedCompleted === true) return false; 
 
-      // 備用防護：舊資料如果還沒寫入標記，用容錯時間篩選
       const taskCompletedTime = t.completedAt ? new Date(t.completedAt.replace(/-/g, '/')).getTime() : 0;
       const alreadyReported = allWeeklyData.some(w => {
           if(w.ownerId !== auth.currentUser.uid) return false;
@@ -208,7 +202,6 @@ function updateProjectDatalist(userProjects) {
   if (!datalist) return;
   datalist.innerHTML = "";
   
-  // 只有當「底下有可回報任務」的專案，才會出現在清單中
   const activeProjects = userProjects.filter(p => {
     if (!p.tasks || p.tasks.length === 0) return true;
     return !p.tasks.every(t => t.isCompleted);
@@ -259,13 +252,26 @@ function renderProjects() {
     return !isAllDone;
   });
 
+  const filteredAdHocs = userAdHocs.filter(e => {
+    if (currentFilter === 'completed') return e.isCompleted;
+    if (currentFilter === 'delayed') return false; 
+    return !e.isCompleted;
+  });
+
+  // 【核心修復】：確保 selectedProjectId 永遠合法，不會指向消失的專案導致畫面當機
+  if (selectedProjectId !== 'SUMMARY') {
+    if (!filteredProjects.find(p => p.id === selectedProjectId)) {
+      selectedProjectId = 'SUMMARY';
+    }
+  }
+
   const tabsContainer = document.getElementById("project-tabs-container");
   const detailView = document.getElementById("project-detail-view");
   const summaryView = document.getElementById("project-summary-view");
   const emptyState = document.getElementById("empty-state");
   tabsContainer.innerHTML = "";
 
-  if (userProjects.length === 0 && userAdHocs.length === 0) { 
+  if (filteredProjects.length === 0 && filteredAdHocs.length === 0) { 
     detailView.style.display = "none"; summaryView.style.display = "none"; emptyState.style.display = "block"; return; 
   }
 
@@ -281,7 +287,7 @@ function renderProjects() {
   emptyState.style.display = "none"; 
 
   // ==========================
-  // 分支 A：繪製總覽 (Summary)
+  // 分支 A：繪製總覽 (Summary) 所有皆顯示
   // ==========================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; summaryView.style.display = "block";
@@ -449,6 +455,7 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   if(newProg !== 100) alert(`進度已更新為 ${newProg}%`);
 };
 
+// === 🚀 修復：新增專案後自動跳轉至該專案 ===
 document.getElementById("btn-add-project").addEventListener("click", async () => {
   const title = document.getElementById("proj-name").value.trim();
   const color = document.getElementById("proj-color").value;
@@ -461,24 +468,39 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     if (!name || !start || !end) return alert("任務細項不可有空白欄位！");
     if (start > end) return alert(`任務 [${name}] 的起始日不可大於完成日！`);
     let passedDays = 0; if (todayStr >= start) passedDays = getWorkingDays(start, todayStr);
-    tasks.push({ name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '專案建立' }] });
+    tasks.push({ name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '專案建立' }] });
   }
   
   const existingProj = allProjectsData.find(p => p.title === title && p.ownerId === auth.currentUser.uid);
+  let newProjId = "";
+
   if (existingProj) {
     const updatedTasks = [...existingProj.tasks, ...tasks];
     await updateDoc(doc(db, "projects", existingProj.id), { tasks: updatedTasks, color: color });
+    newProjId = existingProj.id;
     alert(`已成功將新細項附加至現有專案「${title}」底下！`);
   } else {
-    await addDoc(collection(db, "projects"), { title, color, ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email, isLocked: true, tasks: tasks, createdAt: serverTimestamp() });
+    const docRef = await addDoc(collection(db, "projects"), { title, color, ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email, isLocked: true, tasks: tasks, createdAt: serverTimestamp() });
+    newProjId = docRef.id;
     alert("新專案已建立並鎖定！");
   }
 
   document.getElementById("proj-name").value = ""; document.getElementById("task-list-container").innerHTML = ""; addTaskRow(); document.getElementById('create-project-section').style.display = 'none';
+  
+  // 強制切換到「未完成專案」並聚焦在剛新增的專案上
+  currentFilter = 'ongoing';
+  document.getElementById('filter-ongoing').classList.add('active');
+  document.getElementById('filter-completed').classList.remove('active');
+  document.getElementById('filter-delayed').classList.remove('active');
+  selectedProjectId = newProjId;
+  
+  // renderProjects() 會在 onSnapshot 觸發時自動帶入這個 selectedProjectId
 });
+
 window.toggleCurrentProjectLock = async () => { await updateDoc(doc(db, "projects", selectedProjectId), { isLocked: !allProjectsData.find(p => p.id === selectedProjectId).isLocked }); };
 window.deleteCurrentProject = async () => { if (!confirm("⚠️ 確定要永久刪除此專案嗎？")) return; await deleteDoc(doc(db, "projects", selectedProjectId)); alert("專案已刪除！"); selectedProjectId = 'SUMMARY'; renderProjects(); };
 
+// === 臨時事件 ===
 function loadAdHocEvents() { onSnapshot(query(collection(db, "ad_hoc_events")), (snapshot) => { allAdHocData = []; snapshot.forEach(docSnap => allAdHocData.push({ id: docSnap.id, ...docSnap.data() })); renderAdHocEvents(); }); }
 function renderAdHocEvents() {
   const tbody = document.getElementById("adhoc-list-tbody"); tbody.innerHTML = "";
@@ -500,20 +522,104 @@ document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
 window.completeAdHoc = async (id) => { await updateDoc(doc(db, "ad_hoc_events", id), { isCompleted: true, completedAt: new Date().toLocaleString() }); };
 window.deleteAdHoc = async (id) => { if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); };
 
+// === 週報填寫 ===
+window.populateWeeklyProjSelect = (selectElem) => {
+  selectElem.innerHTML = '<option value="">-- 請選擇主專案 --</option>';
+  const myProjs = allProjectsData.filter(p => p.ownerId === auth.currentUser.uid);
+  const availableProjs = myProjs.filter(p => window.getAvailableTasks(p.id).length > 0);
+  availableProjs.forEach(p => { selectElem.innerHTML += `<option value="${p.id}">${p.title}</option>`; });
+};
+window.updateWeeklyTaskSelect = (selectElem) => {
+  const taskSelect = selectElem.parentElement.querySelector('.weekly-task-select');
+  taskSelect.innerHTML = '<option value="">-- 請選擇細項 --</option>';
+  const projId = selectElem.value;
+  if(!projId) return;
+  const availableTasks = window.getAvailableTasks(projId);
+  availableTasks.forEach(t => { taskSelect.innerHTML += `<option value="${t.index}">${t.name}</option>`; });
+};
+window.addWeeklyRow = () => {
+  const container = document.getElementById("weekly-items-container");
+  const div = document.createElement('div'); div.className = "weekly-item-row"; div.style.cssText = "display:flex; gap:16px; margin-bottom:12px; align-items:flex-start; border: 1px solid var(--border-light); padding: 14px; border-radius: 8px; background: #fafafa;";
+  div.innerHTML = `<div style="flex:1; display:flex; flex-direction:column; gap:10px; border-right: 1px dashed var(--border); padding-right:16px;"><select class="input-control weekly-proj-select" onchange="updateWeeklyTaskSelect(this)" style="background:#fff;"></select><select class="input-control weekly-task-select" style="background:#fff;"><option value="">-- 請先選擇主專案 --</option></select></div><div style="flex:2.5;"><textarea class="input-control weekly-content" rows="3" placeholder="請填寫此任務的進度說明..." style="background:#fff;"></textarea></div><button class="action-btn danger" onclick="this.parentElement.remove()" style="padding: 10px; margin-left: 8px;">X</button>`;
+  container.appendChild(div); populateWeeklyProjSelect(div.querySelector('.weekly-proj-select'));
+};
+function refreshAllWeeklyProjSelects() {
+  const selects = document.querySelectorAll('.weekly-proj-select');
+  selects.forEach(sel => { const currentVal = sel.value; populateWeeklyProjSelect(sel); sel.value = currentVal; });
+}
+function loadWeeklyReports() { 
+  onSnapshot(query(collection(db, "weekly_reports")), (snapshot) => { 
+    allWeeklyData = []; snapshot.forEach(docSnap => allWeeklyData.push({ id: docSnap.id, ...docSnap.data() })); 
+    renderWeeklyReports(); if(viewingUserId === auth.currentUser.uid) refreshAllWeeklyProjSelects();
+  }); 
+}
+function renderWeeklyReports() {
+  const tbody = document.getElementById("weekly-list-tbody"); tbody.innerHTML = "";
+  const filtered = allWeeklyData.filter(e => e.ownerId === viewingUserId);
+  filtered.sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)); 
+  filtered.forEach((w, index) => {
+    let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager') ? `<button class="action-btn danger" onclick="deleteWeekly('${w.id}')">刪除</button>` : '';
+    let supText = w.supervisorNoted ? '<span style="color:var(--success); font-weight:bold;">Noted</span>' : '<span style="color:var(--text-muted);">待閱</span>';
+    let topText = w.topManagerNoted ? '<span style="color:var(--success); font-weight:bold;">Noted</span>' : '<span style="color:var(--text-muted);">待閱</span>';
+    const tr = document.createElement("tr"); 
+    tr.innerHTML = `<td>${index + 1}</td><td><strong>${w.ownerName}</strong></td><td>${w.reportDate || w.startDate || '-'}</td><td>${w.createdAt ? new Date(w.createdAt.toDate()).toLocaleString() : ''}</td><td>${supText}</td><td>${topText}</td><td><button class="action-btn" style="margin-right:6px;" onclick="openWeeklyModal('${w.id}')">瀏覽報告</button>${delHtml}</td>`; 
+    tbody.appendChild(tr);
+  });
+}
+document.getElementById("btn-add-weekly").addEventListener("click", async () => {
+  const date = document.getElementById("rep-date").value; 
+  if (!date) return alert("請選擇週報日期！");
+  const rows = document.querySelectorAll('.weekly-item-row'); const items = [];
+  rows.forEach(r => {
+      const pSel = r.querySelector('.weekly-proj-select'); const tSel = r.querySelector('.weekly-task-select'); const content = r.querySelector('.weekly-content').value.trim();
+      if(pSel.value && tSel.value && content) items.push({ projectId: pSel.value, projectName: pSel.options[pSel.selectedIndex].text, taskId: tSel.value, taskName: tSel.options[tSel.selectedIndex].text, content: content });
+  });
+  if (items.length === 0) return alert("請完整填寫至少一項任務進度說明！");
 
-// ==========================================
-// 🚀 組織管理功能
-// ==========================================
-window.resetUserPassword = (email) => {
-  if (confirm(`確定要發送「重設密碼」信件至 ${email} 嗎？\n系統將寄送一封專屬連結信件，員工點擊後即可自行重設密碼。`)) {
-    sendPasswordResetEmail(auth, email)
-      .then(() => alert(`✅ 重設密碼信件已成功發送至：${email}\n請員工前往信箱收信。`))
-      .catch(err => {
-        if (err.code === 'auth/invalid-email') alert('錯誤：信箱格式無效。');
-        else if (err.code === 'auth/user-not-found') alert('錯誤：找不到此帳號。');
-        else alert("發送失敗: " + err.message);
-      });
+  const myUser = allUsersList.find(u => u.uid === auth.currentUser.uid);
+  const supervisorId = myUser ? myUser.supervisorId : null;
+  await addDoc(collection(db, "weekly_reports"), { ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email, ownerSupervisorId: supervisorId, reportDate: date, items: items, createdAt: serverTimestamp(), supervisorNoted: false, topManagerNoted: false });
+  
+  const projectUpdates = {};
+  for (let item of items) {
+      const p = allProjectsData.find(x => x.id === item.projectId);
+      if (p) {
+          const tIndex = parseInt(item.taskId);
+          if (p.tasks[tIndex] && p.tasks[tIndex].isCompleted && !p.tasks[tIndex].reportedCompleted) {
+              if (!projectUpdates[p.id]) projectUpdates[p.id] = [...p.tasks];
+              projectUpdates[p.id][tIndex].reportedCompleted = true;
+          }
+      }
   }
+  for (let pId in projectUpdates) updateDoc(doc(db, "projects", pId), { tasks: projectUpdates[pId] });
+  
+  document.getElementById("rep-date").value = ""; document.getElementById("weekly-items-container").innerHTML = ""; addWeeklyRow(); 
+  alert("週報已送出！已結案(100%)的項目將不再出現在下次選單中。");
+});
+window.deleteWeekly = async (id) => { if(confirm("確定永久刪除此週報嗎？")) await deleteDoc(doc(db, "weekly_reports", id)); };
+window.openWeeklyModal = (id) => {
+  currentWeeklyReportId = id; const report = allWeeklyData.find(w => w.id === id); if(!report) return;
+  let contentHtml = `<div style="margin-bottom:16px;"><div style="font-size:16px; font-weight:bold; margin-bottom:4px;">${report.ownerName} 的工作週報</div><div style="font-size:13px; color:var(--text-muted);">週報日期：${report.reportDate || report.startDate || '-'}</div></div>`;
+  if (report.items && report.items.length > 0) {
+    report.items.forEach((item, i) => { contentHtml += `<div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;"><div style="flex:1; font-size:13px; font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px;"><div style="margin-bottom:6px; word-break: break-all;">📁 ${item.projectName}</div><div style="word-break: break-all;">📌 ${item.taskName}</div></div><div style="flex:2.5; font-size:13px; white-space:pre-wrap; line-height:1.6; padding-left:4px;">${item.content}</div></div>`; });
+  } else if (report.content) contentHtml += `<div style="padding: 12px; font-size:13px; white-space:pre-wrap; background: #f8fafc; border-radius: 8px; line-height:1.6;">${report.content}</div>`;
+  document.getElementById('weekly-detail-content').innerHTML = contentHtml;
+
+  const btnSup = document.getElementById('btn-supervisor-note'); const btnTop = document.getElementById('btn-topmanager-note');
+  btnSup.style.display = 'none'; btnTop.style.display = 'none';
+  const ownerUser = allUsersList.find(u => u.uid === report.ownerId);
+  const isDirectSupervisor = ownerUser && (ownerUser.supervisorId === auth.currentUser.uid);
+  const isTopManager = currentUserData.role === 'top_manager' || currentUserData.role === 'admin'; 
+  if (isDirectSupervisor && !report.supervisorNoted) btnSup.style.display = 'inline-block';
+  if (isTopManager && !report.topManagerNoted) btnTop.style.display = 'inline-block';
+  document.getElementById('weekly-detail-modal').classList.add('active');
+};
+window.closeWeeklyModal = () => document.getElementById('weekly-detail-modal').classList.remove('active');
+window.markWeeklyNoted = async (type) => {
+  if(!currentWeeklyReportId) return; const updateData = {};
+  if(type === 'supervisor') updateData.supervisorNoted = true; if(type === 'top_manager') updateData.topManagerNoted = true;
+  await updateDoc(doc(db, "weekly_reports", currentWeeklyReportId), updateData);
+  closeWeeklyModal(); alert('已成功標記為 Noted (已閱)！');
 };
 
 function loadOrgUsers() {
@@ -526,12 +632,7 @@ function loadOrgUsers() {
     });
     allUsersList.forEach(u => {
       const supUser = allUsersList.find(x => x.uid === u.supervisorId); const tr = document.createElement("tr");
-      tr.innerHTML = `<td><strong>${u.name || '未命名'}</strong></td><td>${u.email || '-'}</td><td><span class="pill pill-role">${roleNames[u.role] || u.role}</span></td><td>${supUser ? `${supUser.name}` : "-"}</td>
-      <td>
-        <button class="action-btn" onclick="openEditModal('${u.uid}')" style="margin-right:6px;">編輯</button>
-        <button class="action-btn" onclick="resetUserPassword('${u.email}')" style="margin-right:6px;">重設密碼</button>
-        ${u.uid !== auth.currentUser.uid ? `<button class="action-btn danger" onclick="deleteUserDoc('${u.uid}', '${u.name}')">刪除</button>` : ''}
-      </td>`;
+      tr.innerHTML = `<td><strong>${u.name || '未命名'}</strong></td><td>${u.email || '-'}</td><td><span class="pill pill-role">${roleNames[u.role] || u.role}</span></td><td>${supUser ? `${supUser.name}` : "-"}</td><td><button class="action-btn" onclick="openEditModal('${u.uid}')" style="margin-right:6px;">編輯</button>${u.uid !== auth.currentUser.uid ? `<button class="action-btn danger" onclick="deleteUserDoc('${u.uid}', '${u.name}')">刪除</button>` : ''}</td>`;
       tbody.appendChild(tr);
     });
   });
