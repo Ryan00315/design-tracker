@@ -86,10 +86,13 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .gantt .bar-label { display: none !important; }
 .locked-gantt .handle-group, .locked-gantt .bar-progress-handle { display: none !important; pointer-events: none; }
 
-/* 🚀 核心優化：更飽和的黃色當天標記 */
-.gantt .today-highlight { fill: rgba(251, 191, 36, 0.45) !important; }
+/* 🚀 終極防護：絕對鎖死甘特圖內的元件，滑鼠事件完全穿透，絕對無法拖曳，但外層滾動軸依然有效 */
+.gantt-right-panel svg { pointer-events: none !important; }
 
-/* 假日底色備用樣式 (JS 會動態注入) */
+/* 🚀 視覺優化：更深、更飽和的黃色當天標記 */
+.gantt .today-highlight { fill: rgba(245, 158, 11, 0.6) !important; }
+
+/* 假日底色 */
 .gantt .tick.weekend { fill: rgba(239, 68, 68, 0.08) !important; }
 
 .bar-primary .bar { fill: #93c5fd !important; }
