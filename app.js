@@ -96,7 +96,6 @@ function getWorkingDays(startDate, endDate) {
   return count;
 }
 
-// 🚀 甘特圖視覺補丁 (年份 + 假日紅字紅底)
 function patchGanttVisuals(ganttInst, containerSelector) {
   if (!ganttInst || !ganttInst.dates || ganttInst.dates.length === 0) return;
   const svg = document.querySelector(`${containerSelector} .gantt`);
@@ -377,12 +376,7 @@ function renderProjects() {
       document.getElementById("gantt-chart-summary-container").innerHTML = '<div id="gantt-chart-summary"></div>';
       setTimeout(() => {
         if (document.getElementById("tab-projects").style.display === "none") return;
-        
-        // 🚀 核心修改：無拖曳回呼函式，純檢視
-        summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { 
-          view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18,
-          readonly: true 
-        });
+        summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18 });
         patchGanttVisuals(summaryGanttInstance, '#gantt-chart-summary-container');
       }, 150); 
     } else { document.getElementById("gantt-chart-summary-container").innerHTML = ''; }
@@ -462,15 +456,14 @@ function renderProjects() {
 
   if (ganttTasks.length > 0) {
     const chartContainer = document.getElementById("gantt-chart-container");
-    chartContainer.className = activeProj.isLocked ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
+    chartContainer.className = "gantt-right-panel"; 
     chartContainer.innerHTML = '<div id="gantt-chart"></div>';
     setTimeout(() => {
       if (document.getElementById("tab-projects").style.display === "none") return;
       
-      // 🚀 核心修改：無拖曳回呼函式，純檢視，所有修改走 ✏️
+      // 🚀 徹底不綁定 on_date_change 以防萬一，並且依靠 CSS pointer-events 鎖死
       ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
-        view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18,
-        readonly: true
+        view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18
       });
       patchGanttVisuals(ganttInstance, '#gantt-chart-container');
     }, 150); 
@@ -563,6 +556,14 @@ function loadAdHocEvents() { onSnapshot(query(collection(db, "ad_hoc_events")), 
 function renderAdHocEvents() {
   const tbody = document.getElementById("adhoc-list-tbody"); tbody.innerHTML = "";
   const filtered = allAdHocData.filter(e => e.ownerId === viewingUserId);
+  
+  // 🚀 事件紀錄：最新建立的在最上方 (由新到舊)
+  filtered.sort((a, b) => {
+    let tA = a.createdAt ? a.createdAt.toMillis() : new Date(a.startDateTime || 0).getTime();
+    let tB = b.createdAt ? b.createdAt.toMillis() : new Date(b.startDateTime || 0).getTime();
+    return tB - tA;
+  });
+
   filtered.forEach(evt => {
     let isOwner = (evt.ownerId === auth.currentUser.uid);
     let canEditUI = isEditMode && (isOwner || currentUserData.role === 'admin' || currentUserData.canEdit);
@@ -571,11 +572,10 @@ function renderAdHocEvents() {
     let actionHtml = !evt.isCompleted && isOwner ? `<button class="action-btn" onclick="completeAdHoc('${evt.id}')">完成</button>` : '';
     let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || canEditUI) ? `<button class="action-btn danger" style="margin-left:4px;" onclick="deleteAdHoc('${evt.id}')">刪除</button>` : '';
 
-    // 🚀 核心修改：精準壓縮寬度
     const tr = document.createElement("tr"); 
     tr.innerHTML = `
       <td style="white-space: nowrap; width: 1%;"><strong>${evt.title}</strong></td>
-      <td>${evt.reason}</td>
+      <td style="word-break: break-all; width: 100%; min-width: 200px;">${evt.reason}</td>
       <td style="white-space: nowrap; width: 1%;">${evt.startDate || '-'}</td>
       <td style="white-space: nowrap; width: 1%;">${evt.completedAt || '-'}</td>
       <td style="white-space: nowrap; width: 1%;">${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td>
