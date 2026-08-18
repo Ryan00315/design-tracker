@@ -61,7 +61,6 @@ function getWorkingDays(startDate, endDate) {
   return count;
 }
 
-// === 登入監聽 ===
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     document.getElementById("auth-section").style.display = "none";
@@ -110,7 +109,6 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-// === 左側人員選單 (加入嚴謹的階層判斷) ===
 function loadSidebarSubordinates() {
   onSnapshot(collection(db, "users"), (snapshot) => {
     const list = document.getElementById("nav-sub-list");
@@ -124,22 +122,11 @@ function loadSidebarSubordinates() {
       const targetRole = u.role;
       let canView = false;
 
-      // 1. 系統管理員 / 高級主管：可以看所有人
-      if (myRole === 'admin' || myRole === 'top_manager') {
-        canView = true;
-      } 
-      // 2. 主管：可以看副主管、人員
-      else if (myRole === 'manager' && (targetRole === 'assistant_manager' || targetRole === 'staff')) {
-        canView = true;
-      } 
-      // 3. 副主管：可以看人員
-      else if (myRole === 'assistant_manager' && targetRole === 'staff') {
-        canView = true;
-      }
+      if (myRole === 'admin' || myRole === 'top_manager') canView = true;
+      else if (myRole === 'manager' && (targetRole === 'assistant_manager' || targetRole === 'staff')) canView = true;
+      else if (myRole === 'assistant_manager' && targetRole === 'staff') canView = true;
 
-      // 若符合階層邏輯，或有被特別指派為直屬主管，即開放檢視
       if (canView || u.supervisorId === auth.currentUser.uid) {
-        // 在選單上順便標示對方的職稱，方便主管辨識
         const roleLabel = roleNames[u.role] || '人員';
         list.innerHTML += `<li class="nav-sub-item" id="sub-li-${u.uid}" onclick="switchViewingUser('${u.uid}', '${u.name}')">${u.name} <small style="color:#64748b">(${roleLabel})</small></li>`;
       }
@@ -178,11 +165,17 @@ function getNextWorkingDayStr(dateStr) {
   while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
   return d.toISOString().split('T')[0];
 }
+
+// 阻擋選擇六日
 window.checkWorkingDay = (input) => {
   if (!input.value) return;
   const d = new Date(input.value);
-  if (d.getDay() === 0 || d.getDay() === 6) { alert("僅能選擇工作日！"); input.value = ''; }
+  if (d.getDay() === 0 || d.getDay() === 6) { 
+    alert("系統規定僅能選擇工作日 (週一至週五)！"); 
+    input.value = ''; 
+  }
 };
+
 window.addTaskRow = () => {
   const container = document.getElementById("task-list-container");
   const rows = container.querySelectorAll('.task-row');
@@ -192,7 +185,6 @@ window.addTaskRow = () => {
   container.appendChild(div);
 };
 
-// === 專案邏輯 ===
 window.setProjectFilter = (status) => {
   currentFilter = status;
   document.getElementById('filter-ongoing').classList.toggle('active', status === 'ongoing');
@@ -208,6 +200,11 @@ function loadProjects() {
     snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() }));
     renderProjects();
   });
+}
+
+function formatDateSafe(dateObj) {
+  const y = dateObj.getFullYear(); const m = String(dateObj.getMonth() + 1).padStart(2, '0'); const d = String(dateObj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 function renderProjects() {
@@ -263,7 +260,8 @@ function renderProjects() {
 
   const isOwner = activeProj.ownerId === auth.currentUser.uid;
   const leftBody = document.getElementById("gantt-left-body");
-  leftBody.innerHTML = "";
+  const listBody = document.getElementById("project-list-tbody");
+  leftBody.innerHTML = ""; listBody.innerHTML = "";
   const ganttTasks = [];
 
   activeProj.tasks.forEach((task, index) => {
@@ -280,6 +278,20 @@ function renderProjects() {
       <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')">${task.isCompleted ? '完成' : '確認'}</button></div>
     `;
     leftBody.appendChild(row);
+
+    // 下方明細表格 (顯示更新時間)
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><strong>${task.name}</strong></td>
+      <td>${task.start} 至 ${task.end} (${workDays} 天)</td>
+      <td>${task.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">進行中</span>'}</td>
+      <td>
+        ${task.lastUpdatedAt ? `<small style="color:var(--primary);">更新: ${task.lastUpdatedAt}</small><br>` : ''}
+        ${task.completedAt ? `<small style="color:var(--success);">完成: ${task.completedAt}</small><br>` : ''}
+        ${task.delayReason ? `<span class="pill pill-danger" style="margin-top:4px;">Delay: ${task.delayReason}</span>` : (!task.lastUpdatedAt && !task.completedAt ? '-' : '')}
+      </td>
+    `;
+    listBody.appendChild(tr);
   });
 
   if (ganttTasks.length > 0) {
@@ -305,6 +317,7 @@ function renderProjects() {
   }
 }
 
+// === 確認與寫入進度時間 ===
 window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const proj = allProjectsData.find(p => p.id === projId);
   const tasks = [...proj.tasks];
@@ -314,6 +327,9 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
 
   if (newProg < oldProg) { alert(`錯誤：進度不能往回調整！`); inputElem.value = oldProg; return; }
 
+  // 紀錄最新操作的時間
+  tasks[taskIndex].lastUpdatedAt = new Date().toLocaleString();
+
   let delayReason = tasks[taskIndex].delayReason || "";
   if (newProg === 100) {
     const today = new Date().toISOString().split('T')[0];
@@ -321,9 +337,15 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
       delayReason = prompt("此任務已超出預計完成日，請填寫 Delay 原因：");
       if (!delayReason) { inputElem.value = oldProg; return alert("必須填寫原因才能完成！"); }
     }
-    tasks[taskIndex].isCompleted = true; tasks[taskIndex].completedAt = new Date().toLocaleString(); tasks[taskIndex].delayReason = delayReason;
+    tasks[taskIndex].isCompleted = true; 
+    tasks[taskIndex].completedAt = tasks[taskIndex].lastUpdatedAt; // 100%時，將完成時間設為當下
+    tasks[taskIndex].delayReason = delayReason;
     alert("🎉 進度已達 100%！");
-  } else { tasks[taskIndex].isCompleted = false; tasks[taskIndex].completedAt = null; alert(`進度已更新為 ${newProg}%`); }
+  } else { 
+    tasks[taskIndex].isCompleted = false; 
+    tasks[taskIndex].completedAt = null; 
+    alert(`進度已更新為 ${newProg}%`); 
+  }
 
   tasks[taskIndex].progress = newProg;
   await updateDoc(doc(db, "projects", projId), { tasks });
@@ -337,7 +359,8 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     const name = row.querySelector('.task-name').value.trim(); const start = row.querySelector('.task-start').value; const end = row.querySelector('.task-end').value;
     if (!name || !start || !end) return alert("任務細項不可有空白欄位！");
     if (start > end) return alert(`任務 [${name}] 的起始日不可大於完成日！`);
-    tasks.push({ name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "" });
+    // 初始化加入 lastUpdatedAt
+    tasks.push({ name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: null });
   }
   await addDoc(collection(db, "projects"), { title, ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email, isLocked: true, tasks: tasks, createdAt: serverTimestamp() });
   document.getElementById("proj-name").value = ""; document.getElementById("task-list-container").innerHTML = ""; addTaskRow(); document.getElementById('create-project-section').style.display = 'none'; alert("專案已建立！");
