@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PMS - 設計課專案管理系統</title>
+  <title>PMS - 專案管理系統</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.css">
 </head>
 <body>
 
+  <!-- 1. 登入介面 -->
   <div id="auth-section" class="login-screen">
     <div class="login-box">
       <div class="brand-logo-area"><div class="logo-icon">P</div><div><div class="brand-title">PMS 管理系統</div><div style="font-size: 12px; color: var(--text-muted);">設計部專案進度追蹤平台</div></div></div>
@@ -18,9 +19,10 @@
     </div>
   </div>
 
+  <!-- 2. 主工作後台 -->
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v5.0</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v5.1 (修復版)</span></div>
       <ul class="nav-list">
         
         <!-- 人員檢視切換 (下拉式) -->
@@ -35,7 +37,6 @@
           </ul>
         </div>
         
-        <!-- 主要分頁 -->
         <li class="nav-item active" onclick="switchNav('tab-projects', '專案進度', this)">
           <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-3 3"/></svg><span>專案進度</span>
         </li>
@@ -95,6 +96,7 @@
           <div class="project-tabs-wrapper" id="project-tabs-container"></div>
 
           <div id="project-detail-view" style="display:none;">
+            <!-- 上半部：甘特圖與進度填寫 -->
             <div class="section-panel" style="padding: 0; background: transparent; border: none; box-shadow: none;">
               <div class="panel-head" style="margin-bottom: 8px;">
                 <span id="current-gantt-title">專案時程檢視</span>
@@ -111,6 +113,18 @@
                 <div class="gantt-right-panel" id="gantt-chart-container"><div id="gantt-chart"></div></div>
               </div>
             </div>
+            
+            <!-- ！！！補回這個遺失的表格區塊，這是導致崩潰的主因！！！ -->
+            <div class="section-panel" style="margin-top: 24px;">
+              <div class="panel-head">細項進度與時間紀錄</div>
+              <div class="table-responsive">
+                <table>
+                  <thead><tr><th>任務名稱</th><th>起訖日期 (工作天)</th><th>狀態</th><th>更新 / 完成 / Delay 紀錄</th></tr></thead>
+                  <tbody id="project-list-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+            
           </div>
           <div id="empty-state" style="text-align: center; padding: 40px; color: var(--text-muted); display: none;">此分類下目前沒有專案。</div>
         </div>
@@ -200,8 +214,8 @@
     </div>
   </div>
 
+  <!-- 管理員編輯人員視窗 (Modal) -->
   <div id="edit-user-modal" class="modal-overlay">
-    <!-- Modal 內容同前... -->
     <div class="modal-box">
       <div class="modal-header"><span>編輯人員組織資訊</span><button class="btn-close" onclick="closeEditModal()">×</button></div>
       <div class="form-group"><label class="form-label">姓名</label><input type="text" id="edit-user-name" class="input-control"></div>
