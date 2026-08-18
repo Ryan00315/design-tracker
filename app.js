@@ -36,7 +36,6 @@ let ganttInstance = null;
 let summaryGanttInstance = null;
 let currentWeeklyReportId = null;
 
-// 🚀 全局編輯模式狀態
 let isEditMode = false;
 
 window.switchNav = (tabId, title, elem) => {
@@ -61,7 +60,6 @@ document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => 
 
 function checkEditModeVisibility() {
   const btn = document.getElementById("btn-toggle-edit-mode");
-  // 管理員 或 被授權可編輯的人員 可以看到按鈕
   if (currentUserData.role === 'admin' || currentUserData.canEdit === true) {
     btn.style.display = "inline-block";
   } else {
@@ -98,16 +96,48 @@ function getWorkingDays(startDate, endDate) {
   return count;
 }
 
-// 🚀 甘特圖月份補丁 (強制補上年份)
-function patchGanttYear(tasks, containerSelector) {
-  if (!tasks || tasks.length === 0) return;
-  const baseYear = tasks[0].start.substring(0, 4);
-  document.querySelectorAll(`${containerSelector} .gantt .upper-text`).forEach(el => {
+// ==========================================
+// 🚀 核心優化：甘特圖視覺補丁 (年份 + 假日紅字紅底)
+// ==========================================
+function patchGanttVisuals(ganttInst, containerSelector) {
+  if (!ganttInst || !ganttInst.dates || ganttInst.dates.length === 0) return;
+  const svg = document.querySelector(`${containerSelector} .gantt`);
+  if(!svg) return;
+
+  // 1. 年份標示補丁
+  const baseYear = ganttInst.dates[0].getFullYear();
+  svg.querySelectorAll('.upper-text').forEach(el => {
       const t = el.textContent.trim();
       if (/^\d+月$/.test(t)) {
           el.textContent = `${baseYear}年 ${t}`;
       } else if (/^\d{4}\s+\d+月$/.test(t)) {
           el.textContent = t.replace(/^(\d{4})\s+(\d+月)$/, '$1年 $2');
+      }
+  });
+
+  // 2. 週末與 2026 國定假日紅字標示
+  const holidays = [
+    '01-01', '01-02', '02-16', '02-17', '02-18', '02-19', '02-20', 
+    '02-28', '04-03', '04-04', '04-05', '04-06', '05-01', '06-19', '09-25', '10-10'
+  ];
+  
+  const lowerTexts = Array.from(svg.querySelectorAll('.lower-text'));
+  const dayTicks = Array.from(svg.querySelectorAll('.tick')).filter(t => !t.classList.contains('thick'));
+
+  ganttInst.dates.forEach((date, i) => {
+      if (i < lowerTexts.length) {
+          const dStr = String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+          const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+          const isHoliday = holidays.includes(dStr);
+
+          if (isWeekend || isHoliday) {
+              lowerTexts[i].style.fill = '#ef4444'; // 紅色字
+              lowerTexts[i].style.fontWeight = 'bold';
+              
+              if (i < dayTicks.length) {
+                  dayTicks[i].style.fill = 'rgba(239, 68, 68, 0.08)'; // 淡紅色背景
+              }
+          }
       }
   });
 }
@@ -248,7 +278,7 @@ function loadProjects() {
     renderProjects(); refreshAllWeeklyProjSelects();
   });
 }
-function formatDateSafe(dateObj) { const y = dateObj.getFullYear(); const m = String(dateObj.getMonth() + 1).padStart(2, '0'); const d = String(dateObj.getDate()).padStart(2, '0'); return `${y}-${m}-${d}`; }
+
 function getAdHocDateStr(evt) {
   if (evt.startDate) return evt.startDate;
   if (evt.createdAt && evt.createdAt.toDate) return evt.createdAt.toDate().toISOString().split('T')[0];
@@ -296,7 +326,7 @@ function renderProjects() {
   const emptyState = document.getElementById("empty-state");
   tabsContainer.innerHTML = "";
 
-  if (userProjects.length === 0 && userAdHocs.length === 0) { 
+  if (filteredProjects.length === 0 && filteredAdHocs.length === 0) { 
     detailView.style.display = "none"; summaryView.style.display = "none"; emptyState.style.display = "block"; return; 
   }
 
@@ -308,9 +338,9 @@ function renderProjects() {
     const btn = document.createElement("button"); btn.className = `proj-tab ${p.id === selectedProjectId ? 'active' : ''}`;
     btn.innerText = p.title; btn.onclick = () => selectProject(p.id); tabsContainer.appendChild(btn);
   });
+
   emptyState.style.display = "none"; 
 
-  // 總覽
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; summaryView.style.display = "block";
     const sumLeftBody = document.getElementById("gantt-summary-left-body");
@@ -350,13 +380,12 @@ function renderProjects() {
       setTimeout(() => {
         if (document.getElementById("tab-projects").style.display === "none") return;
         summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18 });
-        patchGanttYear(ganttTasksSum, '#gantt-chart-summary-container');
+        patchGanttVisuals(summaryGanttInstance, '#gantt-chart-summary-container'); // 套用年份與紅日補丁
       }, 150); 
     } else { document.getElementById("gantt-chart-summary-container").innerHTML = ''; }
     return;
   }
 
-  // 個別專案
   summaryView.style.display = "none"; detailView.style.display = "block";
   const activeProj = filteredProjects.find(p => p.id === selectedProjectId);
   if(!activeProj) return; 
@@ -445,7 +474,7 @@ function renderProjects() {
           await updateDoc(doc(db, "projects", activeProj.id), { tasks: proj.tasks });
         }
       });
-      patchGanttYear(ganttTasks, '#gantt-chart-container');
+      patchGanttVisuals(ganttInstance, '#gantt-chart-container'); // 套用年份與紅日補丁
     }, 150); 
   }
 }
@@ -675,7 +704,6 @@ window.markWeeklyNoted = async (type) => {
   await updateDoc(doc(db, "weekly_reports", currentWeeklyReportId), updateData);
   closeWeeklyModal(); alert('已成功標記為 Noted (已閱)！');
 };
-
 
 // ==========================================
 // 🚀 全局編輯模式 Modal 邏輯 (支援專案/事件/週報修改)
