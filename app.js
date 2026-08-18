@@ -4,12 +4,13 @@ import { getFirestore, doc, getDoc, collection, addDoc, updateDoc, query, where,
 
 // 請替換為您在 Firebase 複製的設定
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyBToAzkMoWVnWYIZnhdplJ50P6G9n6ZUtE",
+  authDomain: "design-tracker-96d1e.firebaseapp.com",
+  projectId: "design-tracker-96d1e",
+  storageBucket: "design-tracker-96d1e.firebasestorage.app",
+  messagingSenderId: "277352763092",
+  appId: "1:277352763092:web:f4ebc36c496b81f498f541",
+  measurementId: "G-WLKSM8JS99"
 };
 
 const app = initializeApp(firebaseConfig);
