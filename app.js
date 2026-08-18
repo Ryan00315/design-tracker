@@ -335,12 +335,17 @@ function renderProjects() {
 
   emptyState.style.display = "none"; 
 
-  // 總覽
+  // ==========================
+  // 🚀 總覽：混合時間軸排序 (專案與事件)
+  // ==========================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; summaryView.style.display = "block";
     const sumLeftBody = document.getElementById("gantt-summary-left-body");
     sumLeftBody.innerHTML = "";
     const ganttTasksSum = [];
+    
+    // 將專案與事件統一收集，進行時間排序
+    let combinedItems = [];
     let sIdx = 0;
 
     userProjects.forEach(p => {
@@ -350,24 +355,35 @@ function renderProjects() {
       let avgProg = Math.round(totalProg / p.tasks.length);
       let isDone = p.tasks.every(t => t.isCompleted);
       
-      let projColorClass = p.color || 'bar-primary';
-      ganttTasksSum.push({ id: `s_p_${sIdx}`, name: p.title, start: minStart, end: maxEnd, progress: avgProg, custom_class: isDone ? 'bar-success' : projColorClass });
-      
-      let statusText = isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : avgProg+'%';
-      const row = document.createElement("div"); row.className = "gantt-row";
-      row.innerHTML = `<div class="col-name" style="flex:2.5" title="${p.title}">📁 ${p.title}</div><div class="col-date" style="flex:1.5; text-align:left;">${minStart.substring(5)} ~ ${maxEnd.substring(5)}</div><div class="col-prog" style="flex:1; justify-content:center;">${statusText}</div>`;
-      sumLeftBody.appendChild(row); sIdx++;
+      combinedItems.push({
+        type: 'project', sortDate: new Date(minStart).getTime(), idStr: `s_p_${sIdx++}`,
+        title: p.title, start: minStart, end: maxEnd, progress: avgProg, isDone: isDone, custom_class: isDone ? 'bar-success' : (p.color || 'bar-primary')
+      });
     });
 
     userAdHocs.forEach(evt => {
       let eDate = getAdHocDateStr(evt);
       let prog = evt.isCompleted ? 100 : 0;
-      ganttTasksSum.push({ id: `s_e_${sIdx}`, name: evt.title, start: eDate, end: eDate, progress: prog, custom_class: 'bar-danger' });
-      
-      let statusText = evt.isCompleted ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
+      combinedItems.push({
+        type: 'adhoc', sortDate: new Date(eDate).getTime(), idStr: `s_e_${sIdx++}`,
+        title: evt.title, start: eDate, end: eDate, progress: prog, isDone: evt.isCompleted, custom_class: 'bar-danger'
+      });
+    });
+
+    // 依起始時間由舊到新排序
+    combinedItems.sort((a, b) => a.sortDate - b.sortDate);
+
+    combinedItems.forEach(item => {
+      ganttTasksSum.push({ id: item.idStr, name: item.title, start: item.start, end: item.end, progress: item.progress, custom_class: item.custom_class });
       const row = document.createElement("div"); row.className = "gantt-row";
-      row.innerHTML = `<div class="col-name" style="flex:2.5; color:var(--danger);" title="${evt.title}">🚨 ${evt.title}</div><div class="col-date" style="flex:1.5; text-align:left;">${eDate.substring(5)}</div><div class="col-prog" style="flex:1; justify-content:center;">${statusText}</div>`;
-      sumLeftBody.appendChild(row); sIdx++;
+      if (item.type === 'project') {
+        let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : item.progress+'%';
+        row.innerHTML = `<div class="col-name" style="flex:2.5" title="${item.title}">📁 ${item.title}</div><div class="col-date" style="flex:1.5; text-align:left;">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-prog" style="flex:1; justify-content:center;">${statusText}</div>`;
+      } else {
+        let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
+        row.innerHTML = `<div class="col-name" style="flex:2.5; color:var(--danger);" title="${item.title}">🚨 ${item.title}</div><div class="col-date" style="flex:1.5; text-align:left;">${item.start.substring(5)}</div><div class="col-prog" style="flex:1; justify-content:center;">${statusText}</div>`;
+      }
+      sumLeftBody.appendChild(row);
     });
 
     if (ganttTasksSum.length > 0) {
@@ -381,7 +397,9 @@ function renderProjects() {
     return;
   }
 
+  // ==========================
   // 個別專案
+  // ==========================
   summaryView.style.display = "none"; detailView.style.display = "block";
   const activeProj = filteredProjects.find(p => p.id === selectedProjectId);
   if(!activeProj) return; 
@@ -396,7 +414,7 @@ function renderProjects() {
   const delProjBtn = document.getElementById("btn-delete-project");
   
   if (currentUserData.role === "admin" || currentUserData.role === "top_manager") {
-    lockBtn.style.display = "inline-block"; lockBtn.innerText = activeProj.isLocked ? "🔒 鎖定中" : "🔓 已開放 (點擊鎖定)";
+    lockBtn.style.display = "inline-block"; lockBtn.innerText = activeProj.isLocked ? "🔒 鎖定中 (解鎖供編輯)" : "🔓 已開放 (點擊鎖定)";
     lockBtn.className = activeProj.isLocked ? "action-btn" : "action-btn danger"; delProjBtn.style.display = "inline-block";
   } else { lockBtn.style.display = "none"; delProjBtn.style.display = "none"; }
 
@@ -452,7 +470,7 @@ function renderProjects() {
 
   if (ganttTasks.length > 0) {
     const chartContainer = document.getElementById("gantt-chart-container");
-    chartContainer.className = "gantt-right-panel locked-gantt"; 
+    chartContainer.className = activeProj.isLocked ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
     chartContainer.innerHTML = '<div id="gantt-chart"></div>';
     setTimeout(() => {
       if (document.getElementById("tab-projects").style.display === "none") return;
@@ -551,7 +569,6 @@ function renderAdHocEvents() {
   const tbody = document.getElementById("adhoc-list-tbody"); tbody.innerHTML = "";
   const filtered = allAdHocData.filter(e => e.ownerId === viewingUserId);
   
-  // 🚀 核心修復：強制時間排序 (新到舊)
   filtered.sort((a, b) => {
     let tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : Date.now();
     let tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : Date.now();
@@ -706,6 +723,7 @@ window.markWeeklyNoted = async (type) => {
   await updateDoc(doc(db, "weekly_reports", currentWeeklyReportId), updateData);
   closeWeeklyModal(); alert('已成功標記為 Noted (已閱)！');
 };
+
 
 // ==========================================
 // 🚀 全局編輯模式 Modal 邏輯
