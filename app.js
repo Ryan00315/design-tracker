@@ -72,7 +72,7 @@ onAuthStateChanged(auth, async (user) => {
       document.getElementById("nav-divider-org").style.display = "none";
     }
 
-    addTaskRow(); // 初始化一筆空白任務
+    addTaskRow(); 
     loadProjects();
     loadAdHocEvents();
   } else {
@@ -88,7 +88,6 @@ document.getElementById("btn-login").addEventListener("click", () => {
   signInWithEmailAndPassword(auth, email, pass).catch(err => alert("登入失敗: " + err.message));
 });
 document.getElementById("btn-logout").addEventListener("click", () => signOut(auth));
-
 document.getElementById("btn-update-password").addEventListener("click", async () => {
   const newPass = document.getElementById("profile-new-pass").value;
   const confirmPass = document.getElementById("profile-confirm-pass").value;
@@ -106,8 +105,8 @@ document.getElementById("btn-update-password").addEventListener("click", async (
 function getNextWorkingDay(dateStr) {
   if (!dateStr) return '';
   let d = new Date(dateStr);
-  d.setDate(d.getDate() + 1); // 預設 +1 天
-  while (d.getDay() === 0 || d.getDay() === 6) { d.setDate(d.getDate() + 1); } // 閃避週末
+  d.setDate(d.getDate() + 1);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
   return d.toISOString().split('T')[0];
 }
 
@@ -124,15 +123,12 @@ window.addTaskRow = () => {
   const container = document.getElementById("task-list-container");
   const rows = container.querySelectorAll('.task-row');
   let defaultStart = "";
-  
   if (rows.length > 0) {
     const lastEnd = rows[rows.length - 1].querySelector('.task-end').value;
     defaultStart = getNextWorkingDay(lastEnd);
   }
-
   const div = document.createElement('div');
-  div.className = "form-row task-row";
-  div.style.marginBottom = "8px";
+  div.className = "form-row task-row"; div.style.marginBottom = "8px";
   div.innerHTML = `
     <div class="form-group" style="margin:0; flex:2;"><input type="text" class="input-control task-name" placeholder="任務細項名稱"></div>
     <div class="form-group" style="margin:0; flex:1;"><input type="date" class="input-control task-start" value="${defaultStart}" onchange="checkWorkingDay(this)"></div>
@@ -144,14 +140,17 @@ window.addTaskRow = () => {
 
 // === 專案過濾與渲染邏輯 ===
 let allProjectsData = [];
-let currentFilter = 'ongoing'; // 'ongoing' | 'completed'
+let currentFilter = 'ongoing'; // 'ongoing' | 'completed' | 'delayed'
 let selectedProjectId = null;
+let ganttInstance = null;
 
+// 點擊頂部數據卡片跳轉
 window.setProjectFilter = (status) => {
   currentFilter = status;
   document.getElementById('filter-ongoing').classList.toggle('active', status === 'ongoing');
   document.getElementById('filter-completed').classList.toggle('active', status === 'completed');
-  selectedProjectId = null; // 重置選擇
+  document.getElementById('filter-delayed').classList.toggle('active', status === 'delayed');
+  selectedProjectId = null;
   renderProjects();
 };
 
@@ -165,12 +164,36 @@ function loadProjects() {
     allProjectsData = [];
     snapshot.forEach(docSnap => {
       const proj = { id: docSnap.id, ...docSnap.data() };
-      // 權限過濾：人員只能看到自己的專案
       if (currentUserData.role === "staff" && proj.ownerId !== auth.currentUser.uid) return;
       allProjectsData.push(proj);
     });
+    
+    // 計算 KPI 面板數據 (以專案為單位)
+    let countOngoing = 0, countCompleted = 0, countDelayed = 0;
+    allProjectsData.forEach(p => {
+      if (!p.tasks || p.tasks.length === 0) return;
+      const isAllDone = p.tasks.every(t => t.isCompleted);
+      const hasDelay = p.tasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
+      
+      if (isAllDone) countCompleted++;
+      else countOngoing++;
+      
+      if (hasDelay) countDelayed++;
+    });
+
+    document.getElementById('stat-ongoing').innerText = countOngoing;
+    document.getElementById('stat-completed').innerText = countCompleted;
+    document.getElementById('stat-delay').innerText = countDelayed;
+
     renderProjects();
   });
+}
+
+function formatDateSafe(dateObj) {
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const d = String(dateObj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 function renderProjects() {
@@ -179,11 +202,14 @@ function renderProjects() {
   const emptyState = document.getElementById("empty-state");
   tabsContainer.innerHTML = "";
 
-  // 1. 分類過濾 (如果所有任務都 isCompleted = true 代表已完成)
   const filteredProjects = allProjectsData.filter(p => {
     if (!p.tasks || p.tasks.length === 0) return false;
     const isAllDone = p.tasks.every(t => t.isCompleted);
-    return currentFilter === 'completed' ? isAllDone : !isAllDone;
+    const hasDelay = p.tasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
+    
+    if (currentFilter === 'completed') return isAllDone;
+    if (currentFilter === 'delayed') return hasDelay;
+    return !isAllDone;
   });
 
   if (filteredProjects.length === 0) {
@@ -192,12 +218,10 @@ function renderProjects() {
     return;
   }
 
-  // 2. 確保有選中專案
   if (!selectedProjectId || !filteredProjects.find(p => p.id === selectedProjectId)) {
     selectedProjectId = filteredProjects[0].id;
   }
 
-  // 3. 渲染按鈕 Tabs
   filteredProjects.forEach(p => {
     const btn = document.createElement("button");
     btn.className = `proj-tab ${p.id === selectedProjectId ? 'active' : ''}`;
@@ -209,15 +233,13 @@ function renderProjects() {
   emptyState.style.display = "none";
   detailView.style.display = "block";
 
-  // 4. 渲染選中專案的細項與甘特圖
   const activeProj = filteredProjects.find(p => p.id === selectedProjectId);
   document.getElementById("current-gantt-title").innerText = `專案：${activeProj.title}`;
   
-  // 最高主管/管理員 顯示解鎖按鈕
   const lockBtn = document.getElementById("btn-toggle-lock");
   if (currentUserData.role === "admin" || currentUserData.role === "top_manager") {
     lockBtn.style.display = "inline-block";
-    lockBtn.innerText = activeProj.isLocked ? "目前鎖定中 (點擊解鎖編輯)" : "已開放編輯 (點擊鎖定)";
+    lockBtn.innerText = activeProj.isLocked ? "🔒 鎖定中 (點擊解鎖編輯)" : "🔓 已開放編輯 (點擊鎖定)";
     lockBtn.className = activeProj.isLocked ? "action-btn" : "action-btn danger";
   } else {
     lockBtn.style.display = "none";
@@ -229,17 +251,10 @@ function renderProjects() {
 
   activeProj.tasks.forEach((task, index) => {
     ganttTasks.push({
-      id: `t_${index}`,
-      name: task.name,
-      start: task.start,
-      end: task.end,
-      progress: task.isCompleted ? 100 : 0,
-      custom_class: task.isCompleted ? 'bar-success' : ''
+      id: `t_${index}`, name: task.name, start: task.start, end: task.end, progress: task.isCompleted ? 100 : 0
     });
 
-    // 判斷是否可編輯任務預計日 (需解鎖)
     const canEditDates = !activeProj.isLocked;
-
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><strong>${task.name}</strong></td>
@@ -256,7 +271,35 @@ function renderProjects() {
 
   if (ganttTasks.length > 0) {
     document.getElementById("gantt-chart").innerHTML = "";
-    new Gantt("#gantt-chart", ganttTasks, { view_mode: 'Day', language: 'zh' });
+    
+    // 建立甘特圖，並加入防呆：若鎖定則拒絕拖曳並重畫
+    ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
+      view_mode: 'Day', 
+      language: 'zh',
+      on_date_change: async (task, start, end) => {
+        if (activeProj.isLocked) {
+          alert("🔒 專案鎖定中！必須由最高主管或管理員解鎖後才能拖曳修改時間。");
+          renderProjects(); // 重畫還原位置
+          return;
+        }
+
+        // 允許拖曳，寫回資料庫
+        const idx = parseInt(task.id.split('_')[1]);
+        const newStart = formatDateSafe(start);
+        
+        // FrappeGantt 的 end date 參數本身是隔天的 00:00，必須減一天才是實際結束日
+        let dEnd = new Date(end);
+        dEnd.setDate(dEnd.getDate() - 1);
+        const newEnd = formatDateSafe(dEnd);
+        
+        const proj = allProjectsData.find(p => p.id === activeProj.id);
+        proj.tasks[idx].start = newStart;
+        proj.tasks[idx].end = newEnd;
+
+        try { await updateDoc(doc(db, "projects", activeProj.id), { tasks: proj.tasks }); } 
+        catch (err) { alert("更新失敗：" + err.message); }
+      }
+    });
   }
 }
 
@@ -275,10 +318,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     if (!name || !start || !end) return alert("任務細項不可有空白欄位！");
     if (start > end) return alert(`任務 [${name}] 的起始日不可大於完成日！`);
     
-    tasks.push({
-      name, start, end,
-      isCompleted: false, completedAt: null, delayReason: ""
-    });
+    tasks.push({ name, start, end, isCompleted: false, completedAt: null, delayReason: "" });
   }
 
   if (tasks.length === 0) return alert("請至少新增一筆任務細項！");
@@ -286,45 +326,34 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   await addDoc(collection(db, "projects"), {
     title, ownerId: auth.currentUser.uid, ownerName: currentUserData.name || auth.currentUser.email,
     ownerRole: currentUserData.role || "staff", isLocked: true,
-    tasks: tasks,
-    createdAt: serverTimestamp()
+    tasks: tasks, createdAt: serverTimestamp()
   });
 
   document.getElementById("proj-name").value = "";
   document.getElementById("task-list-container").innerHTML = "";
-  addTaskRow(); // 補回預設的一行
+  addTaskRow(); 
   document.getElementById('create-project-section').style.display = 'none';
   alert("專案已成功建立並鎖定！");
 });
 
-// 解鎖/鎖定專案 (Admin / Top Manager)
 window.toggleCurrentProjectLock = async () => {
   if (!selectedProjectId) return;
   const proj = allProjectsData.find(p => p.id === selectedProjectId);
-  if (!proj) return;
-
-  const newStatus = !proj.isLocked;
-  await updateDoc(doc(db, "projects", proj.id), { isLocked: newStatus });
+  await updateDoc(doc(db, "projects", proj.id), { isLocked: !proj.isLocked });
 };
 
-// 編輯預計完成日 (必須為解鎖狀態)
 window.editTaskDate = async (projId, taskIndex, oldEnd) => {
   const newEnd = prompt("請輸入新的預計完成日期 (格式 YYYY-MM-DD)：", oldEnd);
   if (!newEnd || newEnd === oldEnd) return;
-  
   const d = new Date(newEnd);
   if (isNaN(d.getTime())) return alert("日期格式錯誤！");
   if (d.getDay() === 0 || d.getDay() === 6) return alert("完成日僅能設定為工作日 (週一至週五)！");
 
   const proj = allProjectsData.find(p => p.id === projId);
-  const tasks = [...proj.tasks];
-  tasks[taskIndex].end = newEnd;
-
-  await updateDoc(doc(db, "projects", projId), { tasks });
-  alert("日期已更新！");
+  proj.tasks[taskIndex].end = newEnd;
+  await updateDoc(doc(db, "projects", projId), { tasks: proj.tasks });
 };
 
-// 完成任務 (附帶 Delay 檢查)
 window.completeTask = async (projId, taskIndex, plannedEnd) => {
   const today = new Date().toISOString().split('T')[0];
   let delayReason = "";
@@ -335,14 +364,11 @@ window.completeTask = async (projId, taskIndex, plannedEnd) => {
   }
 
   const proj = allProjectsData.find(p => p.id === projId);
-  const tasks = [...proj.tasks];
-  tasks[taskIndex].isCompleted = true;
-  tasks[taskIndex].completedAt = new Date().toLocaleString();
-  tasks[taskIndex].delayReason = delayReason;
-
-  await updateDoc(doc(db, "projects", projId), { tasks });
+  proj.tasks[taskIndex].isCompleted = true;
+  proj.tasks[taskIndex].completedAt = new Date().toLocaleString();
+  proj.tasks[taskIndex].delayReason = delayReason;
+  await updateDoc(doc(db, "projects", projId), { tasks: proj.tasks });
 };
-
 
 /* ================= 組織、事件、週報 (維持不變) ================= */
 function loadOrgUsers() {
@@ -351,7 +377,6 @@ function loadOrgUsers() {
     const supervisorSelect = document.getElementById("new-user-supervisor");
     tbody.innerHTML = ""; supervisorSelect.innerHTML = '<option value="">-- 無 --</option>';
     allUsersList = [];
-
     snapshot.forEach(docSnap => {
       const u = docSnap.data();
       allUsersList.push({ uid: docSnap.id, ...u });
@@ -359,7 +384,6 @@ function loadOrgUsers() {
         supervisorSelect.innerHTML += `<option value="${docSnap.id}">${u.name} (${roleNames[u.role] || u.role})</option>`;
       }
     });
-
     allUsersList.forEach(u => {
       const supUser = allUsersList.find(x => x.uid === u.supervisorId);
       const tr = document.createElement("tr");
@@ -376,7 +400,6 @@ function loadOrgUsers() {
     });
   });
 }
-
 document.getElementById("btn-create-user").addEventListener("click", async () => {
   const name = document.getElementById("new-user-name").value.trim();
   const email = document.getElementById("new-user-email").value.trim();
@@ -395,7 +418,6 @@ document.getElementById("btn-create-user").addEventListener("click", async () =>
     alert(`人員 ${name} 建立成功！`);
   } catch (err) { alert("建立失敗: " + err.message); }
 });
-
 window.openEditModal = (uid) => {
   const u = allUsersList.find(x => x.uid === uid);
   document.getElementById("edit-user-uid").value = u.uid;
@@ -424,11 +446,9 @@ window.submitEditUser = async () => {
 };
 window.deleteUserDoc = async (uid, name) => {
   if (confirm(`確定刪除 ${name} 嗎？`)) {
-    try { await deleteDoc(doc(db, "users", uid)); alert(`已移除 ${name}！`); }
-    catch (err) { alert("刪除失敗: " + err.message); }
+    try { await deleteDoc(doc(db, "users", uid)); alert(`已移除 ${name}！`); } catch (err) { alert("刪除失敗: " + err.message); }
   }
 };
-
 document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
   const title = document.getElementById("adhoc-title").value.trim();
   const reason = document.getElementById("adhoc-reason").value.trim();
@@ -456,7 +476,6 @@ function loadAdHocEvents() {
   });
 }
 window.completeAdHoc = async (id) => { await updateDoc(doc(db, "ad_hoc_events", id), { isCompleted: true, completedAt: new Date().toLocaleString() }); };
-
 document.getElementById("btn-add-weekly").addEventListener("click", async () => {
   const start = document.getElementById("rep-start").value;
   const end = document.getElementById("rep-end").value;
