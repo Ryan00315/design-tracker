@@ -162,7 +162,8 @@ function loadOrgUsers() {
         <td><span class="pill pill-role">${roleNames[u.role] || u.role}</span></td>
         <td>${supName}</td>
         <td>
-          ${u.uid !== auth.currentUser.uid ? `<button class="action-btn danger" onclick="deleteUserDoc('${u.uid}', '${u.name}')">刪除帳號</button>` : '<span style="color:#94a3b8;">本人</span>'}
+          <button class="action-btn" onclick="openEditModal('${u.uid}')" style="margin-right:6px;">編輯</button>
+          ${u.uid !== auth.currentUser.uid ? `<button class="action-btn danger" onclick="deleteUserDoc('${u.uid}', '${u.name}')">刪除</button>` : ''}
         </td>
       `;
       tbody.appendChild(tr);
@@ -182,18 +183,14 @@ document.getElementById("btn-create-user").addEventListener("click", async () =>
   if (pass.length < 6) return alert("密碼長度至少需 6 碼！");
 
   try {
-    // 透過 secondary app 建立帳號，避免當前管理員被自動登出
     const secondaryApp = initializeApp(firebaseConfig, "Secondary");
     const secondaryAuth = getAuth(secondaryApp);
     const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, pass);
     const newUid = userCredential.user.uid;
     await signOut(secondaryAuth);
 
-    // 寫入 Firestore
     await setDoc(doc(db, "users", newUid), {
-      name,
-      email,
-      role,
+      name, email, role,
       supervisorId: supervisorId || null,
       createdAt: serverTimestamp()
     });
@@ -206,6 +203,56 @@ document.getElementById("btn-create-user").addEventListener("click", async () =>
     alert("建立失敗: " + err.message);
   }
 });
+
+// 打開編輯視窗 (Modal)
+window.openEditModal = (uid) => {
+  const u = allUsersList.find(x => x.uid === uid);
+  if (!u) return;
+
+  document.getElementById("edit-user-uid").value = u.uid;
+  document.getElementById("edit-user-name").value = u.name || '';
+  document.getElementById("edit-user-role").value = u.role || 'staff';
+
+  // 動態生成可選的直屬主管 (排除自己)
+  const supSelect = document.getElementById("edit-user-supervisor");
+  supSelect.innerHTML = '<option value="">-- 無 (或由最高主管管轄) --</option>';
+  allUsersList.forEach(user => {
+    if (user.uid !== uid && ["top_manager", "manager", "assistant_manager"].includes(user.role)) {
+      supSelect.innerHTML += `<option value="${user.uid}">${user.name} (${roleNames[user.role]})</option>`;
+    }
+  });
+  supSelect.value = u.supervisorId || '';
+
+  // 顯示視窗
+  document.getElementById("edit-user-modal").classList.add("active");
+};
+
+// 關閉編輯視窗
+window.closeEditModal = () => {
+  document.getElementById("edit-user-modal").classList.remove("active");
+};
+
+// 提交人員編輯資料
+window.submitEditUser = async () => {
+  const uid = document.getElementById("edit-user-uid").value;
+  const name = document.getElementById("edit-user-name").value.trim();
+  const role = document.getElementById("edit-user-role").value;
+  const supervisorId = document.getElementById("edit-user-supervisor").value;
+
+  if (!name) return alert("姓名不能為空！");
+
+  try {
+    await updateDoc(doc(db, "users", uid), {
+      name,
+      role,
+      supervisorId: supervisorId || null
+    });
+    alert("人員資訊已成功更新！");
+    closeEditModal();
+  } catch (err) {
+    alert("更新失敗: " + err.message);
+  }
+};
 
 // 刪除人員資料
 window.deleteUserDoc = async (uid, name) => {
