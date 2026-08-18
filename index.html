@@ -39,29 +39,30 @@
       <div class="sidebar-header">
         <div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div>
         <span>PMS System</span>
-        <span class="version-tag">v2.3</span>
+        <span class="version-tag">v2.4</span>
       </div>
       <ul class="nav-list">
-        <li class="nav-item active" onclick="switchNav('tab-projects', '專案進度追蹤 (甘特圖)', this)">
+        <!-- 簡化名稱，保留圖示 -->
+        <li class="nav-item active" onclick="switchNav('tab-projects', '專案進度', this)">
           <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-3 3"/></svg>
-          <span>專案進度甘特圖</span>
+          <span>專案進度</span>
         </li>
-        <li class="nav-item" onclick="switchNav('tab-adhoc', '臨時事件紀錄', this)">
+        <li class="nav-item" onclick="switchNav('tab-adhoc', '事件紀錄', this)">
           <svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-          <span>臨時事件紀錄</span>
+          <span>事件紀錄</span>
         </li>
-        <li class="nav-item" onclick="switchNav('tab-weekly', '每週進度週報', this)">
+        <li class="nav-item" onclick="switchNav('tab-weekly', '週報填寫', this)">
           <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          <span>每週進度週報</span>
+          <span>週報填寫</span>
         </li>
+        
+        <!-- 分隔線 (Admin 專屬) -->
+        <li class="nav-divider" id="nav-divider-org" style="display:none;"></li>
+        
         <!-- 僅 Admin 可見的組織架構管理 -->
         <li class="nav-item" id="nav-org-manage" style="display:none;" onclick="switchNav('tab-org', '組織架構與人員管理', this)">
           <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           <span>組織架構管理</span>
-        </li>
-        <li class="nav-item" onclick="switchNav('tab-profile', '個人帳號設定', this)">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          <span>個人帳號設定</span>
         </li>
       </ul>
     </aside>
@@ -69,134 +70,88 @@
     <!-- 右側主要區塊 -->
     <div class="main-wrapper">
       <header class="top-header">
-        <div class="breadcrumb">PMS / <b id="current-title">專案進度追蹤 (甘特圖)</b></div>
+        <div class="breadcrumb">PMS / <b id="current-title">專案進度</b></div>
         <div class="header-right">
-          <div class="user-info-box" onclick="switchNav('tab-profile', '個人帳號設定', document.querySelector('.nav-list li:last-child'))">
+          <!-- 個人資訊顯示 -->
+          <div class="user-info-box">
             <div class="avatar" id="user-avatar">R</div>
             <div>
               <div id="user-display-name" style="font-size: 13px; font-weight: 600;">Ryan</div>
               <span id="user-role-badge" class="role-badge">ADMIN</span>
             </div>
           </div>
+          
+          <!-- 個人帳號設定 (齒輪圖示) -->
+          <button class="btn-icon" onclick="switchNav('tab-profile', '個人帳號設定', null)" title="個人帳號設定">
+            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
+          
           <button id="btn-logout" class="btn-logout">登出</button>
         </div>
       </header>
 
       <main class="content-body">
         
-        <!-- 分頁 1：專案進度與甘特圖 -->
+        <!-- 分頁 1：專案進度 -->
         <div id="tab-projects" class="tab-pane">
           <div class="kpi-row">
-            <div class="kpi-card">
-              <div class="kpi-title">進行中任務</div>
-              <div class="kpi-number" id="stat-ongoing">0</div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-title">已完成任務</div>
-              <div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-title">延遲 (Delay) 項目</div>
-              <div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div>
-            </div>
+            <div class="kpi-card"><div class="kpi-title">進行中任務</div><div class="kpi-number" id="stat-ongoing">0</div></div>
+            <div class="kpi-card"><div class="kpi-title">已完成任務</div><div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div></div>
+            <div class="kpi-card"><div class="kpi-title">延遲 (Delay) 項目</div><div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div></div>
           </div>
-
           <div class="section-panel">
             <div class="panel-head">建立專案規劃（上傳後系統自動鎖定）</div>
             <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">專案名稱</label>
-                <input type="text" id="proj-name" class="input-control" placeholder="例：2026 產品外觀設計案">
-              </div>
-              <div class="form-group">
-                <label class="form-label">任務細項</label>
-                <input type="text" id="task-name" class="input-control" placeholder="例：3D 樣品繪製">
-              </div>
-              <div class="form-group">
-                <label class="form-label">預計起始日</label>
-                <input type="date" id="task-start" class="input-control">
-              </div>
-              <div class="form-group">
-                <label class="form-label">預計完成日</label>
-                <input type="date" id="task-end" class="input-control">
-              </div>
+              <div class="form-group"><label class="form-label">專案名稱</label><input type="text" id="proj-name" class="input-control" placeholder="例：2026 產品外觀設計案"></div>
+              <div class="form-group"><label class="form-label">任務細項</label><input type="text" id="task-name" class="input-control" placeholder="例：3D 樣品繪製"></div>
+              <div class="form-group"><label class="form-label">預計起始日</label><input type="date" id="task-start" class="input-control"></div>
+              <div class="form-group"><label class="form-label">預計完成日</label><input type="date" id="task-end" class="input-control"></div>
             </div>
             <button id="btn-add-project" class="btn-primary" style="width: 160px; margin-top: 6px;">提交並鎖定</button>
           </div>
-
-          <div class="section-panel">
-            <div class="panel-head">甘特圖時程檢視</div>
-            <div id="gantt-chart" style="overflow-x: auto; padding: 10px 0;"></div>
-          </div>
-
+          <div class="section-panel"><div class="panel-head">甘特圖時程檢視</div><div id="gantt-chart" style="overflow-x: auto; padding: 10px 0;"></div></div>
           <div class="section-panel">
             <div class="panel-head">專案列表詳細資料</div>
             <div class="table-responsive">
               <table>
-                <thead>
-                  <tr>
-                    <th>專案 / 細項</th>
-                    <th>負責人 (職稱)</th>
-                    <th>預計期程</th>
-                    <th>狀態</th>
-                    <th>完成/Delay 紀錄</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>專案 / 細項</th><th>負責人 (職稱)</th><th>預計期程</th><th>狀態</th><th>完成/Delay 紀錄</th><th>操作</th></tr></thead>
                 <tbody id="project-list-tbody"></tbody>
               </table>
             </div>
           </div>
         </div>
 
-        <!-- 分頁 2：臨時事件 -->
+        <!-- 分頁 2：事件紀錄 -->
         <div id="tab-adhoc" class="tab-pane" style="display:none;">
           <div class="section-panel">
             <div class="panel-head">登記臨時插單事件</div>
             <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">事項名稱</label>
-                <input type="text" id="adhoc-title" class="input-control" placeholder="緊急樣品修改">
-              </div>
-              <div class="form-group">
-                <label class="form-label">原因說明</label>
-                <input type="text" id="adhoc-reason" class="input-control" placeholder="客戶尺寸變更">
-              </div>
+              <div class="form-group"><label class="form-label">事項名稱</label><input type="text" id="adhoc-title" class="input-control" placeholder="緊急樣品修改"></div>
+              <div class="form-group"><label class="form-label">原因說明</label><input type="text" id="adhoc-reason" class="input-control" placeholder="客戶尺寸變更"></div>
             </div>
             <button id="btn-add-adhoc" class="btn-primary" style="width: 160px; margin-top: 6px;">登記插單事件</button>
           </div>
           <div class="section-panel">
-            <div class="panel-head">臨時事件追蹤清單</div>
+            <div class="panel-head">事件紀錄清單</div>
             <div class="table-responsive">
               <table>
-                <thead>
-                  <tr>
-                    <th>事項</th>
-                    <th>原因說明</th>
-                    <th>登記時間</th>
-                    <th>狀態</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>事項</th><th>原因說明</th><th>登記時間</th><th>狀態</th><th>操作</th></tr></thead>
                 <tbody id="adhoc-list-tbody"></tbody>
               </table>
             </div>
           </div>
         </div>
 
-        <!-- 分頁 3：週報 -->
+        <!-- 分頁 3：週報填寫 -->
         <div id="tab-weekly" class="tab-pane" style="display:none;">
           <div class="section-panel">
             <div class="panel-head">填寫本週工作週報</div>
             <div class="form-row" style="grid-template-columns: 1fr 1fr;">
-              <div class="form-group">
-                <label class="form-label">起始日期</label>
-                <input type="date" id="rep-start" class="input-control">
-              </div>
-              <div class="form-group">
-                <label class="form-label">結束日期</label>
-                <input type="date" id="rep-end" class="input-control">
-              </div>
+              <div class="form-group"><label class="form-label">起始日期</label><input type="date" id="rep-start" class="input-control"></div>
+              <div class="form-group"><label class="form-label">結束日期</label><input type="date" id="rep-end" class="input-control"></div>
             </div>
             <div class="form-group">
               <label class="form-label">本週進度說明</label>
@@ -206,74 +161,40 @@
           </div>
         </div>
 
-        <!-- 分頁 4：組織架構與人員管理 (Admin 專屬) -->
+        <!-- 分頁 4：組織架構與人員管理 -->
         <div id="tab-org" class="tab-pane" style="display:none;">
           <div class="section-panel">
             <div class="panel-head">新增人員與職稱階層設定</div>
             <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">姓名</label>
-                <input type="text" id="new-user-name" class="input-control" placeholder="例：林設計師">
-              </div>
-              <div class="form-group">
-                <label class="form-label">登入帳號 (Email)</label>
-                <input type="email" id="new-user-email" class="input-control" placeholder="例：lin@design.com">
-              </div>
-              <div class="form-group">
-                <label class="form-label">預設密碼</label>
-                <input type="password" id="new-user-pass" class="input-control" placeholder="設定至少 6 碼密碼">
-              </div>
-              <div class="form-group">
-                <label class="form-label">組織階層職稱</label>
+              <div class="form-group"><label class="form-label">姓名</label><input type="text" id="new-user-name" class="input-control" placeholder="例：林設計師"></div>
+              <div class="form-group"><label class="form-label">登入帳號 (Email)</label><input type="email" id="new-user-email" class="input-control" placeholder="例：lin@design.com"></div>
+              <div class="form-group"><label class="form-label">預設密碼</label><input type="password" id="new-user-pass" class="input-control" placeholder="設定至少 6 碼密碼"></div>
+              <div class="form-group"><label class="form-label">組織階層職稱</label>
                 <select id="new-user-role" class="input-control">
-                  <option value="staff">人員 (Staff)</option>
-                  <option value="assistant_manager">副主管 (Assistant Manager)</option>
-                  <option value="manager">主管 (Manager)</option>
-                  <option value="top_manager">高級主管 (Top Manager)</option>
-                  <option value="admin">系統管理員 (Admin)</option>
+                  <option value="staff">人員 (Staff)</option><option value="assistant_manager">副主管 (Assistant Manager)</option><option value="manager">主管 (Manager)</option><option value="top_manager">高級主管 (Top Manager)</option><option value="admin">系統管理員 (Admin)</option>
                 </select>
               </div>
-              <div class="form-group">
-                <label class="form-label">直屬主管</label>
-                <select id="new-user-supervisor" class="input-control">
-                  <option value="">-- 無 (或由最高主管管轄) --</option>
-                </select>
-              </div>
+              <div class="form-group"><label class="form-label">直屬主管</label><select id="new-user-supervisor" class="input-control"><option value="">-- 無 (或由最高主管管轄) --</option></select></div>
             </div>
             <button id="btn-create-user" class="btn-primary" style="width: 180px; margin-top: 6px;">建立人員帳號</button>
           </div>
-
           <div class="section-panel">
             <div class="panel-head">組織人員名單與管理</div>
             <div class="table-responsive">
               <table>
-                <thead>
-                  <tr>
-                    <th>姓名</th>
-                    <th>帳號 (Email)</th>
-                    <th>組織階層</th>
-                    <th>直屬主管</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>姓名</th><th>帳號 (Email)</th><th>組織階層</th><th>直屬主管</th><th>操作</th></tr></thead>
                 <tbody id="user-list-tbody"></tbody>
               </table>
             </div>
           </div>
         </div>
 
-        <!-- 分頁 5：個人帳號設定 (僅限修改密碼) -->
+        <!-- 分頁 5：個人帳號設定 -->
         <div id="tab-profile" class="tab-pane" style="display:none;">
           <div class="section-panel" style="max-width: 600px;">
             <div class="panel-head">變更登入密碼</div>
-            <div class="form-group">
-              <label class="form-label">新密碼</label>
-              <input type="password" id="profile-new-pass" class="input-control" placeholder="輸入新密碼 (至少 6 位數)">
-            </div>
-            <div class="form-group">
-              <label class="form-label">確認新密碼</label>
-              <input type="password" id="profile-confirm-pass" class="input-control" placeholder="再次輸入新密碼">
-            </div>
+            <div class="form-group"><label class="form-label">新密碼</label><input type="password" id="profile-new-pass" class="input-control" placeholder="輸入新密碼 (至少 6 位數)"></div>
+            <div class="form-group"><label class="form-label">確認新密碼</label><input type="password" id="profile-confirm-pass" class="input-control" placeholder="再次輸入新密碼"></div>
             <button id="btn-update-password" class="btn-primary" style="width: 160px;">更新密碼</button>
           </div>
         </div>
@@ -282,37 +203,19 @@
     </div>
   </div>
 
-  <!-- 3. 管理員編輯人員視窗 (Modal) -->
+  <!-- 管理員編輯人員視窗 (Modal) -->
   <div id="edit-user-modal" class="modal-overlay">
     <div class="modal-box">
-      <div class="modal-header">
-        <span>編輯人員組織資訊</span>
-        <button class="btn-close" onclick="closeEditModal()">×</button>
-      </div>
-      <div class="form-group">
-        <label class="form-label">姓名</label>
-        <input type="text" id="edit-user-name" class="input-control">
-      </div>
-      <div class="form-group">
-        <label class="form-label">組織階層職稱</label>
+      <div class="modal-header"><span>編輯人員組織資訊</span><button class="btn-close" onclick="closeEditModal()">×</button></div>
+      <div class="form-group"><label class="form-label">姓名</label><input type="text" id="edit-user-name" class="input-control"></div>
+      <div class="form-group"><label class="form-label">組織階層職稱</label>
         <select id="edit-user-role" class="input-control">
-          <option value="staff">人員 (Staff)</option>
-          <option value="assistant_manager">副主管 (Assistant Manager)</option>
-          <option value="manager">主管 (Manager)</option>
-          <option value="top_manager">高級主管 (Top Manager)</option>
-          <option value="admin">系統管理員 (Admin)</option>
+          <option value="staff">人員 (Staff)</option><option value="assistant_manager">副主管 (Assistant Manager)</option><option value="manager">主管 (Manager)</option><option value="top_manager">高級主管 (Top Manager)</option><option value="admin">系統管理員 (Admin)</option>
         </select>
       </div>
-      <div class="form-group">
-        <label class="form-label">直屬主管</label>
-        <select id="edit-user-supervisor" class="input-control"></select>
-      </div>
+      <div class="form-group"><label class="form-label">直屬主管</label><select id="edit-user-supervisor" class="input-control"></select></div>
       <input type="hidden" id="edit-user-uid">
-      
-      <div class="modal-actions">
-        <button class="action-btn" onclick="closeEditModal()" style="font-size:14px;">取消</button>
-        <button class="btn-primary" onclick="submitEditUser()">儲存變更</button>
-      </div>
+      <div class="modal-actions"><button class="action-btn" onclick="closeEditModal()" style="font-size:14px;">取消</button><button class="btn-primary" onclick="submitEditUser()">儲存變更</button></div>
     </div>
   </div>
 
