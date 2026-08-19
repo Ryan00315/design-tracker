@@ -37,7 +37,6 @@ let summaryGanttInstance = null;
 let currentWeeklyReportId = null;
 let isEditMode = false;
 
-// 🚀 全局台灣假日定義
 const taiwanHolidays = [
   '01-01', '01-02', '02-16', '02-17', '02-18', '02-19', '02-20', 
   '02-28', '04-03', '04-04', '04-05', '04-06', '05-01', '06-19', '09-25', '10-10'
@@ -501,7 +500,7 @@ function renderProjects() {
   }
 }
 
-// 🚀 核心更新：使用 Promise 建立自訂的 Delay 原因 / 結案備註 彈窗
+// 🚀 自訂專屬彈出視窗處理 Delay 與備註
 let resolveDelayPrompt = null;
 
 window.openCustomPrompt = (title, label, isRequired) => {
@@ -544,23 +543,18 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   let passedDays = 0; if (todayStr >= tasks[taskIndex].start) passedDays = getWorkingDays(tasks[taskIndex].start, todayStr);
 
-  let delayReason = tasks[taskIndex].delayReason || ""; 
-  let currentRemark = "";
-
+  let delayReason = tasks[taskIndex].delayReason || ""; let currentRemark = "";
   if (newProg === 100) {
     if (todayStr > plannedEnd && !delayReason) {
-      // 🚀 換成美觀的彈出視窗 (必填 Delay 原因)
       delayReason = await window.openCustomPrompt("⚠️ 任務已 Delay", "此任務已超出預計完成日，請填寫 Delay 原因 (必填)：", true);
-      if (delayReason === null) { inputElem.value = oldProg; return; } // 按下取消
+      if (delayReason === null) { inputElem.value = oldProg; return; }
     } else {
-      // 🚀 換成美觀的彈出視窗 (一般結案備註)
       currentRemark = await window.openCustomPrompt("🎉 任務結案", "即將結案！可填寫結案備註 (選填)：", false);
       if (currentRemark === null) { inputElem.value = oldProg; return; }
     }
     tasks[taskIndex].isCompleted = true; tasks[taskIndex].completedAt = ts; tasks[taskIndex].delayReason = delayReason;
     alert("🎉 進度已達 100%！該任務已結案。");
   } else { 
-    // 🚀 換成美觀的彈出視窗 (一般進度更新)
     currentRemark = await window.openCustomPrompt("📝 進度更新", "請輸入此次進度更新的備註事項 (選填)：", false);
     if (currentRemark === null) { inputElem.value = oldProg; return; }
     tasks[taskIndex].isCompleted = false; tasks[taskIndex].completedAt = null; 
@@ -671,7 +665,7 @@ window.completeAdHoc = async (id) => { await updateDoc(doc(db, "ad_hoc_events", 
 window.deleteAdHoc = async (id) => { if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); };
 
 
-// === 🚀 週報系統 (防呆補強) ===
+// === 🚀 週報系統 ===
 window.initWeeklyDateAndLeave = () => {
   const dateInput = document.getElementById("rep-date");
   const container = document.getElementById("leave-options-container");
@@ -780,8 +774,8 @@ function renderWeeklyReports() {
   });
 }
 
+// 🚀 核心修復：允許完全不填寫專案進度，只要有請假紀錄即可送出
 document.getElementById("btn-add-weekly").addEventListener("click", async () => {
-  // 🚀 防呆機制：不管輸入框發生什麼事，送出的瞬間強制抓一次今天日期
   const today = new Date();
   const days = ['日', '一', '二', '三', '四', '五', '六'];
   let dateStr = document.getElementById("rep-date").value || `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()} (${days[today.getDay()]})`; 
@@ -789,6 +783,7 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
   let leaveType = "";
   let leaveReason = "";
   const leaveContainer = document.getElementById("leave-options-container");
+  
   if (leaveContainer.style.display === "flex") {
     const checked = document.querySelector('input[name="leave_type"]:checked');
     if (!checked) return alert("【注意】星期一至四提交週報，請務必勾選右側的「請假」或「其他」原因！");
@@ -799,12 +794,30 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
     }
   }
 
-  const rows = document.querySelectorAll('.weekly-item-row'); const items = [];
+  const rows = document.querySelectorAll('.weekly-item-row'); 
+  const items = [];
+  let hasIncomplete = false;
+
   rows.forEach(r => {
-      const pSel = r.querySelector('.weekly-proj-select'); const tSel = r.querySelector('.weekly-task-select'); const content = r.querySelector('.weekly-content').value.trim();
-      if(pSel.value && tSel.value && content) items.push({ projectId: pSel.value, projectName: pSel.options[pSel.selectedIndex].text, taskId: tSel.value, taskName: tSel.options[tSel.selectedIndex].text, content: content });
+      const pSel = r.querySelector('.weekly-proj-select'); 
+      const tSel = r.querySelector('.weekly-task-select'); 
+      const content = r.querySelector('.weekly-content').value.trim();
+      
+      if (pSel.value || tSel.value || content) {
+          if (pSel.value && tSel.value && content) {
+              items.push({ projectId: pSel.value, projectName: pSel.options[pSel.selectedIndex].text, taskId: tSel.value, taskName: tSel.options[tSel.selectedIndex].text, content: content });
+          } else {
+              hasIncomplete = true;
+          }
+      }
   });
-  if (items.length === 0) return alert("請完整填寫至少一項任務進度說明！");
+
+  if (hasIncomplete) return alert("您有填寫到一半的進度項目，請確認填寫完整 (包含專案、細項與說明)，或將該列刪除！");
+  
+  // 🚀 防呆邏輯完美修正：如果有請假，允許 items.length === 0；否則一定要填寫進度！
+  if (items.length === 0 && !leaveType) {
+      return alert("請完整填寫至少一項任務進度說明！");
+  }
 
   const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name };
   const supervisorId = targetUser ? targetUser.supervisorId : null;
@@ -857,7 +870,13 @@ window.openWeeklyModal = (id) => {
   
   if (report.items && report.items.length > 0) {
     report.items.forEach((item, i) => { contentHtml += `<div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;"><div style="flex:1; font-size:13px; font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px;"><div style="margin-bottom:6px; word-break: break-all;">📁 ${item.projectName}</div><div style="word-break: break-all;">📌 ${item.taskName}</div></div><div style="flex:2.5; font-size:13px; white-space:pre-wrap; line-height:1.6; padding-left:4px;">${item.content}</div></div>`; });
-  } else if (report.content) contentHtml += `<div style="padding: 12px; font-size:13px; white-space:pre-wrap; background: #f8fafc; border-radius: 8px; line-height:1.6;">${report.content}</div>`;
+  } else if (report.content) {
+    contentHtml += `<div style="padding: 12px; font-size:13px; white-space:pre-wrap; background: #f8fafc; border-radius: 8px; line-height:1.6;">${report.content}</div>`;
+  } else {
+    // 🚀 針對只有請假沒有工作內容的週報，顯示友善提示
+    contentHtml += `<div style="padding: 16px; font-size:13px; color:var(--text-muted); background: #f8fafc; border-radius: 8px; text-align:center;">(本日無專案進度項目)</div>`;
+  }
+  
   document.getElementById('weekly-detail-content').innerHTML = contentHtml;
 
   const btnSup = document.getElementById('btn-supervisor-note'); const btnTop = document.getElementById('btn-topmanager-note');
