@@ -141,33 +141,37 @@ tr:hover td { background: #fafafa; }
 @media (max-width: 850px) {
   .app-container { flex-direction: column; }
   
-  /* 🚀 恢復左右橫向滑動，並加入 -webkit-overflow-scrolling 讓 iPhone 滑動更順暢 */
+  /* 🚀 恢復橫向滑動：強制不壓縮 (flex-shrink: 0) 與不換行 (flex-wrap: nowrap) */
   .sidebar { 
-    width: 100%; height: 56px; flex-direction: row; align-items: center;
+    width: 100%; height: 60px; 
+    display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important;
+    align-items: center; justify-content: flex-start;
     overflow-x: auto !important; overflow-y: hidden !important; 
-    border-right: none; border-bottom: 1px solid var(--border); padding: 0; flex-shrink: 0; z-index: 9999; 
+    border-right: none; border-bottom: 1px solid var(--border); padding: 0 8px; flex-shrink: 0; z-index: 9999; 
     -webkit-overflow-scrolling: touch;
   }
-  .sidebar-header { height: 100%; border-bottom: none; border-right: 1px solid rgba(255,255,255,0.06); padding: 0 16px; }
+  .sidebar-header { height: 100%; border-bottom: none; border-right: 1px solid rgba(255,255,255,0.06); padding: 0 16px 0 8px; flex-shrink: 0 !important; }
   
   .nav-list { 
-    flex-direction: row; padding: 0 12px; margin: 0; 
+    display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; 
+    padding: 0 12px; margin: 0; 
     align-items: center; justify-content: flex-start;
-    width: max-content; flex-wrap: nowrap !important; /* 拒絕換行，強制保持單行滑動 */
-    gap: 6px; height: 100%;
+    flex: none !important; /* 🌟 關鍵修復：取消 flex: 1，防止內容被擠壓，強迫產生捲動條 */
+    width: max-content !important; 
+    gap: 8px; height: 100%;
   }
-  .nav-item { padding: 6px 12px; white-space: nowrap; font-size: 13px; }
+  .nav-item { padding: 8px 12px; white-space: nowrap !important; font-size: 13px; flex-shrink: 0 !important; }
   .nav-divider { display: none; }
   
-  /* 🚀 終極解法：使用 position: fixed 脫離滑動層，完全不受裁切影響 */
-  #nav-sub-wrapper { margin-bottom: 0; display: flex; align-items: center; height: 100%; }
+  /* 🚀 人員選單 絕對浮空定位不受裁切限制 */
+  #nav-sub-wrapper { margin-bottom: 0; display: flex; align-items: center; height: 100%; flex-shrink: 0 !important; }
   .nav-sub-list { 
     position: fixed !important; 
-    top: 56px !important; /* 釘在導覽列正下方 */
+    top: 60px !important; 
     left: 12px !important; 
     min-width: 220px !important; 
-    max-height: 60vh !important; /* 避免名單太多超出螢幕 */
-    overflow-y: auto !important; /* 名單太多可上下滑 */
+    max-height: 60vh !important; 
+    overflow-y: auto !important; 
     background-color: #0f172a !important; 
     border: 1px solid #475569 !important; 
     box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5) !important; 
@@ -175,6 +179,7 @@ tr:hover td { background: #fafafa; }
     border-radius: var(--radius-md) !important;
   }
   
+  /* 頂部 Header 與其餘版面調整 */
   .top-header { flex-direction: column; align-items: flex-start; height: auto; padding: 16px; gap: 12px; z-index: 10; position: relative; }
   .header-right { width: 100%; justify-content: space-between; }
   .content-body { padding: 16px; position: relative; z-index: 1; }
