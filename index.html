@@ -51,7 +51,7 @@
             <div class="avatar" id="user-avatar">R</div>
             <div><div id="user-display-name" style="font-size: 13px; font-weight: 600;">Ryan</div><span id="user-role-badge" class="role-badge">ADMIN</span></div>
           </div>
-          <button class="btn-icon" onclick="switchNav('tab-profile', '個人帳號設定', null)" title="個人帳號設定"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+          <button class="btn-icon" onclick="switchNav('tab-profile', '個人帳號設定', null)" title="個人帳號設定"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
           <button id="btn-logout" class="btn-logout">登出</button>
         </div>
       </header>
@@ -62,9 +62,11 @@
         <div id="tab-projects" class="tab-pane">
           <div style="display: flex; justify-content: space-between; align-items: stretch; margin-bottom: 24px; gap: 20px;">
             <div class="kpi-row" style="margin: 0;">
-              <div class="kpi-card active" id="filter-ongoing" onclick="setProjectFilter('ongoing')"><div class="kpi-title">未完成專案</div><div class="kpi-number" id="stat-ongoing">0</div></div>
-              <div class="kpi-card" id="filter-completed" onclick="setProjectFilter('completed')"><div class="kpi-title">已完成專案</div><div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div></div>
-              <div class="kpi-card" id="filter-delayed" onclick="setProjectFilter('delayed')"><div class="kpi-title">延遲 (Delay) 專案</div><div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div></div>
+              <div class="kpi-card active" id="filter-ongoing" onclick="setProjectFilter('ongoing')"><div class="kpi-title">未完成</div><div class="kpi-number" id="stat-ongoing">0</div></div>
+              <div class="kpi-card" id="filter-completed" onclick="setProjectFilter('completed')"><div class="kpi-title">完成</div><div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div></div>
+              <div class="kpi-card" id="filter-delayed" onclick="setProjectFilter('delayed')"><div class="kpi-title">(Delay)</div><div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div></div>
+              <!-- 🚀 新增協作專案 KPI 分頁 -->
+              <div class="kpi-card" id="filter-collab" onclick="setProjectFilter('collab')"><div class="kpi-title">協作專案</div><div class="kpi-number" id="stat-collab" style="color: var(--primary);">0</div></div>
             </div>
             <div style="display: flex; align-items: center;" id="btn-create-wrapper">
               <button id="btn-toggle-create" class="btn-primary" style="height: 100%; padding: 0 24px; font-size: 15px;">➕ 新增專案規劃</button>
@@ -88,6 +90,13 @@
                   <option value="bar-orange">活力橘色</option>
                   <option value="bar-teal">清新藍綠</option>
                 </select>
+              </div>
+              <!-- 🚀 協作部門複選區 -->
+              <div class="form-group" style="flex:1.5;">
+                <label class="form-label">協作部門 (可複選)</label>
+                <div id="collab-departments-checkboxes" style="max-height: 90px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; background: #fff; display: flex; flex-direction: column; gap: 4px; font-size: 13px;">
+                  <!-- 動態載入部門選項 -->
+                </div>
               </div>
             </div>
 
@@ -246,6 +255,18 @@
               <div class="form-group" style="flex:1;"><label class="form-label">姓名</label><input type="text" id="new-user-name" class="input-control" placeholder="例：林設計師"></div>
               <div class="form-group" style="flex:1.5;"><label class="form-label">登入帳號 (Email)</label><input type="email" id="new-user-email" class="input-control" placeholder="例：lin@design.com"></div>
               <div class="form-group" style="flex:1;"><label class="form-label">預設密碼</label><input type="password" id="new-user-pass" class="input-control" placeholder="設定至少 6 碼"></div>
+              <!-- 🚀 新增部門選擇 -->
+              <div class="form-group" style="flex:1;"><label class="form-label">所屬部門</label>
+                <select id="new-user-dept" class="input-control">
+                  <option value="總經理室">總經理室</option>
+                  <option value="企劃部">企劃部</option>
+                  <option value="業務部">業務部</option>
+                  <option value="設計部" selected>設計部</option>
+                  <option value="品檢部">品檢部</option>
+                  <option value="採購部">採購部</option>
+                  <option value="廠部">廠部</option>
+                </select>
+              </div>
               <div class="form-group" style="flex:1;"><label class="form-label">組織階層職稱</label>
                 <select id="new-user-role" class="input-control">
                   <option value="staff">人員 (Staff)</option><option value="assistant_manager">副主管 (Assistant Manager)</option><option value="manager">主管 (Manager)</option><option value="top_manager">高級主管 (Top Manager)</option><option value="admin">系統管理員 (Admin)</option>
@@ -261,7 +282,7 @@
               <table>
                 <thead>
                   <tr>
-                    <th>姓名</th><th>帳號 (Email)</th><th>組織階層</th><th>直屬主管</th><th>編輯權限</th><th>操作</th>
+                    <th>姓名</th><th>帳號 (Email)</th><th>部門</th><th>組織階層</th><th>直屬主管</th><th>編輯權限</th><th>操作</th>
                   </tr>
                 </thead>
                 <tbody id="user-list-tbody"></tbody>
@@ -287,6 +308,11 @@
     <div class="modal-box">
       <div class="modal-header"><span>編輯人員組織資訊</span><button class="btn-close" onclick="closeEditModal()">×</button></div>
       <div class="form-group"><label class="form-label">姓名</label><input type="text" id="edit-user-name" class="input-control"></div>
+      <div class="form-group"><label class="form-label">所屬部門</label>
+        <select id="edit-user-dept" class="input-control">
+          <option value="總經理室">總經理室</option><option value="企劃部">企劃部</option><option value="業務部">業務部</option><option value="設計部">設計部</option><option value="品檢部">品檢部</option><option value="採購部">採購部</option><option value="廠部">廠部</option>
+        </select>
+      </div>
       <div class="form-group"><label class="form-label">組織階層職稱</label>
         <select id="edit-user-role" class="input-control">
           <option value="staff">人員 (Staff)</option><option value="assistant_manager">副主管 (Assistant Manager)</option><option value="manager">主管 (Manager)</option><option value="top_manager">高級主管 (Top Manager)</option><option value="admin">系統管理員 (Admin)</option>
@@ -310,7 +336,6 @@
     </div>
   </div>
 
-  <!-- 🚀 新增：延遲與結案備註專用彈出視窗 -->
   <div id="delay-reason-modal" class="modal-overlay">
     <div class="modal-box" style="max-width: 400px;">
       <div class="modal-header"><span id="delay-reason-title">⚠️ 填寫 Delay 原因</span><button class="btn-close" onclick="closeDelayModal()">×</button></div>
@@ -325,7 +350,6 @@
     </div>
   </div>
 
-  <!-- 共用編輯視窗 (專案/事件/週報 修改) -->
   <div id="general-edit-modal" class="modal-overlay">
     <div class="modal-box" style="max-width: 600px;">
       <div class="modal-header"><span id="general-edit-title">編輯資料</span><button class="btn-close" onclick="closeGeneralEditModal()">×</button></div>
