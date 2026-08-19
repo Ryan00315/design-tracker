@@ -84,7 +84,7 @@ document.getElementById('btn-toggle-create').addEventListener('click', () => {
   }
 });
 
-// 🚀 核心修復：DOM 瞬間轉移，解決 iPhone 隱藏選單的問題
+// 🚀 核心修復：DOM 瞬間轉移與強制顯示
 window.toggleSubMenu = () => {
   const wrapper = document.getElementById('nav-sub-wrapper');
   const list = document.getElementById('nav-sub-list');
@@ -92,13 +92,15 @@ window.toggleSubMenu = () => {
   
   if (window.innerWidth <= 850) {
     if (isOpen) {
-      // 拔出滑動區塊，放到畫面最頂層，絕不被裁切！
+      // 拔出滑動區塊，放到畫面最頂層，強制覆蓋顯示！
       document.body.appendChild(list);
       list.classList.add('mobile-fixed-dropdown');
+      list.style.display = 'flex'; // 雙重保險
     } else {
       // 關閉時把它塞回原本的位子
       wrapper.appendChild(list);
       list.classList.remove('mobile-fixed-dropdown');
+      list.style.display = '';
     }
   }
 };
@@ -222,15 +224,16 @@ window.switchViewingUser = (uid, name) => {
   checkEditModeVisibility();
   renderProjects(); renderAdHocEvents(); renderWeeklyReports();
 
-  // 🚀 防呆：切換完人員後，自動安全收起下拉選單
+  // 🚀 防呆：切換完人員後，自動安全收起下拉選單，並歸位
   const wrapper = document.getElementById('nav-sub-wrapper');
   const list = document.getElementById('nav-sub-list');
   if (wrapper.classList.contains('nav-menu-open')) {
     wrapper.classList.remove('nav-menu-open');
-    if (list.classList.contains('mobile-fixed-dropdown')) {
-      wrapper.appendChild(list);
-      list.classList.remove('mobile-fixed-dropdown');
-    }
+  }
+  if (list.classList.contains('mobile-fixed-dropdown')) {
+    wrapper.appendChild(list);
+    list.classList.remove('mobile-fixed-dropdown');
+    list.style.display = '';
   }
 };
 
@@ -496,7 +499,7 @@ function renderProjects() {
 
   if (ganttTasks.length > 0) {
     const chartContainer = document.getElementById("gantt-chart-container");
-    chartContainer.className = "gantt-right-panel locked-gantt"; 
+    chartContainer.className = activeProj.isLocked ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
     chartContainer.innerHTML = '<div id="gantt-chart"></div>';
     setTimeout(() => {
       if (document.getElementById("tab-projects").style.display === "none") return;
