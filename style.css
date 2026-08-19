@@ -26,6 +26,7 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .nav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 600; }
 .nav-divider { height: 1px; background: rgba(255, 255, 255, 0.08); margin: 12px 14px; flex-shrink: 0;}
 
+/* 🚀 電腦版選單樣式完全保留原始設計 */
 .nav-sub-list { list-style: none; padding: 6px; margin: 0; display: none; flex-direction: column; gap: 4px; background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius-md); overflow: hidden; margin-top: 6px; margin-bottom: 6px;}
 .nav-sub-item { padding: 10px 14px 10px 44px; color: #cbd5e1; font-size: 13px; font-weight: 500; cursor: pointer; transition: 0.15s; position: relative; border-radius: 6px; }
 .nav-sub-item::before { content: ''; position: absolute; left: 22px; top: 50%; transform: translateY(-50%); width: 6px; height: 6px; border-radius: 50%; background: #64748b; transition: 0.2s;}
@@ -136,7 +137,7 @@ tr:hover td { background: #fafafa; }
 ::-ms-input-placeholder { color: #e2e8f0 !important; }
 
 /* ========================================= */
-/* 🚀 補回漏掉的：手機浮空選單專屬防呆樣式   */
+/* 🚀 手機轉屬類別：突破裁切的浮空選單       */
 /* ========================================= */
 .mobile-fixed-dropdown {
   display: flex !important;
@@ -191,7 +192,9 @@ tr:hover td { background: #fafafa; }
   }
   
   .nav-divider { display: none; }
-  #nav-sub-wrapper { margin-bottom: 0; display: flex; align-items: center; height: 100%; flex-shrink: 0 !important; }
+  
+  /* 🚀 強制手機版的人員選單為 flex，並覆蓋掉 inline style 的 block */
+  #nav-sub-wrapper { margin-bottom: 0; display: flex !important; align-items: center; height: 100%; flex-shrink: 0 !important; }
   
   .top-header { flex-direction: column; align-items: flex-start; height: auto; padding: 16px; gap: 12px; z-index: 10; position: relative; }
   .header-right { width: 100%; justify-content: space-between; }
