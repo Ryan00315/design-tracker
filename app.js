@@ -35,8 +35,13 @@ let selectedProjectId = 'SUMMARY';
 let ganttInstance = null;
 let summaryGanttInstance = null;
 let currentWeeklyReportId = null;
-
 let isEditMode = false;
+
+// 🚀 全局台灣假日定義
+const taiwanHolidays = [
+  '01-01', '01-02', '02-16', '02-17', '02-18', '02-19', '02-20', 
+  '02-28', '04-03', '04-04', '04-05', '04-06', '05-01', '06-19', '09-25', '10-10'
+];
 
 window.switchNav = (tabId, title, elem) => {
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
@@ -44,7 +49,9 @@ window.switchNav = (tabId, title, elem) => {
   document.getElementById(tabId).style.display = 'block';
   if (elem) elem.classList.add('active');
   document.getElementById('current-title').innerText = title;
+  
   if (tabId === 'tab-projects') setTimeout(renderProjects, 100);
+  if (tabId === 'tab-weekly') initWeeklyDateAndLeave(); 
 };
 
 document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => {
@@ -84,23 +91,15 @@ document.getElementById('btn-toggle-create').addEventListener('click', () => {
   }
 });
 
-// 🚀 核心修復：DOM 瞬間轉移與強制顯示
 window.toggleSubMenu = () => {
   const wrapper = document.getElementById('nav-sub-wrapper');
   const list = document.getElementById('nav-sub-list');
   const isOpen = wrapper.classList.toggle('nav-menu-open');
-  
   if (window.innerWidth <= 850) {
     if (isOpen) {
-      // 拔出滑動區塊，放到畫面最頂層，強制覆蓋顯示！
-      document.body.appendChild(list);
-      list.classList.add('mobile-fixed-dropdown');
-      list.style.display = 'flex'; // 雙重保險
+      document.body.appendChild(list); list.classList.add('mobile-fixed-dropdown'); list.style.display = 'flex'; 
     } else {
-      // 關閉時把它塞回原本的位子
-      wrapper.appendChild(list);
-      list.classList.remove('mobile-fixed-dropdown');
-      list.style.display = '';
+      wrapper.appendChild(list); list.classList.remove('mobile-fixed-dropdown'); list.style.display = '';
     }
   }
 };
@@ -115,6 +114,10 @@ function getWorkingDays(startDate, endDate) {
   return count;
 }
 
+function formatDateSafe(dateObj) { 
+  const y = dateObj.getFullYear(); const m = String(dateObj.getMonth() + 1).padStart(2, '0'); const d = String(dateObj.getDate()).padStart(2, '0'); return `${y}-${m}-${d}`; 
+}
+
 function patchGanttVisuals(ganttInst, containerSelector) {
   if (!ganttInst || !ganttInst.dates || ganttInst.dates.length === 0) return;
   const svg = document.querySelector(`${containerSelector} .gantt`);
@@ -123,18 +126,10 @@ function patchGanttVisuals(ganttInst, containerSelector) {
   const baseYear = ganttInst.dates[0].getFullYear();
   svg.querySelectorAll('.upper-text').forEach(el => {
       const t = el.textContent.trim();
-      if (/^\d+月$/.test(t)) {
-          el.textContent = `${baseYear}年 ${t}`;
-      } else if (/^\d{4}\s+\d+月$/.test(t)) {
-          el.textContent = t.replace(/^(\d{4})\s+(\d+月)$/, '$1年 $2');
-      }
+      if (/^\d+月$/.test(t)) el.textContent = `${baseYear}年 ${t}`;
+      else if (/^\d{4}\s+\d+月$/.test(t)) el.textContent = t.replace(/^(\d{4})\s+(\d+月)$/, '$1年 $2');
   });
 
-  const holidays = [
-    '01-01', '01-02', '02-16', '02-17', '02-18', '02-19', '02-20', 
-    '02-28', '04-03', '04-04', '04-05', '04-06', '05-01', '06-19', '09-25', '10-10'
-  ];
-  
   const lowerTexts = Array.from(svg.querySelectorAll('.lower-text'));
   const dayTicks = Array.from(svg.querySelectorAll('.tick')).filter(t => !t.classList.contains('thick'));
 
@@ -142,7 +137,7 @@ function patchGanttVisuals(ganttInst, containerSelector) {
       if (i < lowerTexts.length) {
           const dStr = String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
           const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-          const isHoliday = holidays.includes(dStr);
+          const isHoliday = taiwanHolidays.includes(dStr);
 
           if (isWeekend || isHoliday) {
               lowerTexts[i].style.fill = '#ef4444'; 
@@ -182,6 +177,7 @@ onAuthStateChanged(auth, async (user) => {
     else document.getElementById('nav-sub-wrapper').style.display = 'none';
 
     checkEditModeVisibility();
+    initWeeklyDateAndLeave(); 
     addTaskRow(); addWeeklyRow(); loadProjects(); loadAdHocEvents(); loadWeeklyReports();
   } else {
     document.getElementById("auth-section").style.display = "flex"; document.getElementById("app-section").style.display = "none";
@@ -224,16 +220,11 @@ window.switchViewingUser = (uid, name) => {
   checkEditModeVisibility();
   renderProjects(); renderAdHocEvents(); renderWeeklyReports();
 
-  // 🚀 防呆：切換完人員後，自動安全收起下拉選單，並歸位
   const wrapper = document.getElementById('nav-sub-wrapper');
   const list = document.getElementById('nav-sub-list');
-  if (wrapper.classList.contains('nav-menu-open')) {
-    wrapper.classList.remove('nav-menu-open');
-  }
+  if (wrapper.classList.contains('nav-menu-open')) wrapper.classList.remove('nav-menu-open');
   if (list.classList.contains('mobile-fixed-dropdown')) {
-    wrapper.appendChild(list);
-    list.classList.remove('mobile-fixed-dropdown');
-    list.style.display = '';
+    wrapper.appendChild(list); list.classList.remove('mobile-fixed-dropdown'); list.style.display = '';
   }
 };
 
@@ -303,7 +294,6 @@ function loadProjects() {
   });
 }
 
-function formatDateSafe(dateObj) { const y = dateObj.getFullYear(); const m = String(dateObj.getMonth() + 1).padStart(2, '0'); const d = String(dateObj.getDate()).padStart(2, '0'); return `${y}-${m}-${d}`; }
 function getAdHocDateStr(evt) {
   if (evt.startDate) return evt.startDate;
   if (evt.createdAt && evt.createdAt.toDate) return evt.createdAt.toDate().toISOString().split('T')[0];
@@ -511,6 +501,37 @@ function renderProjects() {
   }
 }
 
+// 🚀 核心更新：使用 Promise 建立自訂的 Delay 原因 / 結案備註 彈窗
+let resolveDelayPrompt = null;
+
+window.openCustomPrompt = (title, label, isRequired) => {
+  return new Promise((resolve) => {
+    document.getElementById('delay-reason-title').innerText = title;
+    document.getElementById('delay-reason-label').innerText = label;
+    document.getElementById('delay-reason-input').value = '';
+    document.getElementById('delay-reason-input').dataset.required = isRequired;
+    document.getElementById('delay-reason-input').placeholder = isRequired ? "請輸入原因 (必填)..." : "請輸入備註 (選填)...";
+    
+    document.getElementById('delay-reason-modal').classList.add('active');
+    document.getElementById('delay-reason-input').focus();
+    resolveDelayPrompt = resolve;
+  });
+};
+
+window.closeDelayModal = () => {
+  document.getElementById('delay-reason-modal').classList.remove('active');
+  if (resolveDelayPrompt) resolveDelayPrompt(null);
+};
+
+window.submitDelayReason = () => {
+  const val = document.getElementById('delay-reason-input').value.trim();
+  const isReq = document.getElementById('delay-reason-input').dataset.required === 'true';
+  if (isReq && !val) return alert("此為必填欄位，請務必填寫原因！");
+  
+  document.getElementById('delay-reason-modal').classList.remove('active');
+  if (resolveDelayPrompt) resolveDelayPrompt(val);
+};
+
 window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const proj = allProjectsData.find(p => p.id === projId);
   const tasks = [...proj.tasks];
@@ -523,16 +544,25 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   let passedDays = 0; if (todayStr >= tasks[taskIndex].start) passedDays = getWorkingDays(tasks[taskIndex].start, todayStr);
 
-  let delayReason = tasks[taskIndex].delayReason || ""; let currentRemark = "";
+  let delayReason = tasks[taskIndex].delayReason || ""; 
+  let currentRemark = "";
+
   if (newProg === 100) {
     if (todayStr > plannedEnd && !delayReason) {
-      delayReason = prompt("⚠️ 此任務已超出預計完成日，請填寫 Delay 原因 (必填)：");
-      if (!delayReason) { inputElem.value = oldProg; return alert("必須填寫原因才能完成！"); }
-    } else currentRemark = prompt("即將結案！可填寫結案備註 (選填)：") || "";
+      // 🚀 換成美觀的彈出視窗 (必填 Delay 原因)
+      delayReason = await window.openCustomPrompt("⚠️ 任務已 Delay", "此任務已超出預計完成日，請填寫 Delay 原因 (必填)：", true);
+      if (delayReason === null) { inputElem.value = oldProg; return; } // 按下取消
+    } else {
+      // 🚀 換成美觀的彈出視窗 (一般結案備註)
+      currentRemark = await window.openCustomPrompt("🎉 任務結案", "即將結案！可填寫結案備註 (選填)：", false);
+      if (currentRemark === null) { inputElem.value = oldProg; return; }
+    }
     tasks[taskIndex].isCompleted = true; tasks[taskIndex].completedAt = ts; tasks[taskIndex].delayReason = delayReason;
     alert("🎉 進度已達 100%！該任務已結案。");
   } else { 
-    currentRemark = prompt("請輸入此次進度更新的備註事項 (選填)：") || "";
+    // 🚀 換成美觀的彈出視窗 (一般進度更新)
+    currentRemark = await window.openCustomPrompt("📝 進度更新", "請輸入此次進度更新的備註事項 (選填)：", false);
+    if (currentRemark === null) { inputElem.value = oldProg; return; }
     tasks[taskIndex].isCompleted = false; tasks[taskIndex].completedAt = null; 
   }
   tasks[taskIndex].progress = newProg; tasks[taskIndex].lastUpdatedAt = ts;
@@ -641,7 +671,51 @@ window.completeAdHoc = async (id) => { await updateDoc(doc(db, "ad_hoc_events", 
 window.deleteAdHoc = async (id) => { if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); };
 
 
-// === 週報系統 ===
+// === 🚀 週報系統 (防呆補強) ===
+window.initWeeklyDateAndLeave = () => {
+  const dateInput = document.getElementById("rep-date");
+  const container = document.getElementById("leave-options-container");
+  if (!dateInput || !container) return;
+
+  const today = new Date();
+  const days = ['日', '一', '二', '三', '四', '五', '六'];
+  const day = today.getDay(); 
+  
+  dateInput.value = `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()} (${days[day]})`; 
+
+  const dStr = String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+  
+  const tmr = new Date(today);
+  tmr.setDate(today.getDate() + 1);
+  const tmrDay = tmr.getDay();
+  const tmrStr = String(tmr.getMonth() + 1).padStart(2, '0') + '-' + String(tmr.getDate()).padStart(2, '0');
+
+  const isTodayHoliday = taiwanHolidays.includes(dStr);
+  const isTmrHoliday = taiwanHolidays.includes(tmrStr);
+  const isTmrWeekend = (tmrDay === 0 || tmrDay === 6);
+
+  if (day >= 1 && day <= 4 && !isTodayHoliday && !isTmrHoliday && !isTmrWeekend) {
+    container.style.display = "flex";
+  } else {
+    container.style.display = "none";
+    document.querySelectorAll('input[name="leave_type"]').forEach(r => r.checked = false);
+    document.getElementById('leave-other-reason').style.display = 'none';
+    document.getElementById('leave-other-reason').value = '';
+  }
+};
+
+document.querySelectorAll('input[name="leave_type"]').forEach(radio => {
+  radio.addEventListener("change", (e) => {
+    const reasonInput = document.getElementById("leave-other-reason");
+    if(e.target.value === "other") {
+      reasonInput.style.display = "block";
+    } else {
+      reasonInput.style.display = "none";
+      reasonInput.value = "";
+    }
+  });
+});
+
 window.populateWeeklyProjSelect = (selectElem) => {
   selectElem.innerHTML = '<option value="">-- 請選擇主專案 --</option>';
   const myProjs = allProjectsData.filter(p => p.ownerId === viewingUserId);
@@ -672,10 +746,14 @@ function loadWeeklyReports() {
     renderWeeklyReports(); refreshAllWeeklyProjSelects();
   }); 
 }
+
 function renderWeeklyReports() {
   const tbody = document.getElementById("weekly-list-tbody"); tbody.innerHTML = "";
   const filtered = allWeeklyData.filter(e => e.ownerId === viewingUserId);
   filtered.sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)); 
+  
+  const days = ['日', '一', '二', '三', '四', '五', '六'];
+
   filtered.forEach((w, index) => {
     let isOwner = (w.ownerId === auth.currentUser.uid);
     let canEditUI = isEditMode && (isOwner || currentUserData.role === 'admin' || currentUserData.canEdit);
@@ -686,14 +764,41 @@ function renderWeeklyReports() {
     let supText = w.supervisorNoted ? '<span style="color:var(--success); font-weight:bold;">Noted</span>' : '<span style="color:var(--text-muted);">待閱</span>';
     let topText = w.topManagerNoted ? '<span style="color:var(--success); font-weight:bold;">Noted</span>' : '<span style="color:var(--text-muted);">待閱</span>';
     
+    let fillTimeStr = '-';
+    if (w.createdAt) {
+      const d = w.createdAt.toDate();
+      const yyyy = d.getFullYear(); const mm = d.getMonth() + 1; const dd = d.getDate();
+      let hours = d.getHours(); let ampm = hours >= 12 ? '下午' : '上午';
+      hours = hours % 12; hours = hours ? hours : 12; 
+      let minutes = String(d.getMinutes()).padStart(2, '0'); let seconds = String(d.getSeconds()).padStart(2, '0');
+      fillTimeStr = `${yyyy}/${mm}/${dd} ${ampm}${hours}:${minutes}:${seconds} (${days[d.getDay()]})`;
+    }
+    
     const tr = document.createElement("tr"); 
-    tr.innerHTML = `<td>${index + 1}</td><td><strong>${w.ownerName}</strong></td><td>${w.reportDate || w.startDate || '-'}</td><td>${w.createdAt ? new Date(w.createdAt.toDate()).toLocaleString() : ''}</td><td>${supText}</td><td>${topText}</td><td><button class="action-btn" style="margin-right:6px;" onclick="openWeeklyModal('${w.id}')">瀏覽報告</button>${editHtml}${delHtml}</td>`; 
+    tr.innerHTML = `<td>${index + 1}</td><td><strong>${w.ownerName}</strong></td><td>${fillTimeStr}</td><td>${supText}</td><td>${topText}</td><td><button class="action-btn" style="margin-right:6px;" onclick="openWeeklyModal('${w.id}')">瀏覽報告</button>${editHtml}${delHtml}</td>`; 
     tbody.appendChild(tr);
   });
 }
+
 document.getElementById("btn-add-weekly").addEventListener("click", async () => {
-  const date = document.getElementById("rep-date").value; 
-  if (!date) return alert("請選擇週報日期！");
+  // 🚀 防呆機制：不管輸入框發生什麼事，送出的瞬間強制抓一次今天日期
+  const today = new Date();
+  const days = ['日', '一', '二', '三', '四', '五', '六'];
+  let dateStr = document.getElementById("rep-date").value || `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()} (${days[today.getDay()]})`; 
+
+  let leaveType = "";
+  let leaveReason = "";
+  const leaveContainer = document.getElementById("leave-options-container");
+  if (leaveContainer.style.display === "flex") {
+    const checked = document.querySelector('input[name="leave_type"]:checked');
+    if (!checked) return alert("【注意】星期一至四提交週報，請務必勾選右側的「請假」或「其他」原因！");
+    leaveType = checked.value;
+    if (leaveType === "other") {
+      leaveReason = document.getElementById("leave-other-reason").value.trim();
+      if (!leaveReason) return alert("請填寫「其他」選項的理由說明！");
+    }
+  }
+
   const rows = document.querySelectorAll('.weekly-item-row'); const items = [];
   rows.forEach(r => {
       const pSel = r.querySelector('.weekly-proj-select'); const tSel = r.querySelector('.weekly-task-select'); const content = r.querySelector('.weekly-content').value.trim();
@@ -706,7 +811,8 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
 
   await addDoc(collection(db, "weekly_reports"), { 
     ownerId: viewingUserId, ownerName: targetUser.name || '', 
-    ownerSupervisorId: supervisorId, reportDate: date, items: items, 
+    ownerSupervisorId: supervisorId, reportDate: dateStr, items: items, 
+    leaveType: leaveType, leaveReason: leaveReason,
     createdAt: serverTimestamp(), supervisorNoted: false, topManagerNoted: false 
   });
   
@@ -723,14 +829,32 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
   }
   for (let pId in projectUpdates) updateDoc(doc(db, "projects", pId), { tasks: projectUpdates[pId] });
   
-  document.getElementById("rep-date").value = ""; document.getElementById("weekly-items-container").innerHTML = ""; addWeeklyRow(); 
+  initWeeklyDateAndLeave(); 
+  document.getElementById("weekly-items-container").innerHTML = ""; addWeeklyRow(); 
   alert("週報已送出！已結案(100%)的項目將不再出現在下次選單中。");
 });
 window.deleteWeekly = async (id) => { if(confirm("確定永久刪除此週報嗎？")) await deleteDoc(doc(db, "weekly_reports", id)); };
 
 window.openWeeklyModal = (id) => {
   currentWeeklyReportId = id; const report = allWeeklyData.find(w => w.id === id); if(!report) return;
-  let contentHtml = `<div style="margin-bottom:16px;"><div style="font-size:16px; font-weight:bold; margin-bottom:4px;">${report.ownerName} 的工作週報</div><div style="font-size:13px; color:var(--text-muted);">週報日期：${report.reportDate || report.startDate || '-'}</div></div>`;
+  
+  let leaveTag = '';
+  if (report.leaveType === 'leave') leaveTag = `<span class="pill pill-danger" style="margin-left:12px; font-size:12px;">📌 原因：請假</span>`;
+  else if (report.leaveType === 'other') leaveTag = `<span class="pill pill-warning" style="margin-left:12px; font-size:12px;">📌 原因：${report.leaveReason}</span>`;
+
+  const days = ['日', '一', '二', '三', '四', '五', '六'];
+  let fillTimeStr = '-';
+  if (report.createdAt) {
+    const d = report.createdAt.toDate();
+    const yyyy = d.getFullYear(); const mm = d.getMonth() + 1; const dd = d.getDate();
+    let hours = d.getHours(); let ampm = hours >= 12 ? '下午' : '上午';
+    hours = hours % 12; hours = hours ? hours : 12; 
+    let minutes = String(d.getMinutes()).padStart(2, '0'); let seconds = String(d.getSeconds()).padStart(2, '0');
+    fillTimeStr = `${yyyy}/${mm}/${dd} ${ampm}${hours}:${minutes}:${seconds} (${days[d.getDay()]})`;
+  }
+
+  let contentHtml = `<div style="margin-bottom:16px;"><div style="font-size:16px; font-weight:bold; margin-bottom:4px;">${report.ownerName} 的工作週報</div><div style="font-size:13px; color:var(--text-muted); display:flex; align-items:center;">填寫時間：${fillTimeStr} ${leaveTag}</div></div>`;
+  
   if (report.items && report.items.length > 0) {
     report.items.forEach((item, i) => { contentHtml += `<div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;"><div style="flex:1; font-size:13px; font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px;"><div style="margin-bottom:6px; word-break: break-all;">📁 ${item.projectName}</div><div style="word-break: break-all;">📌 ${item.taskName}</div></div><div style="flex:2.5; font-size:13px; white-space:pre-wrap; line-height:1.6; padding-left:4px;">${item.content}</div></div>`; });
   } else if (report.content) contentHtml += `<div style="padding: 12px; font-size:13px; white-space:pre-wrap; background: #f8fafc; border-radius: 8px; line-height:1.6;">${report.content}</div>`;
@@ -752,7 +876,6 @@ window.markWeeklyNoted = async (type) => {
   await updateDoc(doc(db, "weekly_reports", currentWeeklyReportId), updateData);
   closeWeeklyModal(); alert('已成功標記為 Noted (已閱)！');
 };
-
 
 // ==========================================
 // 🚀 全局編輯模式 Modal 邏輯
@@ -785,8 +908,9 @@ window.openGeneralEdit = (type, id, extra) => {
     `;
   } else if (type === 'weekly') {
     const weekly = allWeeklyData.find(w => w.id === id);
-    document.getElementById("general-edit-title").innerText = "編輯週報";
-    let html = `<div class="form-group"><label class="form-label">週報日期</label><input type="date" id="edit-val-date" class="input-control" value="${weekly.reportDate || weekly.startDate || ''}"></div>`;
+    document.getElementById("general-edit-title").innerText = "編輯週報進度說明";
+    
+    let html = ``;
     if (weekly.items && weekly.items.length > 0) {
       weekly.items.forEach((item, idx) => {
         html += `<div class="form-group" style="padding:10px; background:#f8fafc; border:1px solid var(--border); border-radius:8px;">
@@ -825,7 +949,7 @@ window.saveGeneralEdit = async () => {
       });
     } else if (type === 'weekly') {
       const weekly = allWeeklyData.find(w => w.id === id);
-      const updateData = { reportDate: document.getElementById("edit-val-date").value };
+      const updateData = {};
       if (weekly.items && weekly.items.length > 0) {
         const newItems = [...weekly.items];
         newItems.forEach((item, idx) => { item.content = document.getElementById(`edit-val-item-${idx}`).value.trim(); });
