@@ -612,13 +612,29 @@ function renderProjects() {
   const listBody = document.getElementById("project-list-tbody");
   leftBody.innerHTML = ""; 
   if(listBody) listBody.innerHTML = "";
+
+  // 🚀 核心排序：依細項開始日期 (start) 進行先後順序排序
+  if (activeProj.tasks && activeProj.tasks.length > 0) {
+    activeProj.tasks.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+  }
   
   const ganttTasks = [];
   activeProj.tasks.forEach((task, index) => {
     const currentProgress = task.progress || 0;
     const workDays = getWorkingDays(task.start, task.end);
-    let projColorClass = activeProj.color || 'bar-primary';
-    ganttTasks.push({ id: `t_${index}`, name: task.name, start: task.start, end: task.end, progress: currentProgress, custom_class: task.isCompleted ? 'bar-success' : projColorClass });
+    
+    // 🚀 核心判定：協作者新增的細項固定為粉紅色 (.bar-pink)
+    const isCollabTask = task.assigneeId && (task.assigneeId !== activeProj.ownerId);
+    let projColorClass = isCollabTask ? 'bar-pink' : (activeProj.color || 'bar-primary');
+
+    ganttTasks.push({ 
+      id: `t_${index}`, 
+      name: task.name, 
+      start: task.start, 
+      end: task.end, 
+      progress: currentProgress, 
+      custom_class: task.isCompleted ? 'bar-success' : projColorClass 
+    });
 
     const taskAssigneeId = task.assigneeId || activeProj.ownerId;
     const taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
@@ -724,9 +740,12 @@ window.submitCollabTask = async () => {
   };
 
   const updatedTasks = [...proj.tasks, newTask];
+  // 🚀 追加後依時間重新排序
+  updatedTasks.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+
   await updateDoc(doc(db, "projects", proj.id), { tasks: updatedTasks });
   closeAddCollabTaskModal();
-  alert("🎉 協作任務細項追加成功！");
+  alert("🎉 協作任務細項追加成功，已自動依時程重新排序！");
 };
 
 let resolveDelayPrompt = null;
@@ -855,10 +874,13 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
 
   if (existingProj) {
     const updatedTasks = [...existingProj.tasks, ...tasks];
+    // 🚀 原專案建立者追加時依時間重新排序
+    updatedTasks.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
     await updateDoc(doc(db, "projects", existingProj.id), { tasks: updatedTasks, color: color, collaborators });
     newProjId = existingProj.id;
-    alert(`已成功更新專案「${title}」與協作設定！`);
+    alert(`已成功更新專案「${title}」並按時程重新排序！`);
   } else {
+    tasks.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
     const docRef = await addDoc(collection(db, "projects"), { 
       title, color, collaborators, ownerId: viewingUserId, ownerName: ownerNameToSave, 
       isLocked: true, tasks: tasks, createdAt: serverTimestamp() 
@@ -1329,6 +1351,8 @@ window.saveGeneralEdit = async () => {
       tasks[extra].name = document.getElementById("edit-val-name").value.trim();
       tasks[extra].start = document.getElementById("edit-val-start").value;
       tasks[extra].end = document.getElementById("edit-val-end").value;
+      // 🚀 修改日期後重新排序
+      tasks.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
       await updateDoc(doc(db, "projects", id), { tasks });
     } else if (type === 'adhoc') {
       await updateDoc(doc(db, "ad_hoc_events", id), {
@@ -1500,7 +1524,8 @@ window.deleteUserDoc = async (uid, name) => {
     try { 
       await deleteDoc(doc(db, "users", uid)); 
       alert(`已移除 ${name}！`); 
-    } catch (err) { 
+    } 
+    catch (err) { 
       alert("刪除失敗: " + err.message); 
     } 
   } 
