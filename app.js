@@ -56,6 +56,10 @@ window.switchNav = (tabId, title, elem) => {
 };
 
 document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => {
+  if (currentUserData.role !== 'admin' && !currentUserData.canEdit) {
+    alert("您的帳號尚未開放編輯權限！");
+    return;
+  }
   isEditMode = !isEditMode;
   const btn = document.getElementById("btn-toggle-edit-mode");
   if (isEditMode) {
@@ -68,13 +72,14 @@ document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => 
 
 function checkEditModeVisibility() {
   const btn = document.getElementById("btn-toggle-edit-mode");
+  // 嚴格檢驗：只有 admin 或被授權 canEdit===true 的帳號能看到編輯模式按鈕
   if (currentUserData.role === 'admin' || currentUserData.canEdit === true) {
     btn.style.display = "inline-block";
   } else {
     btn.style.display = "none";
-    if (isEditMode) {
-      isEditMode = false; btn.innerHTML = "✏️ 開啟編輯模式"; btn.style.background = "transparent";
-    }
+    isEditMode = false;
+    btn.innerHTML = "✏️ 開啟編輯模式"; 
+    btn.style.background = "transparent";
   }
 }
 
@@ -331,7 +336,6 @@ function renderProjects() {
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
-  // 協作專案：被列入協作部門名單的專案
   const collabProjects = allProjectsData.filter(p => {
     const collabs = p.collaborators || [];
     if (collabs.length === 0) return false;
@@ -487,8 +491,9 @@ function renderProjects() {
   const hasCollab = (activeProj.collaborators && activeProj.collaborators.length > 0);
   const isCollabMember = hasCollab && activeProj.collaborators.includes(currentUserData.dept);
   
-  // 僅建立者或管理者可編輯主專案設定
-  let canEditMainProj = isEditMode && (isProjOwner || currentUserData.role === 'admin');
+  // 🔒 權限防護 1：只有 admin 或有 canEdit 權限的「專案建立者」，才能編輯主專案設定
+  const isAuthorizedEditor = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
+  let canEditMainProj = isEditMode && isAuthorizedEditor && isProjOwner;
   
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯專案</button>` : '';
   let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:var(--primary); margin-left:8px;">👥 協作：${activeProj.collaborators.join(', ')}</span>` : '';
@@ -498,7 +503,7 @@ function renderProjects() {
   
   document.getElementById("current-gantt-title").innerHTML = `<span style="${titleColorStyle}">專案：${titlePrefixIcon}${activeProj.title}</span> ${collabBadge} ${editProjBtn}`;
   
-  // 協作專案中，允許協作部門成員追加任務細項
+  // 🔒 協作專案追加細項：被指定之協作部門成員、原建立者或管理員可追加
   const btnAddCollabTask = document.getElementById("btn-add-collab-task");
   if (hasCollab && (isProjOwner || isCollabMember || currentUserData.role === 'admin')) {
     btnAddCollabTask.style.display = "inline-block";
@@ -509,11 +514,15 @@ function renderProjects() {
   const lockBtn = document.getElementById("btn-toggle-lock");
   const delProjBtn = document.getElementById("btn-delete-project");
   
-  if (currentUserData.role === "admin" || currentUserData.role === "top_manager" || isProjOwner) {
+  // 🔒 權限防護 2：只有專案建立者 (且需有權限) 或 管理者 可以刪除或鎖定專案
+  if (currentUserData.role === "admin" || currentUserData.role === "top_manager" || (isAuthorizedEditor && isProjOwner)) {
     lockBtn.style.display = "inline-block"; lockBtn.innerText = activeProj.isLocked ? "🔒 鎖定中 (解鎖供編輯)" : "🔓 已開放 (點擊鎖定)";
     lockBtn.className = activeProj.isLocked ? "action-btn" : "action-btn danger"; 
-    delProjBtn.style.display = isProjOwner ? "inline-block" : "none";
-  } else { lockBtn.style.display = "none"; delProjBtn.style.display = "none"; }
+    delProjBtn.style.display = (isAuthorizedEditor && isProjOwner) || currentUserData.role === 'admin' ? "inline-block" : "none";
+  } else { 
+    lockBtn.style.display = "none"; 
+    delProjBtn.style.display = "none"; 
+  }
 
   const leftBody = document.getElementById("gantt-left-body");
   const listBody = document.getElementById("project-list-tbody");
@@ -526,14 +535,17 @@ function renderProjects() {
     let projColorClass = activeProj.color || 'bar-primary';
     ganttTasks.push({ id: `t_${index}`, name: task.name, start: task.start, end: task.end, progress: currentProgress, custom_class: task.isCompleted ? 'bar-success' : projColorClass });
 
-    // 🚀 權限限制：僅專案建立者、該細項負責人本人、或管理者可以操作/確認
     const taskAssigneeId = task.assigneeId || activeProj.ownerId;
     const taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
     const isMyTask = (auth.currentUser.uid === taskAssigneeId);
-    const hasOperationPermission = isProjOwner || isMyTask || currentUserData.role === 'admin';
 
-    const isInputLocked = task.isCompleted || !hasOperationPermission; 
-    let canEditTask = isEditMode && (hasOperationPermission || currentUserData.canEdit);
+    // 🔒 權限核心判定：只有「原專案建立者」、「該細項負責人本人」或「Admin」可以修改此細項
+    const canOperateThisTask = (isProjOwner || isMyTask || currentUserData.role === 'admin');
+
+    const isInputLocked = task.isCompleted || !canOperateThisTask; 
+    
+    // 只有在開啟編輯模式、且具備授權權限與操作權限時才顯示編輯筆
+    let canEditTask = isEditMode && isAuthorizedEditor && canOperateThisTask;
     let editHtml = canEditTask ? `<button class="action-btn" onclick="openGeneralEdit('task', '${activeProj.id}', ${index})" style="margin-left:6px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️</button>` : '';
 
     const row = document.createElement("div"); row.className = "gantt-row";
@@ -587,7 +599,7 @@ function renderProjects() {
   }
 }
 
-// 🚀 協作細項追加邏輯
+// 協作細項追加
 window.openAddCollabTaskModal = () => {
   document.getElementById("collab-task-name").value = "";
   document.getElementById("collab-task-start").value = "";
@@ -625,7 +637,7 @@ window.submitCollabTask = async () => {
     delayReason: "",
     lastUpdatedAt: ts,
     reportedCompleted: false,
-    assigneeId: auth.currentUser.uid, // 🚀 自動指定送出者為負責人
+    assigneeId: auth.currentUser.uid, // 自動鎖定送出者為負責人
     assigneeName: currentUserData.name || auth.currentUser.email.split('@')[0],
     history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '協作成員追加任務' }]
   };
@@ -668,16 +680,27 @@ window.submitDelayReason = () => {
 window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const proj = allProjectsData.find(p => p.id === projId);
   const tasks = [...proj.tasks];
+  const targetTask = tasks[taskIndex];
+  
+  // 🔒 雙重後端權限檢驗
+  const taskAssigneeId = targetTask.assigneeId || proj.ownerId;
+  const isMyTask = (auth.currentUser.uid === taskAssigneeId);
+  const isProjOwner = (auth.currentUser.uid === proj.ownerId);
+  
+  if (!isProjOwner && !isMyTask && currentUserData.role !== 'admin') {
+    return alert("權限不足：您並非此任務細項之負責人或專案建立者，無法更新進度！");
+  }
+
   const inputElem = document.getElementById(`prog_input_${taskIndex}`);
-  let newProg = parseInt(inputElem.value); const oldProg = tasks[taskIndex].progress || 0;
+  let newProg = parseInt(inputElem.value); const oldProg = targetTask.progress || 0;
   if (isNaN(newProg) || newProg < 0) newProg = 0; if (newProg > 100) newProg = 100;
   if (newProg < oldProg) { alert(`錯誤：進度不能往回倒扣！目前已達成 ${oldProg}%。`); inputElem.value = oldProg; return; }
 
   const todayStr = new Date().toISOString().split('T')[0];
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
-  let passedDays = 0; if (todayStr >= tasks[taskIndex].start) passedDays = getWorkingDays(tasks[taskIndex].start, todayStr);
+  let passedDays = 0; if (todayStr >= targetTask.start) passedDays = getWorkingDays(targetTask.start, todayStr);
 
-  let delayReason = tasks[taskIndex].delayReason || ""; let currentRemark = "";
+  let delayReason = targetTask.delayReason || ""; let currentRemark = "";
   if (newProg === 100) {
     if (todayStr > plannedEnd && !delayReason) {
       delayReason = await window.openCustomPrompt("⚠️ 任務已 Delay", "此任務已超出預計完成日，請填寫 Delay 原因 (必填)：", true);
@@ -686,17 +709,17 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
       currentRemark = await window.openCustomPrompt("🎉 任務結案", "即將結案！可填寫結案備註 (選填)：", false);
       if (currentRemark === null) { inputElem.value = oldProg; return; }
     }
-    tasks[taskIndex].isCompleted = true; tasks[taskIndex].completedAt = ts; tasks[taskIndex].delayReason = delayReason;
+    targetTask.isCompleted = true; targetTask.completedAt = ts; targetTask.delayReason = delayReason;
     alert("🎉 進度已達 100%！該任務已結案。");
   } else { 
     currentRemark = await window.openCustomPrompt("📝 進度更新", "請輸入此次進度更新的備註事項 (選填)：", false);
     if (currentRemark === null) { inputElem.value = oldProg; return; }
-    tasks[taskIndex].isCompleted = false; tasks[taskIndex].completedAt = null; 
+    targetTask.isCompleted = false; targetTask.completedAt = null; 
   }
-  tasks[taskIndex].progress = newProg; tasks[taskIndex].lastUpdatedAt = ts;
+  targetTask.progress = newProg; targetTask.lastUpdatedAt = ts;
 
-  if (!tasks[taskIndex].history) tasks[taskIndex].history = [];
-  tasks[taskIndex].history.push({ timestamp: ts, progress: newProg, type: newProg === 100 ? 'complete' : 'update', daysPassed: passedDays, remark: currentRemark, delayReason: delayReason || "" });
+  if (!targetTask.history) targetTask.history = [];
+  targetTask.history.push({ timestamp: ts, progress: newProg, type: newProg === 100 ? 'complete' : 'update', daysPassed: passedDays, remark: currentRemark, delayReason: delayReason || "" });
 
   await updateDoc(doc(db, "projects", projId), { tasks });
   if(newProg !== 100) alert(`進度已更新為 ${newProg}%`);
@@ -758,8 +781,19 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   renderProjects(); 
 });
 
-window.toggleCurrentProjectLock = async () => { await updateDoc(doc(db, "projects", selectedProjectId), { isLocked: !allProjectsData.find(p => p.id === selectedProjectId).isLocked }); };
-window.deleteCurrentProject = async () => { if (!confirm("⚠️ 確定要永久刪除此專案嗎？")) return; await deleteDoc(doc(db, "projects", selectedProjectId)); alert("專案已刪除！"); selectedProjectId = 'SUMMARY'; renderProjects(); };
+window.toggleCurrentProjectLock = async () => { 
+  if (currentUserData.role !== 'admin' && !currentUserData.canEdit) return alert("權限不足！");
+  await updateDoc(doc(db, "projects", selectedProjectId), { isLocked: !allProjectsData.find(p => p.id === selectedProjectId).isLocked }); 
+};
+
+window.deleteCurrentProject = async () => { 
+  if (currentUserData.role !== 'admin' && !currentUserData.canEdit) return alert("權限不足！");
+  if (!confirm("⚠️ 確定要永久刪除此專案嗎？")) return; 
+  await deleteDoc(doc(db, "projects", selectedProjectId)); 
+  alert("專案已刪除！"); 
+  selectedProjectId = 'SUMMARY'; 
+  renderProjects(); 
+};
 
 // === 臨時事件 ===
 function loadAdHocEvents() { onSnapshot(query(collection(db, "ad_hoc_events")), (snapshot) => { allAdHocData = []; snapshot.forEach(docSnap => allAdHocData.push({ id: docSnap.id, ...docSnap.data() })); renderAdHocEvents(); }); }
@@ -774,9 +808,12 @@ function renderAdHocEvents() {
     return tB - tA;
   });
 
+  const isAuthorizedEditor = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
+
   filtered.forEach(evt => {
     let isOwner = (evt.ownerId === auth.currentUser.uid);
-    let canEditUI = isEditMode && (isOwner || currentUserData.role === 'admin' || currentUserData.canEdit);
+    // 🔒 只有在開放編輯模式、且具備授權權限者才能看到編輯與刪除
+    let canEditUI = isEditMode && isAuthorizedEditor && isOwner;
     
     let editHtml = canEditUI ? `<button class="action-btn" style="margin-left:4px; border-color:var(--warning); color:var(--warning);" onclick="openGeneralEdit('adhoc', '${evt.id}')">✏️</button>` : '';
     let actionHtml = !evt.isCompleted && isOwner ? `<button class="action-btn" onclick="completeAdHoc('${evt.id}')">完成</button>` : '';
@@ -808,7 +845,10 @@ document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
   document.getElementById("adhoc-title").value = ""; document.getElementById("adhoc-reason").value = ""; document.getElementById("adhoc-start").value = ""; alert("事件登記完成！");
 });
 window.completeAdHoc = async (id) => { await updateDoc(doc(db, "ad_hoc_events", id), { isCompleted: true, completedAt: new Date().toLocaleString() }); };
-window.deleteAdHoc = async (id) => { if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); };
+window.deleteAdHoc = async (id) => { 
+  if (currentUserData.role !== 'admin' && !currentUserData.canEdit) return alert("權限不足！");
+  if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); 
+};
 
 // === 週報系統 ===
 window.initWeeklyDateAndLeave = () => {
@@ -892,10 +932,12 @@ function renderWeeklyReports() {
   filtered.sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)); 
   
   const days = ['日', '一', '二', '三', '四', '五', '六'];
+  const isAuthorizedEditor = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
 
   filtered.forEach((w, index) => {
     let isOwner = (w.ownerId === auth.currentUser.uid);
-    let canEditUI = isEditMode && (isOwner || currentUserData.role === 'admin' || currentUserData.canEdit);
+    // 🔒 只有在開放編輯模式且有授權時才顯示編輯/刪除按鈕
+    let canEditUI = isEditMode && isAuthorizedEditor && isOwner;
     
     let editHtml = canEditUI ? `<button class="action-btn" style="margin-right:6px; border-color:var(--warning); color:var(--warning);" onclick="openGeneralEdit('weekly', '${w.id}')">✏️ 編輯</button>` : '';
     let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || canEditUI) ? `<button class="action-btn danger" onclick="deleteWeekly('${w.id}')">刪除</button>` : '';
@@ -1003,7 +1045,10 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
   }
 });
 
-window.deleteWeekly = async (id) => { if(confirm("確定永久刪除此週報嗎？")) await deleteDoc(doc(db, "weekly_reports", id)); };
+window.deleteWeekly = async (id) => { 
+  if (currentUserData.role !== 'admin' && !currentUserData.canEdit) return alert("權限不足！");
+  if(confirm("確定永久刪除此週報嗎？")) await deleteDoc(doc(db, "weekly_reports", id)); 
+};
 
 window.openWeeklyModal = (id) => {
   currentWeeklyReportId = id; const report = allWeeklyData.find(w => w.id === id); if(!report) return;
@@ -1058,6 +1103,11 @@ window.markWeeklyNoted = async (type) => {
 let currentEditData = {};
 
 window.openGeneralEdit = (type, id, extra) => {
+  // 🔒 權限檢查：未授權者嚴禁打開編輯視窗
+  if (currentUserData.role !== 'admin' && !currentUserData.canEdit) {
+    return alert("您的帳號無修改資料之權限！");
+  }
+
   currentEditData = { type, id, extra };
   const form = document.getElementById("general-edit-form"); form.innerHTML = "";
 
@@ -1114,6 +1164,9 @@ window.openGeneralEdit = (type, id, extra) => {
 window.closeGeneralEditModal = () => document.getElementById("general-edit-modal").classList.remove("active");
 
 window.saveGeneralEdit = async () => {
+  if (currentUserData.role !== 'admin' && !currentUserData.canEdit) {
+    return alert("權限不足！");
+  }
   const { type, id, extra } = currentEditData;
   try {
     if (type === 'project') {
@@ -1221,7 +1274,7 @@ document.getElementById("btn-create-user").addEventListener("click", async () =>
   try {
     const secApp = initializeApp(firebaseConfig, "Secondary"); const secAuth = getAuth(secApp);
     const userCred = await createUserWithEmailAndPassword(secAuth, email, pass); await signOut(secAuth);
-    await setDoc(doc(db, "users", userCred.user.uid), { name, email, dept, role, supervisorId, createdAt: serverTimestamp() });
+    await setDoc(doc(db, "users", userCred.user.uid), { name, email, dept, role, supervisorId, canEdit: false, createdAt: serverTimestamp() });
     alert(`人員 ${name} 建立成功！`);
   } catch (err) { alert("建立失敗: " + err.message); }
 });
@@ -1252,4 +1305,10 @@ window.submitEditUser = async () => {
   } catch (err) { alert("更新失敗: " + err.message); }
 };
 
-window.deleteUserDoc = async (uid, name) => { if (confirm(`確定刪除 ${name} 嗎？`)) { try { await deleteDoc(doc(db, "users", uid)); alert(`已移除 ${name}！`); } catch (err) { alert("刪除失敗: " + err.message); } } };
+window.deleteUserDoc = async (uid, name) => { 
+  if (currentUserData.role !== 'admin') return alert("權限不足！");
+  if (confirm(`確定刪除 ${name} 嗎？`)) { 
+    try { await deleteDoc(doc(db, "users", uid)); alert(`已移除 ${name}！`); } 
+    catch (err) { alert("刪除失敗: " + err.message); } 
+  } 
+};
