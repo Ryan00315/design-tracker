@@ -131,73 +131,67 @@ tr:hover td { background: #fafafa; }
 .modal-actions { display: flex; gap: 12px; margin-top: 28px; }
 .modal-actions button { flex: 1; padding: 12px; }
 
-/* ========================================= */
-/* 🚀 填空區範例文字顏色淡化                 */
-/* ========================================= */
-::placeholder {
-  color: #cbd5e1 !important; /* 淡灰藍色 */
-  opacity: 0.6 !important;     /* 覆蓋瀏覽器預設透明度 */
-}
-:-ms-input-placeholder { color: #cbd5e1 !important; }
-::-ms-input-placeholder { color: #cbd5e1 !important; }
+::placeholder { color: #e2e8f0 !important; opacity: 0.7 !important; }
+:-ms-input-placeholder { color: #e2e8f0 !important; }
+::-ms-input-placeholder { color: #e2e8f0 !important; }
 
 /* ========================================= */
 /* 📱 RWD 響應式設計 (手機與平板排版自動最佳化) */
 /* ========================================= */
-/* ========================================= */
-/* 📱 RWD 響應式設計 (手機與平板排版自動最佳化) */
-/* ========================================= */
 @media (max-width: 850px) {
-  /* 大架構改為上下垂直排列 */
   .app-container { flex-direction: column; }
   
-  /* 左側導覽列改為上方橫向滑動 */
-  .sidebar { width: 100%; height: auto; flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); padding: 4px 0; flex-shrink: 0; z-index: 100; }
-  .sidebar-header { height: auto; border-bottom: none; border-right: 1px solid rgba(255,255,255,0.06); padding: 0 16px; }
-  .nav-list { flex-direction: row; padding: 0 12px; margin: 0; align-items: center; width: max-content; gap: 8px; }
-  .nav-item { padding: 8px 12px; white-space: nowrap; }
+  /* 🚀 終極修復 iPhone 裁切問題：移除 overflow-x: auto，改為自動折行 (Wrap) 讓畫面展開 */
+  .sidebar { 
+    width: 100%; height: auto; flex-direction: column; 
+    overflow: visible !important; /* 絕對不能被隱藏，否則會吃掉下拉選單 */
+    border-right: none; border-bottom: 1px solid var(--border); padding: 0; flex-shrink: 0; z-index: 9999; 
+  }
+  .sidebar-header { height: 50px; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0 16px; justify-content: center; }
+  
+  .nav-list { 
+    flex-direction: row; padding: 8px 12px; margin: 0; 
+    align-items: center; justify-content: flex-start;
+    width: 100%; flex-wrap: wrap; /* 讓按鈕自動折到下一行，免滑動 */
+    gap: 6px; 
+  }
+  .nav-item { padding: 8px 12px; white-space: nowrap; font-size: 13px; }
   .nav-divider { display: none; }
   
-  /* 🚀 終極修復：人員檢視選單在手機上的絕對浮空定位 (防白底干擾) */
-  #nav-sub-wrapper { margin-bottom: 0; display: flex; align-items: center; }
+  /* 人員檢視選單在手機上：採用絕對定位彈出，背景深色防透光 */
+  #nav-sub-wrapper { margin-bottom: 0; display: flex; align-items: center; position: relative; }
   .nav-sub-list { 
-    position: fixed !important; /* 改為浮空鎖定，脫離滑動區塊的限制 */
-    top: 60px !important; 
-    left: 12px !important; 
+    position: absolute !important; 
+    top: 100% !important; /* 緊貼在按鈕正下方 */
+    left: 0 !important; 
     min-width: 220px !important; 
-    background-color: #0f172a !important; /* 絕對不透明的純深藍黑色 */
-    border: 1px solid #475569 !important; /* 加上淺灰色外框增加辨識度 */
-    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5) !important; /* 加上重陰影蓋住下方畫面 */
-    z-index: 999999 !important; /* 確保在畫面的最最最上層 */
+    background-color: #0f172a !important; 
+    border: 1px solid #475569 !important; 
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5) !important; 
+    z-index: 999999 !important; 
     border-radius: var(--radius-md) !important;
   }
   
-  /* 頂部 Header 改為上下堆疊 */
   .top-header { flex-direction: column; align-items: flex-start; height: auto; padding: 16px; gap: 12px; z-index: 10; position: relative; }
   .header-right { width: 100%; justify-content: space-between; }
   .content-body { padding: 16px; position: relative; z-index: 1; }
   
-  /* KPI 數據卡片與大按鈕滿版排列 */
   #tab-projects > div[style*="display: flex;"] { flex-direction: column; gap: 12px; align-items: stretch !important; }
   .kpi-row { flex-direction: column; gap: 10px; margin: 0 !important; }
   .kpi-card { width: 100%; padding: 14px; }
   #btn-create-wrapper { width: 100%; }
   #btn-toggle-create { width: 100%; height: 44px !important; padding: 0 !important; }
   
-  /* 表單輸入框上下排列，不再擠壓 */
   .form-row { flex-direction: column; gap: 12px; align-items: stretch; margin-bottom: 16px; }
   .form-group { width: 100% !important; max-width: 100% !important; flex: none !important; }
   
-  /* 甘特圖畫面上下堆疊 */
   .gantt-master-layout { flex-direction: column; }
   .gantt-left-panel { width: 100% !important; max-height: 250px; overflow-y: auto; border-right: none; border-bottom: 2px solid var(--border); }
   .gantt-right-panel { width: 100%; min-height: 250px; }
   
-  /* 週報表單獨立優化 */
   .weekly-item-row { flex-direction: column !important; gap: 12px !important; }
   .weekly-item-row > div { border-right: none !important; padding-right: 0 !important; width: 100% !important; }
   
-  /* 彈出視窗(Modal)滿版化 */
   .modal-box { width: 92%; max-width: none !important; max-height: 85vh; padding: 20px; margin: 20px auto; overflow-y: auto; }
   .modal-actions { flex-direction: column; gap: 8px; }
   .modal-actions button { width: 100%; max-width: 100% !important; margin: 0 !important; }
