@@ -65,29 +65,44 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .panel-head { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
 .form-row { display: flex; gap: 14px; align-items: flex-start; }
 
+/* 🚀 電腦版甘特圖版面重新定義：左側加寬 + 垂直實線邊界 */
 .gantt-master-layout { display: flex; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); overflow: hidden; margin-top: 10px; box-shadow: var(--shadow-sm); }
-.gantt-left-panel { width: 340px; border-right: 1px solid var(--border); flex-shrink: 0; background: #fff; z-index: 10; display: flex; flex-direction: column; }
+
+.gantt-left-panel { width: 560px; border-right: 2px solid var(--border); flex-shrink: 0; background: #fff; z-index: 10; display: flex; flex-direction: column; }
+.gantt-left-panel-summary { width: 340px; border-right: 2px solid var(--border); flex-shrink: 0; background: #fff; z-index: 10; display: flex; flex-direction: column; }
+
 .gantt-head { height: 50px; display: flex; border-bottom: 1px solid var(--border); background: #f8fafc; align-items: center; font-size: 12px; font-weight: 600; color: var(--text-muted); }
 .gantt-body { display: flex; flex-direction: column; }
 .gantt-row { height: 38px; display: flex; border-bottom: 1px solid var(--border-light); align-items: center; font-size: 12px; transition: background 0.15s; }
 .gantt-row:hover { background: #f1f5f9; }
 
-.col-name { flex: 2; padding: 0 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.col-date { width: 65px; padding: 0 8px; font-size: 11px; color: var(--text-muted); text-align: center; }
-.col-prog { width: 75px; padding: 0 8px; display: flex; align-items: center; gap: 4px; }
+/* 細項名稱欄位加寬 50% 並支援內部橫向滑動 */
+.col-name { width: 230px; padding: 0 12px; font-weight: 600; white-space: nowrap; overflow-x: auto; overflow-y: hidden; text-overflow: clip; scrollbar-width: none; -ms-overflow-style: none; }
+.col-name::-webkit-scrollbar { display: none; }
+
+.col-date { width: 65px; padding: 0 6px; font-size: 11px; color: var(--text-muted); text-align: center; flex-shrink: 0; }
+.col-prog { width: 75px; padding: 0 6px; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .col-prog input { width: 42px; padding: 4px; text-align: center; border: 1px solid var(--border); border-radius: 4px; outline: none; font-size: 11px; font-weight: 600; }
 .col-prog input:disabled { background: #f1f5f9; color: var(--success); border-color: transparent; }
-.col-act { width: 60px; padding: 0 6px; display: flex; align-items: center; justify-content: center; }
+.col-act { width: 60px; padding: 0 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.col-owner { width: 110px; padding: 0 10px; font-size: 11px; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 1px dashed var(--border); flex-shrink: 0; text-align: center; }
+
+/* 總覽頁欄位寬度 */
+.col-sum-name { flex: 2.5; padding: 0 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.col-sum-date { flex: 1.5; padding: 0 6px; font-size: 11px; color: var(--text-muted); text-align: left; }
+.col-sum-prog { flex: 1; padding: 0 6px; text-align: center; }
+
 .action-btn.btn-sm { padding: 4px 8px; font-size: 11px; border-radius: 4px; white-space: nowrap; line-height: 1; }
 
-.gantt-right-panel { flex: 1; overflow-x: auto; background: #fff; min-width: 300px; }
+.gantt-right-panel { flex: 1; overflow-x: auto; background: #fff; min-width: 250px; }
+.gantt-right-panel-summary { flex: 1; overflow-x: auto; background: #fff; min-width: 300px; }
 #gantt-chart, #gantt-chart-summary { min-width: 100%; }
 
 .gantt .bar-wrapper { pointer-events: none !important; cursor: default !important; }
 .gantt .bar-group { pointer-events: none !important; }
 .gantt .handle-group { display: none !important; pointer-events: none !important; }
 .gantt .bar-progress-handle { display: none !important; pointer-events: none !important; }
-.gantt-right-panel svg { pointer-events: none !important; }
+.gantt-right-panel svg, .gantt-right-panel-summary svg { pointer-events: none !important; }
 
 .gantt .today-highlight { fill: rgba(245, 158, 11, 0.6) !important; }
 .gantt .tick.weekend { fill: rgba(239, 68, 68, 0.08) !important; }
@@ -202,7 +217,8 @@ tr:hover td { background: #fafafa; }
   
   .gantt-master-layout { flex-direction: column; }
   .gantt-left-panel { width: 100% !important; max-height: 250px; overflow-y: auto; border-right: none; border-bottom: 2px solid var(--border); }
-  .gantt-right-panel { width: 100%; min-height: 250px; }
+  .gantt-left-panel-summary { width: 100% !important; max-height: 250px; overflow-y: auto; border-right: none; border-bottom: 2px solid var(--border); }
+  .gantt-right-panel, .gantt-right-panel-summary { width: 100%; min-height: 250px; }
   
   .weekly-item-row { flex-direction: column !important; gap: 12px !important; }
   .weekly-item-row > div { border-right: none !important; padding-right: 0 !important; width: 100% !important; }
