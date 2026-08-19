@@ -144,25 +144,38 @@ tr:hover td { background: #fafafa; }
 /* ========================================= */
 /* 📱 RWD 響應式設計 (手機與平板排版自動最佳化) */
 /* ========================================= */
+/* ========================================= */
+/* 📱 RWD 響應式設計 (手機與平板排版自動最佳化) */
+/* ========================================= */
 @media (max-width: 850px) {
   /* 大架構改為上下垂直排列 */
   .app-container { flex-direction: column; }
   
   /* 左側導覽列改為上方橫向滑動 */
-  .sidebar { width: 100%; height: auto; flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); padding: 4px 0; flex-shrink: 0; }
+  .sidebar { width: 100%; height: auto; flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); padding: 4px 0; flex-shrink: 0; z-index: 100; }
   .sidebar-header { height: auto; border-bottom: none; border-right: 1px solid rgba(255,255,255,0.06); padding: 0 16px; }
   .nav-list { flex-direction: row; padding: 0 12px; margin: 0; align-items: center; width: max-content; gap: 8px; }
   .nav-item { padding: 8px 12px; white-space: nowrap; }
   .nav-divider { display: none; }
   
-  /* 人員檢視選單在手機上的定位修正 */
+  /* 🚀 終極修復：人員檢視選單在手機上的絕對浮空定位 (防白底干擾) */
   #nav-sub-wrapper { margin-bottom: 0; display: flex; align-items: center; }
-  .nav-sub-list { position: absolute; top: 60px; left: 16px; min-width: 200px; box-shadow: var(--shadow-card); z-index: 9999; background: var(--sidebar-bg) !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; }
+  .nav-sub-list { 
+    position: fixed !important; /* 改為浮空鎖定，脫離滑動區塊的限制 */
+    top: 60px !important; 
+    left: 12px !important; 
+    min-width: 220px !important; 
+    background-color: #0f172a !important; /* 絕對不透明的純深藍黑色 */
+    border: 1px solid #475569 !important; /* 加上淺灰色外框增加辨識度 */
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5) !important; /* 加上重陰影蓋住下方畫面 */
+    z-index: 999999 !important; /* 確保在畫面的最最最上層 */
+    border-radius: var(--radius-md) !important;
+  }
   
   /* 頂部 Header 改為上下堆疊 */
-  .top-header { flex-direction: column; align-items: flex-start; height: auto; padding: 16px; gap: 12px; }
+  .top-header { flex-direction: column; align-items: flex-start; height: auto; padding: 16px; gap: 12px; z-index: 10; position: relative; }
   .header-right { width: 100%; justify-content: space-between; }
-  .content-body { padding: 16px; }
+  .content-body { padding: 16px; position: relative; z-index: 1; }
   
   /* KPI 數據卡片與大按鈕滿版排列 */
   #tab-projects > div[style*="display: flex;"] { flex-direction: column; gap: 12px; align-items: stretch !important; }
