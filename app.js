@@ -328,11 +328,10 @@ function renderProjects() {
   const isViewingSelf = (viewingUserId === auth.currentUser.uid);
   const myDept = currentUserData.dept || "設計部";
   
-  // 取得目標用戶的專案
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
-  // 協作專案：包含所有設定了協作部門且匹配目前使用者部門，或者當前檢視人員參與協作的專案
+  // 協作專案：被列入協作部門名單的專案
   const collabProjects = allProjectsData.filter(p => {
     const collabs = p.collaborators || [];
     if (collabs.length === 0) return false;
@@ -347,7 +346,6 @@ function renderProjects() {
 
   if (isViewingSelf) updateProjectDatalist(userProjects);
 
-  // 計算 KPI 數據
   let countOngoing = 0, countCompleted = 0, countDelayed = 0, countCollab = collabProjects.length;
   userProjects.forEach(p => {
     if (!p.tasks || p.tasks.length === 0) return;
@@ -399,9 +397,8 @@ function renderProjects() {
     const btn = document.createElement("button"); 
     btn.className = `proj-tab ${p.id === selectedProjectId ? 'active' : ''}`;
     
-    // 協作專案文字標示
     if (hasCollab) {
-      btn.innerHTML = `<span style="color:var(--primary); font-weight:700;"> ${p.title}</span>`;
+      btn.innerHTML = `<span style="color:var(--primary); font-weight:700;">👥 ${p.title}</span>`;
     } else {
       btn.innerText = p.title;
     }
@@ -456,16 +453,14 @@ function renderProjects() {
       const row = document.createElement("div"); row.className = "gantt-row";
       if (item.type === 'project') {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : item.progress+'%';
-        
-        // 🚀 協作專案圖示改為淡藍色👥，字體套用藍色
         let titleDisplay = item.isCollab 
           ? `<span style="color:var(--primary); font-weight:700;"><span style="color:var(--primary); margin-right:4px;">👥</span>${item.title}</span>`
           : `📁 ${item.title}`;
           
-        row.innerHTML = `<div class="col-name" style="flex:2.5" title="${item.title}">${titleDisplay}</div><div class="col-date" style="flex:1.5; text-align:left;">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-prog" style="flex:1; justify-content:center;">${statusText}</div>`;
+        row.innerHTML = `<div class="col-sum-name" title="${item.title}">${titleDisplay}</div><div class="col-sum-date">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-sum-prog">${statusText}</div>`;
       } else {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
-        row.innerHTML = `<div class="col-name" style="flex:2.5; color:var(--danger);" title="${item.title}">🚨 ${item.title}</div><div class="col-date" style="flex:1.5; text-align:left;">${item.start.substring(5)}</div><div class="col-prog" style="flex:1; justify-content:center;">${statusText}</div>`;
+        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger);" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date">${item.start.substring(5)}</div><div class="col-sum-prog">${statusText}</div>`;
       }
       sumLeftBody.appendChild(row);
     });
@@ -490,17 +485,27 @@ function renderProjects() {
 
   const isProjOwner = (activeProj.ownerId === auth.currentUser.uid);
   const hasCollab = (activeProj.collaborators && activeProj.collaborators.length > 0);
-  let canEditUI = isEditMode && (isProjOwner || currentUserData.role === 'admin' || currentUserData.canEdit);
+  const isCollabMember = hasCollab && activeProj.collaborators.includes(currentUserData.dept);
   
-  let editProjBtn = canEditUI ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯專案</button>` : '';
+  // 僅建立者或管理者可編輯主專案設定
+  let canEditMainProj = isEditMode && (isProjOwner || currentUserData.role === 'admin');
+  
+  let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯專案</button>` : '';
   let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:var(--primary); margin-left:8px;">👥 協作：${activeProj.collaborators.join(', ')}</span>` : '';
   
-  // 標題字體顏色切換
   let titleColorStyle = hasCollab ? 'color: var(--primary); font-weight: 700;' : '';
   let titlePrefixIcon = hasCollab ? '👥 ' : '';
   
   document.getElementById("current-gantt-title").innerHTML = `<span style="${titleColorStyle}">專案：${titlePrefixIcon}${activeProj.title}</span> ${collabBadge} ${editProjBtn}`;
   
+  // 協作專案中，允許協作部門成員追加任務細項
+  const btnAddCollabTask = document.getElementById("btn-add-collab-task");
+  if (hasCollab && (isProjOwner || isCollabMember || currentUserData.role === 'admin')) {
+    btnAddCollabTask.style.display = "inline-block";
+  } else {
+    btnAddCollabTask.style.display = "none";
+  }
+
   const lockBtn = document.getElementById("btn-toggle-lock");
   const delProjBtn = document.getElementById("btn-delete-project");
   
@@ -521,15 +526,23 @@ function renderProjects() {
     let projColorClass = activeProj.color || 'bar-primary';
     ganttTasks.push({ id: `t_${index}`, name: task.name, start: task.start, end: task.end, progress: currentProgress, custom_class: task.isCompleted ? 'bar-success' : projColorClass });
 
-    const isInputLocked = task.isCompleted || (!isProjOwner && currentUserData.role !== 'admin'); 
-    let editHtml = canEditUI ? `<button class="action-btn" onclick="openGeneralEdit('task', '${activeProj.id}', ${index})" style="margin-left:6px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️</button>` : '';
+    // 🚀 權限限制：僅專案建立者、該細項負責人本人、或管理者可以操作/確認
+    const taskAssigneeId = task.assigneeId || activeProj.ownerId;
+    const taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
+    const isMyTask = (auth.currentUser.uid === taskAssigneeId);
+    const hasOperationPermission = isProjOwner || isMyTask || currentUserData.role === 'admin';
+
+    const isInputLocked = task.isCompleted || !hasOperationPermission; 
+    let canEditTask = isEditMode && (hasOperationPermission || currentUserData.canEdit);
+    let editHtml = canEditTask ? `<button class="action-btn" onclick="openGeneralEdit('task', '${activeProj.id}', ${index})" style="margin-left:6px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️</button>` : '';
 
     const row = document.createElement("div"); row.className = "gantt-row";
     row.innerHTML = `
-      <div class="col-name" title="${task.name}"><div style="display:flex; align-items:center;"><span style="overflow:hidden; text-overflow:ellipsis;">${task.name}</span>${editHtml}</div></div>
+      <div class="col-name" title="${task.name}"><span>${task.name}</span>${editHtml}</div>
       <div class="col-date">${workDays} 天</div>
       <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''}> %</div>
       <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')">${task.isCompleted ? '完成' : '確認'}</button></div>
+      <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
     `;
     leftBody.appendChild(row);
 
@@ -555,7 +568,7 @@ function renderProjects() {
 
       const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="font-size:13px; padding:6px 10px;">已完成</span>` : `<span style="font-size:13px; font-weight:bold;">進度: ${task.progress || 0}%</span>`;
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td style="vertical-align: top; font-size: 14px;"><strong>${task.name}</strong></td><td style="vertical-align: top;">${statusHtml}</td><td colspan="2" style="padding: 0 16px; vertical-align: top;">${historyHtml}</td>`;
+      tr.innerHTML = `<td style="vertical-align: top; font-size: 14px;"><strong>${task.name}</strong></td><td style="vertical-align: top;">${taskAssigneeName}</td><td style="vertical-align: top;">${statusHtml}</td><td style="padding: 0 16px; vertical-align: top;">${historyHtml}</td><td style="padding: 0 16px; vertical-align: top;">${task.delayReason ? `<span class="pill pill-danger">Delay: ${task.delayReason}</span>` : '-'}</td>`;
       listBody.appendChild(tr);
     }
   });
@@ -573,6 +586,55 @@ function renderProjects() {
     }, 150); 
   }
 }
+
+// 🚀 協作細項追加邏輯
+window.openAddCollabTaskModal = () => {
+  document.getElementById("collab-task-name").value = "";
+  document.getElementById("collab-task-start").value = "";
+  document.getElementById("collab-task-end").value = "";
+  document.getElementById("collab-task-modal").classList.add("active");
+};
+
+window.closeAddCollabTaskModal = () => {
+  document.getElementById("collab-task-modal").classList.remove("active");
+};
+
+window.submitCollabTask = async () => {
+  const name = document.getElementById("collab-task-name").value.trim();
+  const start = document.getElementById("collab-task-start").value;
+  const end = document.getElementById("collab-task-end").value;
+
+  if (!name || !start || !end) return alert("任務細項欄位不可有空白！");
+  if (start > end) return alert("起始日不可大於結束日！");
+
+  const proj = allProjectsData.find(p => p.id === selectedProjectId);
+  if (!proj) return alert("找不到目前專案！");
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+  let passedDays = 0;
+  if (todayStr >= start) passedDays = getWorkingDays(start, todayStr);
+
+  const newTask = {
+    name,
+    start,
+    end,
+    progress: 0,
+    isCompleted: false,
+    completedAt: null,
+    delayReason: "",
+    lastUpdatedAt: ts,
+    reportedCompleted: false,
+    assigneeId: auth.currentUser.uid, // 🚀 自動指定送出者為負責人
+    assigneeName: currentUserData.name || auth.currentUser.email.split('@')[0],
+    history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '協作成員追加任務' }]
+  };
+
+  const updatedTasks = [...proj.tasks, newTask];
+  await updateDoc(doc(db, "projects", proj.id), { tasks: updatedTasks });
+  closeAddCollabTaskModal();
+  alert("🎉 協作任務細項追加成功！");
+};
 
 let resolveDelayPrompt = null;
 window.openCustomPrompt = (title, label, isRequired) => {
@@ -650,13 +712,19 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
 
   const taskRows = document.querySelectorAll('.task-row'); const tasks = [];
   const todayStr = new Date().toISOString().split('T')[0]; const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+  const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
 
   for (let row of taskRows) {
     const name = row.querySelector('.task-name').value.trim(); const start = row.querySelector('.task-start').value; const end = row.querySelector('.task-end').value;
     if (!name || !start || !end) return alert("任務細項不可有空白欄位！");
     if (start > end) return alert(`任務 [${name}] 的起始日不可大於完成日！`);
     let passedDays = 0; if (todayStr >= start) passedDays = getWorkingDays(start, todayStr);
-    tasks.push({ name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '專案建立' }] });
+    tasks.push({ 
+      name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
+      assigneeId: auth.currentUser.uid,
+      assigneeName: myName,
+      history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '專案建立' }] 
+    });
   }
   
   const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, uid: auth.currentUser.uid };
