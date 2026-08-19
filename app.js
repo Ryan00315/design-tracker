@@ -399,10 +399,12 @@ function renderProjects() {
   activeList.forEach(p => {
     const hasCollab = (p.collaborators && p.collaborators.length > 0);
     const btn = document.createElement("button"); 
-    btn.className = `proj-tab ${p.id === selectedProjectId ? 'active' : ''}`;
+    // 若為協作專案，加上 is-collab 類別
+    btn.className = `proj-tab ${hasCollab ? 'is-collab' : ''} ${p.id === selectedProjectId ? 'active' : ''}`;
+    btn.title = p.title; // 滑鼠懸停時顯示完整名稱
     
     if (hasCollab) {
-      btn.innerHTML = `<span style="color:var(--primary); font-weight:700;">👥 ${p.title}</span>`;
+      btn.innerHTML = `<span>👥 ${p.title}</span>`;
     } else {
       btn.innerText = p.title;
     }
@@ -496,12 +498,13 @@ function renderProjects() {
   let canEditMainProj = isEditMode && isAuthorizedEditor && isProjOwner;
   
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯專案</button>` : '';
-  let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:var(--primary); margin-left:8px;">👥 協作：${activeProj.collaborators.join(', ')}</span>` : '';
+  // 🚀 專案標題渲染：專案：與 👥 協作：標籤維持黑字，專案名稱維持藍色
+  let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#2563eb; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
   
-  let titleColorStyle = hasCollab ? 'color: var(--primary); font-weight: 700;' : '';
-  let titlePrefixIcon = hasCollab ? '👥 ' : '';
+  let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
+  let titleDisplayName = `<span style="color:#2563eb; font-weight:700;">${titlePrefixIcon}${activeProj.title}</span>`;
   
-  document.getElementById("current-gantt-title").innerHTML = `<span style="${titleColorStyle}">專案：${titlePrefixIcon}${activeProj.title}</span> ${collabBadge} ${editProjBtn}`;
+  document.getElementById("current-gantt-title").innerHTML = `<span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} ${collabBadge} ${editProjBtn}`;
   
   // 🔒 協作專案追加細項：被指定之協作部門成員、原建立者或管理員可追加
   const btnAddCollabTask = document.getElementById("btn-add-collab-task");
