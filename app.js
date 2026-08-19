@@ -84,7 +84,24 @@ document.getElementById('btn-toggle-create').addEventListener('click', () => {
   }
 });
 
-window.toggleSubMenu = () => document.getElementById('nav-sub-wrapper').classList.toggle('nav-menu-open');
+// 🚀 核心修復：DOM 瞬間轉移，解決 iPhone 隱藏選單的問題
+window.toggleSubMenu = () => {
+  const wrapper = document.getElementById('nav-sub-wrapper');
+  const list = document.getElementById('nav-sub-list');
+  const isOpen = wrapper.classList.toggle('nav-menu-open');
+  
+  if (window.innerWidth <= 850) {
+    if (isOpen) {
+      // 拔出滑動區塊，放到畫面最頂層，絕不被裁切！
+      document.body.appendChild(list);
+      list.classList.add('mobile-fixed-dropdown');
+    } else {
+      // 關閉時把它塞回原本的位子
+      wrapper.appendChild(list);
+      list.classList.remove('mobile-fixed-dropdown');
+    }
+  }
+};
 
 function getWorkingDays(startDate, endDate) {
   let count = 0; let curDate = new Date(startDate); let end = new Date(endDate);
@@ -159,7 +176,7 @@ onAuthStateChanged(auth, async (user) => {
       document.getElementById("nav-org-manage").style.display = "none"; document.getElementById("nav-divider-org").style.display = "none";
     }
 
-    if (currentUserData.role !== 'staff') { document.getElementById('nav-sub-wrapper').style.display = 'block'; loadSidebarSubordinates(); } 
+    if (currentUserData.role !== 'staff') { document.getElementById('nav-sub-wrapper').style.display = 'flex'; loadSidebarSubordinates(); } 
     else document.getElementById('nav-sub-wrapper').style.display = 'none';
 
     checkEditModeVisibility();
@@ -204,6 +221,17 @@ window.switchViewingUser = (uid, name) => {
   selectedProjectId = 'SUMMARY'; 
   checkEditModeVisibility();
   renderProjects(); renderAdHocEvents(); renderWeeklyReports();
+
+  // 🚀 防呆：切換完人員後，自動安全收起下拉選單
+  const wrapper = document.getElementById('nav-sub-wrapper');
+  const list = document.getElementById('nav-sub-list');
+  if (wrapper.classList.contains('nav-menu-open')) {
+    wrapper.classList.remove('nav-menu-open');
+    if (list.classList.contains('mobile-fixed-dropdown')) {
+      wrapper.appendChild(list);
+      list.classList.remove('mobile-fixed-dropdown');
+    }
+  }
 };
 
 document.getElementById("btn-login").addEventListener("click", () => { signInWithEmailAndPassword(auth, document.getElementById("login-email").value.trim(), document.getElementById("login-password").value.trim()).catch(e=>alert(e.message)); });
@@ -336,7 +364,7 @@ function renderProjects() {
   emptyState.style.display = "none"; 
 
   // ==========================
-  // 🚀 總覽：混合時間軸排序 (專案與事件)
+  // 總覽
   // ==========================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; summaryView.style.display = "block";
@@ -344,7 +372,6 @@ function renderProjects() {
     sumLeftBody.innerHTML = "";
     const ganttTasksSum = [];
     
-    // 將專案與事件統一收集，進行時間排序
     let combinedItems = [];
     let sIdx = 0;
 
@@ -370,7 +397,6 @@ function renderProjects() {
       });
     });
 
-    // 依起始時間由舊到新排序
     combinedItems.sort((a, b) => a.sortDate - b.sortDate);
 
     combinedItems.forEach(item => {
@@ -470,7 +496,7 @@ function renderProjects() {
 
   if (ganttTasks.length > 0) {
     const chartContainer = document.getElementById("gantt-chart-container");
-    chartContainer.className = activeProj.isLocked ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
+    chartContainer.className = "gantt-right-panel locked-gantt"; 
     chartContainer.innerHTML = '<div id="gantt-chart"></div>';
     setTimeout(() => {
       if (document.getElementById("tab-projects").style.display === "none") return;
