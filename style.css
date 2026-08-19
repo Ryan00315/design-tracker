@@ -136,7 +136,7 @@ tr:hover td { background: #fafafa; }
 /* ========================================= */
 ::placeholder {
   color: #cbd5e1 !important; /* 淡灰藍色 */
-  opacity: 1 !important;     /* 覆蓋瀏覽器預設透明度 */
+  opacity: 0.6 !important;     /* 覆蓋瀏覽器預設透明度 */
 }
 :-ms-input-placeholder { color: #cbd5e1 !important; }
 ::-ms-input-placeholder { color: #cbd5e1 !important; }
@@ -157,7 +157,7 @@ tr:hover td { background: #fafafa; }
   
   /* 人員檢視選單在手機上的定位修正 */
   #nav-sub-wrapper { margin-bottom: 0; display: flex; align-items: center; }
-  .nav-sub-list { position: absolute; top: 60px; left: 16px; min-width: 200px; box-shadow: var(--shadow-card); z-index: 9999; }
+  .nav-sub-list { position: absolute; top: 60px; left: 16px; min-width: 200px; box-shadow: var(--shadow-card); z-index: 9999; background: var(--sidebar-bg) !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; }
   
   /* 頂部 Header 改為上下堆疊 */
   .top-header { flex-direction: column; align-items: flex-start; height: auto; padding: 16px; gap: 12px; }
