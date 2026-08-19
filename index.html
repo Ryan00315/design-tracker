@@ -12,7 +12,7 @@
   <div id="auth-section" class="login-screen">
     <div class="login-box">
       <div class="brand-logo-area"><div class="logo-icon">P</div><div><div class="brand-title">PMS 管理系統</div><div style="font-size: 12px; color: var(--text-muted);">專案進度追蹤平台</div></div></div>
-      <div class="form-group"><label class="form-label">登入帳號 (Email)</label><input type="email" id="login-email" class="input-control" placeholder="user@kingtexs.com.tw"></div>
+      <div class="form-group"><label class="form-label">登入帳號 (Email)</label><input type="email" id="login-email" class="input-control" placeholder="例：User@kingtexs.com.tw"></div>
       <div class="form-group"><label class="form-label">密碼</label><input type="password" id="login-password" class="input-control" placeholder="輸入密碼"></div>
       <button id="btn-login" class="btn-primary" style="margin-top: 8px;">登入系統</button>
     </div>
@@ -20,7 +20,7 @@
 
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v11.0</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v12.0 (全自動化週報)</span></div>
       <ul class="nav-list">
         
         <div id="nav-sub-wrapper" style="display:none; margin-bottom: 8px;">
@@ -62,9 +62,9 @@
         <div id="tab-projects" class="tab-pane">
           <div style="display: flex; justify-content: space-between; align-items: stretch; margin-bottom: 24px; gap: 20px;">
             <div class="kpi-row" style="margin: 0;">
-              <div class="kpi-card active" id="filter-ongoing" onclick="setProjectFilter('ongoing')"><div class="kpi-title">未完成</div><div class="kpi-number" id="stat-ongoing">0</div></div>
-              <div class="kpi-card" id="filter-completed" onclick="setProjectFilter('completed')"><div class="kpi-title">已完成</div><div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div></div>
-              <div class="kpi-card" id="filter-delayed" onclick="setProjectFilter('delayed')"><div class="kpi-title">延遲 (Delay) </div><div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div></div>
+              <div class="kpi-card active" id="filter-ongoing" onclick="setProjectFilter('ongoing')"><div class="kpi-title">未完成專案</div><div class="kpi-number" id="stat-ongoing">0</div></div>
+              <div class="kpi-card" id="filter-completed" onclick="setProjectFilter('completed')"><div class="kpi-title">已完成專案</div><div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div></div>
+              <div class="kpi-card" id="filter-delayed" onclick="setProjectFilter('delayed')"><div class="kpi-title">延遲 (Delay) 專案</div><div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div></div>
             </div>
             <div style="display: flex; align-items: center;" id="btn-create-wrapper">
               <button id="btn-toggle-create" class="btn-primary" style="height: 100%; padding: 0 24px; font-size: 15px;">➕ 新增專案規劃</button>
@@ -152,17 +152,16 @@
                 </table>
               </div>
             </div>
-            
           </div>
           <div id="empty-state" style="text-align: center; padding: 40px; color: var(--text-muted); display: none;">此分類下目前沒有專案。</div>
         </div>
 
-        <!-- 分頁 2：事件紀錄 (🚀 極致壓縮寬度排版) -->
+        <!-- 分頁 2：事件紀錄 -->
         <div id="tab-adhoc" class="tab-pane" style="display:none;">
           <div class="section-panel" id="adhoc-form-panel">
             <div class="panel-head">登記臨時事件</div>
             <div class="form-row">
-              <div class="form-group" style="flex:1.5;"><label class="form-label">事件名稱</label><input type="text" id="adhoc-title" class="input-control" placeholder="緊急樣品修改"></div>
+              <div class="form-group" style="flex:1.5;"><label class="form-label">事項名稱</label><input type="text" id="adhoc-title" class="input-control" placeholder="緊急樣品修改"></div>
               <div class="form-group" style="flex:1;"><label class="form-label">預計開始日期</label><input type="date" id="adhoc-start" class="input-control" onchange="checkWorkingDay(this)"></div>
               <div class="form-group" style="flex:2;"><label class="form-label">原因說明</label><input type="text" id="adhoc-reason" class="input-control" placeholder="客戶尺寸變更"></div>
             </div>
@@ -175,7 +174,7 @@
                 <thead>
                   <tr>
                     <th style="white-space: nowrap; width: 1%;">事項</th>
-                    <th>原因說明</th> <!-- 🚀 唯一不設限寬度，會自動填滿所有剩餘空間 -->
+                    <th>原因說明</th> 
                     <th style="white-space: nowrap; width: 1%;">開始日期</th>
                     <th style="white-space: nowrap; width: 1%;">實際完成時間</th>
                     <th style="white-space: nowrap; width: 1%;">狀態</th>
@@ -188,16 +187,31 @@
           </div>
         </div>
 
-        <!-- 分頁 3：週報填寫 -->
+        <!-- 分頁 3：週報填寫 (🚀 日期自動鎖定與請假選項) -->
         <div id="tab-weekly" class="tab-pane" style="display:none;">
           <div class="section-panel" id="weekly-form-panel">
             <div class="panel-head">填寫本週工作週報</div>
-            <div class="form-row" style="margin-bottom: 16px;">
-              <div class="form-group" style="width: 250px;">
-                <label class="form-label">週報日期</label>
-                <input type="date" id="rep-date" class="input-control">
+            
+            <div class="form-row" style="margin-bottom: 16px; align-items: flex-end;">
+              <div class="form-group" style="width: 250px; flex: none !important; margin-bottom: 0;">
+                <label class="form-label">週報日期 (自動鎖定今日)</label>
+                <!-- 🚀 鎖定為唯讀狀態，並套用反灰背景 -->
+                <input type="date" id="rep-date" class="input-control" readonly style="background: #f1f5f9; color: #64748b; cursor: not-allowed; border-color: #e2e8f0;">
+              </div>
+              
+              <div id="leave-options-container" style="display: none; align-items: center; gap: 12px; margin-bottom: 4px;">
+                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+                  <input type="radio" name="leave_type" value="leave">
+                  <span style="font-size:13px; font-weight:600; color:var(--danger);">請假</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+                  <input type="radio" name="leave_type" value="other">
+                  <span style="font-size:13px; font-weight:600; color:var(--warning);">其他</span>
+                </label>
+                <input type="text" id="leave-other-reason" class="input-control" placeholder="請填寫理由 (必填)" style="display:none; width: 180px; padding: 6px 10px; height: 32px; font-size: 13px;">
               </div>
             </div>
+
             <div id="weekly-items-container"></div>
             <button class="action-btn" onclick="addWeeklyRow()" style="margin-bottom: 24px; border-style: dashed;">+ 新增進度項目</button>
             <div style="border-top: 1px solid var(--border); padding-top: 20px;">
@@ -213,8 +227,8 @@
                   <tr>
                     <th style="width: 60px;">項次</th>
                     <th>名字</th>
-                    <th>週報日期</th>
-                    <th>送出時間</th>
+                    <!-- 🚀 移除週報日期，改為填寫時間 -->
+                    <th>填寫時間 (星期)</th>
                     <th>主管</th>
                     <th>最高主管</th>
                     <th>操作</th>
@@ -258,7 +272,6 @@
           </div>
         </div>
 
-        <!-- 分頁 5：個人帳號設定 -->
         <div id="tab-profile" class="tab-pane" style="display:none;">
           <div class="section-panel" style="max-width: 600px;">
             <div class="panel-head">變更登入密碼</div>
@@ -272,7 +285,6 @@
     </div>
   </div>
 
-  <!-- 人員編輯 Modal -->
   <div id="edit-user-modal" class="modal-overlay">
     <div class="modal-box">
       <div class="modal-header"><span>編輯人員組織資訊</span><button class="btn-close" onclick="closeEditModal()">×</button></div>
@@ -288,7 +300,6 @@
     </div>
   </div>
 
-  <!-- 週報瀏覽與簽核 Modal -->
   <div id="weekly-detail-modal" class="modal-overlay">
     <div class="modal-box" style="max-width: 850px; width: 95%;">
       <div class="modal-header"><span>週報詳細內容</span><button class="btn-close" onclick="closeWeeklyModal()">×</button></div>
