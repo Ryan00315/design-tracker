@@ -12,7 +12,7 @@
   <div id="auth-section" class="login-screen">
     <div class="login-box">
       <div class="brand-logo-area"><div class="logo-icon">P</div><div><div class="brand-title">PMS 管理系統</div><div style="font-size: 12px; color: var(--text-muted);">專案進度追蹤平台</div></div></div>
-      <div class="form-group"><label class="form-label">登入帳號 (Email)</label><input type="email" id="login-email" class="input-control" placeholder="例：User@kingtexs.com.tw"></div>
+      <div class="form-group"><label class="form-label">登入帳號 (Email)</label><input type="email" id="login-email" class="input-control" placeholder="例：User@kingtesx.com.tw"></div>
       <div class="form-group"><label class="form-label">密碼</label><input type="password" id="login-password" class="input-control" placeholder="輸入密碼"></div>
       <button id="btn-login" class="btn-primary" style="margin-top: 8px;">登入系統</button>
     </div>
@@ -51,7 +51,7 @@
             <div class="avatar" id="user-avatar">R</div>
             <div><div id="user-display-name" style="font-size: 13px; font-weight: 600;">Ryan</div><span id="user-role-badge" class="role-badge">ADMIN</span></div>
           </div>
-          <button class="btn-icon" onclick="switchNav('tab-profile', '個人帳號設定', null)" title="個人帳號設定"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+          <button class="btn-icon" onclick="switchNav('tab-profile', '個人帳號設定', null)" title="個人帳號設定"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
           <button id="btn-logout" class="btn-logout">登出</button>
         </div>
       </header>
@@ -165,7 +165,7 @@
               <div class="form-group" style="flex:1;"><label class="form-label">預計開始日期</label><input type="date" id="adhoc-start" class="input-control" onchange="checkWorkingDay(this)"></div>
               <div class="form-group" style="flex:2;"><label class="form-label">原因說明</label><input type="text" id="adhoc-reason" class="input-control" placeholder="客戶尺寸變更"></div>
             </div>
-            <button id="btn-add-adhoc" class="btn-primary" style="width: 160px; margin-top: 6px;">登記插單事件</button>
+            <button id="btn-add-adhoc" class="btn-primary" style="width: 160px; margin-top: 6px;">登記臨時事件</button>
           </div>
           <div class="section-panel">
             <div class="panel-head">事件紀錄清單</div>
@@ -187,7 +187,7 @@
           </div>
         </div>
 
-        <!-- 分頁 3：週報填寫 (🚀 日期自動鎖定與請假選項) -->
+        <!-- 分頁 3：週報填寫 -->
         <div id="tab-weekly" class="tab-pane" style="display:none;">
           <div class="section-panel" id="weekly-form-panel">
             <div class="panel-head">填寫本週工作週報</div>
@@ -195,8 +195,7 @@
             <div class="form-row" style="margin-bottom: 16px; align-items: flex-end;">
               <div class="form-group" style="width: 250px; flex: none !important; margin-bottom: 0;">
                 <label class="form-label">週報日期 (自動鎖定今日)</label>
-                <!-- 🚀 鎖定為唯讀狀態，並套用反灰背景 -->
-                <input type="date" id="rep-date" class="input-control" readonly style="background: #f1f5f9; color: #64748b; cursor: not-allowed; border-color: #e2e8f0;">
+                <input type="text" id="rep-date" class="input-control" readonly style="background: #f1f5f9; color: #64748b; cursor: not-allowed; border-color: #e2e8f0;">
               </div>
               
               <div id="leave-options-container" style="display: none; align-items: center; gap: 12px; margin-bottom: 4px;">
@@ -227,8 +226,7 @@
                   <tr>
                     <th style="width: 60px;">項次</th>
                     <th>名字</th>
-                    <!-- 🚀 移除週報日期，改為填寫時間 -->
-                    <th>填寫時間 (星期)</th>
+                    <th>填寫時間</th>
                     <th>主管</th>
                     <th>最高主管</th>
                     <th>操作</th>
@@ -308,6 +306,21 @@
         <button id="btn-supervisor-note" class="action-btn" style="display:none; color:var(--success); border-color:var(--success);" onclick="markWeeklyNoted('supervisor')">✔️ 主管已閱</button>
         <button id="btn-topmanager-note" class="action-btn" style="display:none; color:var(--success); border-color:var(--success);" onclick="markWeeklyNoted('top_manager')">✔️ 最高主管已閱</button>
         <button class="btn-primary" onclick="closeWeeklyModal()" style="max-width: 100px;">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🚀 新增：延遲與結案備註專用彈出視窗 -->
+  <div id="delay-reason-modal" class="modal-overlay">
+    <div class="modal-box" style="max-width: 400px;">
+      <div class="modal-header"><span id="delay-reason-title">⚠️ 填寫 Delay 原因</span><button class="btn-close" onclick="closeDelayModal()">×</button></div>
+      <div class="form-group">
+        <label class="form-label" id="delay-reason-label">此任務已超出預計完成日，請填寫 Delay 原因 (必填)：</label>
+        <textarea id="delay-reason-input" class="input-control" rows="3" placeholder="請輸入原因..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="action-btn" onclick="closeDelayModal()">取消</button>
+        <button class="btn-primary" onclick="submitDelayReason()">確認送出</button>
       </div>
     </div>
   </div>
