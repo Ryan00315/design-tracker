@@ -401,7 +401,7 @@ function renderProjects() {
     
     // 協作專案文字標示
     if (hasCollab) {
-      btn.innerHTML = `<span style="color:var(--primary); font-weight:700;">👥 ${p.title}</span>`;
+      btn.innerHTML = `<span style="color:var(--primary); font-weight:700;"> ${p.title}</span>`;
     } else {
       btn.innerText = p.title;
     }
