@@ -5,7 +5,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 import { 
   getFirestore, doc, getDoc, setDoc, deleteDoc, collection, addDoc, updateDoc, 
-  query, onSnapshot, serverTimestamp 
+  query, where, onSnapshot, serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -32,7 +32,7 @@ let viewingUserId = null;
 let allProjectsData = [];
 let allAdHocData = [];
 let allWeeklyData = [];
-let allCalendarTodos = []; // 🚀 全局行事曆待辦事項
+let myCalendarTodos = [];
 
 let currentFilter = 'ongoing'; 
 let selectedProjectId = 'SUMMARY'; 
@@ -41,10 +41,9 @@ let summaryGanttInstance = null;
 let currentWeeklyReportId = null;
 let isEditMode = false;
 
-// 🚀 行事曆核心變數
 let calCurrentYear = new Date().getFullYear();
-let calCurrentMonth = new Date().getMonth(); // 0 ~ 11
-let activeCalDateStr = null; // YYYY-MM-DD
+let calCurrentMonth = new Date().getMonth();
+let activeCalDateStr = null;
 let showCompletedTodos = true;
 
 const taiwanHolidays = [
@@ -242,7 +241,7 @@ onAuthStateChanged(auth, async (user) => {
     loadProjects(); 
     loadAdHocEvents(); 
     loadWeeklyReports();
-    loadCalendarTodos(); // 🚀 監聽待辦事項
+    loadMyCalendarTodos(user.uid);
   } else {
     document.getElementById("auth-section").style.display = "flex"; 
     document.getElementById("app-section").style.display = "none";
@@ -288,7 +287,6 @@ window.switchViewingUser = (uid, name) => {
   renderProjects(); 
   renderAdHocEvents(); 
   renderWeeklyReports();
-  renderCalendar(); // 🚀 切換檢視對象時同步重繪行事曆
 
   const wrapper = document.getElementById('nav-sub-wrapper');
   const list = document.getElementById('nav-sub-list');
@@ -387,7 +385,7 @@ function loadProjects() {
     snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
     renderProjects(); 
     refreshAllWeeklyProjSelects();
-  });
+  }); 
 }
 
 function getAdHocDateStr(evt) {
@@ -673,6 +671,7 @@ function renderProjects() {
         historyHtml = `<div style="max-height: 160px; overflow-y: auto;">` + 
           `<table style="width:100%; table-layout:fixed; border-collapse:collapse; margin:0; background:transparent;"><colgroup><col style="width:50%;"><col style="width:50%;"></colgroup><tbody>` +
           sortedHistory.map((h, i) => {
+            let note = h.type === 'create' ? '<span style="color:var(--text-muted)">(建立)</span>' : (h.type === 'complete' ? '<span style="color:var(--success)">(結案)</span>' : '');
             let remarkHtml = '';
             if (h.type === 'complete' && h.delayReason) remarkHtml = `<span class="pill pill-danger" style="white-space:normal; word-wrap:break-word;">Delay: ${h.delayReason}</span>`;
             else if (h.remark) remarkHtml = `<span style="color: var(--text-muted); white-space:normal; word-wrap:break-word;">${h.remark}</span>`;
@@ -993,7 +992,6 @@ window.deleteAdHoc = async (id) => {
   if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); 
 };
 
-// === 週報系統 ===
 window.initWeeklyDateAndLeave = () => {
   const dateInput = document.getElementById("rep-date");
   const container = document.getElementById("leave-options-container");
@@ -1276,16 +1274,19 @@ window.markWeeklyNoted = async (type) => {
 };
 
 // ==========================================
-// 🚀 行事曆核心邏輯
+// 🚀 行事曆核心邏輯 (僅本人可見、新增與刪除)
 // ==========================================
-function loadCalendarTodos() {
-  onSnapshot(query(collection(db, "calendar_todos")), (snapshot) => {
-    allCalendarTodos = [];
+function loadMyCalendarTodos(myUid) {
+  const q = query(collection(db, "calendar_todos"), where("ownerId", "==", myUid));
+  onSnapshot(q, (snapshot) => {
+    myCalendarTodos = [];
     snapshot.forEach(docSnap => {
-      allCalendarTodos.push({ id: docSnap.id, ...docSnap.data() });
+      myCalendarTodos.push({ id: docSnap.id, ...docSnap.data() });
     });
     renderCalendar();
     if (activeCalDateStr) renderCalTodosModal(activeCalDateStr);
+  }, (err) => {
+    console.error("載入行事曆失敗:", err);
   });
 }
 
@@ -1338,40 +1339,33 @@ function renderCalendar() {
   if (!grid) return;
   grid.innerHTML = "";
 
-  const firstDayIndex = new Date(calCurrentYear, calCurrentMonth, 1).getDay(); // 0(日)~6(六)
+  const firstDayIndex = new Date(calCurrentYear, calCurrentMonth, 1).getDay();
   const lastDate = new Date(calCurrentYear, calCurrentMonth + 1, 0).getDate();
   const prevMonthLastDate = new Date(calCurrentYear, calCurrentMonth, 0).getDate();
 
   const today = new Date();
   const todayStr = formatDateSafe(today);
 
-  // 篩選當前使用者或正在檢視用戶的待辦
-  const targetUid = viewingUserId || auth.currentUser?.uid;
-  const userTodos = allCalendarTodos.filter(t => t.ownerId === targetUid);
-
-  // 1. 填補上個月的尾巴
   for (let i = firstDayIndex - 1; i >= 0; i--) {
     const dNum = prevMonthLastDate - i;
     const prevM = calCurrentMonth === 0 ? 12 : calCurrentMonth;
     const prevY = calCurrentMonth === 0 ? calCurrentYear - 1 : calCurrentYear;
     const dStr = `${prevY}-${String(prevM).padStart(2, '0')}-${String(dNum).padStart(2, '0')}`;
-    grid.appendChild(createCalCellNode(dNum, dStr, true, todayStr, userTodos));
+    grid.appendChild(createCalCellNode(dNum, dStr, true, todayStr, myCalendarTodos));
   }
 
-  // 2. 當月所有日期
   for (let d = 1; d <= lastDate; d++) {
     const dStr = `${calCurrentYear}-${String(calCurrentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    grid.appendChild(createCalCellNode(d, dStr, false, todayStr, userTodos));
+    grid.appendChild(createCalCellNode(d, dStr, false, todayStr, myCalendarTodos));
   }
 
-  // 3. 填補下個月開頭至 7 的倍數
   const totalCells = firstDayIndex + lastDate;
   const remaining = (7 - (totalCells % 7)) % 7;
   for (let n = 1; n <= remaining; n++) {
     const nextM = calCurrentMonth === 11 ? 1 : calCurrentMonth + 2;
     const nextY = calCurrentMonth === 11 ? calCurrentYear + 1 : calCurrentYear;
     const dStr = `${nextY}-${String(nextM).padStart(2, '0')}-${String(n).padStart(2, '0')}`;
-    grid.appendChild(createCalCellNode(n, dStr, true, todayStr, userTodos));
+    grid.appendChild(createCalCellNode(n, dStr, true, todayStr, myCalendarTodos));
   }
 }
 
@@ -1379,17 +1373,15 @@ function createCalCellNode(dayNum, dateStr, isOtherMonth, todayStr, userTodos) {
   const cell = document.createElement("div");
   cell.className = `cal-cell ${isOtherMonth ? 'other-month' : ''} ${dateStr === todayStr ? 'today' : ''}`;
 
-  const monthDayStr = dateStr.substring(5); // MM-DD
+  const monthDayStr = dateStr.substring(5);
   const dayOfWeek = new Date(dateStr).getDay();
   const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
   const isHoliday = taiwanHolidays.includes(monthDayStr);
 
   if (isHoliday || isWeekend) cell.classList.add("holiday");
 
-  // 渲染日期數字
   let html = `<div class="cal-date-num">${dayNum}</div>`;
 
-  // 渲染當日待辦小標籤預覽 (最多 3 則)
   const dayTodos = userTodos.filter(t => t.date === dateStr);
   if (dayTodos.length > 0) {
     html += `<div class="cal-todo-preview-list">`;
@@ -1438,14 +1430,16 @@ window.submitCalendarTodo = async () => {
   if (!text) return alert("請填寫待辦事項內容！");
   if (!activeCalDateStr) return;
 
-  const targetUid = viewingUserId || auth.currentUser.uid;
+  const myUid = auth.currentUser?.uid;
+  if (!myUid) return alert("尚未登入帳號！");
+
   try {
     await addDoc(collection(db, "calendar_todos"), {
       date: activeCalDateStr,
       title: text,
       color: color,
       isCompleted: false,
-      ownerId: targetUid,
+      ownerId: myUid,
       createdAt: serverTimestamp()
     });
     document.getElementById("cal-new-todo-text").value = "";
@@ -1456,8 +1450,8 @@ window.submitCalendarTodo = async () => {
 };
 
 function renderCalTodosModal(dateStr) {
-  const targetUid = viewingUserId || auth.currentUser.uid;
-  const dayTodos = allCalendarTodos.filter(t => t.date === dateStr && t.ownerId === targetUid);
+  const myUid = auth.currentUser?.uid;
+  const dayTodos = myCalendarTodos.filter(t => t.date === dateStr && t.ownerId === myUid);
 
   const uncompletedList = document.getElementById("cal-uncompleted-list");
   const completedList = document.getElementById("cal-completed-list");
@@ -1472,7 +1466,6 @@ function renderCalTodosModal(dateStr) {
   document.getElementById("cal-uncompleted-count").innerText = uncompleted.length;
   document.getElementById("cal-completed-count").innerText = completed.length;
 
-  // 渲染未完成
   if (uncompleted.length === 0) {
     uncompletedList.innerHTML = `<div style="font-size:12px; color:var(--text-muted); padding:8px 0;">尚無未完成事項</div>`;
   } else {
@@ -1490,7 +1483,6 @@ function renderCalTodosModal(dateStr) {
     });
   }
 
-  // 渲染已完成
   if (completed.length === 0) {
     completedList.innerHTML = `<div style="font-size:12px; color:var(--text-muted); padding:8px 0;">尚無已完成事項</div>`;
   } else {
