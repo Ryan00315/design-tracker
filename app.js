@@ -23,7 +23,9 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const roleNames = { admin: "系統管理員", top_manager: "高級主管", manager: "主管", assistant_manager: "副主管", staff: "人員" };
-let currentUserData = { role: "staff", name: "", canEdit: false };
+const departmentList = ["總經理室", "企劃部", "業務部", "設計部", "品檢部", "採購部", "廠部"];
+
+let currentUserData = { role: "staff", name: "", dept: "設計部", canEdit: false };
 let allUsersList = [];
 
 let viewingUserId = null; 
@@ -37,7 +39,6 @@ let summaryGanttInstance = null;
 let currentWeeklyReportId = null;
 let isEditMode = false;
 
-// 全局台灣假日定義
 const taiwanHolidays = [
   '01-01', '01-02', '02-16', '02-17', '02-18', '02-19', '02-20', 
   '02-28', '04-03', '04-04', '04-05', '04-06', '05-01', '06-19', '09-25', '10-10'
@@ -82,14 +83,32 @@ document.getElementById('btn-toggle-create').addEventListener('click', () => {
   const isHidden = form.style.display === 'none';
   form.style.display = isHidden ? 'block' : 'none';
 
-  if (isHidden && selectedProjectId && selectedProjectId !== 'SUMMARY') {
-    const activeProj = allProjectsData.find(p => p.id === selectedProjectId);
-    if (activeProj && activeProj.ownerId === viewingUserId) {
-      document.getElementById("proj-name").value = activeProj.title;
-      document.getElementById("proj-color").value = activeProj.color || "bar-primary";
+  if (isHidden) {
+    renderCollabCheckboxes([]);
+    if (selectedProjectId && selectedProjectId !== 'SUMMARY') {
+      const activeProj = allProjectsData.find(p => p.id === selectedProjectId);
+      if (activeProj && activeProj.ownerId === viewingUserId) {
+        document.getElementById("proj-name").value = activeProj.title;
+        document.getElementById("proj-color").value = activeProj.color || "bar-primary";
+        renderCollabCheckboxes(activeProj.collaborators || []);
+      }
     }
   }
 });
+
+function renderCollabCheckboxes(selectedDepts = []) {
+  const container = document.getElementById("collab-departments-checkboxes");
+  if (!container) return;
+  container.innerHTML = "";
+  departmentList.forEach(dept => {
+    const isChecked = selectedDepts.includes(dept) ? "checked" : "";
+    container.innerHTML += `
+      <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+        <input type="checkbox" name="collab_dept" value="${dept}" ${isChecked}> <span>${dept}</span>
+      </label>
+    `;
+  });
+}
 
 window.toggleSubMenu = () => {
   const wrapper = document.getElementById('nav-sub-wrapper');
@@ -112,10 +131,6 @@ function getWorkingDays(startDate, endDate) {
     curDate.setDate(curDate.getDate() + 1);
   }
   return count;
-}
-
-function formatDateSafe(dateObj) { 
-  const y = dateObj.getFullYear(); const m = String(dateObj.getMonth() + 1).padStart(2, '0'); const d = String(dateObj.getDate()).padStart(2, '0'); return `${y}-${m}-${d}`; 
 }
 
 function patchGanttVisuals(ganttInst, containerSelector) {
@@ -158,10 +173,10 @@ onAuthStateChanged(auth, async (user) => {
       const userDoc = await getDoc(doc(db, "users", user.uid));
       if (userDoc.exists()) currentUserData = userDoc.data();
       else {
-        currentUserData = { name: user.email.split('@')[0], role: "admin", canEdit: false };
+        currentUserData = { name: user.email.split('@')[0], dept: "設計部", role: "admin", canEdit: false };
         await setDoc(doc(db, "users", user.uid), currentUserData, { merge: true });
       }
-    } catch (e) { currentUserData = { name: user.email.split('@')[0], role: "admin", canEdit: false }; }
+    } catch (e) { currentUserData = { name: user.email.split('@')[0], dept: "設計部", role: "admin", canEdit: false }; }
 
     document.getElementById("user-display-name").innerText = currentUserData.name || user.email.split('@')[0];
     document.getElementById("user-avatar").innerText = (currentUserData.name || user.email).charAt(0).toUpperCase();
@@ -173,7 +188,6 @@ onAuthStateChanged(auth, async (user) => {
       document.getElementById("nav-org-manage").style.display = "none"; document.getElementById("nav-divider-org").style.display = "none";
     }
 
-    // 🚀 修復：將此處的排版控制還原為 'block'，讓電腦版恢復原始樣貌
     if (currentUserData.role !== 'staff') { 
       document.getElementById('nav-sub-wrapper').style.display = 'block'; 
       loadSidebarSubordinates(); 
@@ -256,6 +270,7 @@ window.setProjectFilter = (status) => {
   document.getElementById('filter-ongoing').classList.toggle('active', status === 'ongoing');
   document.getElementById('filter-completed').classList.toggle('active', status === 'completed');
   document.getElementById('filter-delayed').classList.toggle('active', status === 'delayed');
+  document.getElementById('filter-collab').classList.toggle('active', status === 'collab');
   selectedProjectId = 'SUMMARY'; renderProjects();
 };
 
@@ -306,12 +321,24 @@ function getAdHocDateStr(evt) {
 }
 
 function renderProjects() {
+  const isViewingSelf = (viewingUserId === auth.currentUser.uid);
+  
+  // 篩選專案：如果看自己，顯示自己擁有的專案；如果看別人，顯示該別人的專案
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
-  if (viewingUserId === auth.currentUser.uid) updateProjectDatalist(userProjects);
+  // 協作專案判斷：如果看自己，找出所有自己所屬部門被列在 collaborators 裡面的專案
+  const myDept = currentUserData.dept || "設計部";
+  const collabProjects = allProjectsData.filter(p => {
+    if (p.ownerId === auth.currentUser.uid) return false; // 自己的已在上面
+    const collabs = p.collaborators || [];
+    return collabs.includes(myDept);
+  });
 
-  let countOngoing = 0, countCompleted = 0, countDelayed = 0;
+  if (isViewingSelf) updateProjectDatalist(userProjects);
+
+  // 計算 KPI 數字
+  let countOngoing = 0, countCompleted = 0, countDelayed = 0, countCollab = collabProjects.length;
   userProjects.forEach(p => {
     if (!p.tasks || p.tasks.length === 0) return;
     const isAllDone = p.tasks.every(t => t.isCompleted);
@@ -319,25 +346,28 @@ function renderProjects() {
     if (isAllDone) countCompleted++; else countOngoing++;
     if (hasDelay) countDelayed++;
   });
-  document.getElementById('stat-ongoing').innerText = countOngoing; document.getElementById('stat-completed').innerText = countCompleted; document.getElementById('stat-delay').innerText = countDelayed;
+  
+  document.getElementById('stat-ongoing').innerText = countOngoing; 
+  document.getElementById('stat-completed').innerText = countCompleted; 
+  document.getElementById('stat-delay').innerText = countDelayed;
+  document.getElementById('stat-collab').innerText = countCollab;
 
-  const filteredProjects = userProjects.filter(p => {
-    if (!p.tasks || p.tasks.length === 0) return false;
-    const isAllDone = p.tasks.every(t => t.isCompleted);
-    const hasDelay = p.tasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
-    if (currentFilter === 'completed') return isAllDone;
-    if (currentFilter === 'delayed') return hasDelay;
-    return !isAllDone;
-  });
-
-  const filteredAdHocs = userAdHocs.filter(e => {
-    if (currentFilter === 'completed') return e.isCompleted;
-    if (currentFilter === 'delayed') return false; 
-    return !e.isCompleted;
-  });
+  let activeList = [];
+  if (currentFilter === 'collab') {
+    activeList = collabProjects;
+  } else {
+    activeList = userProjects.filter(p => {
+      if (!p.tasks || p.tasks.length === 0) return false;
+      const isAllDone = p.tasks.every(t => t.isCompleted);
+      const hasDelay = p.tasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
+      if (currentFilter === 'completed') return isAllDone;
+      if (currentFilter === 'delayed') return hasDelay;
+      return !isAllDone;
+    });
+  }
 
   if (selectedProjectId !== 'SUMMARY') {
-    if (!filteredProjects.find(p => p.id === selectedProjectId)) selectedProjectId = 'SUMMARY';
+    if (!activeList.find(p => p.id === selectedProjectId)) selectedProjectId = 'SUMMARY';
   }
 
   const tabsContainer = document.getElementById("project-tabs-container");
@@ -346,7 +376,7 @@ function renderProjects() {
   const emptyState = document.getElementById("empty-state");
   tabsContainer.innerHTML = "";
 
-  if (filteredProjects.length === 0 && filteredAdHocs.length === 0) { 
+  if (activeList.length === 0 && (currentFilter === 'collab' || userAdHocs.length === 0)) { 
     detailView.style.display = "none"; summaryView.style.display = "none"; emptyState.style.display = "block"; return; 
   }
 
@@ -354,13 +384,18 @@ function renderProjects() {
   summaryBtn.className = `proj-tab ${selectedProjectId === 'SUMMARY' ? 'active' : ''}`;
   summaryBtn.innerText = "⭐ 所有專案總覽"; summaryBtn.onclick = () => selectProject('SUMMARY'); tabsContainer.appendChild(summaryBtn);
 
-  filteredProjects.forEach(p => {
+  activeList.forEach(p => {
     const btn = document.createElement("button"); btn.className = `proj-tab ${p.id === selectedProjectId ? 'active' : ''}`;
-    btn.innerText = p.title; btn.onclick = () => selectProject(p.id); tabsContainer.appendChild(btn);
+    const isCollabProj = (p.ownerId !== auth.currentUser.uid);
+    btn.innerText = (isCollabProj ? '👥 ' : '') + p.title; 
+    btn.onclick = () => selectProject(p.id); tabsContainer.appendChild(btn);
   });
 
   emptyState.style.display = "none"; 
 
+  // ==========================
+  // 總覽
+  // ==========================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; summaryView.style.display = "block";
     const sumLeftBody = document.getElementById("gantt-summary-left-body");
@@ -370,27 +405,30 @@ function renderProjects() {
     let combinedItems = [];
     let sIdx = 0;
 
-    userProjects.forEach(p => {
+    activeList.forEach(p => {
       if(!p.tasks || p.tasks.length === 0) return;
       let minStart = "9999-12-31"; let maxEnd = "0000-01-01"; let totalProg = 0;
       p.tasks.forEach(t => { if (t.start < minStart) minStart = t.start; if (t.end > maxEnd) maxEnd = t.end; totalProg += (t.progress || 0); });
       let avgProg = Math.round(totalProg / p.tasks.length);
       let isDone = p.tasks.every(t => t.isCompleted);
+      const isCollabProj = (p.ownerId !== auth.currentUser.uid);
       
       combinedItems.push({
         type: 'project', sortDate: new Date(minStart).getTime(), idStr: `s_p_${sIdx++}`,
-        title: p.title, start: minStart, end: maxEnd, progress: avgProg, isDone: isDone, custom_class: isDone ? 'bar-success' : (p.color || 'bar-primary')
+        title: p.title, start: minStart, end: maxEnd, progress: avgProg, isDone: isDone, isCollab: isCollabProj, custom_class: isDone ? 'bar-success' : (p.color || 'bar-primary')
       });
     });
 
-    userAdHocs.forEach(evt => {
-      let eDate = getAdHocDateStr(evt);
-      let prog = evt.isCompleted ? 100 : 0;
-      combinedItems.push({
-        type: 'adhoc', sortDate: new Date(eDate).getTime(), idStr: `s_e_${sIdx++}`,
-        title: evt.title, start: eDate, end: eDate, progress: prog, isDone: evt.isCompleted, custom_class: 'bar-danger'
+    if (currentFilter !== 'collab') {
+      userAdHocs.forEach(evt => {
+        let eDate = getAdHocDateStr(evt);
+        let prog = evt.isCompleted ? 100 : 0;
+        combinedItems.push({
+          type: 'adhoc', sortDate: new Date(eDate).getTime(), idStr: `s_e_${sIdx++}`,
+          title: evt.title, start: eDate, end: eDate, progress: prog, isDone: evt.isCompleted, isCollab: false, custom_class: 'bar-danger'
+        });
       });
-    });
+    }
 
     combinedItems.sort((a, b) => a.sortDate - b.sortDate);
 
@@ -399,7 +437,8 @@ function renderProjects() {
       const row = document.createElement("div"); row.className = "gantt-row";
       if (item.type === 'project') {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : item.progress+'%';
-        row.innerHTML = `<div class="col-name" style="flex:2.5" title="${item.title}">📁 ${item.title}</div><div class="col-date" style="flex:1.5; text-align:left;">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-prog" style="flex:1; justify-content:center;">${statusText}</div>`;
+        let iconHtml = item.isCollab ? `<span style="color:#3b82f6; margin-right:4px;" title="協作專案">👥</span>` : `📁 `;
+        row.innerHTML = `<div class="col-name" style="flex:2.5" title="${item.title}">${iconHtml}${item.title}</div><div class="col-date" style="flex:1.5; text-align:left;">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-prog" style="flex:1; justify-content:center;">${statusText}</div>`;
       } else {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
         row.innerHTML = `<div class="col-name" style="flex:2.5; color:var(--danger);" title="${item.title}">🚨 ${item.title}</div><div class="col-date" style="flex:1.5; text-align:left;">${item.start.substring(5)}</div><div class="col-prog" style="flex:1; justify-content:center;">${statusText}</div>`;
@@ -418,22 +457,28 @@ function renderProjects() {
     return;
   }
 
+  // ==========================
+  // 個別專案
+  // ==========================
   summaryView.style.display = "none"; detailView.style.display = "block";
-  const activeProj = filteredProjects.find(p => p.id === selectedProjectId);
+  const activeProj = activeList.find(p => p.id === selectedProjectId);
   if(!activeProj) return; 
 
-  const isOwner = activeProj.ownerId === auth.currentUser.uid;
-  let canEditUI = isEditMode && (isOwner || currentUserData.role === 'admin' || currentUserData.canEdit);
+  const isProjOwner = (activeProj.ownerId === auth.currentUser.uid);
+  let canEditUI = isEditMode && (isProjOwner || currentUserData.role === 'admin' || currentUserData.canEdit);
   
   let editProjBtn = canEditUI ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯專案</button>` : '';
-  document.getElementById("current-gantt-title").innerHTML = `專案：${activeProj.title} ${editProjBtn}`;
+  let collabBadge = (activeProj.collaborators && activeProj.collaborators.length > 0) ? `<span class="pill" style="background:#eff6ff; color:#3b82f6; margin-left:8px;">👥 協作：${activeProj.collaborators.join(', ')}</span>` : '';
+  
+  document.getElementById("current-gantt-title").innerHTML = `專案：${activeProj.title} ${collabBadge} ${editProjBtn}`;
   
   const lockBtn = document.getElementById("btn-toggle-lock");
   const delProjBtn = document.getElementById("btn-delete-project");
   
-  if (currentUserData.role === "admin" || currentUserData.role === "top_manager") {
+  if (currentUserData.role === "admin" || currentUserData.role === "top_manager" || isProjOwner) {
     lockBtn.style.display = "inline-block"; lockBtn.innerText = activeProj.isLocked ? "🔒 鎖定中 (解鎖供編輯)" : "🔓 已開放 (點擊鎖定)";
-    lockBtn.className = activeProj.isLocked ? "action-btn" : "action-btn danger"; delProjBtn.style.display = "inline-block";
+    lockBtn.className = activeProj.isLocked ? "action-btn" : "action-btn danger"; 
+    delProjBtn.style.display = isProjOwner ? "inline-block" : "none";
   } else { lockBtn.style.display = "none"; delProjBtn.style.display = "none"; }
 
   const leftBody = document.getElementById("gantt-left-body");
@@ -447,7 +492,7 @@ function renderProjects() {
     let projColorClass = activeProj.color || 'bar-primary';
     ganttTasks.push({ id: `t_${index}`, name: task.name, start: task.start, end: task.end, progress: currentProgress, custom_class: task.isCompleted ? 'bar-success' : projColorClass });
 
-    const isInputLocked = task.isCompleted || !isOwner; 
+    const isInputLocked = task.isCompleted || (!isProjOwner && currentUserData.role !== 'admin'); 
     let editHtml = canEditUI ? `<button class="action-btn" onclick="openGeneralEdit('task', '${activeProj.id}', ${index})" style="margin-left:6px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️</button>` : '';
 
     const row = document.createElement("div"); row.className = "gantt-row";
@@ -501,7 +546,6 @@ function renderProjects() {
 }
 
 let resolveDelayPrompt = null;
-
 window.openCustomPrompt = (title, label, isRequired) => {
   return new Promise((resolve) => {
     document.getElementById('delay-reason-title').innerText = title;
@@ -571,6 +615,11 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   const title = document.getElementById("proj-name").value.trim();
   const color = document.getElementById("proj-color").value;
   if (!title) return alert("請填寫主專案名稱！");
+
+  // 抓取複選的協作部門
+  const collabCheckboxes = document.querySelectorAll('input[name="collab_dept"]:checked');
+  const collaborators = Array.from(collabCheckboxes).map(cb => cb.value);
+
   const taskRows = document.querySelectorAll('.task-row'); const tasks = [];
   const todayStr = new Date().toISOString().split('T')[0]; const ts = new Date().toLocaleString('zh-TW', { hour12: false });
 
@@ -590,12 +639,12 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
 
   if (existingProj) {
     const updatedTasks = [...existingProj.tasks, ...tasks];
-    await updateDoc(doc(db, "projects", existingProj.id), { tasks: updatedTasks, color: color });
+    await updateDoc(doc(db, "projects", existingProj.id), { tasks: updatedTasks, color: color, collaborators });
     newProjId = existingProj.id;
-    alert(`已成功將新細項附加至現有專案「${title}」底下！`);
+    alert(`已成功更新專案「${title}」與協作設定！`);
   } else {
     const docRef = await addDoc(collection(db, "projects"), { 
-      title, color, ownerId: viewingUserId, ownerName: ownerNameToSave, 
+      title, color, collaborators, ownerId: viewingUserId, ownerName: ownerNameToSave, 
       isLocked: true, tasks: tasks, createdAt: serverTimestamp() 
     });
     newProjId = docRef.id;
@@ -608,9 +657,11 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   document.getElementById('filter-ongoing').classList.add('active');
   document.getElementById('filter-completed').classList.remove('active');
   document.getElementById('filter-delayed').classList.remove('active');
+  document.getElementById('filter-collab').classList.remove('active');
   selectedProjectId = newProjId;
   renderProjects(); 
 });
+
 window.toggleCurrentProjectLock = async () => { await updateDoc(doc(db, "projects", selectedProjectId), { isLocked: !allProjectsData.find(p => p.id === selectedProjectId).isLocked }); };
 window.deleteCurrentProject = async () => { if (!confirm("⚠️ 確定要永久刪除此專案嗎？")) return; await deleteDoc(doc(db, "projects", selectedProjectId)); alert("專案已刪除！"); selectedProjectId = 'SUMMARY'; renderProjects(); };
 
@@ -664,7 +715,7 @@ window.completeAdHoc = async (id) => { await updateDoc(doc(db, "ad_hoc_events", 
 window.deleteAdHoc = async (id) => { if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); };
 
 
-// === 🚀 週報系統 ===
+// === 週報系統 ===
 window.initWeeklyDateAndLeave = () => {
   const dateInput = document.getElementById("rep-date");
   const container = document.getElementById("leave-options-container");
@@ -773,7 +824,6 @@ function renderWeeklyReports() {
   });
 }
 
-// 🚀 核心修復：防止資料庫 undefined 報錯，並加入 Try-Catch 錯誤捕捉
 document.getElementById("btn-add-weekly").addEventListener("click", async () => {
   try {
     const today = new Date();
@@ -814,14 +864,11 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
 
     if (hasIncomplete) return alert("您有填寫到一半的進度項目，請確認填寫完整 (包含專案、細項與說明)，或將該列的文字清空/刪除！");
     
-    // 🚀 如果沒有請假，且進度是空的，強制阻擋
     if (items.length === 0 && !leaveType) {
         return alert("請完整填寫至少一項任務進度說明！");
     }
 
     const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, supervisorId: null };
-    
-    // 🚀 致命 Bug 修復點：確保 supervisorId 絕對不能是 undefined，否則 Firebase 會直接崩潰卡死！
     const supervisorId = targetUser.supervisorId || null; 
     const currentOwnerId = viewingUserId || auth.currentUser.uid;
 
@@ -860,6 +907,7 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
     alert("發生系統錯誤導致無法送出：" + err.message);
   }
 });
+
 window.deleteWeekly = async (id) => { if(confirm("確定永久刪除此週報嗎？")) await deleteDoc(doc(db, "weekly_reports", id)); };
 
 window.openWeeklyModal = (id) => {
@@ -910,7 +958,7 @@ window.markWeeklyNoted = async (type) => {
 };
 
 // ==========================================
-// 🚀 全局編輯模式 Modal 邏輯
+// 全局編輯模式 Modal 邏輯
 // ==========================================
 let currentEditData = {};
 
@@ -920,8 +968,18 @@ window.openGeneralEdit = (type, id, extra) => {
 
   if (type === 'project') {
     const p = allProjectsData.find(x => x.id === id);
-    document.getElementById("general-edit-title").innerText = "編輯主專案名稱";
-    form.innerHTML = `<div class="form-group"><label class="form-label">專案名稱</label><input type="text" id="edit-val-proj-title" class="input-control" value="${p.title}"></div>`;
+    document.getElementById("general-edit-title").innerText = "編輯主專案名稱與協作部門";
+    let collabHtml = `<div class="form-group" style="margin-top:12px;"><label class="form-label">協作部門 (可複選)</label><div style="display:flex; flex-direction:column; gap:6px;">`;
+    departmentList.forEach(dept => {
+      const isChecked = (p.collaborators || []).includes(dept) ? 'checked' : '';
+      collabHtml += `<label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" name="edit_collab" value="${dept}" ${isChecked}> <span>${dept}</span></label>`;
+    });
+    collabHtml += `</div></div>`;
+
+    form.innerHTML = `
+      <div class="form-group"><label class="form-label">專案名稱</label><input type="text" id="edit-val-proj-title" class="input-control" value="${p.title}"></div>
+      ${collabHtml}
+    `;
   } else if (type === 'task') {
     const proj = allProjectsData.find(p => p.id === id); const task = proj.tasks[extra];
     document.getElementById("general-edit-title").innerText = "編輯專案細項";
@@ -965,7 +1023,10 @@ window.saveGeneralEdit = async () => {
   try {
     if (type === 'project') {
       const title = document.getElementById("edit-val-proj-title").value.trim();
-      if(title) await updateDoc(doc(db, "projects", id), { title });
+      const checkboxes = document.querySelectorAll('input[name="edit_collab"]:checked');
+      const collaborators = Array.from(checkboxes).map(cb => cb.value);
+
+      if(title) await updateDoc(doc(db, "projects", id), { title, collaborators });
       else return alert("專案名稱不可為空！");
     } else if (type === 'task') {
       const proj = allProjectsData.find(p => p.id === id); const tasks = [...proj.tasks];
@@ -994,7 +1055,7 @@ window.saveGeneralEdit = async () => {
 };
 
 // ==========================================
-// 🚀 組織管理與資料救援功能
+// 組織管理與部門設定
 // ==========================================
 window.toggleUserEditPermission = async (uid, checked) => {
   if (currentUserData.role !== 'admin') return alert('權限不足！');
@@ -1033,6 +1094,7 @@ function loadOrgUsers() {
       tr.innerHTML = `
         <td><strong>${u.name || '未命名'}</strong></td>
         <td>${u.email || '-'}</td>
+        <td><span class="pill" style="background:#f1f5f9; color:#334155;">${u.dept || '設計部'}</span></td>
         <td><span class="pill pill-role">${roleNames[u.role] || u.role}</span></td>
         <td>${supUser ? `${supUser.name}` : "-"}</td>
         <td>
@@ -1051,28 +1113,48 @@ function loadOrgUsers() {
     });
   });
 }
+
 document.getElementById("btn-create-user").addEventListener("click", async () => {
-  const name = document.getElementById("new-user-name").value.trim(); const email = document.getElementById("new-user-email").value.trim(); const pass = document.getElementById("new-user-pass").value.trim();
+  const name = document.getElementById("new-user-name").value.trim(); 
+  const email = document.getElementById("new-user-email").value.trim(); 
+  const pass = document.getElementById("new-user-pass").value.trim();
+  const dept = document.getElementById("new-user-dept").value;
+  const role = document.getElementById("new-user-role").value;
+  const supervisorId = document.getElementById("new-user-supervisor").value || null;
+
   if (!name || !email || pass.length < 6) return alert("資料填寫不全或密碼太短！");
   try {
     const secApp = initializeApp(firebaseConfig, "Secondary"); const secAuth = getAuth(secApp);
     const userCred = await createUserWithEmailAndPassword(secAuth, email, pass); await signOut(secAuth);
-    await setDoc(doc(db, "users", userCred.user.uid), { name, email, role: document.getElementById("new-user-role").value, supervisorId: document.getElementById("new-user-supervisor").value || null, createdAt: serverTimestamp() });
+    await setDoc(doc(db, "users", userCred.user.uid), { name, email, dept, role, supervisorId, createdAt: serverTimestamp() });
     alert(`人員 ${name} 建立成功！`);
   } catch (err) { alert("建立失敗: " + err.message); }
 });
+
 window.openEditModal = (uid) => {
   const u = allUsersList.find(x => x.uid === uid);
-  document.getElementById("edit-user-uid").value = u.uid; document.getElementById("edit-user-name").value = u.name || ''; document.getElementById("edit-user-role").value = u.role || 'staff';
+  document.getElementById("edit-user-uid").value = u.uid; 
+  document.getElementById("edit-user-name").value = u.name || ''; 
+  document.getElementById("edit-user-dept").value = u.dept || '設計部';
+  document.getElementById("edit-user-role").value = u.role || 'staff';
+  
   const supSelect = document.getElementById("edit-user-supervisor"); supSelect.innerHTML = '<option value="">-- 無 --</option>';
   allUsersList.forEach(user => { if (user.uid !== uid && ["top_manager", "manager", "assistant_manager"].includes(user.role)) supSelect.innerHTML += `<option value="${user.uid}">${user.name}</option>`; });
   supSelect.value = u.supervisorId || ''; document.getElementById("edit-user-modal").classList.add("active");
 };
+
 window.closeEditModal = () => document.getElementById("edit-user-modal").classList.remove("active");
+
 window.submitEditUser = async () => {
   try {
-    await updateDoc(doc(db, "users", document.getElementById("edit-user-uid").value), { name: document.getElementById("edit-user-name").value.trim(), role: document.getElementById("edit-user-role").value, supervisorId: document.getElementById("edit-user-supervisor").value || null });
+    await updateDoc(doc(db, "users", document.getElementById("edit-user-uid").value), { 
+      name: document.getElementById("edit-user-name").value.trim(), 
+      dept: document.getElementById("edit-user-dept").value,
+      role: document.getElementById("edit-user-role").value, 
+      supervisorId: document.getElementById("edit-user-supervisor").value || null 
+    });
     closeEditModal(); alert("人員資訊更新成功！");
   } catch (err) { alert("更新失敗: " + err.message); }
 };
+
 window.deleteUserDoc = async (uid, name) => { if (confirm(`確定刪除 ${name} 嗎？`)) { try { await deleteDoc(doc(db, "users", uid)); alert(`已移除 ${name}！`); } catch (err) { alert("刪除失敗: " + err.message); } } };
