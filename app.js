@@ -172,8 +172,13 @@ onAuthStateChanged(auth, async (user) => {
       document.getElementById("nav-org-manage").style.display = "none"; document.getElementById("nav-divider-org").style.display = "none";
     }
 
-    if (currentUserData.role !== 'staff') { document.getElementById('nav-sub-wrapper').style.display = 'flex'; loadSidebarSubordinates(); } 
-    else document.getElementById('nav-sub-wrapper').style.display = 'none';
+    // 🚀 核心修復：電腦版恢復 block 排版，不被 flex 擠壓！
+    if (currentUserData.role !== 'staff') { 
+      document.getElementById('nav-sub-wrapper').style.display = 'block'; 
+      loadSidebarSubordinates(); 
+    } else {
+      document.getElementById('nav-sub-wrapper').style.display = 'none';
+    }
 
     checkEditModeVisibility();
     initWeeklyDateAndLeave(); 
@@ -500,7 +505,6 @@ function renderProjects() {
   }
 }
 
-// 🚀 自訂專屬彈出視窗處理 Delay 與備註
 let resolveDelayPrompt = null;
 
 window.openCustomPrompt = (title, label, isRequired) => {
@@ -665,7 +669,7 @@ window.completeAdHoc = async (id) => { await updateDoc(doc(db, "ad_hoc_events", 
 window.deleteAdHoc = async (id) => { if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); };
 
 
-// === 🚀 週報系統 ===
+// === 🚀 週報系統 (加入請假寬容邏輯) ===
 window.initWeeklyDateAndLeave = () => {
   const dateInput = document.getElementById("rep-date");
   const container = document.getElementById("leave-options-container");
@@ -774,7 +778,7 @@ function renderWeeklyReports() {
   });
 }
 
-// 🚀 核心修復：允許完全不填寫專案進度，只要有請假紀錄即可送出
+// 🚀 核心修復：允許因為請假而不填專案進度，防呆邏輯完美化
 document.getElementById("btn-add-weekly").addEventListener("click", async () => {
   const today = new Date();
   const days = ['日', '一', '二', '三', '四', '五', '六'];
@@ -812,9 +816,9 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
       }
   });
 
-  if (hasIncomplete) return alert("您有填寫到一半的進度項目，請確認填寫完整 (包含專案、細項與說明)，或將該列刪除！");
+  if (hasIncomplete) return alert("您有填寫到一半的進度項目，請確認填寫完整 (包含專案、細項與說明)，或將該列的文字清空/刪除！");
   
-  // 🚀 防呆邏輯完美修正：如果有請假，允許 items.length === 0；否則一定要填寫進度！
+  // 🚀 如果沒有請假，且進度也是空的，擋下來！
   if (items.length === 0 && !leaveType) {
       return alert("請完整填寫至少一項任務進度說明！");
   }
@@ -844,7 +848,7 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
   
   initWeeklyDateAndLeave(); 
   document.getElementById("weekly-items-container").innerHTML = ""; addWeeklyRow(); 
-  alert("週報已送出！已結案(100%)的項目將不再出現在下次選單中。");
+  alert("週報已成功送出！");
 });
 window.deleteWeekly = async (id) => { if(confirm("確定永久刪除此週報嗎？")) await deleteDoc(doc(db, "weekly_reports", id)); };
 
@@ -873,8 +877,7 @@ window.openWeeklyModal = (id) => {
   } else if (report.content) {
     contentHtml += `<div style="padding: 12px; font-size:13px; white-space:pre-wrap; background: #f8fafc; border-radius: 8px; line-height:1.6;">${report.content}</div>`;
   } else {
-    // 🚀 針對只有請假沒有工作內容的週報，顯示友善提示
-    contentHtml += `<div style="padding: 16px; font-size:13px; color:var(--text-muted); background: #f8fafc; border-radius: 8px; text-align:center;">(本日無專案進度項目)</div>`;
+    contentHtml += `<div style="padding: 16px; font-size:13px; color:var(--text-muted); background: #f8fafc; border-radius: 8px; text-align:center;">(本日無填寫專案進度)</div>`;
   }
   
   document.getElementById('weekly-detail-content').innerHTML = contentHtml;
@@ -938,7 +941,7 @@ window.openGeneralEdit = (type, id, extra) => {
         </div>`;
       });
     } else {
-      html += `<div class="form-group"><label class="form-label">進度說明</label><textarea id="edit-val-content" class="input-control" rows="4">${weekly.content || ''}</textarea></div>`;
+      html += `<div style="color:var(--text-muted); text-align:center; padding: 20px;">無可編輯的專案進度項目</div>`;
     }
     form.innerHTML = html;
   }
@@ -973,7 +976,7 @@ window.saveGeneralEdit = async () => {
         const newItems = [...weekly.items];
         newItems.forEach((item, idx) => { item.content = document.getElementById(`edit-val-item-${idx}`).value.trim(); });
         updateData.items = newItems;
-      } else updateData.content = document.getElementById("edit-val-content").value.trim();
+      }
       await updateDoc(doc(db, "weekly_reports", id), updateData);
     }
     closeGeneralEditModal(); alert("✅ 資料修改成功！");
