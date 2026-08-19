@@ -76,6 +76,19 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 }
 .proj-tab:hover { border-color: var(--primary); color: var(--primary); }
 .proj-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+/* 一般專案選中時：藍底白字 */
+.proj-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* 🚀 協作專案選中時：改為橘底白字，確保字體清晰可見 */
+.proj-tab.is-collab { border-color: #fdba74; }
+.proj-tab.is-collab.active { 
+  background: #ea580c !important; 
+  border-color: #ea580c !important; 
+  color: #fff !important; 
+}
+.proj-tab.is-collab.active span {
+  color: #fff !important; 
+}
 .proj-tab span {
   display: inline-block;
   max-width: 100%;
