@@ -12,7 +12,7 @@
   <div id="auth-section" class="login-screen">
     <div class="login-box">
       <div class="brand-logo-area"><div class="logo-icon">P</div><div><div class="brand-title">PMS 管理系統</div><div style="font-size: 12px; color: var(--text-muted);">專案進度追蹤平台</div></div></div>
-      <div class="form-group"><label class="form-label">登入帳號 (Email)</label><input type="email" id="login-email" class="input-control" placeholder="例：Ryan@design.com"></div>
+      <div class="form-group"><label class="form-label">登入帳號 (Email)</label><input type="email" id="login-email" class="input-control" placeholder="user@kingtexs.com.tw"></div>
       <div class="form-group"><label class="form-label">密碼</label><input type="password" id="login-password" class="input-control" placeholder="輸入密碼"></div>
       <button id="btn-login" class="btn-primary" style="margin-top: 8px;">登入系統</button>
     </div>
@@ -62,9 +62,9 @@
         <div id="tab-projects" class="tab-pane">
           <div style="display: flex; justify-content: space-between; align-items: stretch; margin-bottom: 24px; gap: 20px;">
             <div class="kpi-row" style="margin: 0;">
-              <div class="kpi-card active" id="filter-ongoing" onclick="setProjectFilter('ongoing')"><div class="kpi-title">未完成專案</div><div class="kpi-number" id="stat-ongoing">0</div></div>
-              <div class="kpi-card" id="filter-completed" onclick="setProjectFilter('completed')"><div class="kpi-title">已完成專案</div><div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div></div>
-              <div class="kpi-card" id="filter-delayed" onclick="setProjectFilter('delayed')"><div class="kpi-title">延遲 (Delay) 專案</div><div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div></div>
+              <div class="kpi-card active" id="filter-ongoing" onclick="setProjectFilter('ongoing')"><div class="kpi-title">未完成</div><div class="kpi-number" id="stat-ongoing">0</div></div>
+              <div class="kpi-card" id="filter-completed" onclick="setProjectFilter('completed')"><div class="kpi-title">已完成</div><div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div></div>
+              <div class="kpi-card" id="filter-delayed" onclick="setProjectFilter('delayed')"><div class="kpi-title">延遲 (Delay) </div><div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div></div>
             </div>
             <div style="display: flex; align-items: center;" id="btn-create-wrapper">
               <button id="btn-toggle-create" class="btn-primary" style="height: 100%; padding: 0 24px; font-size: 15px;">➕ 新增專案規劃</button>
@@ -160,9 +160,9 @@
         <!-- 分頁 2：事件紀錄 (🚀 極致壓縮寬度排版) -->
         <div id="tab-adhoc" class="tab-pane" style="display:none;">
           <div class="section-panel" id="adhoc-form-panel">
-            <div class="panel-head">登記臨時插單事件</div>
+            <div class="panel-head">登記臨時事件</div>
             <div class="form-row">
-              <div class="form-group" style="flex:1.5;"><label class="form-label">事項名稱</label><input type="text" id="adhoc-title" class="input-control" placeholder="緊急樣品修改"></div>
+              <div class="form-group" style="flex:1.5;"><label class="form-label">事件名稱</label><input type="text" id="adhoc-title" class="input-control" placeholder="緊急樣品修改"></div>
               <div class="form-group" style="flex:1;"><label class="form-label">預計開始日期</label><input type="date" id="adhoc-start" class="input-control" onchange="checkWorkingDay(this)"></div>
               <div class="form-group" style="flex:2;"><label class="form-label">原因說明</label><input type="text" id="adhoc-reason" class="input-control" placeholder="客戶尺寸變更"></div>
             </div>
