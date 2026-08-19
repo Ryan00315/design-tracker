@@ -133,6 +133,10 @@ function getWorkingDays(startDate, endDate) {
   return count;
 }
 
+function formatDateSafe(dateObj) { 
+  const y = dateObj.getFullYear(); const m = String(dateObj.getMonth() + 1).padStart(2, '0'); const d = String(dateObj.getDate()).padStart(2, '0'); return `${y}-${m}-${d}`; 
+}
+
 function patchGanttVisuals(ganttInst, containerSelector) {
   if (!ganttInst || !ganttInst.dates || ganttInst.dates.length === 0) return;
   const svg = document.querySelector(`${containerSelector} .gantt`);
@@ -322,22 +326,28 @@ function getAdHocDateStr(evt) {
 
 function renderProjects() {
   const isViewingSelf = (viewingUserId === auth.currentUser.uid);
+  const myDept = currentUserData.dept || "設計部";
   
-  // 篩選專案：如果看自己，顯示自己擁有的專案；如果看別人，顯示該別人的專案
+  // 取得目標用戶的專案
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
-  // 協作專案判斷：如果看自己，找出所有自己所屬部門被列在 collaborators 裡面的專案
-  const myDept = currentUserData.dept || "設計部";
+  // 協作專案：包含所有設定了協作部門且匹配目前使用者部門，或者當前檢視人員參與協作的專案
   const collabProjects = allProjectsData.filter(p => {
-    if (p.ownerId === auth.currentUser.uid) return false; // 自己的已在上面
     const collabs = p.collaborators || [];
-    return collabs.includes(myDept);
+    if (collabs.length === 0) return false;
+    if (isViewingSelf) {
+      return collabs.includes(myDept) || p.ownerId === auth.currentUser.uid;
+    } else {
+      const targetUser = allUsersList.find(u => u.uid === viewingUserId);
+      const targetDept = targetUser?.dept || "設計部";
+      return collabs.includes(targetDept) || p.ownerId === viewingUserId;
+    }
   });
 
   if (isViewingSelf) updateProjectDatalist(userProjects);
 
-  // 計算 KPI 數字
+  // 計算 KPI 數據
   let countOngoing = 0, countCompleted = 0, countDelayed = 0, countCollab = collabProjects.length;
   userProjects.forEach(p => {
     if (!p.tasks || p.tasks.length === 0) return;
@@ -385,10 +395,19 @@ function renderProjects() {
   summaryBtn.innerText = "⭐ 所有專案總覽"; summaryBtn.onclick = () => selectProject('SUMMARY'); tabsContainer.appendChild(summaryBtn);
 
   activeList.forEach(p => {
-    const btn = document.createElement("button"); btn.className = `proj-tab ${p.id === selectedProjectId ? 'active' : ''}`;
-    const isCollabProj = (p.ownerId !== auth.currentUser.uid);
-    btn.innerText = (isCollabProj ? '👥 ' : '') + p.title; 
-    btn.onclick = () => selectProject(p.id); tabsContainer.appendChild(btn);
+    const hasCollab = (p.collaborators && p.collaborators.length > 0);
+    const btn = document.createElement("button"); 
+    btn.className = `proj-tab ${p.id === selectedProjectId ? 'active' : ''}`;
+    
+    // 協作專案文字標示
+    if (hasCollab) {
+      btn.innerHTML = `<span style="color:var(--primary); font-weight:700;">👥 ${p.title}</span>`;
+    } else {
+      btn.innerText = p.title;
+    }
+    
+    btn.onclick = () => selectProject(p.id); 
+    tabsContainer.appendChild(btn);
   });
 
   emptyState.style.display = "none"; 
@@ -411,11 +430,11 @@ function renderProjects() {
       p.tasks.forEach(t => { if (t.start < minStart) minStart = t.start; if (t.end > maxEnd) maxEnd = t.end; totalProg += (t.progress || 0); });
       let avgProg = Math.round(totalProg / p.tasks.length);
       let isDone = p.tasks.every(t => t.isCompleted);
-      const isCollabProj = (p.ownerId !== auth.currentUser.uid);
+      const hasCollab = (p.collaborators && p.collaborators.length > 0);
       
       combinedItems.push({
         type: 'project', sortDate: new Date(minStart).getTime(), idStr: `s_p_${sIdx++}`,
-        title: p.title, start: minStart, end: maxEnd, progress: avgProg, isDone: isDone, isCollab: isCollabProj, custom_class: isDone ? 'bar-success' : (p.color || 'bar-primary')
+        title: p.title, start: minStart, end: maxEnd, progress: avgProg, isDone: isDone, isCollab: hasCollab, custom_class: isDone ? 'bar-success' : (p.color || 'bar-primary')
       });
     });
 
@@ -437,8 +456,13 @@ function renderProjects() {
       const row = document.createElement("div"); row.className = "gantt-row";
       if (item.type === 'project') {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : item.progress+'%';
-        let iconHtml = item.isCollab ? `<span style="color:#3b82f6; margin-right:4px;" title="協作專案">👥</span>` : `📁 `;
-        row.innerHTML = `<div class="col-name" style="flex:2.5" title="${item.title}">${iconHtml}${item.title}</div><div class="col-date" style="flex:1.5; text-align:left;">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-prog" style="flex:1; justify-content:center;">${statusText}</div>`;
+        
+        // 🚀 協作專案圖示改為淡藍色👥，字體套用藍色
+        let titleDisplay = item.isCollab 
+          ? `<span style="color:var(--primary); font-weight:700;"><span style="color:var(--primary); margin-right:4px;">👥</span>${item.title}</span>`
+          : `📁 ${item.title}`;
+          
+        row.innerHTML = `<div class="col-name" style="flex:2.5" title="${item.title}">${titleDisplay}</div><div class="col-date" style="flex:1.5; text-align:left;">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-prog" style="flex:1; justify-content:center;">${statusText}</div>`;
       } else {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
         row.innerHTML = `<div class="col-name" style="flex:2.5; color:var(--danger);" title="${item.title}">🚨 ${item.title}</div><div class="col-date" style="flex:1.5; text-align:left;">${item.start.substring(5)}</div><div class="col-prog" style="flex:1; justify-content:center;">${statusText}</div>`;
@@ -465,12 +489,17 @@ function renderProjects() {
   if(!activeProj) return; 
 
   const isProjOwner = (activeProj.ownerId === auth.currentUser.uid);
+  const hasCollab = (activeProj.collaborators && activeProj.collaborators.length > 0);
   let canEditUI = isEditMode && (isProjOwner || currentUserData.role === 'admin' || currentUserData.canEdit);
   
   let editProjBtn = canEditUI ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯專案</button>` : '';
-  let collabBadge = (activeProj.collaborators && activeProj.collaborators.length > 0) ? `<span class="pill" style="background:#eff6ff; color:#3b82f6; margin-left:8px;">👥 協作：${activeProj.collaborators.join(', ')}</span>` : '';
+  let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:var(--primary); margin-left:8px;">👥 協作：${activeProj.collaborators.join(', ')}</span>` : '';
   
-  document.getElementById("current-gantt-title").innerHTML = `專案：${activeProj.title} ${collabBadge} ${editProjBtn}`;
+  // 標題字體顏色切換
+  let titleColorStyle = hasCollab ? 'color: var(--primary); font-weight: 700;' : '';
+  let titlePrefixIcon = hasCollab ? '👥 ' : '';
+  
+  document.getElementById("current-gantt-title").innerHTML = `<span style="${titleColorStyle}">專案：${titlePrefixIcon}${activeProj.title}</span> ${collabBadge} ${editProjBtn}`;
   
   const lockBtn = document.getElementById("btn-toggle-lock");
   const delProjBtn = document.getElementById("btn-delete-project");
@@ -616,7 +645,6 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   const color = document.getElementById("proj-color").value;
   if (!title) return alert("請填寫主專案名稱！");
 
-  // 抓取複選的協作部門
   const collabCheckboxes = document.querySelectorAll('input[name="collab_dept"]:checked');
   const collaborators = Array.from(collabCheckboxes).map(cb => cb.value);
 
@@ -713,7 +741,6 @@ document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
 });
 window.completeAdHoc = async (id) => { await updateDoc(doc(db, "ad_hoc_events", id), { isCompleted: true, completedAt: new Date().toLocaleString() }); };
 window.deleteAdHoc = async (id) => { if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); };
-
 
 // === 週報系統 ===
 window.initWeeklyDateAndLeave = () => {
