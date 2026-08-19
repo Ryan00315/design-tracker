@@ -32,12 +32,20 @@ let viewingUserId = null;
 let allProjectsData = [];
 let allAdHocData = [];
 let allWeeklyData = [];
+let allCalendarTodos = []; // 🚀 全局行事曆待辦事項
+
 let currentFilter = 'ongoing'; 
 let selectedProjectId = 'SUMMARY'; 
 let ganttInstance = null;
 let summaryGanttInstance = null;
 let currentWeeklyReportId = null;
 let isEditMode = false;
+
+// 🚀 行事曆核心變數
+let calCurrentYear = new Date().getFullYear();
+let calCurrentMonth = new Date().getMonth(); // 0 ~ 11
+let activeCalDateStr = null; // YYYY-MM-DD
+let showCompletedTodos = true;
 
 const taiwanHolidays = [
   '01-01', '01-02', '02-16', '02-17', '02-18', '02-19', '02-20', 
@@ -53,6 +61,10 @@ window.switchNav = (tabId, title, elem) => {
   
   if (tabId === 'tab-projects') setTimeout(renderProjects, 100);
   if (tabId === 'tab-weekly') initWeeklyDateAndLeave(); 
+  if (tabId === 'tab-calendar') {
+    initCalendarSelectors();
+    renderCalendar();
+  }
 };
 
 document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => {
@@ -230,6 +242,7 @@ onAuthStateChanged(auth, async (user) => {
     loadProjects(); 
     loadAdHocEvents(); 
     loadWeeklyReports();
+    loadCalendarTodos(); // 🚀 監聽待辦事項
   } else {
     document.getElementById("auth-section").style.display = "flex"; 
     document.getElementById("app-section").style.display = "none";
@@ -275,6 +288,7 @@ window.switchViewingUser = (uid, name) => {
   renderProjects(); 
   renderAdHocEvents(); 
   renderWeeklyReports();
+  renderCalendar(); // 🚀 切換檢視對象時同步重繪行事曆
 
   const wrapper = document.getElementById('nav-sub-wrapper');
   const list = document.getElementById('nav-sub-list');
@@ -472,9 +486,7 @@ function renderProjects() {
 
   emptyState.style.display = "none"; 
 
-  // ==========================
   // 總覽視圖
-  // ==========================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; 
     summaryView.style.display = "block";
@@ -565,9 +577,7 @@ function renderProjects() {
     return;
   }
 
-  // ==========================
   // 個別專案視圖
-  // ==========================
   summaryView.style.display = "none"; 
   detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
@@ -613,7 +623,6 @@ function renderProjects() {
   leftBody.innerHTML = ""; 
   if(listBody) listBody.innerHTML = "";
 
-  // 🚀 核心排序：依細項開始日期 (start) 進行先後順序排序
   if (activeProj.tasks && activeProj.tasks.length > 0) {
     activeProj.tasks.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
   }
@@ -623,7 +632,6 @@ function renderProjects() {
     const currentProgress = task.progress || 0;
     const workDays = getWorkingDays(task.start, task.end);
     
-    // 🚀 核心判定：協作者新增的細項固定為粉紅色 (.bar-pink)
     const isCollabTask = task.assigneeId && (task.assigneeId !== activeProj.ownerId);
     let projColorClass = isCollabTask ? 'bar-pink' : (activeProj.color || 'bar-primary');
 
@@ -740,7 +748,6 @@ window.submitCollabTask = async () => {
   };
 
   const updatedTasks = [...proj.tasks, newTask];
-  // 🚀 追加後依時間重新排序
   updatedTasks.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
   await updateDoc(doc(db, "projects", proj.id), { tasks: updatedTasks });
@@ -874,7 +881,6 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
 
   if (existingProj) {
     const updatedTasks = [...existingProj.tasks, ...tasks];
-    // 🚀 原專案建立者追加時依時間重新排序
     updatedTasks.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
     await updateDoc(doc(db, "projects", existingProj.id), { tasks: updatedTasks, color: color, collaborators });
     newProjId = existingProj.id;
@@ -987,6 +993,7 @@ window.deleteAdHoc = async (id) => {
   if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); 
 };
 
+// === 週報系統 ===
 window.initWeeklyDateAndLeave = () => {
   const dateInput = document.getElementById("rep-date");
   const container = document.getElementById("leave-options-container");
@@ -1268,6 +1275,269 @@ window.markWeeklyNoted = async (type) => {
   alert('已成功標記為 Noted (已閱)！');
 };
 
+// ==========================================
+// 🚀 行事曆核心邏輯
+// ==========================================
+function loadCalendarTodos() {
+  onSnapshot(query(collection(db, "calendar_todos")), (snapshot) => {
+    allCalendarTodos = [];
+    snapshot.forEach(docSnap => {
+      allCalendarTodos.push({ id: docSnap.id, ...docSnap.data() });
+    });
+    renderCalendar();
+    if (activeCalDateStr) renderCalTodosModal(activeCalDateStr);
+  });
+}
+
+function initCalendarSelectors() {
+  const ySel = document.getElementById("cal-year-select");
+  const mSel = document.getElementById("cal-month-select");
+  if (!ySel || !mSel) return;
+
+  ySel.innerHTML = "";
+  const currentY = new Date().getFullYear();
+  for (let y = currentY - 5; y <= currentY + 5; y++) {
+    ySel.innerHTML += `<option value="${y}" ${y === calCurrentYear ? 'selected' : ''}>${y} 年</option>`;
+  }
+
+  mSel.innerHTML = "";
+  for (let m = 0; m < 12; m++) {
+    mSel.innerHTML += `<option value="${m}" ${m === calCurrentMonth ? 'selected' : ''}>${m + 1} 月</option>`;
+  }
+}
+
+window.onCalSelectChange = () => {
+  calCurrentYear = parseInt(document.getElementById("cal-year-select").value);
+  calCurrentMonth = parseInt(document.getElementById("cal-month-select").value);
+  renderCalendar();
+};
+
+window.changeCalMonth = (delta) => {
+  calCurrentMonth += delta;
+  if (calCurrentMonth > 11) {
+    calCurrentMonth = 0;
+    calCurrentYear++;
+  } else if (calCurrentMonth < 0) {
+    calCurrentMonth = 11;
+    calCurrentYear--;
+  }
+  initCalendarSelectors();
+  renderCalendar();
+};
+
+window.jumpCalToday = () => {
+  const today = new Date();
+  calCurrentYear = today.getFullYear();
+  calCurrentMonth = today.getMonth();
+  initCalendarSelectors();
+  renderCalendar();
+};
+
+function renderCalendar() {
+  const grid = document.getElementById("calendar-grid");
+  if (!grid) return;
+  grid.innerHTML = "";
+
+  const firstDayIndex = new Date(calCurrentYear, calCurrentMonth, 1).getDay(); // 0(日)~6(六)
+  const lastDate = new Date(calCurrentYear, calCurrentMonth + 1, 0).getDate();
+  const prevMonthLastDate = new Date(calCurrentYear, calCurrentMonth, 0).getDate();
+
+  const today = new Date();
+  const todayStr = formatDateSafe(today);
+
+  // 篩選當前使用者或正在檢視用戶的待辦
+  const targetUid = viewingUserId || auth.currentUser?.uid;
+  const userTodos = allCalendarTodos.filter(t => t.ownerId === targetUid);
+
+  // 1. 填補上個月的尾巴
+  for (let i = firstDayIndex - 1; i >= 0; i--) {
+    const dNum = prevMonthLastDate - i;
+    const prevM = calCurrentMonth === 0 ? 12 : calCurrentMonth;
+    const prevY = calCurrentMonth === 0 ? calCurrentYear - 1 : calCurrentYear;
+    const dStr = `${prevY}-${String(prevM).padStart(2, '0')}-${String(dNum).padStart(2, '0')}`;
+    grid.appendChild(createCalCellNode(dNum, dStr, true, todayStr, userTodos));
+  }
+
+  // 2. 當月所有日期
+  for (let d = 1; d <= lastDate; d++) {
+    const dStr = `${calCurrentYear}-${String(calCurrentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    grid.appendChild(createCalCellNode(d, dStr, false, todayStr, userTodos));
+  }
+
+  // 3. 填補下個月開頭至 7 的倍數
+  const totalCells = firstDayIndex + lastDate;
+  const remaining = (7 - (totalCells % 7)) % 7;
+  for (let n = 1; n <= remaining; n++) {
+    const nextM = calCurrentMonth === 11 ? 1 : calCurrentMonth + 2;
+    const nextY = calCurrentMonth === 11 ? calCurrentYear + 1 : calCurrentYear;
+    const dStr = `${nextY}-${String(nextM).padStart(2, '0')}-${String(n).padStart(2, '0')}`;
+    grid.appendChild(createCalCellNode(n, dStr, true, todayStr, userTodos));
+  }
+}
+
+function createCalCellNode(dayNum, dateStr, isOtherMonth, todayStr, userTodos) {
+  const cell = document.createElement("div");
+  cell.className = `cal-cell ${isOtherMonth ? 'other-month' : ''} ${dateStr === todayStr ? 'today' : ''}`;
+
+  const monthDayStr = dateStr.substring(5); // MM-DD
+  const dayOfWeek = new Date(dateStr).getDay();
+  const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+  const isHoliday = taiwanHolidays.includes(monthDayStr);
+
+  if (isHoliday || isWeekend) cell.classList.add("holiday");
+
+  // 渲染日期數字
+  let html = `<div class="cal-date-num">${dayNum}</div>`;
+
+  // 渲染當日待辦小標籤預覽 (最多 3 則)
+  const dayTodos = userTodos.filter(t => t.date === dateStr);
+  if (dayTodos.length > 0) {
+    html += `<div class="cal-todo-preview-list">`;
+    dayTodos.slice(0, 3).forEach(todo => {
+      const isDone = todo.isCompleted ? 'completed' : '';
+      html += `<div class="cal-todo-pill ${isDone}" style="color:${todo.color || '#0f172a'};">${todo.title}</div>`;
+    });
+    if (dayTodos.length > 3) {
+      html += `<div style="font-size:10px; color:var(--text-muted); text-align:right;">+${dayTodos.length - 3} 則...</div>`;
+    }
+    html += `</div>`;
+  }
+
+  cell.innerHTML = html;
+  cell.onclick = () => openCalDateModal(dateStr);
+  return cell;
+}
+
+window.openCalDateModal = (dateStr) => {
+  activeCalDateStr = dateStr;
+  const parts = dateStr.split('-');
+  document.getElementById("cal-modal-date-title").innerText = `${parts[0]}年${parseInt(parts[1])}月${parseInt(parts[2])}日`;
+  document.getElementById("cal-add-todo-box").style.display = "none";
+  renderCalTodosModal(dateStr);
+  document.getElementById("cal-todo-modal").classList.add("active");
+};
+
+window.closeCalTodoModal = () => {
+  document.getElementById("cal-todo-modal").classList.remove("active");
+  activeCalDateStr = null;
+};
+
+window.toggleAddTodoInput = () => {
+  const box = document.getElementById("cal-add-todo-box");
+  const isHidden = box.style.display === "none";
+  box.style.display = isHidden ? "block" : "none";
+  if (isHidden) {
+    document.getElementById("cal-new-todo-text").value = "";
+    document.getElementById("cal-new-todo-text").focus();
+  }
+};
+
+window.submitCalendarTodo = async () => {
+  const text = document.getElementById("cal-new-todo-text").value.trim();
+  const color = document.getElementById("cal-new-todo-color").value;
+  if (!text) return alert("請填寫待辦事項內容！");
+  if (!activeCalDateStr) return;
+
+  const targetUid = viewingUserId || auth.currentUser.uid;
+  try {
+    await addDoc(collection(db, "calendar_todos"), {
+      date: activeCalDateStr,
+      title: text,
+      color: color,
+      isCompleted: false,
+      ownerId: targetUid,
+      createdAt: serverTimestamp()
+    });
+    document.getElementById("cal-new-todo-text").value = "";
+    document.getElementById("cal-add-todo-box").style.display = "none";
+  } catch (err) {
+    alert("新增失敗: " + err.message);
+  }
+};
+
+function renderCalTodosModal(dateStr) {
+  const targetUid = viewingUserId || auth.currentUser.uid;
+  const dayTodos = allCalendarTodos.filter(t => t.date === dateStr && t.ownerId === targetUid);
+
+  const uncompletedList = document.getElementById("cal-uncompleted-list");
+  const completedList = document.getElementById("cal-completed-list");
+  if (!uncompletedList || !completedList) return;
+
+  uncompletedList.innerHTML = "";
+  completedList.innerHTML = "";
+
+  const uncompleted = dayTodos.filter(t => !t.isCompleted);
+  const completed = dayTodos.filter(t => t.isCompleted);
+
+  document.getElementById("cal-uncompleted-count").innerText = uncompleted.length;
+  document.getElementById("cal-completed-count").innerText = completed.length;
+
+  // 渲染未完成
+  if (uncompleted.length === 0) {
+    uncompletedList.innerHTML = `<div style="font-size:12px; color:var(--text-muted); padding:8px 0;">尚無未完成事項</div>`;
+  } else {
+    uncompleted.forEach(todo => {
+      const div = document.createElement("div");
+      div.className = "cal-todo-item";
+      div.innerHTML = `
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; flex:1;">
+          <input type="checkbox" onchange="toggleCalTodoStatus('${todo.id}', true)">
+          <span style="color:${todo.color || '#0f172a'}; font-weight:600;">${todo.title}</span>
+        </label>
+        <button class="btn-close" style="font-size:18px; color:var(--text-muted);" onclick="deleteCalendarTodo('${todo.id}')">×</button>
+      `;
+      uncompletedList.appendChild(div);
+    });
+  }
+
+  // 渲染已完成
+  if (completed.length === 0) {
+    completedList.innerHTML = `<div style="font-size:12px; color:var(--text-muted); padding:8px 0;">尚無已完成事項</div>`;
+  } else {
+    completed.forEach(todo => {
+      const div = document.createElement("div");
+      div.className = "cal-todo-item done";
+      div.innerHTML = `
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; flex:1;">
+          <input type="checkbox" checked onchange="toggleCalTodoStatus('${todo.id}', false)">
+          <span style="color:${todo.color || '#0f172a'};">${todo.title}</span>
+        </label>
+        <button class="btn-close" style="font-size:18px; color:var(--text-muted);" onclick="deleteCalendarTodo('${todo.id}')">×</button>
+      `;
+      completedList.appendChild(div);
+    });
+  }
+
+  completedList.style.display = showCompletedTodos ? "flex" : "none";
+}
+
+window.toggleCalTodoStatus = async (id, isDone) => {
+  try {
+    await updateDoc(doc(db, "calendar_todos", id), { isCompleted: isDone });
+  } catch (err) {
+    alert("更新狀態失敗: " + err.message);
+  }
+};
+
+window.deleteCalendarTodo = async (id) => {
+  if (confirm("確定刪除此待辦事項？")) {
+    try {
+      await deleteDoc(doc(db, "calendar_todos", id));
+    } catch (err) {
+      alert("刪除失敗: " + err.message);
+    }
+  }
+};
+
+window.toggleCompletedTodosView = () => {
+  showCompletedTodos = !showCompletedTodos;
+  document.getElementById("cal-completed-list").style.display = showCompletedTodos ? "flex" : "none";
+  document.getElementById("cal-toggle-completed-text").innerText = showCompletedTodos ? "隱藏 ▲" : "展開 ▼";
+};
+
+// ==========================================
+// 全局編輯模式 Modal 邏輯
+// ==========================================
 let currentEditData = {};
 
 window.openGeneralEdit = (type, id, extra) => {
@@ -1351,7 +1621,6 @@ window.saveGeneralEdit = async () => {
       tasks[extra].name = document.getElementById("edit-val-name").value.trim();
       tasks[extra].start = document.getElementById("edit-val-start").value;
       tasks[extra].end = document.getElementById("edit-val-end").value;
-      // 🚀 修改日期後重新排序
       tasks.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
       await updateDoc(doc(db, "projects", id), { tasks });
     } else if (type === 'adhoc') {
@@ -1524,8 +1793,7 @@ window.deleteUserDoc = async (uid, name) => {
     try { 
       await deleteDoc(doc(db, "users", uid)); 
       alert(`已移除 ${name}！`); 
-    } 
-    catch (err) { 
+    } catch (err) { 
       alert("刪除失敗: " + err.message); 
     } 
   } 
