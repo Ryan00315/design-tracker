@@ -136,14 +136,32 @@ tr:hover td { background: #fafafa; }
 ::-ms-input-placeholder { color: #e2e8f0 !important; }
 
 /* ========================================= */
+/* 🚀 手機轉屬類別：突破裁切的浮空選單       */
+/* ========================================= */
+.mobile-fixed-dropdown {
+  display: flex !important;
+  position: fixed !important;
+  top: 72px !important;
+  left: 16px !important;
+  min-width: 220px !important;
+  max-height: 60vh !important;
+  overflow-y: auto !important;
+  background-color: #0f172a !important;
+  border: 1px solid #475569 !important;
+  box-shadow: 0 15px 40px rgba(0,0,0,0.6) !important;
+  z-index: 999999 !important;
+  border-radius: var(--radius-md) !important;
+}
+
+/* ========================================= */
 /* 📱 RWD 響應式設計 (手機與平板排版自動最佳化) */
 /* ========================================= */
 @media (max-width: 850px) {
   .app-container { flex-direction: column; }
   
-  /* 🚀 恢復橫向滑動：強制不壓縮 (flex-shrink: 0) 與不換行 (flex-wrap: nowrap) */
+  /* 🌟 強制恢復左右橫向滑動 */
   .sidebar { 
-    width: 100%; height: 60px; 
+    width: 100%; height: 64px; 
     display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important;
     align-items: center; justify-content: flex-start;
     overflow-x: auto !important; overflow-y: hidden !important; 
@@ -152,34 +170,26 @@ tr:hover td { background: #fafafa; }
   }
   .sidebar-header { height: 100%; border-bottom: none; border-right: 1px solid rgba(255,255,255,0.06); padding: 0 16px 0 8px; flex-shrink: 0 !important; }
   
+  /* 🌟 取消擠壓，恢復按鈕正常大小 */
   .nav-list { 
     display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; 
     padding: 0 12px; margin: 0; 
     align-items: center; justify-content: flex-start;
-    flex: none !important; /* 🌟 關鍵修復：取消 flex: 1，防止內容被擠壓，強迫產生捲動條 */
-    width: max-content !important; 
-    gap: 8px; height: 100%;
+    flex: none !important; width: max-content !important; gap: 8px; height: 100%;
   }
-  .nav-item { padding: 8px 12px; white-space: nowrap !important; font-size: 13px; flex-shrink: 0 !important; }
+  
+  /* 🌟 強制按鈕大小與電腦版一致，絕不縮水 */
+  .nav-item { 
+    padding: 10px 14px !important; 
+    font-size: 14px !important; 
+    white-space: nowrap !important; 
+    flex-shrink: 0 !important; 
+  }
+  
   .nav-divider { display: none; }
-  
-  /* 🚀 人員選單 絕對浮空定位不受裁切限制 */
   #nav-sub-wrapper { margin-bottom: 0; display: flex; align-items: center; height: 100%; flex-shrink: 0 !important; }
-  .nav-sub-list { 
-    position: fixed !important; 
-    top: 60px !important; 
-    left: 12px !important; 
-    min-width: 220px !important; 
-    max-height: 60vh !important; 
-    overflow-y: auto !important; 
-    background-color: #0f172a !important; 
-    border: 1px solid #475569 !important; 
-    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5) !important; 
-    z-index: 999999 !important; 
-    border-radius: var(--radius-md) !important;
-  }
   
-  /* 頂部 Header 與其餘版面調整 */
+  /* 其他排版優化 */
   .top-header { flex-direction: column; align-items: flex-start; height: auto; padding: 16px; gap: 12px; z-index: 10; position: relative; }
   .header-right { width: 100%; justify-content: space-between; }
   .content-body { padding: 16px; position: relative; z-index: 1; }
