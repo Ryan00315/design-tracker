@@ -57,9 +57,32 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .kpi-number { font-size: 26px; font-weight: 700; color: var(--text-main); margin-top: 6px; }
 
 .project-tabs-wrapper { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
-.proj-tab { padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); transition: 0.2s; white-space: nowrap; }
+.proj-tab { 
+  padding: 8px 18px; 
+  border-radius: 20px; 
+  font-size: 13px; 
+  font-weight: 600; 
+  cursor: pointer; 
+  border: 1px solid var(--border); 
+  background: var(--surface); 
+  color: var(--text-muted); 
+  transition: 0.2s; 
+  white-space: nowrap; 
+  max-width: 180px;          /* 限制按鈕最大寬度 */
+  overflow: hidden;           /* 超出部分隱藏 */
+  text-overflow: ellipsis;    /* 超出字數自動顯示 ... */
+  display: inline-block; 
+  vertical-align: middle;
+}
 .proj-tab:hover { border-color: var(--primary); color: var(--primary); }
 .proj-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.proj-tab span {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
 
 .section-panel { background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 22px; margin-bottom: 24px; box-shadow: var(--shadow-sm); }
 .panel-head { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
