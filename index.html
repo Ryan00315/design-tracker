@@ -20,7 +20,7 @@
 
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v1.0</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v1</span></div>
       <ul class="nav-list">
         
         <div id="nav-sub-wrapper" style="display:none; margin-bottom: 8px;">
@@ -51,7 +51,7 @@
             <div class="avatar" id="user-avatar">R</div>
             <div><div id="user-display-name" style="font-size: 13px; font-weight: 600;">Ryan</div><span id="user-role-badge" class="role-badge">ADMIN</span></div>
           </div>
-          <button class="btn-icon" onclick="switchNav('tab-profile', '個人帳號設定', null)" title="個人帳號設定"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+          <button class="btn-icon" onclick="switchNav('tab-profile', '個人帳號設定', null)" title="個人帳號設定"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
           <button id="btn-logout" class="btn-logout">登出</button>
         </div>
       </header>
@@ -65,7 +65,6 @@
               <div class="kpi-card active" id="filter-ongoing" onclick="setProjectFilter('ongoing')"><div class="kpi-title">未完成</div><div class="kpi-number" id="stat-ongoing">0</div></div>
               <div class="kpi-card" id="filter-completed" onclick="setProjectFilter('completed')"><div class="kpi-title">完成</div><div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div></div>
               <div class="kpi-card" id="filter-delayed" onclick="setProjectFilter('delayed')"><div class="kpi-title">(Delay)</div><div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div></div>
-              <!-- 🚀 新增協作專案 KPI 分頁 -->
               <div class="kpi-card" id="filter-collab" onclick="setProjectFilter('collab')"><div class="kpi-title">協作專案</div><div class="kpi-number" id="stat-collab" style="color: var(--primary);">0</div></div>
             </div>
             <div style="display: flex; align-items: center;" id="btn-create-wrapper">
@@ -91,12 +90,9 @@
                   <option value="bar-teal">清新藍綠</option>
                 </select>
               </div>
-              <!-- 🚀 協作部門複選區 -->
               <div class="form-group" style="flex:1.5;">
                 <label class="form-label">協作部門 (可複選)</label>
-                <div id="collab-departments-checkboxes" style="max-height: 90px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; background: #fff; display: flex; flex-direction: column; gap: 4px; font-size: 13px;">
-                  <!-- 動態載入部門選項 -->
-                </div>
+                <div id="collab-departments-checkboxes" style="max-height: 90px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; background: #fff; display: flex; flex-direction: column; gap: 4px; font-size: 13px;"></div>
               </div>
             </div>
 
@@ -112,15 +108,15 @@
             <div class="section-panel" style="padding: 0; background: transparent; border: none; box-shadow: none;">
               <div class="panel-head" style="margin-bottom: 8px;"><span>⭐ 專案與事件總覽排程 (所有專案/事件皆顯示)</span></div>
               <div class="gantt-master-layout">
-                <div class="gantt-left-panel" style="width: 320px;">
+                <div class="gantt-left-panel-summary">
                   <div class="gantt-head">
-                    <div class="col-name" style="flex:2.5">主專案 / 事件名稱</div>
-                    <div class="col-date" style="flex:1.5; text-align:left;">起訖日期</div>
-                    <div class="col-prog" style="flex:1; justify-content:center;">總進度</div>
+                    <div class="col-sum-name">主專案 / 事件名稱</div>
+                    <div class="col-sum-date">起訖日期</div>
+                    <div class="col-sum-prog">總進度</div>
                   </div>
                   <div class="gantt-body" id="gantt-summary-left-body"></div>
                 </div>
-                <div class="gantt-right-panel locked-gantt" id="gantt-chart-summary-container">
+                <div class="gantt-right-panel-summary locked-gantt" id="gantt-chart-summary-container">
                   <div id="gantt-chart-summary"></div>
                 </div>
               </div>
@@ -131,14 +127,21 @@
             <div class="section-panel" style="padding: 0; background: transparent; border: none; box-shadow: none;">
               <div class="panel-head" style="margin-bottom: 8px;">
                 <span id="current-gantt-title">專案時程檢視</span>
-                <div>
-                  <button id="btn-toggle-lock" class="action-btn danger" style="display:none; margin-right: 6px;" onclick="toggleCurrentProjectLock()"></button>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <button id="btn-add-collab-task" class="action-btn" style="display:none; color:var(--primary); border-color:var(--primary); font-weight:600;" onclick="openAddCollabTaskModal()">➕ 新增協作細項</button>
+                  <button id="btn-toggle-lock" class="action-btn danger" style="display:none;" onclick="toggleCurrentProjectLock()"></button>
                   <button id="btn-delete-project" class="action-btn danger" style="display:none;" onclick="deleteCurrentProject()">刪除專案</button>
                 </div>
               </div>
               <div class="gantt-master-layout">
                 <div class="gantt-left-panel">
-                  <div class="gantt-head"><div class="col-name">細項名稱</div><div class="col-date">預計天數</div><div class="col-prog">進度</div><div class="col-act">確認</div></div>
+                  <div class="gantt-head">
+                    <div class="col-name">細項名稱</div>
+                    <div class="col-date">預計天數</div>
+                    <div class="col-prog">進度</div>
+                    <div class="col-act">確認</div>
+                    <div class="col-owner">負責人</div>
+                  </div>
                   <div class="gantt-body" id="gantt-left-body"></div>
                 </div>
                 <div class="gantt-right-panel locked-gantt" id="gantt-chart-container"><div id="gantt-chart"></div></div>
@@ -152,9 +155,10 @@
                   <thead>
                     <tr>
                       <th style="width: 25%;">任務名稱</th>
-                      <th style="width: 15%;">狀態 / 當前進度</th>
-                      <th style="width: 30%;">歷史更新紀錄 (最新在上)</th>
-                      <th style="width: 30%;">備註 / Delay 原因</th>
+                      <th style="width: 12%;">負責人</th>
+                      <th style="width: 13%;">狀態 / 進度</th>
+                      <th style="width: 25%;">歷史更新紀錄</th>
+                      <th style="width: 25%;">備註 / Delay 原因</th>
                     </tr>
                   </thead>
                   <tbody id="project-list-tbody"></tbody>
@@ -255,7 +259,6 @@
               <div class="form-group" style="flex:1;"><label class="form-label">姓名</label><input type="text" id="new-user-name" class="input-control" placeholder="例：林設計師"></div>
               <div class="form-group" style="flex:1.5;"><label class="form-label">登入帳號 (Email)</label><input type="email" id="new-user-email" class="input-control" placeholder="例：lin@design.com"></div>
               <div class="form-group" style="flex:1;"><label class="form-label">預設密碼</label><input type="password" id="new-user-pass" class="input-control" placeholder="設定至少 6 碼"></div>
-              <!-- 🚀 新增部門選擇 -->
               <div class="form-group" style="flex:1;"><label class="form-label">所屬部門</label>
                 <select id="new-user-dept" class="input-control">
                   <option value="總經理室">總經理室</option>
@@ -301,6 +304,20 @@
         </div>
 
       </main>
+    </div>
+  </div>
+
+  <!-- 新增協作細項專用視窗 -->
+  <div id="collab-task-modal" class="modal-overlay">
+    <div class="modal-box" style="max-width: 500px;">
+      <div class="modal-header"><span>➕ 追加協作任務細項</span><button class="btn-close" onclick="closeAddCollabTaskModal()">×</button></div>
+      <div class="form-group"><label class="form-label">細項名稱</label><input type="text" id="collab-task-name" class="input-control" placeholder="輸入由本部門負責之任務名稱"></div>
+      <div class="form-row">
+        <div class="form-group" style="flex:1;"><label class="form-label">開始日期</label><input type="date" id="collab-task-start" class="input-control" onchange="checkWorkingDay(this)"></div>
+        <div class="form-group" style="flex:1;"><label class="form-label">結束日期</label><input type="date" id="collab-task-end" class="input-control" onchange="checkWorkingDay(this)"></div>
+      </div>
+      <div style="font-size:12px; color:var(--text-muted); margin-top:-8px; margin-bottom:12px;">* 送出後，此細項負責人將自動設定為您的帳號。</div>
+      <div class="modal-actions"><button class="action-btn" onclick="closeAddCollabTaskModal()">取消</button><button class="btn-primary" onclick="submitCollabTask()">送出細項</button></div>
     </div>
   </div>
 
