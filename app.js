@@ -37,6 +37,7 @@ let summaryGanttInstance = null;
 let currentWeeklyReportId = null;
 let isEditMode = false;
 
+// 全局台灣假日定義
 const taiwanHolidays = [
   '01-01', '01-02', '02-16', '02-17', '02-18', '02-19', '02-20', 
   '02-28', '04-03', '04-04', '04-05', '04-06', '05-01', '06-19', '09-25', '10-10'
@@ -172,7 +173,7 @@ onAuthStateChanged(auth, async (user) => {
       document.getElementById("nav-org-manage").style.display = "none"; document.getElementById("nav-divider-org").style.display = "none";
     }
 
-    // 🚀 核心修復：電腦版恢復 block 排版，不被 flex 擠壓！
+    // 🚀 修復：將此處的排版控制還原為 'block'，讓電腦版恢復原始樣貌
     if (currentUserData.role !== 'staff') { 
       document.getElementById('nav-sub-wrapper').style.display = 'block'; 
       loadSidebarSubordinates(); 
@@ -360,9 +361,6 @@ function renderProjects() {
 
   emptyState.style.display = "none"; 
 
-  // ==========================
-  // 總覽
-  // ==========================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; summaryView.style.display = "block";
     const sumLeftBody = document.getElementById("gantt-summary-left-body");
@@ -420,9 +418,6 @@ function renderProjects() {
     return;
   }
 
-  // ==========================
-  // 個別專案
-  // ==========================
   summaryView.style.display = "none"; detailView.style.display = "block";
   const activeProj = filteredProjects.find(p => p.id === selectedProjectId);
   if(!activeProj) return; 
@@ -669,7 +664,7 @@ window.completeAdHoc = async (id) => { await updateDoc(doc(db, "ad_hoc_events", 
 window.deleteAdHoc = async (id) => { if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); };
 
 
-// === 🚀 週報系統 (加入請假寬容邏輯) ===
+// === 🚀 週報系統 ===
 window.initWeeklyDateAndLeave = () => {
   const dateInput = document.getElementById("rep-date");
   const container = document.getElementById("leave-options-container");
@@ -778,77 +773,92 @@ function renderWeeklyReports() {
   });
 }
 
-// 🚀 核心修復：允許因為請假而不填專案進度，防呆邏輯完美化
+// 🚀 核心修復：防止資料庫 undefined 報錯，並加入 Try-Catch 錯誤捕捉
 document.getElementById("btn-add-weekly").addEventListener("click", async () => {
-  const today = new Date();
-  const days = ['日', '一', '二', '三', '四', '五', '六'];
-  let dateStr = document.getElementById("rep-date").value || `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()} (${days[today.getDay()]})`; 
+  try {
+    const today = new Date();
+    const days = ['日', '一', '二', '三', '四', '五', '六'];
+    let dateStr = document.getElementById("rep-date").value || `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()} (${days[today.getDay()]})`; 
 
-  let leaveType = "";
-  let leaveReason = "";
-  const leaveContainer = document.getElementById("leave-options-container");
-  
-  if (leaveContainer.style.display === "flex") {
-    const checked = document.querySelector('input[name="leave_type"]:checked');
-    if (!checked) return alert("【注意】星期一至四提交週報，請務必勾選右側的「請假」或「其他」原因！");
-    leaveType = checked.value;
-    if (leaveType === "other") {
-      leaveReason = document.getElementById("leave-other-reason").value.trim();
-      if (!leaveReason) return alert("請填寫「其他」選項的理由說明！");
+    let leaveType = "";
+    let leaveReason = "";
+    const leaveContainer = document.getElementById("leave-options-container");
+    
+    if (leaveContainer.style.display === "flex") {
+      const checked = document.querySelector('input[name="leave_type"]:checked');
+      if (!checked) return alert("【注意】星期一至四提交週報，請務必勾選右側的「請假」或「其他」原因！");
+      leaveType = checked.value;
+      if (leaveType === "other") {
+        leaveReason = document.getElementById("leave-other-reason").value.trim();
+        if (!leaveReason) return alert("請填寫「其他」選項的理由說明！");
+      }
     }
+
+    const rows = document.querySelectorAll('.weekly-item-row'); 
+    const items = [];
+    let hasIncomplete = false;
+
+    rows.forEach(r => {
+        const pSel = r.querySelector('.weekly-proj-select'); 
+        const tSel = r.querySelector('.weekly-task-select'); 
+        const content = r.querySelector('.weekly-content').value.trim();
+        
+        if (pSel.value || tSel.value || content) {
+            if (pSel.value && tSel.value && content) {
+                items.push({ projectId: pSel.value, projectName: pSel.options[pSel.selectedIndex].text, taskId: tSel.value, taskName: tSel.options[tSel.selectedIndex].text, content: content });
+            } else {
+                hasIncomplete = true;
+            }
+        }
+    });
+
+    if (hasIncomplete) return alert("您有填寫到一半的進度項目，請確認填寫完整 (包含專案、細項與說明)，或將該列的文字清空/刪除！");
+    
+    // 🚀 如果沒有請假，且進度是空的，強制阻擋
+    if (items.length === 0 && !leaveType) {
+        return alert("請完整填寫至少一項任務進度說明！");
+    }
+
+    const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, supervisorId: null };
+    
+    // 🚀 致命 Bug 修復點：確保 supervisorId 絕對不能是 undefined，否則 Firebase 會直接崩潰卡死！
+    const supervisorId = targetUser.supervisorId || null; 
+    const currentOwnerId = viewingUserId || auth.currentUser.uid;
+
+    await addDoc(collection(db, "weekly_reports"), { 
+      ownerId: currentOwnerId, 
+      ownerName: targetUser.name || '', 
+      ownerSupervisorId: supervisorId, 
+      reportDate: dateStr, 
+      items: items, 
+      leaveType: leaveType || "", 
+      leaveReason: leaveReason || "",
+      createdAt: serverTimestamp(), 
+      supervisorNoted: false, 
+      topManagerNoted: false 
+    });
+    
+    const projectUpdates = {};
+    for (let item of items) {
+        const p = allProjectsData.find(x => x.id === item.projectId);
+        if (p) {
+            const tIndex = parseInt(item.taskId);
+            if (p.tasks[tIndex] && p.tasks[tIndex].isCompleted && !p.tasks[tIndex].reportedCompleted) {
+                if (!projectUpdates[p.id]) projectUpdates[p.id] = [...p.tasks];
+                projectUpdates[p.id][tIndex].reportedCompleted = true;
+            }
+        }
+    }
+    for (let pId in projectUpdates) await updateDoc(doc(db, "projects", pId), { tasks: projectUpdates[pId] });
+    
+    initWeeklyDateAndLeave(); 
+    document.getElementById("weekly-items-container").innerHTML = ""; addWeeklyRow(); 
+    alert("週報已成功送出！");
+    
+  } catch (err) {
+    console.error("送出週報錯誤：", err);
+    alert("發生系統錯誤導致無法送出：" + err.message);
   }
-
-  const rows = document.querySelectorAll('.weekly-item-row'); 
-  const items = [];
-  let hasIncomplete = false;
-
-  rows.forEach(r => {
-      const pSel = r.querySelector('.weekly-proj-select'); 
-      const tSel = r.querySelector('.weekly-task-select'); 
-      const content = r.querySelector('.weekly-content').value.trim();
-      
-      if (pSel.value || tSel.value || content) {
-          if (pSel.value && tSel.value && content) {
-              items.push({ projectId: pSel.value, projectName: pSel.options[pSel.selectedIndex].text, taskId: tSel.value, taskName: tSel.options[tSel.selectedIndex].text, content: content });
-          } else {
-              hasIncomplete = true;
-          }
-      }
-  });
-
-  if (hasIncomplete) return alert("您有填寫到一半的進度項目，請確認填寫完整 (包含專案、細項與說明)，或將該列的文字清空/刪除！");
-  
-  // 🚀 如果沒有請假，且進度也是空的，擋下來！
-  if (items.length === 0 && !leaveType) {
-      return alert("請完整填寫至少一項任務進度說明！");
-  }
-
-  const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name };
-  const supervisorId = targetUser ? targetUser.supervisorId : null;
-
-  await addDoc(collection(db, "weekly_reports"), { 
-    ownerId: viewingUserId, ownerName: targetUser.name || '', 
-    ownerSupervisorId: supervisorId, reportDate: dateStr, items: items, 
-    leaveType: leaveType, leaveReason: leaveReason,
-    createdAt: serverTimestamp(), supervisorNoted: false, topManagerNoted: false 
-  });
-  
-  const projectUpdates = {};
-  for (let item of items) {
-      const p = allProjectsData.find(x => x.id === item.projectId);
-      if (p) {
-          const tIndex = parseInt(item.taskId);
-          if (p.tasks[tIndex] && p.tasks[tIndex].isCompleted && !p.tasks[tIndex].reportedCompleted) {
-              if (!projectUpdates[p.id]) projectUpdates[p.id] = [...p.tasks];
-              projectUpdates[p.id][tIndex].reportedCompleted = true;
-          }
-      }
-  }
-  for (let pId in projectUpdates) updateDoc(doc(db, "projects", pId), { tasks: projectUpdates[pId] });
-  
-  initWeeklyDateAndLeave(); 
-  document.getElementById("weekly-items-container").innerHTML = ""; addWeeklyRow(); 
-  alert("週報已成功送出！");
 });
 window.deleteWeekly = async (id) => { if(confirm("確定永久刪除此週報嗎？")) await deleteDoc(doc(db, "weekly_reports", id)); };
 
