@@ -20,7 +20,7 @@
 
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v17.0</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v18.0</span></div>
       <ul class="nav-list">
         
         <div id="nav-sub-wrapper" style="display:none; margin-bottom: 8px;">
@@ -55,7 +55,7 @@
             <div class="avatar" id="user-avatar">R</div>
             <div><div id="user-display-name" style="font-size: 13px; font-weight: 600;">Ryan</div><span id="user-role-badge" class="role-badge">ADMIN</span></div>
           </div>
-          <button class="btn-icon" onclick="switchNav('tab-profile', '個人帳號設定', null)" title="個人帳號設定"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+          <button class="btn-icon" onclick="switchNav('tab-profile', '個人帳號設定', null)" title="個人帳號設定"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
           <button id="btn-logout" class="btn-logout">登出</button>
         </div>
       </header>
@@ -76,22 +76,14 @@
             </div>
           </div>
 
-          <!-- 建立 / 追加專案規劃面板 -->
+          <!-- 建立全新專案面板 (純粹建立新專案) -->
           <div id="create-project-section" class="section-panel" style="display:none; border: 2px solid var(--primary-soft);">
-            <div class="panel-head">
-              <span id="create-panel-main-title">專案任務規劃</span>
-              <!-- 模式切換按鈕 -->
-              <div style="display:flex; gap:6px;">
-                <button type="button" id="btn-mode-new-proj" class="action-btn active" onclick="setCreateProjectMode('new')">✨ 建立全新專案</button>
-                <button type="button" id="btn-mode-append-proj" class="action-btn" onclick="setCreateProjectMode('append')">➕ 追加細項至目前專案</button>
-              </div>
-            </div>
+            <div class="panel-head">建立全新專案規劃 (建立後享有 7 日免解鎖自由編輯期)</div>
             
             <div class="form-row" style="margin-bottom: 14px;">
               <div class="form-group" style="flex:2;">
-                <label class="form-label" id="lbl-proj-name">主專案名稱 (已完成專案不顯示於選單)</label>
-                <input type="text" id="proj-name" class="input-control" placeholder="例：2026 產品外觀設計案" list="project-names-list">
-                <datalist id="project-names-list"></datalist>
+                <label class="form-label">主專案名稱</label>
+                <input type="text" id="proj-name" class="input-control" placeholder="例：2026 產品外觀設計案">
               </div>
               <div class="form-group" style="flex:1;">
                 <label class="form-label">專案標籤顏色</label>
@@ -111,7 +103,7 @@
             <div style="margin-top: 20px; margin-bottom: 10px; font-weight: 600; font-size: 14px; color: #334155;">任務細項排程 (系統自動避開週末，支援上下移動調整排序)</div>
             <div id="task-list-container"></div>
             <button class="action-btn" onclick="addTaskRow()" style="margin-top: 10px; border-style: dashed;">+ 新增任務細項</button>
-            <div style="margin-top: 24px; border-top: 1px solid var(--border); padding-top: 20px;"><button id="btn-add-project" class="btn-primary" style="width: 180px;">送出並儲存</button></div>
+            <div style="margin-top: 24px; border-top: 1px solid var(--border); padding-top: 20px;"><button id="btn-add-project" class="btn-primary" style="width: 180px;">送出並建立專案</button></div>
           </div>
 
           <div class="project-tabs-wrapper" id="project-tabs-container"></div>
@@ -140,7 +132,8 @@
               <div class="panel-head" style="margin-bottom: 8px;">
                 <span id="current-gantt-title">專案時程檢視</span>
                 <div style="display:flex; align-items:center; gap:8px;">
-                  <button id="btn-add-collab-task" class="action-btn" style="display:none; color:var(--primary); border-color:var(--primary); font-weight:600;" onclick="openAddCollabTaskModal()">➕ 新增協作細項</button>
+                  <!-- 🚀 單一專案動態新增細項按鈕 (編輯模式下顯示) -->
+                  <button id="btn-project-add-task" class="action-btn" style="display:none; color:var(--primary); border-color:var(--primary); font-weight:600;" onclick="openAddProjectTaskModal()">➕ 新增細項</button>
                   <button id="btn-toggle-lock" class="action-btn danger" style="display:none;" onclick="toggleCurrentProjectLock()"></button>
                   <button id="btn-delete-project" class="action-btn danger" style="display:none;" onclick="deleteCurrentProject()">刪除專案</button>
                 </div>
@@ -415,18 +408,18 @@
     </div>
   </div>
 
-  <!-- 新增協作細項專用視窗 -->
-  <div id="collab-task-modal" class="modal-overlay">
+  <!-- 單一專案追加任務細項專用視窗 (個人專案 / 協作專案共用) -->
+  <div id="project-task-modal" class="modal-overlay">
     <div class="modal-box" style="max-width: 500px;">
-      <div class="modal-header"><span>➕ 追加協作任務細項</span><button class="btn-close" onclick="closeAddCollabTaskModal()">×</button></div>
-      <div class="form-group"><label class="form-label">細項名稱</label><input type="text" id="collab-task-name" class="input-control" placeholder="輸入由本部門負責之任務名稱"></div>
+      <div class="modal-header"><span id="project-task-modal-title">➕ 新增任務細項</span><button class="btn-close" onclick="closeAddProjectTaskModal()">×</button></div>
+      <div class="form-group"><label class="form-label">細項名稱</label><input type="text" id="add-task-name" class="input-control" placeholder="輸入任務名稱"></div>
       <div class="form-row">
-        <div class="form-group" style="flex:1.2;"><label class="form-label">開始日期</label><input type="date" id="collab-task-start" class="input-control" onchange="onTaskStartChange(this, 'collab-task-end')"></div>
-        <div class="form-group" style="width:65px; flex-shrink:0;"><label class="form-label">天數</label><input type="number" min="1" id="collab-task-days" class="input-control task-days" value="1" oninput="onTaskDaysChange(this, 'collab-task-start', 'collab-task-end')"></div>
-        <div class="form-group" style="flex:1.2;"><label class="form-label">結束日期</label><input type="date" id="collab-task-end" class="input-control" onchange="onTaskEndChange(this, 'collab-task-start', 'collab-task-days')"></div>
+        <div class="form-group" style="flex:1.2;"><label class="form-label">開始日期</label><input type="date" id="add-task-start" class="input-control" onchange="onTaskStartChange(this, 'add-task-end')"></div>
+        <div class="form-group" style="width:65px; flex-shrink:0;"><label class="form-label">天數</label><input type="number" min="1" id="add-task-days" class="input-control task-days" value="1" oninput="onTaskDaysChange(this, 'add-task-start', 'add-task-end')"></div>
+        <div class="form-group" style="flex:1.2;"><label class="form-label">結束日期</label><input type="date" id="add-task-end" class="input-control" onchange="onTaskEndChange(this, 'add-task-start', 'add-task-days')"></div>
       </div>
-      <div style="font-size:12px; color:var(--text-muted); margin-top:-8px; margin-bottom:12px;">* 送出後，此細項負責人將自動設定為您的帳號。</div>
-      <div class="modal-actions"><button class="action-btn" onclick="closeAddCollabTaskModal()">取消</button><button class="btn-primary" onclick="submitCollabTask()">送出細項</button></div>
+      <div id="project-task-modal-hint" style="font-size:12px; color:var(--text-muted); margin-top:-8px; margin-bottom:12px;">* 新增後自動加入目前專案中。</div>
+      <div class="modal-actions"><button class="action-btn" onclick="closeAddProjectTaskModal()">取消</button><button class="btn-primary" onclick="submitAddProjectTask()">送出細項</button></div>
     </div>
   </div>
 
