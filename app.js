@@ -686,7 +686,6 @@ function renderProjects() {
   summaryBtn.onclick = () => selectProject('SUMMARY'); 
   tabsContainer.appendChild(summaryBtn);
 
-  // 🚀 上方切換按鈕維持純專案名稱（協作顯示 👥，一般專案無圖示）
   activeList.forEach(p => {
     const hasCollab = (p.collaborators && p.collaborators.length > 0);
     const btn = document.createElement("button"); 
@@ -705,7 +704,6 @@ function renderProjects() {
 
   emptyState.style.display = "none"; 
 
-  // 總覽視圖
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; 
     summaryView.style.display = "block";
@@ -804,7 +802,6 @@ function renderProjects() {
     return;
   }
 
-  // 個別專案視圖
   summaryView.style.display = "none"; 
   detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
@@ -2288,44 +2285,69 @@ window.deleteUserDoc = async (uid, name) => {
 };
 
 // ==========================================
-// 🚀 補回：個人帳號設定與更改密碼功能
+// 🚀 個人帳號設定與更改密碼控制邏輯
 // ==========================================
 
-// 1. 更新個人資料 (將大寫名字寫回資料庫，解決小寫問題)
-window.updateUserProfile = async (newName, newDept) => {
-  if (!newName) return alert("名稱不可為空！");
+// 1. 打開設定視窗
+window.openProfileSettings = () => {
+  const modal = document.getElementById("profile-settings-modal");
+  if (!modal) return alert("找不到設定視窗的 HTML，請確認是否已加入 index.html 中！");
+  
+  // 填入目前的名稱 (如果 currentUserData.name 為空，就用目前顯示在右上角的字)
+  const currentDisplayName = document.getElementById("user-display-name").innerText;
+  document.getElementById("setting-user-name").value = currentUserData.name || currentDisplayName;
+  document.getElementById("setting-new-password").value = ""; // 清空密碼欄位
+  
+  modal.classList.add("active");
+};
+
+// 2. 關閉設定視窗
+window.closeProfileSettings = () => {
+  document.getElementById("profile-settings-modal").classList.remove("active");
+};
+
+// 3. 儲存名稱變更
+window.saveProfileName = async () => {
+  const newName = document.getElementById("setting-user-name").value.trim();
+  if (!newName) return alert("名稱不可為空白！");
+
   try {
-    // 使用 merge: true，確保文件不存在時會自動建立，並補齊正確的名稱
+    // 寫入資料庫
     await setDoc(doc(db, "users", auth.currentUser.uid), { 
       name: newName,
-      dept: newDept || currentUserData.dept
+      dept: currentUserData.dept || "設計部" // 保留原本部門
     }, { merge: true });
     
-    // 即時更新畫面右上角的顯示狀態
+    // 更新記憶體與畫面
     currentUserData.name = newName;
     document.getElementById("user-display-name").innerText = newName;
     document.getElementById("user-avatar").innerText = newName.charAt(0).toUpperCase();
     
-    alert("✅ 個人資料更新成功！");
+    alert(`✅ 名稱已成功更新為：${newName}`);
   } catch (error) {
-    alert("資料更新失敗：" + error.message);
+    alert("名稱更新失敗：" + error.message);
   }
 };
 
-// 2. 更改個人密碼功能
-window.changeUserPassword = async (newPassword) => {
+// 4. 執行密碼變更
+window.saveNewPassword = async () => {
+  const newPassword = document.getElementById("setting-new-password").value.trim();
   if (!newPassword || newPassword.length < 6) {
     return alert("密碼不能為空，且至少需要 6 個字元！");
   }
+
+  if (!confirm("確定要將登入密碼更改為新設定的密碼嗎？")) return;
+
   try {
     await updatePassword(auth.currentUser, newPassword);
-    alert("✅ 密碼更換成功！下次登入請使用新密碼。");
+    alert("✅ 密碼更換成功！下次請使用新密碼登入。");
+    document.getElementById("setting-new-password").value = ""; // 清空欄位
   } catch (error) {
     // Firebase 安全機制：太久沒登入會禁止改密碼
     if (error.code === 'auth/requires-recent-login') {
-      alert("⚠️ 基於安全考量，更換密碼需要您『最近剛登入過』。請先登出系統，重新登入後再次嘗試修改密碼！");
+      alert("⚠️ 基於安全考量，更換密碼需要您『最近剛登入過』。\n請先點擊登出，重新輸入舊密碼登入後，再進行密碼修改！");
     } else {
-      alert("更換密碼失敗：" + error.message);
+      alert("密碼更換失敗：" + error.message);
     }
   }
 };
