@@ -183,19 +183,16 @@ function formatDateSafe(dateObj) {
   return `${y}-${m}-${d}`; 
 }
 
-// 🚀 核心捲動定位邏輯：精準抓取甘特圖內部的 .gantt-container 與今天位置
 function scrollToTodayMinus2Days(ganttInst, containerSelector) {
   const wrapper = document.querySelector(containerSelector);
   if (!wrapper) return;
 
   [80, 200, 400].forEach(delay => {
     setTimeout(() => {
-      // 真正的滾動容器是 Frappe Gantt 產生的 .gantt-container，若無則降級為 wrapper 本身
       const scrollElement = wrapper.querySelector('.gantt-container') || wrapper;
       const svg = wrapper.querySelector('.gantt');
       if (!scrollElement || !svg) return;
 
-      // 1. 取得今日位置 (從 ganttInst.dates 比對)
       let todayIndex = -1;
       const today = new Date();
       today.setHours(0,0,0,0);
@@ -210,7 +207,6 @@ function scrollToTodayMinus2Days(ganttInst, containerSelector) {
         });
       }
 
-      // 2. 計算單日格子寬度
       let colWidth = (ganttInst && ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
       const firstTick = svg.querySelector('.tick');
       if (firstTick) {
@@ -218,12 +214,10 @@ function scrollToTodayMinus2Days(ganttInst, containerSelector) {
         if (!isNaN(w) && w > 0) colWidth = w;
       }
 
-      // 3. 計算目標滾動距離
       let targetScrollLeft = 0;
       if (todayIndex !== -1) {
         targetScrollLeft = Math.max(0, (todayIndex - 2) * colWidth);
       } else {
-        // 備用：直接從 .today-highlight 元素抓座標
         const todayHighlight = svg.querySelector('.today-highlight') || svg.querySelector('.current-date-highlight');
         if (todayHighlight) {
           const x = parseFloat(todayHighlight.getAttribute('x'));
@@ -233,7 +227,6 @@ function scrollToTodayMinus2Days(ganttInst, containerSelector) {
         }
       }
 
-      // 4. 強制寫入 scrollLeft 並執行平滑滾動
       scrollElement.scrollLeft = targetScrollLeft;
       if (scrollElement !== wrapper) wrapper.scrollLeft = targetScrollLeft;
     }, delay);
@@ -250,7 +243,6 @@ function patchGanttVisuals(ganttInst, containerSelector) {
   const lowerTexts = Array.from(svg.querySelectorAll('.lower-text'));
   const dayTicks = Array.from(svg.querySelectorAll('.tick')).filter(t => !t.classList.contains('thick'));
 
-  // 1. 假日與週末標紅標記
   ganttInst.dates.forEach((date, i) => {
     if (i < lowerTexts.length) {
       const dStr = String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
@@ -265,7 +257,6 @@ function patchGanttVisuals(ganttInst, containerSelector) {
     }
   });
 
-  // 2. 年月份吸附與動態更新 (修正靠左對齊防截斷)
   const scrollElement = wrapper.querySelector('.gantt-container') || wrapper;
   const upperTexts = Array.from(svg.querySelectorAll('.upper-text'));
   const colWidth = (ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
@@ -288,7 +279,7 @@ function patchGanttVisuals(ganttInst, containerSelector) {
       if (idx === 0) {
         el.textContent = currentHeaderStr;
         el.setAttribute('x', currentScrollLeft + 16);
-        el.setAttribute('text-anchor', 'start'); // 🚀 強制靠左對齊，完整露出 2026 年
+        el.setAttribute('text-anchor', 'start');
         el.style.textAnchor = 'start';
         el.style.fontWeight = '700';
         el.style.fill = 'var(--primary)';
@@ -296,7 +287,6 @@ function patchGanttVisuals(ganttInst, containerSelector) {
       } else {
         const origX = parseFloat(el.getAttribute('data-orig-x') || el.getAttribute('x'));
         if (!el.getAttribute('data-orig-x')) el.setAttribute('data-orig-x', origX);
-        // 若後續月份太靠近當前吸附的年月標題，暫時隱藏避免重疊
         if (origX < currentScrollLeft + 120) {
           el.style.display = 'none';
         } else {
@@ -367,19 +357,12 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 function loadSidebarSubordinates() {
-  const rolePriority = {
-    admin: 1,
-    top_manager: 2,
-    manager: 3,
-    assistant_manager: 4,
-    staff: 5
-  };
+  const rolePriority = { admin: 1, top_manager: 2, manager: 3, assistant_manager: 4, staff: 5 };
 
   onSnapshot(collection(db, "users"), (snapshot) => {
     const list = document.getElementById("nav-sub-list");
     if (!list) return;
 
-    // 1. 最頂部固定為「個人專案」
     list.innerHTML = `<li class="nav-sub-item active" id="sub-li-${auth.currentUser.uid}" onclick="switchViewingUser('${auth.currentUser.uid}', '自己 (個人專案)')">個人專案</li>`;
 
     const visibleUsers = [];
@@ -401,19 +384,16 @@ function loadSidebarSubordinates() {
       }
     });
 
-    // 2. 依部門分類與收折結構
     departmentList.forEach((dept, dIdx) => {
       const deptMembers = visibleUsers.filter(u => (u.dept || "設計部") === dept);
       if (deptMembers.length === 0) return;
 
-      // 依職位權重排序 (主管在最上，人員在最下)
       deptMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99));
 
       const deptGroupId = `dept-group-${dIdx}`;
       const isViewingMemberInDept = deptMembers.some(m => m.uid === viewingUserId);
-      const isExpanded = isViewingMemberInDept; // 若正在檢視該部門同仁則自動展開，其餘預設收起
+      const isExpanded = isViewingMemberInDept;
 
-      // 部門收折標題列
       list.innerHTML += `
         <li class="nav-sub-dept-header ${isExpanded ? 'open' : ''}" onclick="toggleDeptSubList('${deptGroupId}', this)">
           <div style="display:flex; align-items:center; gap:6px;">
@@ -425,7 +405,6 @@ function loadSidebarSubordinates() {
         </li>
       `;
 
-      // 部門同仁列表容器 (預設 display: none 收起)
       let membersHtml = `<div class="nav-sub-dept-members" id="${deptGroupId}" style="display:${isExpanded ? 'flex' : 'none'};">`;
       deptMembers.forEach(u => {
         const isActive = (viewingUserId === u.uid) ? 'active' : '';
@@ -442,7 +421,6 @@ function loadSidebarSubordinates() {
   });
 }
 
-// 🚀 部門收折切換控制函式
 window.toggleDeptSubList = (groupId, headerElem) => {
   const container = document.getElementById(groupId);
   if (!container) return;
@@ -818,7 +796,7 @@ function renderProjects() {
           readonly: true 
         });
         patchGanttVisuals(summaryGanttInstance, '#gantt-chart-summary-container');
-        scrollToTodayMinus2Days(summaryGanttInstance, '#gantt-chart-summary-container'); // 🚀 自動聚焦
+        scrollToTodayMinus2Days(summaryGanttInstance, '#gantt-chart-summary-container'); 
       }, 100); 
     } else { 
       document.getElementById("gantt-chart-summary-container").innerHTML = ''; 
@@ -831,6 +809,33 @@ function renderProjects() {
   detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
   if(!activeProj) return; 
+
+  // 🚀 動態層次感圖示計算邏輯
+  let totalProg = 0;
+  let hasDelay = false;
+  const taskCount = activeProj.tasks ? activeProj.tasks.length : 0;
+
+  if (taskCount > 0) {
+    activeProj.tasks.forEach(t => {
+      totalProg += (t.progress || 0);
+      if (t.delayReason || (!t.isCompleted && new Date() > new Date(t.end))) {
+        hasDelay = true;
+      }
+    });
+  }
+  const avgProg = taskCount > 0 ? Math.round(totalProg / taskCount) : 0;
+  const isAllDone = taskCount > 0 && activeProj.tasks.every(t => t.isCompleted);
+
+  let dynamicIcon = '🌱'; // 預設 0% 給種子/幼苗
+  if (isAllDone || avgProg >= 100) {
+    dynamicIcon = '🏆'; // 完成給獎盃
+  } else if (hasDelay) {
+    dynamicIcon = '🚀'; // Delay 給火箭
+  } else if (avgProg > 0) {
+    dynamicIcon = '🔥'; // 進行中給大火
+  } else {
+    dynamicIcon = '🌰'; // 0% 初始給種子
+  }
 
   const isProjOwner = (activeProj.ownerId === auth.currentUser.uid);
   const hasCollab = (activeProj.collaborators && activeProj.collaborators.length > 0);
@@ -846,7 +851,7 @@ function renderProjects() {
   let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="font-size:11px; margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
 
   let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
-  let titleDisplayName = `<span style="color:#2563eb; font-weight:700;">${titlePrefixIcon}${activeProj.title}</span>`;
+  let titleDisplayName = `<span style="color:#2563eb; font-weight:700;">${titlePrefixIcon}${dynamicIcon} ${activeProj.title}</span>`;
   
   document.getElementById("current-gantt-title").innerHTML = `<span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} ${collabBadge} ${graceBadge} ${editProjBtn}`;
   
@@ -967,7 +972,7 @@ function renderProjects() {
         readonly: true 
       });
       patchGanttVisuals(ganttInstance, '#gantt-chart-container');
-      scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container'); // 🚀 自動聚焦
+      scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container'); 
     }, 100); 
   }
 }
@@ -1891,7 +1896,6 @@ function renderOrgChart() {
         const isMgr = tier.key === "manager";
         const supText = supUser ? `直屬: ${supUser.name}` : "直屬: 無";
 
-        // 🚀 加入 onclick 與 title 提示
         memberCardsHtml += `
           <div class="org-user-card ${isMgr ? 'is-mgr' : ''}" onclick="openEditModal('${u.uid}')" title="點擊編輯 ${u.name || '人員'} 的資訊">
             <div class="org-card-avatar-sm ${isMgr ? 'mgr' : ''}">${(u.name || 'U').charAt(0).toUpperCase()}</div>
@@ -2189,7 +2193,6 @@ function loadOrgUsers() {
       }
     });
 
-    // 🚀 依部門順序與職級權重對人員進行排序
     allUsersList.sort((a, b) => {
       const deptA = a.dept || "設計部";
       const deptB = b.dept || "設計部";
@@ -2207,7 +2210,6 @@ function loadOrgUsers() {
     allUsersList.forEach(u => {
       const uDept = u.dept || "設計部";
       
-      // 若遇到不同部門，插入一個部門分隔列，讓表格一目了然
       if (uDept !== currentDeptGroup) {
         currentDeptGroup = uDept;
         const deptTr = document.createElement("tr");
