@@ -632,7 +632,7 @@ function renderProjects() {
     } else {
       const targetUser = allUsersList.find(u => u.uid === viewingUserId);
       const targetDept = targetUser?.dept || "設計部";
-      return collabs.includes(targetDept) || p.ownerId === viewingUserId;
+      return collabs.includes(targetDept) || p.ownerId === auth.currentUser.uid;
     }
   });
 
@@ -687,16 +687,38 @@ function renderProjects() {
   summaryBtn.onclick = () => selectProject('SUMMARY'); 
   tabsContainer.appendChild(summaryBtn);
 
+  // 🚀 迴圈產生左側專案按鈕，並依進度動態帶入生命週期圖示 (🌰 種子 / 🌱 幼苗 / 🔥 大火 / 🚀 火箭 / 🏆 獎盃)
   activeList.forEach(p => {
     const hasCollab = (p.collaborators && p.collaborators.length > 0);
     const btn = document.createElement("button"); 
     btn.className = `proj-tab ${hasCollab ? 'is-collab' : ''} ${p.id === selectedProjectId ? 'active' : ''}`;
     btn.title = p.title;
-    
+
+    let totalProg = 0;
+    let hasDelay = false;
+    const taskCount = p.tasks ? p.tasks.length : 0;
+    if (taskCount > 0) {
+      p.tasks.forEach(t => {
+        totalProg += (t.progress || 0);
+        if (t.delayReason || (!t.isCompleted && new Date() > new Date(t.end))) {
+          hasDelay = true;
+        }
+      });
+    }
+    const avgProg = taskCount > 0 ? Math.round(totalProg / taskCount) : 0;
+    const isAllDone = taskCount > 0 && p.tasks.every(t => t.isCompleted);
+
+    let projIcon = '🌱';
+    if (isAllDone || avgProg >= 100) projIcon = '🏆';
+    else if (hasDelay) projIcon = '🚀';
+    else if (avgProg > 0) projIcon = '🔥';
+    else projIcon = '🌰';
+
+    let displayTitleStr = `${projIcon} ${p.title}`;
     if (hasCollab) {
-      btn.innerHTML = `<span>👥 ${p.title}</span>`;
+      btn.innerHTML = `<span>👥 ${displayTitleStr}</span>`;
     } else {
-      btn.innerText = p.title;
+      btn.innerText = displayTitleStr;
     }
     
     btn.onclick = () => selectProject(p.id); 
@@ -729,12 +751,20 @@ function renderProjects() {
       let avgProg = Math.round(totalProg / p.tasks.length);
       let isDone = p.tasks.every(t => t.isCompleted);
       const hasCollab = (p.collaborators && p.collaborators.length > 0);
+
+      let hasDelaySum = p.tasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
+      let sumIcon = '🌱';
+      if (isDone || avgProg >= 100) sumIcon = '🏆';
+      else if (hasDelaySum) sumIcon = '🚀';
+      else if (avgProg > 0) sumIcon = '🔥';
+      else sumIcon = '🌰';
       
       combinedItems.push({
         type: 'project', 
         sortDate: new Date(minStart).getTime(), 
         idStr: `s_p_${sIdx++}`,
-        title: p.title, 
+        title: p.title,
+        icon: sumIcon,
         start: minStart, 
         end: maxEnd, 
         progress: avgProg, 
@@ -753,6 +783,7 @@ function renderProjects() {
           sortDate: new Date(eDate).getTime(), 
           idStr: `s_e_${sIdx++}`,
           title: evt.title, 
+          icon: '🚨',
           start: eDate, 
           end: eDate, 
           progress: prog, 
@@ -772,8 +803,8 @@ function renderProjects() {
       if (item.type === 'project') {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : item.progress+'%';
         let titleDisplay = item.isCollab 
-          ? `<span style="color:var(--primary); font-weight:700;"><span style="color:var(--primary); margin-right:4px;">👥</span>${item.title}</span>`
-          : `📁 ${item.title}`;
+          ? `<span style="color:var(--primary); font-weight:700;"><span style="color:var(--primary); margin-right:4px;">👥</span>${item.icon} ${item.title}</span>`
+          : `${item.icon} ${item.title}`;
           
         row.innerHTML = `<div class="col-sum-name" title="${item.title}">${titleDisplay}</div><div class="col-sum-date">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-sum-prog">${statusText}</div>`;
       } else {
@@ -810,33 +841,6 @@ function renderProjects() {
   const activeProj = activeList.find(p => p.id === selectedProjectId);
   if(!activeProj) return; 
 
-  // 🚀 動態層次感圖示計算邏輯
-  let totalProg = 0;
-  let hasDelay = false;
-  const taskCount = activeProj.tasks ? activeProj.tasks.length : 0;
-
-  if (taskCount > 0) {
-    activeProj.tasks.forEach(t => {
-      totalProg += (t.progress || 0);
-      if (t.delayReason || (!t.isCompleted && new Date() > new Date(t.end))) {
-        hasDelay = true;
-      }
-    });
-  }
-  const avgProg = taskCount > 0 ? Math.round(totalProg / taskCount) : 0;
-  const isAllDone = taskCount > 0 && activeProj.tasks.every(t => t.isCompleted);
-
-  let dynamicIcon = '🌱'; // 預設 0% 給種子/幼苗
-  if (isAllDone || avgProg >= 100) {
-    dynamicIcon = '🏆'; // 完成給獎盃
-  } else if (hasDelay) {
-    dynamicIcon = '🚀'; // Delay 給火箭
-  } else if (avgProg > 0) {
-    dynamicIcon = '🔥'; // 進行中給大火
-  } else {
-    dynamicIcon = '🌰'; // 0% 初始給種子
-  }
-
   const isProjOwner = (activeProj.ownerId === auth.currentUser.uid);
   const hasCollab = (activeProj.collaborators && activeProj.collaborators.length > 0);
   const isCollabMember = hasCollab && activeProj.collaborators.includes(currentUserData.dept);
@@ -851,7 +855,7 @@ function renderProjects() {
   let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="font-size:11px; margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
 
   let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
-  let titleDisplayName = `<span style="color:#2563eb; font-weight:700;">${titlePrefixIcon}${dynamicIcon} ${activeProj.title}</span>`;
+  let titleDisplayName = `<span style="color:#2563eb; font-weight:700;">${titlePrefixIcon}${activeProj.title}</span>`;
   
   document.getElementById("current-gantt-title").innerHTML = `<span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} ${collabBadge} ${graceBadge} ${editProjBtn}`;
   
