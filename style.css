@@ -218,7 +218,13 @@ tr:hover td { background: #fafafa; }
   .form-group { width: 100% !important; max-width: 100% !important; flex: none !important; }
   .gantt-master-layout { flex-direction: column; }
   .gantt-left-panel, .gantt-left-panel-summary { width: 100% !important; max-height: 250px; overflow-y: auto; border-right: none; border-bottom: 2px solid var(--border); }
-  .gantt-right-panel, .gantt-right-panel-summary { width: 100%; min-height: 250px; }
+  .gantt-right-panel, .gantt-right-panel-summary {
+  flex: 1;
+  overflow-x: auto !important;
+  overflow-y: hidden;
+  background: #fff;
+  min-width: 250px;
+}
   .weekly-item-row { flex-direction: column !important; gap: 12px !important; }
   .weekly-item-row > div { border-right: none !important; padding-right: 0 !important; width: 100% !important; }
   .modal-box { width: 92%; max-width: none !important; max-height: 85vh; padding: 20px; margin: 20px auto; overflow-y: auto; }
