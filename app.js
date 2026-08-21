@@ -217,42 +217,58 @@ function patchGanttVisuals(ganttInst, containerSelector) {
 }
 
 function scrollToTodayMinus2Days(containerSelector) {
-  const container = document.querySelector(containerSelector);
-  if (!container) return;
+  // 分次遞進嘗試（避免 Frappe Gantt 內部 SVG 尚未產生完畢）
+  [50, 150, 300, 500].forEach(delay => {
+    setTimeout(() => {
+      const container = document.querySelector(containerSelector);
+      if (!container) return;
 
-  // 使用 requestAnimationFrame 與輪詢確保 SVG 已繪製完畢
-  setTimeout(() => {
-    const todayLine = container.querySelector('.today-highlight') || container.querySelector('.current-date-highlight');
-    if (todayLine) {
-      // 取得今天高亮線的 X 座標
-      const xPos = parseFloat(todayLine.getAttribute('x')) || 0;
-      // 往前保留 2 天寬度（預設單日格寬約 38px，2 天約 76px）
-      const targetScroll = Math.max(0, xPos - 80);
-      container.scrollTo({ left: targetScroll, behavior: 'smooth' });
-    } else {
-      // 備用方案：以 Frappe Gantt dates 陣列計算
-      const allTicks = container.querySelectorAll('.tick');
-      if (allTicks.length > 0) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const todayStr = String(today.getDate());
-        
-        let targetIndex = -1;
-        const lowerTexts = container.querySelectorAll('.lower-text');
-        lowerTexts.forEach((el, idx) => {
-          if (el.textContent.trim() === todayStr && targetIndex === -1) {
-            targetIndex = idx;
-          }
-        });
+      // 1. 優先尋找 Frappe Gantt 內建的 today 高亮元素 (rect 或 line)
+      const todayHighlight = container.querySelector('.today-highlight') || container.querySelector('.current-date-highlight');
+      
+      let targetX = null;
+      let colWidth = 38; // 預設單日格子寬度
 
-        if (targetIndex !== -1) {
-          const colWidth = allTicks[0].getBoundingClientRect().width || 38;
-          const targetScroll = Math.max(0, (targetIndex - 2) * colWidth);
-          container.scrollTo({ left: targetScroll, behavior: 'smooth' });
+      // 抓取第一格寬度作為基準
+      const firstTick = container.querySelector('.tick');
+      if (firstTick) {
+        const w = parseFloat(firstTick.getAttribute('width'));
+        if (!isNaN(w) && w > 0) colWidth = w;
+      }
+
+      if (todayHighlight) {
+        const xAttr = todayHighlight.getAttribute('x');
+        if (xAttr !== null) {
+          targetX = parseFloat(xAttr);
         }
       }
-    }
-  }, 250);
+
+      // 2. 若抓不到 todayHighlight，改由 lower-text 日期格文字比對
+      if (targetX === null) {
+        const today = new Date();
+        const todayNumStr = String(today.getDate());
+        const lowerTexts = Array.from(container.querySelectorAll('.lower-text'));
+        
+        // 找到今天對應的文字座標
+        for (let el of lowerTexts) {
+          if (el.textContent.trim() === todayNumStr) {
+            const x = parseFloat(el.getAttribute('x'));
+            if (!isNaN(x)) {
+              targetX = x;
+              break;
+            }
+          }
+        }
+      }
+
+      // 3. 執行精確滾動：將視窗最左邊對準「今天 X 座標 - 2天的寬度」
+      if (targetX !== null && targetX > 0) {
+        const scrollPosition = Math.max(0, targetX - (colWidth * 2));
+        container.scrollLeft = scrollPosition; // 直接指定
+        container.scrollTo({ left: scrollPosition, behavior: 'smooth' }); // 平滑補充
+      }
+    }, delay);
+  });
 }
 
 onAuthStateChanged(auth, async (user) => {
