@@ -1803,41 +1803,70 @@ function renderOrgChart() {
   if (!container) return;
   container.innerHTML = "";
 
-  const tiers = [
-    { title: "👑 系統管理與最高決策", roles: ["admin", "top_manager"] },
-    { title: "👔 部門主管 (Managers)", roles: ["manager"] },
-    { title: "💼 副主管 (Assistant Managers)", roles: ["assistant_manager"] },
-    { title: "👥 各部門專屬人員 (Staff)", roles: ["staff"] }
+  const mainWrapper = document.createElement("div");
+  mainWrapper.className = "org-dept-container";
+
+  // 定義各部門階層順序
+  const roleTiers = [
+    { key: "manager", label: "👔 部門主管", roles: ["manager", "top_manager", "admin"] },
+    { key: "assistant_manager", label: "💼 副主管", roles: ["assistant_manager"] },
+    { key: "staff", label: "👥 部門人員", roles: ["staff"] }
   ];
 
-  tiers.forEach(tier => {
-    const tierUsers = allUsersList.filter(u => tier.roles.includes(u.role));
-    if (tierUsers.length === 0) return;
+  departmentList.forEach(dept => {
+    // 篩選該部門所有人員
+    const deptUsers = allUsersList.filter(u => (u.dept || "設計部") === dept);
+    if (deptUsers.length === 0) return;
 
-    let html = `
-      <div class="org-tier-block">
-        <div class="org-tier-header">${tier.title} <span style="font-size:11px; background:#e2e8f0; padding:1px 6px; border-radius:10px;">${tierUsers.length} 人</span></div>
-        <div class="org-cards-row">
-    `;
+    let tierHtml = "";
+    roleTiers.forEach(tier => {
+      const tierMembers = deptUsers.filter(u => tier.roles.includes(u.role));
+      if (tierMembers.length === 0) return;
 
-    tierUsers.forEach(u => {
-      const supUser = allUsersList.find(x => x.uid === u.supervisorId);
-      const supText = supUser ? `直屬: ${supUser.name}` : '直屬: 無';
-      html += `
-        <div class="org-card-item">
-          <div class="org-card-avatar">${(u.name || 'U').charAt(0).toUpperCase()}</div>
-          <div class="org-card-info">
-            <div class="org-card-name">${u.name || '未命名'}</div>
-            <div class="org-card-sub"><span class="pill pill-role" style="font-size:10px; padding:1px 4px;">${u.dept || '設計部'}</span> · ${roleNames[u.role] || u.role}</div>
-            <div style="font-size:10px; color:#94a3b8; margin-top:2px;">${supText}</div>
+      let memberCardsHtml = "";
+      tierMembers.forEach(u => {
+        const supUser = allUsersList.find(x => x.uid === u.supervisorId);
+        const isMgr = tier.key === "manager";
+        const supText = supUser ? `直屬: ${supUser.name}` : "直屬: 無";
+
+        memberCardsHtml += `
+          <div class="org-user-card ${isMgr ? 'is-mgr' : ''}">
+            <div class="org-card-avatar-sm ${isMgr ? 'mgr' : ''}">${(u.name || 'U').charAt(0).toUpperCase()}</div>
+            <div class="org-card-text">
+              <div class="org-card-user-name">${u.name || '未命名'} <small style="font-weight:normal; color:#64748b;">(${roleNames[u.role] || u.role})</small></div>
+              <div class="org-card-sup-name">${supText}</div>
+            </div>
           </div>
+        `;
+      });
+
+      tierHtml += `
+        <div class="org-role-tier">
+          <div class="org-role-label">${tier.label}</div>
+          <div class="org-member-cards">${memberCardsHtml}</div>
         </div>
       `;
     });
 
-    html += `</div></div>`;
-    container.innerHTML += html;
+    const deptBlock = document.createElement("div");
+    deptBlock.className = "org-dept-block";
+    deptBlock.innerHTML = `
+      <div class="org-dept-header">
+        <div class="org-dept-title">
+          <span style="font-size:16px;">🏢</span>
+          <span>${dept}</span>
+        </div>
+        <span style="font-size:12px; font-weight:600; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:12px;">共 ${deptUsers.length} 人</span>
+      </div>
+      <div class="org-hierarchy-grid">
+        ${tierHtml}
+      </div>
+    `;
+
+    mainWrapper.appendChild(deptBlock);
   });
+
+  container.appendChild(mainWrapper);
 }
 
 let currentEditData = {};
