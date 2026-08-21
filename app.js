@@ -2259,14 +2259,27 @@ window.closeEditModal = () => document.getElementById("edit-user-modal").classLi
 
 window.submitEditUser = async () => {
   try {
-    await updateDoc(doc(db, "users", document.getElementById("edit-user-uid").value), { 
-      name: document.getElementById("edit-user-name").value.trim(), 
+    const uidToEdit = document.getElementById("edit-user-uid").value;
+    const newName = document.getElementById("edit-user-name").value.trim();
+
+    // 1. 寫入資料庫
+    await updateDoc(doc(db, "users", uidToEdit), { 
+      name: newName, 
       dept: document.getElementById("edit-user-dept").value,
       role: document.getElementById("edit-user-role").value, 
       supervisorId: document.getElementById("edit-user-supervisor").value || null 
     });
+    
     closeEditModal(); 
     alert("人員資訊更新成功！");
+
+    // 2. 🚀 如果管理員剛好編輯的是「自己的帳號」，立刻同步更新右上角的畫面！
+    if (uidToEdit === auth.currentUser.uid) {
+      currentUserData.name = newName;
+      document.getElementById("user-display-name").innerText = newName;
+      document.getElementById("user-avatar").innerText = newName.charAt(0).toUpperCase();
+    }
+
   } catch (err) { 
     alert("更新失敗: " + err.message); 
   }
