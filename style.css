@@ -308,14 +308,16 @@ tr:hover td { background: #fafafa; }
   align-items: center;
   gap: 10px;
   min-width: 170px;
-  transition: 0.15s;
+  cursor: pointer; /* 🚀 滑鼠懸停顯示手指游標 */
+  transition: all 0.15s ease;
+  user-select: none;
 }
 
 .org-user-card:hover {
   border-color: var(--primary);
   background: #fff;
   transform: translateY(-2px);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.15); /* 提升點擊視覺回饋 */
 }
 
 .org-user-card.is-mgr {
