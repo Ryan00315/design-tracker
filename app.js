@@ -216,35 +216,43 @@ function patchGanttVisuals(ganttInst, containerSelector) {
   scrollToTodayMinus2Days(ganttInst, containerSelector);
 }
 
-function scrollToTodayMinus2Days(ganttInst, containerSelector) {
+function scrollToTodayMinus2Days(containerSelector) {
   const container = document.querySelector(containerSelector);
-  if (!container || !ganttInst.dates || ganttInst.dates.length === 0) return;
+  if (!container) return;
 
-  const today = new Date();
-  today.setHours(0,0,0,0);
-
-  let targetDate = new Date(today);
-  targetDate.setDate(targetDate.getDate() - 2);
-
-  let closestIndex = 0;
-  let minDiff = Infinity;
-
-  ganttInst.dates.forEach((d, i) => {
-    const checkD = new Date(d);
-    checkD.setHours(0,0,0,0);
-    const diff = Math.abs(checkD.getTime() - targetDate.getTime());
-    if (diff < minDiff) {
-      minDiff = diff;
-      closestIndex = i;
-    }
-  });
-
-  const columnWidth = ganttInst.options.column_width || 38;
-  const targetScrollLeft = Math.max(0, closestIndex * columnWidth);
-
+  // 使用 requestAnimationFrame 與輪詢確保 SVG 已繪製完畢
   setTimeout(() => {
-    container.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
-  }, 100);
+    const todayLine = container.querySelector('.today-highlight') || container.querySelector('.current-date-highlight');
+    if (todayLine) {
+      // 取得今天高亮線的 X 座標
+      const xPos = parseFloat(todayLine.getAttribute('x')) || 0;
+      // 往前保留 2 天寬度（預設單日格寬約 38px，2 天約 76px）
+      const targetScroll = Math.max(0, xPos - 80);
+      container.scrollTo({ left: targetScroll, behavior: 'smooth' });
+    } else {
+      // 備用方案：以 Frappe Gantt dates 陣列計算
+      const allTicks = container.querySelectorAll('.tick');
+      if (allTicks.length > 0) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayStr = String(today.getDate());
+        
+        let targetIndex = -1;
+        const lowerTexts = container.querySelectorAll('.lower-text');
+        lowerTexts.forEach((el, idx) => {
+          if (el.textContent.trim() === todayStr && targetIndex === -1) {
+            targetIndex = idx;
+          }
+        });
+
+        if (targetIndex !== -1) {
+          const colWidth = allTicks[0].getBoundingClientRect().width || 38;
+          const targetScroll = Math.max(0, (targetIndex - 2) * colWidth);
+          container.scrollTo({ left: targetScroll, behavior: 'smooth' });
+        }
+      }
+    }
+  }, 250);
 }
 
 onAuthStateChanged(auth, async (user) => {
