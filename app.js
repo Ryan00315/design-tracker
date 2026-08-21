@@ -41,15 +41,38 @@ let summaryGanttInstance = null;
 let currentWeeklyReportId = null;
 let isEditMode = false;
 
+// 🚀 行事曆狀態
 let calCurrentYear = new Date().getFullYear();
 let calCurrentMonth = new Date().getMonth();
 let activeCalDateStr = null;
 let showCompletedTodos = true;
 
-const taiwanHolidays = [
-  '01-01', '01-02', '02-16', '02-17', '02-18', '02-19', '02-20', 
-  '02-28', '04-03', '04-04', '04-05', '04-06', '05-01', '06-19', '09-25', '10-10'
-];
+// 🚀 完整台灣國定假日字典 (MM-DD : 假別名稱)
+const taiwanHolidayMap = {
+  '01-01': '元旦',
+  '01-02': '彈性放假',
+  '02-15': '小年夜',
+  '02-16': '除夕',
+  '02-17': '春節初一',
+  '02-18': '初二',
+  '02-19': '初三',
+  '02-20': '補假',
+  '02-27': '228連假',
+  '02-28': '和平紀念日',
+  '04-03': '清明補假',
+  '04-04': '兒童節',
+  '04-05': '清明節',
+  '04-06': '補假',
+  '05-01': '勞動節',
+  '06-19': '端午節',
+  '09-25': '中秋節',
+  '09-28': '教師節',
+  '10-09': '國慶補假',
+  '10-10': '國慶日',
+  '10-25': '光復節',
+  '10-26': '補假',
+  '12-25': '行憲紀念日'
+};
 
 window.switchNav = (tabId, title, elem) => {
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
@@ -185,7 +208,7 @@ function patchGanttVisuals(ganttInst, containerSelector) {
     if (i < lowerTexts.length) {
       const dStr = String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
       const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-      const isHoliday = taiwanHolidays.includes(dStr);
+      const isHoliday = !!taiwanHolidayMap[dStr];
 
       if (isWeekend || isHoliday) {
         lowerTexts[i].style.fill = '#ef4444'; 
@@ -320,15 +343,57 @@ window.checkWorkingDay = (input) => {
   } 
 };
 
+// 🚀 開始日期變更時，自動跳轉結束日期為隔天工作日，且設定 min
+window.onTaskStartChange = (startInput, targetEndId) => {
+  window.checkWorkingDay(startInput);
+  if (!startInput.value) return;
+  const nextWorkDay = getNextWorkingDayStr(startInput.value);
+  let endInput = null;
+  if (typeof targetEndId === 'string') {
+    endInput = document.getElementById(targetEndId);
+  } else {
+    endInput = startInput.closest('.task-row')?.querySelector('.task-end');
+  }
+  if (endInput) {
+    endInput.min = startInput.value;
+    if (!endInput.value || endInput.value < startInput.value) {
+      endInput.value = nextWorkDay;
+    }
+  }
+};
+
+// 🚀 任務細項：新增行 (附帶 ↑ / ↓ 排序移動按鈕)
 window.addTaskRow = () => {
   const container = document.getElementById("task-list-container"); 
   const rows = container.querySelectorAll('.task-row');
   let defaultStart = rows.length > 0 ? getNextWorkingDayStr(rows[rows.length - 1].querySelector('.task-end').value) : "";
+  let defaultEnd = defaultStart ? getNextWorkingDayStr(defaultStart) : "";
+
   const div = document.createElement('div'); 
   div.className = "form-row task-row"; 
   div.style.marginBottom = "8px";
-  div.innerHTML = `<div class="form-group" style="margin:0; flex:2;"><input type="text" class="input-control task-name" placeholder="細項名稱"></div><div class="form-group" style="margin:0; flex:1;"><input type="date" class="input-control task-start" value="${defaultStart}" onchange="checkWorkingDay(this)"></div><div class="form-group" style="margin:0; flex:1;"><input type="date" class="input-control task-end" onchange="checkWorkingDay(this)"></div><div class="form-group" style="margin:0; max-width: 40px;"><button class="action-btn danger" onclick="this.parentElement.parentElement.remove()" style="padding: 10px;">X</button></div>`;
+  div.innerHTML = `
+    <div class="form-group" style="margin:0; flex:2;"><input type="text" class="input-control task-name" placeholder="細項名稱"></div>
+    <div class="form-group" style="margin:0; flex:1;"><input type="date" class="input-control task-start" value="${defaultStart}" onchange="onTaskStartChange(this, null)"></div>
+    <div class="form-group" style="margin:0; flex:1;"><input type="date" class="input-control task-end" value="${defaultEnd}" min="${defaultStart}" onchange="checkWorkingDay(this)"></div>
+    <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
+      <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
+      <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
+      <button type="button" class="action-btn danger" onclick="this.closest('.task-row').remove()" style="padding:8px 10px;">X</button>
+    </div>
+  `;
   container.appendChild(div);
+};
+
+// 🚀 上下移動任務行
+window.moveTaskRow = (btn, direction) => {
+  const row = btn.closest('.task-row');
+  if (!row) return;
+  if (direction === -1 && row.previousElementSibling) {
+    row.parentNode.insertBefore(row, row.previousElementSibling);
+  } else if (direction === 1 && row.nextElementSibling) {
+    row.parentNode.insertBefore(row.nextElementSibling, row);
+  }
 };
 
 window.setProjectFilter = (status) => {
@@ -392,6 +457,23 @@ function getAdHocDateStr(evt) {
   if (evt.startDate) return evt.startDate;
   if (evt.createdAt && evt.createdAt.toDate) return evt.createdAt.toDate().toISOString().split('T')[0];
   return new Date().toISOString().split('T')[0];
+}
+
+// 🚀 計算專案是否在 7 日內免解鎖編輯寬限期
+function isWithin7DaysGracePeriod(proj) {
+  if (!proj || !proj.createdAt) return false;
+  const createdTime = proj.createdAt.toMillis ? proj.createdAt.toMillis() : Date.now();
+  const now = Date.now();
+  const diffDays = (now - createdTime) / (1000 * 60 * 60 * 24);
+  return diffDays <= 7;
+}
+
+function getGraceDaysLeft(proj) {
+  if (!proj || !proj.createdAt) return 0;
+  const createdTime = proj.createdAt.toMillis ? proj.createdAt.toMillis() : Date.now();
+  const now = Date.now();
+  const diffDays = (now - createdTime) / (1000 * 60 * 60 * 24);
+  return Math.max(0, Math.ceil(7 - diffDays));
 }
 
 function renderProjects() {
@@ -585,16 +667,20 @@ function renderProjects() {
   const hasCollab = (activeProj.collaborators && activeProj.collaborators.length > 0);
   const isCollabMember = hasCollab && activeProj.collaborators.includes(currentUserData.dept);
   
-  const isAuthorizedEditor = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
+  // 🚀 7天寬限期判斷：在 7 天內專案建立者享有直接編輯權
+  const inGracePeriod = isProjOwner && isWithin7DaysGracePeriod(activeProj);
+  const isAuthorizedEditor = (currentUserData.role === 'admin' || currentUserData.canEdit === true || inGracePeriod);
   let canEditMainProj = isEditMode && isAuthorizedEditor && isProjOwner;
   
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯專案</button>` : '';
   let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#2563eb; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
   
+  let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="font-size:11px; margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
+
   let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
   let titleDisplayName = `<span style="color:#2563eb; font-weight:700;">${titlePrefixIcon}${activeProj.title}</span>`;
   
-  document.getElementById("current-gantt-title").innerHTML = `<span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} ${collabBadge} ${editProjBtn}`;
+  document.getElementById("current-gantt-title").innerHTML = `<span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} ${collabBadge} ${graceBadge} ${editProjBtn}`;
   
   const btnAddCollabTask = document.getElementById("btn-add-collab-task");
   if (hasCollab && (isProjOwner || isCollabMember || currentUserData.role === 'admin')) {
@@ -606,10 +692,13 @@ function renderProjects() {
   const lockBtn = document.getElementById("btn-toggle-lock");
   const delProjBtn = document.getElementById("btn-delete-project");
   
+  // 7 天寬限期內不強制鎖定
+  const isLockedState = inGracePeriod ? false : !!activeProj.isLocked;
+
   if (currentUserData.role === "admin" || currentUserData.role === "top_manager" || (isAuthorizedEditor && isProjOwner)) {
-    lockBtn.style.display = "inline-block"; 
-    lockBtn.innerText = activeProj.isLocked ? "🔒 鎖定中 (解鎖供編輯)" : "🔓 已開放 (點擊鎖定)";
-    lockBtn.className = activeProj.isLocked ? "action-btn" : "action-btn danger"; 
+    lockBtn.style.display = inGracePeriod ? "none" : "inline-block"; 
+    lockBtn.innerText = isLockedState ? "🔒 鎖定中 (解鎖供編輯)" : "🔓 已開放 (點擊鎖定)";
+    lockBtn.className = isLockedState ? "action-btn" : "action-btn danger"; 
     delProjBtn.style.display = (isAuthorizedEditor && isProjOwner) || currentUserData.role === 'admin' ? "inline-block" : "none";
   } else { 
     lockBtn.style.display = "none"; 
@@ -692,7 +781,7 @@ function renderProjects() {
 
   if (ganttTasks.length > 0) {
     const chartContainer = document.getElementById("gantt-chart-container");
-    chartContainer.className = activeProj.isLocked ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
+    chartContainer.className = isLockedState ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
     chartContainer.innerHTML = '<div id="gantt-chart"></div>';
     setTimeout(() => {
       if (document.getElementById("tab-projects").style.display === "none") return;
@@ -788,11 +877,12 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const tasks = [...proj.tasks];
   const targetTask = tasks[taskIndex];
   
+  const inGrace = (auth.currentUser.uid === proj.ownerId) && isWithin7DaysGracePeriod(proj);
   const taskAssigneeId = targetTask.assigneeId || proj.ownerId;
   const isMyTask = (auth.currentUser.uid === taskAssigneeId);
   const isProjOwner = (auth.currentUser.uid === proj.ownerId);
   
-  if (!isProjOwner && !isMyTask && currentUserData.role !== 'admin') {
+  if (!isProjOwner && !isMyTask && currentUserData.role !== 'admin' && !inGrace) {
     return alert("權限不足：您並非此任務細項之負責人或專案建立者，無法更新進度！");
   }
 
@@ -886,12 +976,13 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     alert(`已成功更新專案「${title}」並按時程重新排序！`);
   } else {
     tasks.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    // 🚀 建立時保留 7 天寬限期 (預設 false，7 天內免解鎖)
     const docRef = await addDoc(collection(db, "projects"), { 
       title, color, collaborators, ownerId: viewingUserId, ownerName: ownerNameToSave, 
-      isLocked: true, tasks: tasks, createdAt: serverTimestamp() 
+      isLocked: false, tasks: tasks, createdAt: serverTimestamp() 
     });
     newProjId = docRef.id;
-    alert("新專案已建立並鎖定！");
+    alert("🎉 新專案已成功建立！您享有 7 天免解鎖自由編輯期。");
   }
 
   document.getElementById("proj-name").value = ""; 
@@ -992,6 +1083,7 @@ window.deleteAdHoc = async (id) => {
   if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); 
 };
 
+// === 週報系統 ===
 window.initWeeklyDateAndLeave = () => {
   const dateInput = document.getElementById("rep-date");
   const container = document.getElementById("leave-options-container");
@@ -1010,8 +1102,8 @@ window.initWeeklyDateAndLeave = () => {
   const tmrDay = tmr.getDay();
   const tmrStr = String(tmr.getMonth() + 1).padStart(2, '0') + '-' + String(tmr.getDate()).padStart(2, '0');
 
-  const isTodayHoliday = taiwanHolidays.includes(dStr);
-  const isTmrHoliday = taiwanHolidays.includes(tmrStr);
+  const isTodayHoliday = !!taiwanHolidayMap[dStr];
+  const isTmrHoliday = !!taiwanHolidayMap[tmrStr];
   const isTmrWeekend = (tmrDay === 0 || tmrDay === 6);
 
   if (day >= 1 && day <= 4 && !isTodayHoliday && !isTmrHoliday && !isTmrWeekend) {
@@ -1274,7 +1366,7 @@ window.markWeeklyNoted = async (type) => {
 };
 
 // ==========================================
-// 🚀 行事曆核心邏輯 (僅本人可見、新增與刪除)
+// 🚀 行事曆核心邏輯 (附國定假日名稱標註)
 // ==========================================
 function loadMyCalendarTodos(myUid) {
   const q = query(collection(db, "calendar_todos"), where("ownerId", "==", myUid));
@@ -1373,14 +1465,19 @@ function createCalCellNode(dayNum, dateStr, isOtherMonth, todayStr, userTodos) {
   const cell = document.createElement("div");
   cell.className = `cal-cell ${isOtherMonth ? 'other-month' : ''} ${dateStr === todayStr ? 'today' : ''}`;
 
-  const monthDayStr = dateStr.substring(5);
+  const monthDayStr = dateStr.substring(5); // MM-DD
   const dayOfWeek = new Date(dateStr).getDay();
   const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
-  const isHoliday = taiwanHolidays.includes(monthDayStr);
+  
+  // 🚀 國定假日名稱判斷
+  const holidayName = taiwanHolidayMap[monthDayStr] || null;
+  const isHoliday = !!holidayName;
 
   if (isHoliday || isWeekend) cell.classList.add("holiday");
 
-  let html = `<div class="cal-date-num">${dayNum}</div>`;
+  // 🚀 日期右側顯示節日小標籤
+  let holidayBadgeHtml = holidayName ? `<span class="cal-holiday-tag" title="${holidayName}">${holidayName}</span>` : '';
+  let html = `<div style="display:flex; align-items:center;"><div class="cal-date-num">${dayNum}</div>${holidayBadgeHtml}</div>`;
 
   const dayTodos = userTodos.filter(t => t.date === dateStr);
   if (dayTodos.length > 0) {
@@ -1528,6 +1625,71 @@ window.toggleCompletedTodosView = () => {
 };
 
 // ==========================================
+// 🚀 視覺化樹狀組織圖 (Org Chart)
+// ==========================================
+window.switchOrgView = (viewType) => {
+  const chartContainer = document.getElementById("org-chart-view-container");
+  const tableContainer = document.getElementById("org-table-view-container");
+  const btnChart = document.getElementById("btn-view-org-chart");
+  const btnTable = document.getElementById("btn-view-org-table");
+
+  if (viewType === 'chart') {
+    chartContainer.style.display = "block";
+    tableContainer.style.display = "none";
+    btnChart.classList.add("active");
+    btnTable.classList.remove("active");
+    renderOrgChart();
+  } else {
+    chartContainer.style.display = "none";
+    tableContainer.style.display = "block";
+    btnTable.classList.add("active");
+    btnChart.classList.remove("active");
+  }
+};
+
+function renderOrgChart() {
+  const container = document.getElementById("org-chart-view-container");
+  if (!container) return;
+  container.innerHTML = "";
+
+  const tiers = [
+    { title: "👑 系統管理與最高決策", roles: ["admin", "top_manager"] },
+    { title: "👔 部門主管 (Managers)", roles: ["manager"] },
+    { title: "💼 副主管 (Assistant Managers)", roles: ["assistant_manager"] },
+    { title: "👥 各部門專屬人員 (Staff)", roles: ["staff"] }
+  ];
+
+  tiers.forEach(tier => {
+    const tierUsers = allUsersList.filter(u => tier.roles.includes(u.role));
+    if (tierUsers.length === 0) return;
+
+    let html = `
+      <div class="org-tier-block">
+        <div class="org-tier-header">${tier.title} <span style="font-size:11px; background:#e2e8f0; padding:1px 6px; border-radius:10px;">${tierUsers.length} 人</span></div>
+        <div class="org-cards-row">
+    `;
+
+    tierUsers.forEach(u => {
+      const supUser = allUsersList.find(x => x.uid === u.supervisorId);
+      const supText = supUser ? `直屬: ${supUser.name}` : '直屬: 無';
+      html += `
+        <div class="org-card-item">
+          <div class="org-card-avatar">${(u.name || 'U').charAt(0).toUpperCase()}</div>
+          <div class="org-card-info">
+            <div class="org-card-name">${u.name || '未命名'}</div>
+            <div class="org-card-sub"><span class="pill pill-role" style="font-size:10px; padding:1px 4px;">${u.dept || '設計部'}</span> · ${roleNames[u.role] || u.role}</div>
+            <div style="font-size:10px; color:#94a3b8; margin-top:2px;">${supText}</div>
+          </div>
+        </div>
+      `;
+    });
+
+    html += `</div></div>`;
+    container.innerHTML += html;
+  });
+}
+
+// ==========================================
 // 全局編輯模式 Modal 邏輯
 // ==========================================
 let currentEditData = {};
@@ -1561,8 +1723,8 @@ window.openGeneralEdit = (type, id, extra) => {
     document.getElementById("general-edit-title").innerText = "編輯專案細項";
     form.innerHTML = `
       <div class="form-group"><label class="form-label">細項名稱</label><input type="text" id="edit-val-name" class="input-control" value="${task.name}"></div>
-      <div class="form-group"><label class="form-label">開始日期</label><input type="date" id="edit-val-start" class="input-control" value="${task.start}"></div>
-      <div class="form-group"><label class="form-label">結束日期</label><input type="date" id="edit-val-end" class="input-control" value="${task.end}"></div>
+      <div class="form-group"><label class="form-label">開始日期</label><input type="date" id="edit-val-start" class="input-control" value="${task.start}" onchange="onTaskStartChange(this, 'edit-val-end')"></div>
+      <div class="form-group"><label class="form-label">結束日期</label><input type="date" id="edit-val-end" class="input-control" value="${task.end}" min="${task.start}" onchange="checkWorkingDay(this)"></div>
     `;
   } else if (type === 'adhoc') {
     const adhoc = allAdHocData.find(a => a.id === id);
@@ -1718,6 +1880,7 @@ function loadOrgUsers() {
         </td>`;
       tbody.appendChild(tr);
     });
+    renderOrgChart(); // 🚀 人員資料變更時同步更新組織樹狀圖
   });
 }
 
