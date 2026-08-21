@@ -183,6 +183,63 @@ function formatDateSafe(dateObj) {
   return `${y}-${m}-${d}`; 
 }
 
+// 🚀 核心捲動定位邏輯：精準抓取甘特圖內部的 .gantt-container 與今天位置
+function scrollToTodayMinus2Days(ganttInst, containerSelector) {
+  const wrapper = document.querySelector(containerSelector);
+  if (!wrapper) return;
+
+  [80, 200, 400].forEach(delay => {
+    setTimeout(() => {
+      // 真正的滾動容器是 Frappe Gantt 產生的 .gantt-container，若無則降級為 wrapper 本身
+      const scrollElement = wrapper.querySelector('.gantt-container') || wrapper;
+      const svg = wrapper.querySelector('.gantt');
+      if (!scrollElement || !svg) return;
+
+      // 1. 取得今日位置 (從 ganttInst.dates 比對)
+      let todayIndex = -1;
+      const today = new Date();
+      today.setHours(0,0,0,0);
+
+      if (ganttInst && ganttInst.dates) {
+        ganttInst.dates.forEach((d, idx) => {
+          const checkD = new Date(d);
+          checkD.setHours(0,0,0,0);
+          if (checkD.getTime() === today.getTime() && todayIndex === -1) {
+            todayIndex = idx;
+          }
+        });
+      }
+
+      // 2. 計算單日格子寬度
+      let colWidth = (ganttInst && ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
+      const firstTick = svg.querySelector('.tick');
+      if (firstTick) {
+        const w = parseFloat(firstTick.getAttribute('width'));
+        if (!isNaN(w) && w > 0) colWidth = w;
+      }
+
+      // 3. 計算目標滾動距離
+      let targetScrollLeft = 0;
+      if (todayIndex !== -1) {
+        targetScrollLeft = Math.max(0, (todayIndex - 2) * colWidth);
+      } else {
+        // 備用：直接從 .today-highlight 元素抓座標
+        const todayHighlight = svg.querySelector('.today-highlight') || svg.querySelector('.current-date-highlight');
+        if (todayHighlight) {
+          const x = parseFloat(todayHighlight.getAttribute('x'));
+          if (!isNaN(x)) {
+            targetScrollLeft = Math.max(0, x - (colWidth * 2));
+          }
+        }
+      }
+
+      // 4. 強制寫入 scrollLeft 並執行平滑滾動
+      scrollElement.scrollLeft = targetScrollLeft;
+      if (scrollElement !== wrapper) wrapper.scrollLeft = targetScrollLeft;
+    }, delay);
+  });
+}
+
 function patchGanttVisuals(ganttInst, containerSelector) {
   if (!ganttInst || !ganttInst.dates || ganttInst.dates.length === 0) return;
   const svg = document.querySelector(`${containerSelector} .gantt`);
@@ -211,42 +268,6 @@ function patchGanttVisuals(ganttInst, containerSelector) {
       }
     }
   });
-
-  // 🚀 自動聚焦至「今天日期往前 2 天」
-  scrollToTodayMinus2Days(ganttInst, containerSelector);
-}
-
-function scrollToTodayMinus2Days(ganttInst, containerSelector) {
-  if (!ganttInst || !ganttInst.gantt_start) return;
-
-  const container = document.querySelector(containerSelector);
-  if (!container) return;
-
-  // 取得單格寬度 (Frappe Gantt 預設 Day 模式下每格為 38px)
-  const columnWidth = ganttInst.options.column_width || 38;
-
-  // 計算圖表起始日與「今天」相差幾天
-  const chartStartDate = new Date(ganttInst.gantt_start);
-  chartStartDate.setHours(0, 0, 0, 0);
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const diffTime = today.getTime() - chartStartDate.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-  // 目標位置：今天的天數索引往前扣 2 天
-  const targetDaysIndex = Math.max(0, diffDays - 2);
-  const targetScrollLeft = targetDaysIndex * columnWidth;
-
-  // 延遲確保 DOM 渲染後執行滾動
-  setTimeout(() => {
-    container.scrollLeft = targetScrollLeft;
-  }, 100);
-
-  setTimeout(() => {
-    container.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
-  }, 250);
 }
 
 onAuthStateChanged(auth, async (user) => {
@@ -680,9 +701,17 @@ function renderProjects() {
       document.getElementById("gantt-chart-summary-container").innerHTML = '<div id="gantt-chart-summary"></div>';
       setTimeout(() => {
         if (document.getElementById("tab-projects").style.display === "none") return;
-        summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true });
+        summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { 
+          view_mode: 'Day', 
+          language: 'zh', 
+          header_height: 50, 
+          bar_height: 20, 
+          padding: 18, 
+          readonly: true 
+        });
         patchGanttVisuals(summaryGanttInstance, '#gantt-chart-summary-container');
-      }, 150); 
+        scrollToTodayMinus2Days(summaryGanttInstance, '#gantt-chart-summary-container'); // 🚀 自動聚焦
+      }, 100); 
     } else { 
       document.getElementById("gantt-chart-summary-container").innerHTML = ''; 
     }
@@ -706,7 +735,6 @@ function renderProjects() {
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯專案</button>` : '';
   let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#2563eb; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
   
-  // 🚀 自由編輯期時間到了直接完全隱藏，不顯示任何標籤
   let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="font-size:11px; margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
 
   let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
@@ -714,7 +742,6 @@ function renderProjects() {
   
   document.getElementById("current-gantt-title").innerHTML = `<span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} ${collabBadge} ${graceBadge} ${editProjBtn}`;
   
-  // 🚀 只有在編輯模式下才顯示「➕ 細項」/「➕ 協作細項」與「刪除專案」
   const btnProjectAddTask = document.getElementById("btn-project-add-task");
   const lockBtn = document.getElementById("btn-toggle-lock");
   const delProjBtn = document.getElementById("btn-delete-project");
@@ -819,7 +846,7 @@ function renderProjects() {
 
   if (ganttTasks.length > 0) {
     const chartContainer = document.getElementById("gantt-chart-container");
-    chartContainer.className = "gantt-right-panel";
+    chartContainer.className = isLockedState ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
     chartContainer.innerHTML = '<div id="gantt-chart"></div>';
     setTimeout(() => {
       if (document.getElementById("tab-projects").style.display === "none") return;
@@ -832,8 +859,8 @@ function renderProjects() {
         readonly: true 
       });
       patchGanttVisuals(ganttInstance, '#gantt-chart-container');
-      scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container'); // 🚀 傳入實例計算
-    }, 150); 
+      scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container'); // 🚀 自動聚焦
+    }, 100); 
   }
 }
 
@@ -1262,7 +1289,6 @@ function renderWeeklyReports() {
   filtered.sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)); 
   
   const days = ['日', '一', '二', '三', '四', '五', '六'];
-  const isAuthorizedEditor = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
 
   filtered.forEach((w, index) => {
     let isOwner = (w.ownerId === auth.currentUser.uid);
@@ -1830,7 +1856,6 @@ window.openGeneralEdit = (type, id, extra) => {
       <div class="form-group"><label class="form-label">原因說明</label><input type="text" id="edit-val-reason" class="input-control" value="${adhoc.reason}"></div>
     `;
   } else if (type === 'weekly') {
-    // 🚀 週報編輯：支援修改主專案、任務細項與進度說明
     const weekly = allWeeklyData.find(w => w.id === id);
     document.getElementById("general-edit-title").innerText = "編輯週報內容";
     
