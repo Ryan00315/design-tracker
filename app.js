@@ -367,22 +367,67 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 function loadSidebarSubordinates() {
+  // 定義組織階層職位權重 (數值越小排序越上面：最高主管在最上，人員在最下)
+  const rolePriority = {
+    admin: 1,
+    top_manager: 2,
+    manager: 3,
+    assistant_manager: 4,
+    staff: 5
+  };
+
   onSnapshot(collection(db, "users"), (snapshot) => {
     const list = document.getElementById("nav-sub-list");
-    list.innerHTML = `<li class="nav-sub-item active" id="sub-li-${auth.currentUser.uid}" onclick="switchViewingUser('${auth.currentUser.uid}', '自己 (我的資料)')">我的資料</li>`;
+    if (!list) return;
+
+    // 1. 最頂部固定為「個人專案」
+    list.innerHTML = `<li class="nav-sub-item active" id="sub-li-${auth.currentUser.uid}" onclick="switchViewingUser('${auth.currentUser.uid}', '自己 (個人專案)')">個人專案</li>`;
+
+    // 收集所有可檢視的下屬/同仁資料
+    const visibleUsers = [];
     snapshot.forEach(docSnap => {
       const u = { uid: docSnap.id, ...docSnap.data() };
       if (u.uid === auth.currentUser.uid) return;
+
       const myRole = currentUserData.role; 
       const targetRole = u.role; 
       let canView = false;
+
       if (myRole === 'admin') canView = true;
       else if (myRole === 'top_manager' && targetRole !== 'admin' && targetRole !== 'top_manager') canView = true;
       else if (myRole === 'manager' && (targetRole === 'assistant_manager' || targetRole === 'staff')) canView = true;
       else if (myRole === 'assistant_manager' && targetRole === 'staff') canView = true;
+
       if (canView || u.supervisorId === auth.currentUser.uid) {
-        list.innerHTML += `<li class="nav-sub-item" id="sub-li-${u.uid}" onclick="switchViewingUser('${u.uid}', '${u.name}')">${u.name} <small style="color:#cbd5e1">(${roleNames[u.role]||'人員'})</small></li>`;
+        visibleUsers.push(u);
       }
+    });
+
+    // 2. 依部門分類，部門內按職級由高至低排序
+    departmentList.forEach(dept => {
+      const deptMembers = visibleUsers.filter(u => (u.dept || "設計部") === dept);
+      if (deptMembers.length === 0) return;
+
+      // 依職位權重排序 (主管在最上，一般人員在最下)
+      deptMembers.sort((a, b) => {
+        const pA = rolePriority[a.role] || 99;
+        const pB = rolePriority[b.role] || 99;
+        return pA - pB;
+      });
+
+      // 插入部門小標題分隔
+      list.innerHTML += `<li class="nav-sub-dept-header">🏢 ${dept}</li>`;
+
+      // 依序渲染該部門人員
+      deptMembers.forEach(u => {
+        const isActive = (viewingUserId === u.uid) ? 'active' : '';
+        list.innerHTML += `
+          <li class="nav-sub-item ${isActive}" id="sub-li-${u.uid}" onclick="switchViewingUser('${u.uid}', '${u.name}')">
+            ${u.name || '未命名'} 
+            <small style="color:#94a3b8; font-size:11px; margin-left:4px;">(${roleNames[u.role] || '人員'})</small>
+          </li>
+        `;
+      });
     });
   });
 }
