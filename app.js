@@ -321,8 +321,11 @@ onAuthStateChanged(auth, async (user) => {
     } catch (e) { 
       currentUserData = { name: user.email.split('@')[0], dept: "設計部", role: "admin", canEdit: false }; 
     }
-    document.getElementById("user-display-name").innerText = currentUserData.name || user.email.split('@')[0];
-    document.getElementById("user-avatar").innerText = (currentUserData.name || user.email).charAt(0).toUpperCase();
+    
+    // 更新顯示名稱與大頭貼
+    const displayName = currentUserData.name || user.email.split('@')[0];
+    document.getElementById("user-display-name").innerText = displayName;
+    document.getElementById("user-avatar").innerText = displayName.charAt(0).toUpperCase();
     document.getElementById("user-role-badge").innerText = roleNames[currentUserData.role] || (currentUserData.role || "STAFF").toUpperCase();
 
     if (currentUserData.role === "admin") {
@@ -686,6 +689,7 @@ function renderProjects() {
   summaryBtn.onclick = () => selectProject('SUMMARY'); 
   tabsContainer.appendChild(summaryBtn);
 
+  // 🚀 上方切換按鈕維持純專案名稱（協作顯示 👥，一般專案無圖示）
   activeList.forEach(p => {
     const hasCollab = (p.collaborators && p.collaborators.length > 0);
     const btn = document.createElement("button"); 
@@ -704,6 +708,7 @@ function renderProjects() {
 
   emptyState.style.display = "none"; 
 
+  // 總覽視圖
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; 
     summaryView.style.display = "block";
@@ -802,6 +807,7 @@ function renderProjects() {
     return;
   }
 
+  // 個別專案視圖
   summaryView.style.display = "none"; 
   detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
@@ -2261,8 +2267,8 @@ window.submitEditUser = async () => {
   try {
     const uidToEdit = document.getElementById("edit-user-uid").value;
     const newName = document.getElementById("edit-user-name").value.trim();
-
-    // 1. 寫入資料庫
+    
+    // 寫入資料庫
     await updateDoc(doc(db, "users", uidToEdit), { 
       name: newName, 
       dept: document.getElementById("edit-user-dept").value,
@@ -2273,13 +2279,13 @@ window.submitEditUser = async () => {
     closeEditModal(); 
     alert("人員資訊更新成功！");
 
-    // 2. 🚀 如果管理員剛好編輯的是「自己的帳號」，立刻同步更新右上角的畫面！
+    // 🚀 名字大小寫瞬間同步邏輯：如果是改自己，立刻更新畫面
     if (uidToEdit === auth.currentUser.uid) {
       currentUserData.name = newName;
       document.getElementById("user-display-name").innerText = newName;
       document.getElementById("user-avatar").innerText = newName.charAt(0).toUpperCase();
     }
-
+    
   } catch (err) { 
     alert("更新失敗: " + err.message); 
   }
@@ -2298,69 +2304,27 @@ window.deleteUserDoc = async (uid, name) => {
 };
 
 // ==========================================
-// 🚀 個人帳號設定與更改密碼控制邏輯
+// 🚀 個人更改密碼事件綁定
 // ==========================================
+document.getElementById("btn-update-password").addEventListener("click", async () => {
+  const newPass = document.getElementById("profile-new-pass").value;
+  const confirmPass = document.getElementById("profile-confirm-pass").value;
 
-// 1. 打開設定視窗
-window.openProfileSettings = () => {
-  const modal = document.getElementById("profile-settings-modal");
-  if (!modal) return alert("找不到設定視窗的 HTML，請確認是否已加入 index.html 中！");
-  
-  // 填入目前的名稱 (如果 currentUserData.name 為空，就用目前顯示在右上角的字)
-  const currentDisplayName = document.getElementById("user-display-name").innerText;
-  document.getElementById("setting-user-name").value = currentUserData.name || currentDisplayName;
-  document.getElementById("setting-new-password").value = ""; // 清空密碼欄位
-  
-  modal.classList.add("active");
-};
+  if (!newPass || newPass.length < 6) return alert("新密碼至少需要 6 個字元！");
+  if (newPass !== confirmPass) return alert("兩次輸入的密碼不一致！");
 
-// 2. 關閉設定視窗
-window.closeProfileSettings = () => {
-  document.getElementById("profile-settings-modal").classList.remove("active");
-};
-
-// 3. 儲存名稱變更
-window.saveProfileName = async () => {
-  const newName = document.getElementById("setting-user-name").value.trim();
-  if (!newName) return alert("名稱不可為空白！");
+  if (!confirm("確定要更改您的登入密碼嗎？")) return;
 
   try {
-    // 寫入資料庫
-    await setDoc(doc(db, "users", auth.currentUser.uid), { 
-      name: newName,
-      dept: currentUserData.dept || "設計部" // 保留原本部門
-    }, { merge: true });
-    
-    // 更新記憶體與畫面
-    currentUserData.name = newName;
-    document.getElementById("user-display-name").innerText = newName;
-    document.getElementById("user-avatar").innerText = newName.charAt(0).toUpperCase();
-    
-    alert(`✅ 名稱已成功更新為：${newName}`);
+    await updatePassword(auth.currentUser, newPass);
+    alert("✅ 密碼更換成功！下次登入請使用新密碼。");
+    document.getElementById("profile-new-pass").value = "";
+    document.getElementById("profile-confirm-pass").value = "";
   } catch (error) {
-    alert("名稱更新失敗：" + error.message);
-  }
-};
-
-// 4. 執行密碼變更
-window.saveNewPassword = async () => {
-  const newPassword = document.getElementById("setting-new-password").value.trim();
-  if (!newPassword || newPassword.length < 6) {
-    return alert("密碼不能為空，且至少需要 6 個字元！");
-  }
-
-  if (!confirm("確定要將登入密碼更改為新設定的密碼嗎？")) return;
-
-  try {
-    await updatePassword(auth.currentUser, newPassword);
-    alert("✅ 密碼更換成功！下次請使用新密碼登入。");
-    document.getElementById("setting-new-password").value = ""; // 清空欄位
-  } catch (error) {
-    // Firebase 安全機制：太久沒登入會禁止改密碼
     if (error.code === 'auth/requires-recent-login') {
-      alert("⚠️ 基於安全考量，更換密碼需要您『最近剛登入過』。\n請先點擊登出，重新輸入舊密碼登入後，再進行密碼修改！");
+      alert("⚠️ 基於安全考量，更換密碼需要您『最近剛登入過』。\n請先點擊右上角登出，重新使用舊密碼登入後，再進行密碼修改！");
     } else {
       alert("密碼更換失敗：" + error.message);
     }
   }
-};
+});
