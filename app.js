@@ -367,7 +367,6 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 function loadSidebarSubordinates() {
-  // 定義組織階層職位權重 (數值越小排序越上面：最高主管在最上，人員在最下)
   const rolePriority = {
     admin: 1,
     top_manager: 2,
@@ -383,7 +382,6 @@ function loadSidebarSubordinates() {
     // 1. 最頂部固定為「個人專案」
     list.innerHTML = `<li class="nav-sub-item active" id="sub-li-${auth.currentUser.uid}" onclick="switchViewingUser('${auth.currentUser.uid}', '自己 (個人專案)')">個人專案</li>`;
 
-    // 收集所有可檢視的下屬/同仁資料
     const visibleUsers = [];
     snapshot.forEach(docSnap => {
       const u = { uid: docSnap.id, ...docSnap.data() };
@@ -403,34 +401,55 @@ function loadSidebarSubordinates() {
       }
     });
 
-    // 2. 依部門分類，部門內按職級由高至低排序
-    departmentList.forEach(dept => {
+    // 2. 依部門分類與收折結構
+    departmentList.forEach((dept, dIdx) => {
       const deptMembers = visibleUsers.filter(u => (u.dept || "設計部") === dept);
       if (deptMembers.length === 0) return;
 
-      // 依職位權重排序 (主管在最上，一般人員在最下)
-      deptMembers.sort((a, b) => {
-        const pA = rolePriority[a.role] || 99;
-        const pB = rolePriority[b.role] || 99;
-        return pA - pB;
-      });
+      // 依職位權重排序 (主管在最上，人員在最下)
+      deptMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99));
 
-      // 插入部門小標題分隔
-      list.innerHTML += `<li class="nav-sub-dept-header">🏢 ${dept}</li>`;
+      const deptGroupId = `dept-group-${dIdx}`;
+      const isViewingMemberInDept = deptMembers.some(m => m.uid === viewingUserId);
+      const isExpanded = isViewingMemberInDept; // 若正在檢視該部門同仁則自動展開，其餘預設收起
 
-      // 依序渲染該部門人員
+      // 部門收折標題列
+      list.innerHTML += `
+        <li class="nav-sub-dept-header ${isExpanded ? 'open' : ''}" onclick="toggleDeptSubList('${deptGroupId}', this)">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span>🏢</span>
+            <span>${dept}</span>
+            <span class="dept-count-badge">${deptMembers.length}</span>
+          </div>
+          <span class="dept-arrow">▶</span>
+        </li>
+      `;
+
+      // 部門同仁列表容器 (預設 display: none 收起)
+      let membersHtml = `<div class="nav-sub-dept-members" id="${deptGroupId}" style="display:${isExpanded ? 'flex' : 'none'};">`;
       deptMembers.forEach(u => {
         const isActive = (viewingUserId === u.uid) ? 'active' : '';
-        list.innerHTML += `
+        membersHtml += `
           <li class="nav-sub-item ${isActive}" id="sub-li-${u.uid}" onclick="switchViewingUser('${u.uid}', '${u.name}')">
             ${u.name || '未命名'} 
             <small style="color:#94a3b8; font-size:11px; margin-left:4px;">(${roleNames[u.role] || '人員'})</small>
           </li>
         `;
       });
+      membersHtml += `</div>`;
+      list.innerHTML += membersHtml;
     });
   });
 }
+
+// 🚀 部門收折切換控制函式
+window.toggleDeptSubList = (groupId, headerElem) => {
+  const container = document.getElementById(groupId);
+  if (!container) return;
+  const isHidden = container.style.display === 'none';
+  container.style.display = isHidden ? 'flex' : 'none';
+  headerElem.classList.toggle('open', isHidden);
+};
 
 window.switchViewingUser = (uid, name) => {
   viewingUserId = uid;
