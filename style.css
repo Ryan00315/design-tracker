@@ -380,3 +380,53 @@ tr:hover td { background: #fafafa; }
   border-top: none;
   margin-top: 2px;
 }
+
+/* 🚀 側邊欄部門收折手風琴樣式 */
+.nav-sub-dept-header {
+  padding: 8px 12px 8px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #94a3b8;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.nav-sub-dept-header:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f8fafc;
+}
+
+.dept-count-badge {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.dept-arrow {
+  font-size: 9px;
+  transition: transform 0.2s ease;
+  color: #64748b;
+}
+
+.nav-sub-dept-header.open .dept-arrow {
+  transform: rotate(90deg);
+  color: var(--primary);
+}
+
+.nav-sub-dept-members {
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 8px;
+  margin-bottom: 4px;
+}
