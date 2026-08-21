@@ -72,7 +72,7 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 
 .gantt-master-layout { display: flex; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); overflow: hidden; margin-top: 10px; box-shadow: var(--shadow-sm); }
 
-.gantt-left-panel { width: 560px; border-right: 2px solid var(--border); flex-shrink: 0; background: #fff; z-index: 10; display: flex; flex-direction: column; }
+.gantt-left-panel { width: 525px; border-right: 2px solid var(--border); flex-shrink: 0; background: #fff; z-index: 10; display: flex; flex-direction: column; }
 .gantt-left-panel-summary { width: 340px; border-right: 2px solid var(--border); flex-shrink: 0; background: #fff; z-index: 10; display: flex; flex-direction: column; }
 
 .gantt-head { height: 50px; display: flex; border-bottom: 1px solid var(--border); background: #f8fafc; align-items: center; font-size: 12px; font-weight: 600; color: var(--text-muted); }
@@ -80,7 +80,7 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .gantt-row { height: 38px; display: flex; border-bottom: 1px solid var(--border-light); align-items: center; font-size: 12px; transition: background 0.15s; }
 .gantt-row:hover { background: #f1f5f9; }
 
-.col-name { width: 230px; padding: 0 12px; font-weight: 600; white-space: nowrap; overflow-x: auto; overflow-y: hidden; text-overflow: clip; scrollbar-width: none; -ms-overflow-style: none; }
+.col-name { width: 250px; padding: 0 8px 0 12px; font-weight: 600; white-space: nowrap; overflow-x: auto; overflow-y: hidden; text-overflow: clip; scrollbar-width: none; -ms-overflow-style: none; display: flex; align-items: center; justify-content: space-between; }
 .col-name::-webkit-scrollbar { display: none; }
 
 .col-date { width: 65px; padding: 0 6px; font-size: 11px; color: var(--text-muted); text-align: center; flex-shrink: 0; }
@@ -88,7 +88,7 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .col-prog input { width: 42px; padding: 4px; text-align: center; border: 1px solid var(--border); border-radius: 4px; outline: none; font-size: 11px; font-weight: 600; }
 .col-prog input:disabled { background: #f1f5f9; color: var(--success); border-color: transparent; }
 .col-act { width: 60px; padding: 0 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.col-owner { width: 110px; padding: 0 10px; font-size: 11px; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 1px dashed var(--border); flex-shrink: 0; text-align: center; }
+.col-owner { width: 75px; padding: 0 6px; font-size: 11px; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 1px dashed var(--border); flex-shrink: 0; text-align: center; }
 
 .col-sum-name { flex: 2.5; padding: 0 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .col-sum-date { flex: 1.5; padding: 0 6px; font-size: 11px; color: var(--text-muted); text-align: left; }
@@ -140,8 +140,7 @@ tr:hover td { background: #fafafa; }
 .action-btn.danger { color: var(--danger); border-color: #fca5a5; }
 .action-btn.danger:hover:not(:disabled) { background: var(--danger-bg); }
 
-/* 🚀 細項排序按鈕微調樣式 */
-.btn-sort { padding: 8px 6px; font-size: 11px; line-height: 1; border-color: var(--border); }
+.btn-sort { padding: 2px 5px; font-size: 10px; line-height: 1; border: 1px solid var(--border); background: #f8fafc; border-radius: 4px; cursor: pointer; }
 .btn-sort:hover { background: var(--primary-soft); color: var(--primary); }
 
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; pointer-events: none; transition: all 0.2s ease; }
@@ -158,7 +157,6 @@ tr:hover td { background: #fafafa; }
 :-ms-input-placeholder { color: #e2e8f0 !important; }
 ::-ms-input-placeholder { color: #e2e8f0 !important; }
 
-/* 行事曆專屬樣式 (含國定假日名稱標籤) */
 .calendar-header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
 .calendar-week-labels { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 13px; font-weight: 700; color: var(--text-muted); background: #f8fafc; border: 1px solid var(--border); border-bottom: none; border-radius: 8px 8px 0 0; padding: 8px 0; }
 .cal-day-label.sun, .cal-day-label.sat { color: var(--danger); }
@@ -172,7 +170,6 @@ tr:hover td { background: #fafafa; }
 .cal-date-num { font-size: 13px; font-weight: 600; color: #334155; display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 50%; }
 .cal-cell.today .cal-date-num { background: #f59e0b; color: #fff !important; }
 
-/* 🚀 國定假日名稱標籤 */
 .cal-holiday-tag { font-size: 10px; font-weight: 700; color: #ef4444; background: #fee2e2; padding: 1px 4px; border-radius: 4px; margin-left: 4px; white-space: nowrap; }
 
 .cal-todo-preview-list { display: flex; flex-direction: column; gap: 2px; flex: 1; overflow: hidden; margin-top: 4px; }
@@ -184,7 +181,6 @@ tr:hover td { background: #fafafa; }
 .cal-todo-item:hover { background: #f1f5f9; }
 .cal-todo-item.done span { text-decoration: line-through; opacity: 0.55; }
 
-/* 🚀 視覺化樹狀組織圖樣式 (Org Tree) */
 .view-switch-group { display: flex; gap: 6px; }
 .view-switch-group .action-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
 
