@@ -70,10 +70,11 @@ window.switchNav = (tabId, title, elem) => {
   }
 };
 
+// 🚀 修復：不管在哪個分頁，只要名下有 7 天內的專案，就能順利開啟編輯模式！
 document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => {
   if (currentUserData.role !== 'admin' && !currentUserData.canEdit) {
-    const isOwnerOfActive = selectedProjectId && selectedProjectId !== 'SUMMARY' && allProjectsData.find(p => p.id === selectedProjectId && p.ownerId === auth.currentUser.uid && isWithin7DaysGracePeriod(p));
-    if (!isOwnerOfActive) {
+    const hasGraceProj = allProjectsData.some(p => p.ownerId === auth.currentUser?.uid && isWithin7DaysGracePeriod(p));
+    if (!hasGraceProj) {
       alert("您的帳號尚未開放編輯權限！");
       return;
     }
@@ -315,14 +316,12 @@ onAuthStateChanged(auth, async (user) => {
       if (userDoc.exists()) {
         currentUserData = userDoc.data();
       } else {
-        // 🚀 封印自動重建：如果資料不存在，給予預設記憶體變數，但不寫回資料庫產生幽靈檔案
         currentUserData = { name: user.email.split('@')[0], dept: "設計部", role: "admin", canEdit: false };
       }
     } catch (e) { 
       currentUserData = { name: user.email.split('@')[0], dept: "設計部", role: "admin", canEdit: false }; 
     }
     
-    // 更新顯示名稱與大頭貼
     const displayName = currentUserData.name || user.email.split('@')[0];
     document.getElementById("user-display-name").innerText = displayName;
     document.getElementById("user-avatar").innerText = displayName.charAt(0).toUpperCase();
@@ -605,16 +604,31 @@ function getAdHocDateStr(evt) {
   return new Date().toISOString().split('T')[0];
 }
 
+// 🚀 修復：讓 7 天判斷不會因為 Firebase 時間戳記延遲而掛掉
 function isWithin7DaysGracePeriod(proj) {
   if (!proj || !proj.createdAt) return false;
-  const createdTime = proj.createdAt.toMillis ? proj.createdAt.toMillis() : Date.now();
+  let createdTime;
+  if (typeof proj.createdAt.toMillis === 'function') {
+    createdTime = proj.createdAt.toMillis();
+  } else if (proj.createdAt.seconds) {
+    createdTime = proj.createdAt.seconds * 1000;
+  } else {
+    createdTime = Date.now(); 
+  }
   const diffDays = (Date.now() - createdTime) / (1000 * 60 * 60 * 24);
   return diffDays <= 7;
 }
 
 function getGraceDaysLeft(proj) {
   if (!proj || !proj.createdAt) return 0;
-  const createdTime = proj.createdAt.toMillis ? proj.createdAt.toMillis() : Date.now();
+  let createdTime;
+  if (typeof proj.createdAt.toMillis === 'function') {
+    createdTime = proj.createdAt.toMillis();
+  } else if (proj.createdAt.seconds) {
+    createdTime = proj.createdAt.seconds * 1000;
+  } else {
+    createdTime = Date.now(); 
+  }
   const diffDays = (Date.now() - createdTime) / (1000 * 60 * 60 * 24);
   return Math.max(0, Math.ceil(7 - diffDays));
 }
@@ -689,7 +703,6 @@ function renderProjects() {
   summaryBtn.onclick = () => selectProject('SUMMARY'); 
   tabsContainer.appendChild(summaryBtn);
 
-  // 🚀 上方切換按鈕維持純專案名稱（協作顯示 👥，一般專案無圖示）
   activeList.forEach(p => {
     const hasCollab = (p.collaborators && p.collaborators.length > 0);
     const btn = document.createElement("button"); 
@@ -708,7 +721,6 @@ function renderProjects() {
 
   emptyState.style.display = "none"; 
 
-  // 總覽視圖
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; 
     summaryView.style.display = "block";
@@ -807,7 +819,6 @@ function renderProjects() {
     return;
   }
 
-  // 個別專案視圖
   summaryView.style.display = "none"; 
   detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
@@ -1191,13 +1202,21 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   renderProjects(); 
 });
 
+// 🚀 修復：不管有沒有權限，只要是專案建立者在 7 天內，就能切換鎖定狀態！
 window.toggleCurrentProjectLock = async () => { 
-  if (currentUserData.role !== 'admin' && !currentUserData.canEdit) return alert("權限不足！");
-  await updateDoc(doc(db, "projects", selectedProjectId), { isLocked: !allProjectsData.find(p => p.id === selectedProjectId).isLocked }); 
+  const p = allProjectsData.find(x => x.id === selectedProjectId);
+  const inGrace = p && (auth.currentUser.uid === p.ownerId) && isWithin7DaysGracePeriod(p);
+  if (currentUserData.role !== 'admin' && !currentUserData.canEdit && !inGrace) return alert("權限不足！");
+  
+  await updateDoc(doc(db, "projects", selectedProjectId), { isLocked: !p.isLocked }); 
 };
 
+// 🚀 修復：不管有沒有權限，只要是專案建立者在 7 天內，就能刪除專案！
 window.deleteCurrentProject = async () => { 
-  if (currentUserData.role !== 'admin' && !currentUserData.canEdit) return alert("權限不足！");
+  const p = allProjectsData.find(x => x.id === selectedProjectId);
+  const inGrace = p && (auth.currentUser.uid === p.ownerId) && isWithin7DaysGracePeriod(p);
+  if (currentUserData.role !== 'admin' && !currentUserData.canEdit && !inGrace) return alert("權限不足！");
+  
   if (!confirm("⚠️ 確定要永久刪除此專案嗎？")) return; 
   await deleteDoc(doc(db, "projects", selectedProjectId)); 
   alert("專案已刪除！"); 
@@ -2263,12 +2282,12 @@ window.openEditModal = (uid) => {
 
 window.closeEditModal = () => document.getElementById("edit-user-modal").classList.remove("active");
 
+// 🚀 修復：瞬間同步名字大小寫！
 window.submitEditUser = async () => {
   try {
     const uidToEdit = document.getElementById("edit-user-uid").value;
     const newName = document.getElementById("edit-user-name").value.trim();
     
-    // 寫入資料庫
     await updateDoc(doc(db, "users", uidToEdit), { 
       name: newName, 
       dept: document.getElementById("edit-user-dept").value,
@@ -2279,13 +2298,12 @@ window.submitEditUser = async () => {
     closeEditModal(); 
     alert("人員資訊更新成功！");
 
-    // 🚀 名字大小寫瞬間同步邏輯：如果是改自己，立刻更新畫面
+    // 如果正好編輯的是自己的帳號，立刻把畫面上的名字變大寫！
     if (uidToEdit === auth.currentUser.uid) {
       currentUserData.name = newName;
       document.getElementById("user-display-name").innerText = newName;
       document.getElementById("user-avatar").innerText = newName.charAt(0).toUpperCase();
     }
-    
   } catch (err) { 
     alert("更新失敗: " + err.message); 
   }
@@ -2303,9 +2321,7 @@ window.deleteUserDoc = async (uid, name) => {
   } 
 };
 
-// ==========================================
-// 🚀 個人更改密碼事件綁定
-// ==========================================
+// 🚀 修復：將您原本的「更改密碼」功能接回來！
 document.getElementById("btn-update-password").addEventListener("click", async () => {
   const newPass = document.getElementById("profile-new-pass").value;
   const confirmPass = document.getElementById("profile-confirm-pass").value;
@@ -2322,7 +2338,7 @@ document.getElementById("btn-update-password").addEventListener("click", async (
     document.getElementById("profile-confirm-pass").value = "";
   } catch (error) {
     if (error.code === 'auth/requires-recent-login') {
-      alert("⚠️ 基於安全考量，更換密碼需要您『最近剛登入過』。\n請先點擊右上角登出，重新使用舊密碼登入後，再進行密碼修改！");
+      alert("⚠️ 基於安全考量，更換密碼需要您『最近剛登入過』。\n請先登出系統，重新登入後再次嘗試修改密碼！");
     } else {
       alert("密碼更換失敗：" + error.message);
     }
