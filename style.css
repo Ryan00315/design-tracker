@@ -235,3 +235,129 @@ tr:hover td { background: #fafafa; }
   th, td { white-space: nowrap !important; word-wrap: normal !important; }
   .cal-cell { min-height: 75px; padding: 2px; }
 }
+
+/* ==========================================
+   🚀 部門組織架構圖全新樣式 (加在 style.css 底部)
+   ========================================== */
+.org-dept-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.org-dept-block {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.org-dept-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid var(--border-light);
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+}
+
+.org-dept-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.org-hierarchy-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.org-role-tier {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.org-role-label {
+  width: 90px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding-top: 6px;
+}
+
+.org-member-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex: 1;
+}
+
+.org-user-card {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 170px;
+  transition: 0.15s;
+}
+
+.org-user-card:hover {
+  border-color: var(--primary);
+  background: #fff;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.org-user-card.is-mgr {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.org-card-avatar-sm {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #3b82f6;
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.org-card-avatar-sm.mgr {
+  background: #1e40af;
+}
+
+.org-card-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.org-card-user-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.org-card-sup-name {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
