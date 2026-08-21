@@ -2286,3 +2286,46 @@ window.deleteUserDoc = async (uid, name) => {
     } 
   } 
 };
+
+// ==========================================
+// 🚀 補回：個人帳號設定與更改密碼功能
+// ==========================================
+
+// 1. 更新個人資料 (將大寫名字寫回資料庫，解決小寫問題)
+window.updateUserProfile = async (newName, newDept) => {
+  if (!newName) return alert("名稱不可為空！");
+  try {
+    // 使用 merge: true，確保文件不存在時會自動建立，並補齊正確的名稱
+    await setDoc(doc(db, "users", auth.currentUser.uid), { 
+      name: newName,
+      dept: newDept || currentUserData.dept
+    }, { merge: true });
+    
+    // 即時更新畫面右上角的顯示狀態
+    currentUserData.name = newName;
+    document.getElementById("user-display-name").innerText = newName;
+    document.getElementById("user-avatar").innerText = newName.charAt(0).toUpperCase();
+    
+    alert("✅ 個人資料更新成功！");
+  } catch (error) {
+    alert("資料更新失敗：" + error.message);
+  }
+};
+
+// 2. 更改個人密碼功能
+window.changeUserPassword = async (newPassword) => {
+  if (!newPassword || newPassword.length < 6) {
+    return alert("密碼不能為空，且至少需要 6 個字元！");
+  }
+  try {
+    await updatePassword(auth.currentUser, newPassword);
+    alert("✅ 密碼更換成功！下次登入請使用新密碼。");
+  } catch (error) {
+    // Firebase 安全機制：太久沒登入會禁止改密碼
+    if (error.code === 'auth/requires-recent-login') {
+      alert("⚠️ 基於安全考量，更換密碼需要您『最近剛登入過』。請先登出系統，重新登入後再次嘗試修改密碼！");
+    } else {
+      alert("更換密碼失敗：" + error.message);
+    }
+  }
+};
