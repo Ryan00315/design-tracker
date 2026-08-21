@@ -2189,17 +2189,17 @@ function loadOrgUsers() {
       const supUser = allUsersList.find(x => x.uid === u.supervisorId); 
       const tr = document.createElement("tr");
       tr.innerHTML = `
+        <td style="text-align: center;">
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer;">
+            <input type="checkbox" onchange="toggleUserEditPermission('${u.uid}', this.checked)" ${u.canEdit ? 'checked' : ''} ${currentUserData.role === 'admin' ? '' : 'disabled'}>
+            <span style="font-size:12px;">開放</span>
+          </label>
+        </td>
         <td><strong>${u.name || '未命名'}</strong></td>
         <td>${u.email || '-'}</td>
         <td><span class="pill" style="background:#f1f5f9; color:#334155;">${u.dept || '設計部'}</span></td>
         <td><span class="pill pill-role">${roleNames[u.role] || u.role}</span></td>
         <td>${supUser ? `${supUser.name}` : "-"}</td>
-        <td>
-          <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
-            <input type="checkbox" onchange="toggleUserEditPermission('${u.uid}', this.checked)" ${u.canEdit ? 'checked' : ''} ${currentUserData.role === 'admin' ? '' : 'disabled'}>
-            <span style="font-size:12px;">開放</span>
-          </label>
-        </td>
         <td>
           <button class="action-btn" onclick="openEditModal('${u.uid}')" style="margin-right:4px;">編輯</button>
           <button class="action-btn" onclick="resetUserPassword('${u.email}')" style="margin-right:4px;">重設密碼</button>
