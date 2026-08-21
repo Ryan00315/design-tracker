@@ -20,7 +20,7 @@
 
   <div id="app-section" class="app-container" style="display:none;">
     <aside class="sidebar">
-      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v18.0</span></div>
+      <div class="sidebar-header"><div class="logo-icon" style="width: 28px; height: 28px; font-size: 14px;">P</div><span>PMS System</span><span class="version-tag">v1.0</span></div>
       <ul class="nav-list">
         
         <div id="nav-sub-wrapper" style="display:none; margin-bottom: 8px;">
@@ -76,7 +76,6 @@
             </div>
           </div>
 
-          <!-- 建立全新專案面板 (純粹建立新專案) -->
           <div id="create-project-section" class="section-panel" style="display:none; border: 2px solid var(--primary-soft);">
             <div class="panel-head">建立全新專案規劃 (建立後享有 7 日免解鎖自由編輯期)</div>
             
@@ -132,8 +131,7 @@
               <div class="panel-head" style="margin-bottom: 8px;">
                 <span id="current-gantt-title">專案時程檢視</span>
                 <div style="display:flex; align-items:center; gap:8px;">
-                  <!-- 🚀 單一專案動態新增細項按鈕 (編輯模式下顯示) -->
-                  <button id="btn-project-add-task" class="action-btn" style="display:none; color:var(--primary); border-color:var(--primary); font-weight:600;" onclick="openAddProjectTaskModal()">➕ 新增細項</button>
+                  <button id="btn-project-add-task" class="action-btn" style="display:none; color:var(--primary); border-color:var(--primary); font-weight:600;" onclick="openAddProjectTaskModal()">➕ 細項</button>
                   <button id="btn-toggle-lock" class="action-btn danger" style="display:none;" onclick="toggleCurrentProjectLock()"></button>
                   <button id="btn-delete-project" class="action-btn danger" style="display:none;" onclick="deleteCurrentProject()">刪除專案</button>
                 </div>
@@ -177,13 +175,13 @@
         <!-- 分頁 2：事件紀錄 -->
         <div id="tab-adhoc" class="tab-pane" style="display:none;">
           <div class="section-panel" id="adhoc-form-panel">
-            <div class="panel-head">登記臨時事件</div>
+            <div class="panel-head">紀錄臨時事件</div>
             <div class="form-row">
               <div class="form-group" style="flex:1.5;"><label class="form-label">事項名稱</label><input type="text" id="adhoc-title" class="input-control" placeholder="緊急樣品修改"></div>
               <div class="form-group" style="flex:1;"><label class="form-label">預計開始日期</label><input type="date" id="adhoc-start" class="input-control" onchange="checkWorkingDay(this)"></div>
               <div class="form-group" style="flex:2;"><label class="form-label">原因說明</label><input type="text" id="adhoc-reason" class="input-control" placeholder="客戶尺寸變更"></div>
             </div>
-            <button id="btn-add-adhoc" class="btn-primary" style="width: 160px; margin-top: 6px;">登記臨時事件</button>
+            <button id="btn-add-adhoc" class="btn-primary" style="width: 160px; margin-top: 6px;">紀錄臨時事件</button>
           </div>
           <div class="section-panel">
             <div class="panel-head">事件紀錄清單</div>
@@ -408,10 +406,10 @@
     </div>
   </div>
 
-  <!-- 單一專案追加任務細項專用視窗 (個人專案 / 協作專案共用) -->
+  <!-- 單一專案追加任務細項專用視窗 -->
   <div id="project-task-modal" class="modal-overlay">
     <div class="modal-box" style="max-width: 500px;">
-      <div class="modal-header"><span id="project-task-modal-title">➕ 新增任務細項</span><button class="btn-close" onclick="closeAddProjectTaskModal()">×</button></div>
+      <div class="modal-header"><span id="project-task-modal-title">➕ 細項</span><button class="btn-close" onclick="closeAddProjectTaskModal()">×</button></div>
       <div class="form-group"><label class="form-label">細項名稱</label><input type="text" id="add-task-name" class="input-control" placeholder="輸入任務名稱"></div>
       <div class="form-row">
         <div class="form-group" style="flex:1.2;"><label class="form-label">開始日期</label><input type="date" id="add-task-start" class="input-control" onchange="onTaskStartChange(this, 'add-task-end')"></div>
