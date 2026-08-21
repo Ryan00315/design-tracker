@@ -2172,12 +2172,15 @@ window.rescueUserProjects = async (uid, userName) => {
 };
 
 function loadOrgUsers() {
+  const rolePriority = { admin: 1, top_manager: 2, manager: 3, assistant_manager: 4, staff: 5 };
+
   onSnapshot(collection(db, "users"), (snapshot) => {
     const tbody = document.getElementById("user-list-tbody"); 
     const supervisorSelect = document.getElementById("new-user-supervisor");
     tbody.innerHTML = ""; 
     supervisorSelect.innerHTML = '<option value="">-- 無 --</option>'; 
     allUsersList = [];
+    
     snapshot.forEach(docSnap => {
       const u = docSnap.data(); 
       allUsersList.push({ uid: docSnap.id, ...u });
@@ -2185,7 +2188,33 @@ function loadOrgUsers() {
         supervisorSelect.innerHTML += `<option value="${docSnap.id}">${u.name} (${roleNames[u.role] || u.role})</option>`;
       }
     });
+
+    // 🚀 依部門順序與職級權重對人員進行排序
+    allUsersList.sort((a, b) => {
+      const deptA = a.dept || "設計部";
+      const deptB = b.dept || "設計部";
+      const deptIdxA = departmentList.indexOf(deptA);
+      const deptIdxB = departmentList.indexOf(deptB);
+
+      if (deptIdxA !== deptIdxB) {
+        return (deptIdxA === -1 ? 99 : deptIdxA) - (deptIdxB === -1 ? 99 : deptIdxB);
+      }
+      return (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99);
+    });
+
+    let currentDeptGroup = "";
+
     allUsersList.forEach(u => {
+      const uDept = u.dept || "設計部";
+      
+      // 若遇到不同部門，插入一個部門分隔列，讓表格一目了然
+      if (uDept !== currentDeptGroup) {
+        currentDeptGroup = uDept;
+        const deptTr = document.createElement("tr");
+        deptTr.innerHTML = `<td colspan="7" style="background: #f1f5f9; font-weight: 700; color: #334155; padding: 10px 16px;">🏢 ${currentDeptGroup}</td>`;
+        tbody.appendChild(deptTr);
+      }
+
       const supUser = allUsersList.find(x => x.uid === u.supervisorId); 
       const tr = document.createElement("tr");
       tr.innerHTML = `
@@ -2208,6 +2237,7 @@ function loadOrgUsers() {
         </td>`;
       tbody.appendChild(tr);
     });
+
     renderOrgChart(); 
   });
 }
