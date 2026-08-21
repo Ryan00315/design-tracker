@@ -1,10 +1,13 @@
-const CACHE_NAME = 'pms-cache-v1';
+const CACHE_NAME = 'pms-cache-v2'; // 順便把 v1 改成 v2，強迫它更新
 const urlsToCache = [
   './',
   './index.html',
   './style.css',
-  './app.js'
+  './app.js',
+  './k-192.png' // 👈 補上這一行，讓系統認識這張圖
 ];
+
+// ... 底下的 install 和 fetch 程式碼維持原樣不動 ...
 
 // 安裝 Service Worker 並快取檔案
 self.addEventListener('install', event => {
