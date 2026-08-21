@@ -265,14 +265,13 @@ function patchGanttVisuals(ganttInst, containerSelector) {
     }
   });
 
-  // 2. 年月份跟隨可視視野動態滾動
+  // 2. 年月份吸附與動態更新 (修正靠左對齊防截斷)
   const scrollElement = wrapper.querySelector('.gantt-container') || wrapper;
   const upperTexts = Array.from(svg.querySelectorAll('.upper-text'));
   const colWidth = (ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
 
   const updateStickyMonthHeader = () => {
     const currentScrollLeft = scrollElement.scrollLeft;
-    // 依當前捲動距離推算最左側目前落在第幾天的索引
     const currentDayIndex = Math.min(
       ganttInst.dates.length - 1,
       Math.max(0, Math.floor(currentScrollLeft / colWidth))
@@ -285,23 +284,33 @@ function patchGanttVisuals(ganttInst, containerSelector) {
     const mm = visibleDate.getMonth() + 1;
     const currentHeaderStr = `${yyyy}年 ${mm}月`;
 
-    // 將最靠近左側的第一個月份標籤直接固定在可視起點，並更新為對應的 年/月
-    const firstUpper = upperTexts[0];
-    firstUpper.textContent = currentHeaderStr;
-    firstUpper.setAttribute('x', currentScrollLeft + 20); // 隨捲軸動態平移 X 座標
-    firstUpper.style.fontWeight = '700';
-    firstUpper.style.fill = 'var(--primary)';
+    upperTexts.forEach((el, idx) => {
+      if (idx === 0) {
+        el.textContent = currentHeaderStr;
+        el.setAttribute('x', currentScrollLeft + 16);
+        el.setAttribute('text-anchor', 'start'); // 🚀 強制靠左對齊，完整露出 2026 年
+        el.style.textAnchor = 'start';
+        el.style.fontWeight = '700';
+        el.style.fill = 'var(--primary)';
+        el.style.display = 'block';
+      } else {
+        const origX = parseFloat(el.getAttribute('data-orig-x') || el.getAttribute('x'));
+        if (!el.getAttribute('data-orig-x')) el.setAttribute('data-orig-x', origX);
+        // 若後續月份太靠近當前吸附的年月標題，暫時隱藏避免重疊
+        if (origX < currentScrollLeft + 120) {
+          el.style.display = 'none';
+        } else {
+          el.style.display = 'block';
+        }
+      }
+    });
   };
 
-  // 綁定滾動監聽
   scrollElement.removeEventListener('scroll', scrollElement._ganttScrollHandler);
   scrollElement._ganttScrollHandler = updateStickyMonthHeader;
   scrollElement.addEventListener('scroll', updateStickyMonthHeader);
 
-  // 初始化執行一次
   updateStickyMonthHeader();
-
-  // 3. 自動聚焦至「今天日期往前 2 天」
   scrollToTodayMinus2Days(ganttInst, containerSelector);
 }
 
