@@ -363,3 +363,20 @@ tr:hover td { background: #fafafa; }
   color: #64748b;
   margin-top: 2px;
 }
+
+/* 🚀 側邊欄人員切換之部門分類小標題 */
+.nav-sub-dept-header {
+  padding: 8px 12px 4px 18px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.5px;
+  user-select: none;
+  list-style: none;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  margin-top: 4px;
+}
+.nav-sub-dept-header:first-of-type {
+  border-top: none;
+  margin-top: 2px;
+}
