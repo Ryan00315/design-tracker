@@ -242,19 +242,15 @@ function scrollToTodayMinus2Days(ganttInst, containerSelector) {
 
 function patchGanttVisuals(ganttInst, containerSelector) {
   if (!ganttInst || !ganttInst.dates || ganttInst.dates.length === 0) return;
-  const svg = document.querySelector(`${containerSelector} .gantt`);
-  if(!svg) return;
-
-  const baseYear = ganttInst.dates[0].getFullYear();
-  svg.querySelectorAll('.upper-text').forEach(el => {
-    const t = el.textContent.trim();
-    if (/^\d+月$/.test(t)) el.textContent = `${baseYear}年 ${t}`;
-    else if (/^\d{4}\s+\d+月$/.test(t)) el.textContent = t.replace(/^(\d{4})\s+(\d+月)$/, '$1年 $2');
-  });
+  const wrapper = document.querySelector(containerSelector);
+  if (!wrapper) return;
+  const svg = wrapper.querySelector('.gantt');
+  if (!svg) return;
 
   const lowerTexts = Array.from(svg.querySelectorAll('.lower-text'));
   const dayTicks = Array.from(svg.querySelectorAll('.tick')).filter(t => !t.classList.contains('thick'));
 
+  // 1. 假日與週末標紅標記
   ganttInst.dates.forEach((date, i) => {
     if (i < lowerTexts.length) {
       const dStr = String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
@@ -268,6 +264,45 @@ function patchGanttVisuals(ganttInst, containerSelector) {
       }
     }
   });
+
+  // 2. 年月份跟隨可視視野動態滾動
+  const scrollElement = wrapper.querySelector('.gantt-container') || wrapper;
+  const upperTexts = Array.from(svg.querySelectorAll('.upper-text'));
+  const colWidth = (ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
+
+  const updateStickyMonthHeader = () => {
+    const currentScrollLeft = scrollElement.scrollLeft;
+    // 依當前捲動距離推算最左側目前落在第幾天的索引
+    const currentDayIndex = Math.min(
+      ganttInst.dates.length - 1,
+      Math.max(0, Math.floor(currentScrollLeft / colWidth))
+    );
+
+    const visibleDate = ganttInst.dates[currentDayIndex];
+    if (!visibleDate || upperTexts.length === 0) return;
+
+    const yyyy = visibleDate.getFullYear();
+    const mm = visibleDate.getMonth() + 1;
+    const currentHeaderStr = `${yyyy}年 ${mm}月`;
+
+    // 將最靠近左側的第一個月份標籤直接固定在可視起點，並更新為對應的 年/月
+    const firstUpper = upperTexts[0];
+    firstUpper.textContent = currentHeaderStr;
+    firstUpper.setAttribute('x', currentScrollLeft + 20); // 隨捲軸動態平移 X 座標
+    firstUpper.style.fontWeight = '700';
+    firstUpper.style.fill = 'var(--primary)';
+  };
+
+  // 綁定滾動監聽
+  scrollElement.removeEventListener('scroll', scrollElement._ganttScrollHandler);
+  scrollElement._ganttScrollHandler = updateStickyMonthHeader;
+  scrollElement.addEventListener('scroll', updateStickyMonthHeader);
+
+  // 初始化執行一次
+  updateStickyMonthHeader();
+
+  // 3. 自動聚焦至「今天日期往前 2 天」
+  scrollToTodayMinus2Days(ganttInst, containerSelector);
 }
 
 onAuthStateChanged(auth, async (user) => {
