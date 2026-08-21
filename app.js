@@ -315,13 +315,12 @@ onAuthStateChanged(auth, async (user) => {
       if (userDoc.exists()) {
         currentUserData = userDoc.data();
       } else {
+        // 🚀 封印自動重建：如果資料不存在，給予預設記憶體變數，但不寫回資料庫產生幽靈檔案
         currentUserData = { name: user.email.split('@')[0], dept: "設計部", role: "admin", canEdit: false };
-        await setDoc(doc(db, "users", user.uid), currentUserData, { merge: true });
       }
     } catch (e) { 
       currentUserData = { name: user.email.split('@')[0], dept: "設計部", role: "admin", canEdit: false }; 
     }
-
     document.getElementById("user-display-name").innerText = currentUserData.name || user.email.split('@')[0];
     document.getElementById("user-avatar").innerText = (currentUserData.name || user.email).charAt(0).toUpperCase();
     document.getElementById("user-role-badge").innerText = roleNames[currentUserData.role] || (currentUserData.role || "STAFF").toUpperCase();
