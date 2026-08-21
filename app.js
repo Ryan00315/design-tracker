@@ -1806,7 +1806,6 @@ function renderOrgChart() {
   const mainWrapper = document.createElement("div");
   mainWrapper.className = "org-dept-container";
 
-  // 定義各部門階層順序
   const roleTiers = [
     { key: "manager", label: "👔 部門主管", roles: ["manager", "top_manager", "admin"] },
     { key: "assistant_manager", label: "💼 副主管", roles: ["assistant_manager"] },
@@ -1814,7 +1813,6 @@ function renderOrgChart() {
   ];
 
   departmentList.forEach(dept => {
-    // 篩選該部門所有人員
     const deptUsers = allUsersList.filter(u => (u.dept || "設計部") === dept);
     if (deptUsers.length === 0) return;
 
@@ -1829,8 +1827,9 @@ function renderOrgChart() {
         const isMgr = tier.key === "manager";
         const supText = supUser ? `直屬: ${supUser.name}` : "直屬: 無";
 
+        // 🚀 加入 onclick 與 title 提示
         memberCardsHtml += `
-          <div class="org-user-card ${isMgr ? 'is-mgr' : ''}">
+          <div class="org-user-card ${isMgr ? 'is-mgr' : ''}" onclick="openEditModal('${u.uid}')" title="點擊編輯 ${u.name || '人員'} 的資訊">
             <div class="org-card-avatar-sm ${isMgr ? 'mgr' : ''}">${(u.name || 'U').charAt(0).toUpperCase()}</div>
             <div class="org-card-text">
               <div class="org-card-user-name">${u.name || '未命名'} <small style="font-weight:normal; color:#64748b;">(${roleNames[u.role] || u.role})</small></div>
