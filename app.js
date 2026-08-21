@@ -326,7 +326,7 @@ onAuthStateChanged(auth, async (user) => {
         currentUserData = userDoc.data();
       } else {
         currentUserData = { name: user.email.split('@')[0], dept: "設計部", role: "admin", canEdit: false };
-      //  await setDoc(doc(db, "users", user.uid), currentUserData, { merge: true });
+        await setDoc(doc(db, "users", user.uid), currentUserData, { merge: true });
       }
     } catch (e) { 
       currentUserData = { name: user.email.split('@')[0], dept: "設計部", role: "admin", canEdit: false }; 
