@@ -41,9 +41,6 @@ let summaryGanttInstance = null;
 let currentWeeklyReportId = null;
 let isEditMode = false;
 
-// 建立/追加專案模式 ('new' | 'append')
-let createProjectMode = 'new';
-
 let calCurrentYear = new Date().getFullYear();
 let calCurrentMonth = new Date().getMonth();
 let activeCalDateStr = null;
@@ -108,62 +105,20 @@ function checkEditModeVisibility() {
   }
 }
 
+// 🚀 純粹建立全新專案按鈕
 document.getElementById('btn-toggle-create').addEventListener('click', () => {
   const form = document.getElementById('create-project-section');
   const isHidden = form.style.display === 'none';
   form.style.display = isHidden ? 'block' : 'none';
 
   if (isHidden) {
-    if (selectedProjectId && selectedProjectId !== 'SUMMARY') {
-      window.setCreateProjectMode('append');
-    } else {
-      window.setCreateProjectMode('new');
-    }
+    document.getElementById("proj-name").value = "";
+    document.getElementById("proj-color").value = "bar-primary";
+    renderCollabCheckboxes([]);
+    document.getElementById("task-list-container").innerHTML = "";
+    addTaskRow();
   }
 });
-
-// 🚀 切換「建立全新專案」與「追加細項至目前專案」
-window.setCreateProjectMode = (mode) => {
-  createProjectMode = mode;
-  const btnNew = document.getElementById("btn-mode-new-proj");
-  const btnAppend = document.getElementById("btn-mode-append-proj");
-  const nameInput = document.getElementById("proj-name");
-  const colorInput = document.getElementById("proj-color");
-  const label = document.getElementById("lbl-proj-name");
-
-  if (mode === 'new') {
-    btnNew.classList.add("active");
-    btnAppend.classList.remove("active");
-    nameInput.value = "";
-    nameInput.readOnly = false;
-    nameInput.placeholder = "例：2026 產品外觀設計案";
-    colorInput.value = "bar-primary";
-    label.innerText = "主專案名稱 (建立全新專案)";
-    renderCollabCheckboxes([]);
-  } else {
-    btnAppend.classList.add("active");
-    btnNew.classList.remove("active");
-    label.innerText = "追加至現有專案";
-    
-    let activeProj = null;
-    if (selectedProjectId && selectedProjectId !== 'SUMMARY') {
-      activeProj = allProjectsData.find(p => p.id === selectedProjectId && p.ownerId === viewingUserId);
-    }
-    if (!activeProj) {
-      const myProjs = allProjectsData.filter(p => p.ownerId === viewingUserId);
-      if (myProjs.length > 0) activeProj = myProjs[0];
-    }
-
-    if (activeProj) {
-      nameInput.value = activeProj.title;
-      colorInput.value = activeProj.color || "bar-primary";
-      renderCollabCheckboxes(activeProj.collaborators || []);
-    } else {
-      alert("目前尚無專案可追加，已為您切換為「建立全新專案」模式！");
-      window.setCreateProjectMode('new');
-    }
-  }
-};
 
 function renderCollabCheckboxes(selectedDepts = []) {
   const container = document.getElementById("collab-departments-checkboxes");
@@ -388,7 +343,7 @@ window.onTaskStartChange = (startInput, targetEndId) => {
   if (!startInput.value) return;
   const row = startInput.closest('.task-row') || startInput.closest('#general-edit-form') || startInput.closest('.modal-box');
   const endInput = typeof targetEndId === 'string' ? document.getElementById(targetEndId) : row?.querySelector('.task-end');
-  const daysInput = row?.querySelector('.task-days');
+  const daysInput = row?.querySelector('.task-days') || row?.querySelector('#add-task-days') || row?.querySelector('#edit-val-days');
 
   if (endInput) {
     endInput.min = startInput.value;
@@ -398,7 +353,7 @@ window.onTaskStartChange = (startInput, targetEndId) => {
 };
 
 window.onTaskDaysChange = (daysInput, targetStartId, targetEndId) => {
-  const row = daysInput.closest('.task-row') || daysInput.closest('#general-edit-form');
+  const row = daysInput.closest('.task-row') || daysInput.closest('#general-edit-form') || daysInput.closest('.modal-box');
   const startInput = typeof targetStartId === 'string' ? document.getElementById(targetStartId) : row?.querySelector('.task-start');
   const endInput = typeof targetEndId === 'string' ? document.getElementById(targetEndId) : row?.querySelector('.task-end');
 
@@ -411,7 +366,7 @@ window.onTaskDaysChange = (daysInput, targetStartId, targetEndId) => {
 
 window.onTaskEndChange = (endInput, targetStartId, targetDaysId) => {
   window.checkWorkingDay(endInput);
-  const row = endInput.closest('.task-row') || endInput.closest('#general-edit-form');
+  const row = endInput.closest('.task-row') || endInput.closest('#general-edit-form') || endInput.closest('.modal-box');
   const startInput = typeof targetStartId === 'string' ? document.getElementById(targetStartId) : row?.querySelector('.task-start');
   const daysInput = typeof targetDaysId === 'string' ? document.getElementById(targetDaysId) : row?.querySelector('.task-days');
 
@@ -490,22 +445,6 @@ window.getAvailableTasks = (projId) => {
   });
 };
 
-function updateProjectDatalist(userProjects) {
-  const datalist = document.getElementById("project-names-list");
-  if (!datalist) return;
-  datalist.innerHTML = "";
-  const activeProjects = userProjects.filter(p => {
-    if (!p.tasks || p.tasks.length === 0) return true;
-    return !p.tasks.every(t => t.isCompleted);
-  });
-  const uniqueNames = [...new Set(activeProjects.map(p => p.title))];
-  uniqueNames.forEach(name => {
-    const option = document.createElement("option"); 
-    option.value = name; 
-    datalist.appendChild(option);
-  });
-}
-
 function loadProjects() {
   onSnapshot(query(collection(db, "projects")), (snapshot) => {
     allProjectsData = []; 
@@ -554,8 +493,6 @@ function renderProjects() {
       return collabs.includes(targetDept) || p.ownerId === viewingUserId;
     }
   });
-
-  if (isViewingSelf) updateProjectDatalist(userProjects);
 
   let countOngoing = 0, countCompleted = 0, countDelayed = 0, countCollab = collabProjects.length;
   userProjects.forEach(p => {
@@ -740,19 +677,23 @@ function renderProjects() {
   
   document.getElementById("current-gantt-title").innerHTML = `<span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} ${collabBadge} ${graceBadge} ${editProjBtn}`;
   
-  const btnAddCollabTask = document.getElementById("btn-add-collab-task");
-  if (hasCollab && (isProjOwner || isCollabMember || currentUserData.role === 'admin')) {
-    btnAddCollabTask.style.display = "inline-block";
-  } else {
-    btnAddCollabTask.style.display = "none";
-  }
-
+  // 🚀 核心更新：只有在編輯模式下，才顯示「+ 新增細項」/「+ 新增協作細項」與「刪除專案」
+  const btnProjectAddTask = document.getElementById("btn-project-add-task");
   const lockBtn = document.getElementById("btn-toggle-lock");
   const delProjBtn = document.getElementById("btn-delete-project");
-  
+
+  const canAddTask = isEditMode && (isProjOwner || isCollabMember || currentUserData.role === 'admin') && (isAuthorizedEditor || isCollabMember);
+
+  if (canAddTask) {
+    btnProjectAddTask.style.display = "inline-block";
+    btnProjectAddTask.innerText = hasCollab ? "➕ 新增協作細項" : "➕ 新增細項";
+  } else {
+    btnProjectAddTask.style.display = "none";
+  }
+
   const isLockedState = inGracePeriod ? false : !!activeProj.isLocked;
 
-  if (currentUserData.role === "admin" || currentUserData.role === "top_manager" || (isAuthorizedEditor && isProjOwner)) {
+  if (isEditMode && (currentUserData.role === "admin" || currentUserData.role === "top_manager" || (isAuthorizedEditor && isProjOwner))) {
     lockBtn.style.display = inGracePeriod ? "none" : "inline-block"; 
     lockBtn.innerText = isLockedState ? "🔒 鎖定中 (解鎖供編輯)" : "🔓 已開放 (點擊鎖定)";
     lockBtn.className = isLockedState ? "action-btn" : "action-btn danger"; 
@@ -793,7 +734,6 @@ function renderProjects() {
     
     let canEditTask = isEditMode && isAuthorizedEditor && canOperateThisTask;
     
-    // 🚀 編輯模式下提供 上移、下移、編輯、刪除 按鈕
     let editHtml = canEditTask ? `
       <div style="display:inline-flex; align-items:center; gap:2px; margin-left:auto; flex-shrink:0;">
         <button type="button" class="btn-sort" onclick="moveActiveProjectTask('${activeProj.id}', ${index}, -1)" title="上移">↑</button>
@@ -868,7 +808,6 @@ window.moveActiveProjectTask = async (projId, index, direction) => {
   await updateDoc(doc(db, "projects", projId), { tasks });
 };
 
-// 🚀 刪除專案細項
 window.deleteActiveProjectTask = async (projId, index) => {
   const proj = allProjectsData.find(p => p.id === projId);
   if (!proj || !proj.tasks || !proj.tasks[index]) return;
@@ -892,22 +831,32 @@ window.deleteActiveProjectTask = async (projId, index) => {
   }
 };
 
-window.openAddCollabTaskModal = () => {
-  document.getElementById("collab-task-name").value = "";
-  document.getElementById("collab-task-start").value = "";
-  document.getElementById("collab-task-days").value = "1";
-  document.getElementById("collab-task-end").value = "";
-  document.getElementById("collab-task-modal").classList.add("active");
+// 🚀 單一專案追加任務細項 Modal (個人/協作專案共用)
+window.openAddProjectTaskModal = () => {
+  const proj = allProjectsData.find(p => p.id === selectedProjectId);
+  if (!proj) return;
+  const hasCollab = (proj.collaborators && proj.collaborators.length > 0);
+  
+  document.getElementById("project-task-modal-title").innerText = hasCollab ? "➕ 新增協作細項" : "➕ 新增細項";
+  document.getElementById("project-task-modal-hint").innerText = hasCollab 
+    ? "* 送出後，此細項負責人將自動設定為您的帳號。" 
+    : "* 新增後自動加入目前專案中。";
+
+  document.getElementById("add-task-name").value = "";
+  document.getElementById("add-task-start").value = "";
+  document.getElementById("add-task-days").value = "1";
+  document.getElementById("add-task-end").value = "";
+  document.getElementById("project-task-modal").classList.add("active");
 };
 
-window.closeAddCollabTaskModal = () => {
-  document.getElementById("collab-task-modal").classList.remove("active");
+window.closeAddProjectTaskModal = () => {
+  document.getElementById("project-task-modal").classList.remove("active");
 };
 
-window.submitCollabTask = async () => {
-  const name = document.getElementById("collab-task-name").value.trim();
-  const start = document.getElementById("collab-task-start").value;
-  const end = document.getElementById("collab-task-end").value;
+window.submitAddProjectTask = async () => {
+  const name = document.getElementById("add-task-name").value.trim();
+  const start = document.getElementById("add-task-start").value;
+  const end = document.getElementById("add-task-end").value;
 
   if (!name || !start || !end) return alert("任務細項欄位不可有空白！");
   if (start > end) return alert("起始日不可大於結束日！");
@@ -932,13 +881,13 @@ window.submitCollabTask = async () => {
     reportedCompleted: false,
     assigneeId: auth.currentUser.uid,
     assigneeName: currentUserData.name || auth.currentUser.email.split('@')[0],
-    history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '協作成員追加任務' }]
+    history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '追加任務細項' }]
   };
 
   const updatedTasks = [...proj.tasks, newTask];
   await updateDoc(doc(db, "projects", proj.id), { tasks: updatedTasks });
-  closeAddCollabTaskModal();
-  alert("🎉 協作任務細項追加成功！");
+  closeAddProjectTaskModal();
+  alert("🎉 任務細項追加成功！");
 };
 
 let resolveDelayPrompt = null;
@@ -1063,22 +1012,12 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, uid: auth.currentUser.uid };
   const ownerNameToSave = targetUser.name || currentUserData.name;
 
-  const existingProj = (createProjectMode === 'append') ? allProjectsData.find(p => p.title === title && p.ownerId === viewingUserId) : null;
-  let newProjId = "";
+  const docRef = await addDoc(collection(db, "projects"), { 
+    title, color, collaborators, ownerId: viewingUserId, ownerName: ownerNameToSave, 
+    isLocked: false, tasks: tasks, createdAt: serverTimestamp() 
+  });
 
-  if (existingProj) {
-    const updatedTasks = [...existingProj.tasks, ...tasks];
-    await updateDoc(doc(db, "projects", existingProj.id), { tasks: updatedTasks, color: color, collaborators });
-    newProjId = existingProj.id;
-    alert(`已成功將細項追加至專案「${title}」！`);
-  } else {
-    const docRef = await addDoc(collection(db, "projects"), { 
-      title, color, collaborators, ownerId: viewingUserId, ownerName: ownerNameToSave, 
-      isLocked: false, tasks: tasks, createdAt: serverTimestamp() 
-    });
-    newProjId = docRef.id;
-    alert("🎉 新專案已成功建立！您享有 7 天免解鎖自由編輯期。");
-  }
+  alert("🎉 新專案已成功建立！您享有 7 天免解鎖自由編輯期。");
 
   document.getElementById("proj-name").value = ""; 
   document.getElementById("task-list-container").innerHTML = ""; 
@@ -1090,7 +1029,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   document.getElementById('filter-completed').classList.remove('active');
   document.getElementById('filter-delayed').classList.remove('active');
   document.getElementById('filter-collab').classList.remove('active');
-  selectedProjectId = newProjId;
+  selectedProjectId = docRef.id;
   renderProjects(); 
 });
 
@@ -1281,7 +1220,6 @@ function renderWeeklyReports() {
   filtered.sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)); 
   
   const days = ['日', '一', '二', '三', '四', '五', '六'];
-  const isAuthorizedEditor = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
 
   filtered.forEach((w, index) => {
     let isOwner = (w.ownerId === auth.currentUser.uid);
@@ -1792,10 +1730,21 @@ function renderOrgChart() {
 let currentEditData = {};
 
 window.openGeneralEdit = (type, id, extra) => {
-  const p = allProjectsData.find(x => x.id === id);
-  const inGrace = p && (auth.currentUser.uid === p.ownerId) && isWithin7DaysGracePeriod(p);
+  let isAuthorized = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
 
-  if (currentUserData.role !== 'admin' && !currentUserData.canEdit && !inGrace) {
+  if (type === 'project' || type === 'task') {
+    const p = allProjectsData.find(x => x.id === id);
+    const inGrace = p && (auth.currentUser.uid === p.ownerId) && isWithin7DaysGracePeriod(p);
+    if (inGrace) isAuthorized = true;
+  } else if (type === 'weekly') {
+    // 🚀 週報在 2 天內且尚未被審閱時，擁有者本人可直接編輯
+    const w = allWeeklyData.find(x => x.id === id);
+    if (w && w.ownerId === auth.currentUser.uid && isWeeklyReportEditable(w)) {
+      isAuthorized = true;
+    }
+  }
+
+  if (!isAuthorized) {
     return alert("您的帳號無修改資料之權限！");
   }
 
@@ -1804,6 +1753,7 @@ window.openGeneralEdit = (type, id, extra) => {
   form.innerHTML = "";
 
   if (type === 'project') {
+    const p = allProjectsData.find(x => x.id === id);
     document.getElementById("general-edit-title").innerText = "編輯主專案名稱與協作部門";
     let collabHtml = `<div class="form-group" style="margin-top:12px;"><label class="form-label">協作部門 (可複選)</label><div style="display:flex; flex-direction:column; gap:6px;">`;
     departmentList.forEach(dept => {
@@ -1861,10 +1811,20 @@ window.closeGeneralEditModal = () => document.getElementById("general-edit-modal
 
 window.saveGeneralEdit = async () => {
   const { type, id, extra } = currentEditData;
-  const p = allProjectsData.find(x => x.id === id);
-  const inGrace = p && (auth.currentUser.uid === p.ownerId) && isWithin7DaysGracePeriod(p);
+  let isAuthorized = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
 
-  if (currentUserData.role !== 'admin' && !currentUserData.canEdit && !inGrace) {
+  if (type === 'project' || type === 'task') {
+    const p = allProjectsData.find(x => x.id === id);
+    const inGrace = p && (auth.currentUser.uid === p.ownerId) && isWithin7DaysGracePeriod(p);
+    if (inGrace) isAuthorized = true;
+  } else if (type === 'weekly') {
+    const w = allWeeklyData.find(x => x.id === id);
+    if (w && w.ownerId === auth.currentUser.uid && isWeeklyReportEditable(w)) {
+      isAuthorized = true;
+    }
+  }
+
+  if (!isAuthorized) {
     return alert("權限不足！");
   }
 
