@@ -687,7 +687,7 @@ function renderProjects() {
   summaryBtn.onclick = () => selectProject('SUMMARY'); 
   tabsContainer.appendChild(summaryBtn);
 
-  // 🚀 上方切換按鈕純文字顯示，不帶任何圖示
+  // 🚀 上方切換按鈕維持純專案名稱（協作顯示 👥，一般專案無圖示）
   activeList.forEach(p => {
     const hasCollab = (p.collaborators && p.collaborators.length > 0);
     const btn = document.createElement("button"); 
@@ -730,20 +730,12 @@ function renderProjects() {
       let avgProg = Math.round(totalProg / p.tasks.length);
       let isDone = p.tasks.every(t => t.isCompleted);
       const hasCollab = (p.collaborators && p.collaborators.length > 0);
-
-      let hasDelaySum = p.tasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
-      let sumIcon = '🌱';
-      if (isDone || avgProg >= 100) sumIcon = '🏆';
-      else if (hasDelaySum) sumIcon = '🚀';
-      else if (avgProg > 0) sumIcon = '🔥';
-      else sumIcon = '🌰';
       
       combinedItems.push({
         type: 'project', 
         sortDate: new Date(minStart).getTime(), 
         idStr: `s_p_${sIdx++}`,
         title: p.title,
-        icon: sumIcon,
         start: minStart, 
         end: maxEnd, 
         progress: avgProg, 
@@ -762,7 +754,6 @@ function renderProjects() {
           sortDate: new Date(eDate).getTime(), 
           idStr: `s_e_${sIdx++}`,
           title: evt.title, 
-          icon: '🚨',
           start: eDate, 
           end: eDate, 
           progress: prog, 
@@ -782,8 +773,8 @@ function renderProjects() {
       if (item.type === 'project') {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : item.progress+'%';
         let titleDisplay = item.isCollab 
-          ? `<span style="color:var(--primary); font-weight:700;"><span style="color:var(--primary); margin-right:4px;">👥</span>${item.icon} ${item.title}</span>`
-          : `${item.icon} ${item.title}`;
+          ? `<span style="color:var(--primary); font-weight:700;"><span style="color:var(--primary); margin-right:4px;">👥</span>${item.title}</span>`
+          : `📊 ${item.title}`;
           
         row.innerHTML = `<div class="col-sum-name" title="${item.title}">${titleDisplay}</div><div class="col-sum-date">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-sum-prog">${statusText}</div>`;
       } else {
@@ -1430,7 +1421,7 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
     
     if (leaveContainer.style.display === "flex") {
       const checked = document.querySelector('input[name="leave_type"]:checked');
-      if (!checked) return alert("【注意】星期一至四提交週報，請務必勾選右側的「請假」或「其他」原因！");
+      if (!checked) return alert("【注意】星期一至四提交週報，請務必勾選右側的請假或其他原因！");
       leaveType = checked.value;
       if (leaveType === "other") {
         leaveReason = document.getElementById("leave-other-reason").value.trim();
@@ -1542,7 +1533,7 @@ window.openWeeklyModal = (id) => {
   
   if (report.items && report.items.length > 0) {
     report.items.forEach((item, i) => { 
-      contentHtml += `<div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;"><div style="flex:1; font-size:13px; font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px;"><div style="margin-bottom:6px; word-break: break-all;">📁 ${item.projectName}</div><div style="word-break: break-all;">📌 ${item.taskName}</div></div><div style="flex:2.5; font-size:13px; white-space:pre-wrap; line-height:1.6; padding-left:4px;">${item.content}</div></div>`; 
+      contentHtml += `<div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;"><div style="flex:1; font-size:13px; font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px;"><div style="margin-bottom:6px; word-break: break-all;">📊 ${item.projectName}</div><div style="word-break: break-all;">📌 ${item.taskName}</div></div><div style="flex:2.5; font-size:13px; white-space:pre-wrap; line-height:1.6; padding-left:4px;">${item.content}</div></div>`; 
     });
   } else if (report.content) {
     contentHtml += `<div style="padding: 12px; font-size:13px; white-space:pre-wrap; background: #f8fafc; border-radius: 8px; line-height:1.6;">${report.content}</div>`;
