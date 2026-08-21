@@ -1,28 +1,51 @@
-const CACHE_NAME = 'pms-cache-v2'; // 順便把 v1 改成 v2，強迫它更新
+const CACHE_NAME = 'pms-cache-v3'; // 升級版本號
 const urlsToCache = [
   './',
   './index.html',
   './style.css',
   './app.js',
-  './k-192.png' // 👈 補上這一行，讓系統認識這張圖
+  './k-192.png'
 ];
 
-// ... 底下的 install 和 fetch 程式碼維持原樣不動 ...
-
-// 安裝 Service Worker 並快取檔案
+// 1. 安裝時立刻接管
 self.addEventListener('install', event => {
+  self.skipWaiting(); 
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(urlsToCache);
-    })
+    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
   );
 });
 
-// 攔截網路請求，讓 App 在網路不穩時也能載入基本框架
+// 2. 啟動時自動清除舊版快取
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName); // 把舊的垃圾清掉
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
+  );
+});
+
+// 3. 🚀 網路優先策略 (Network First)
 self.addEventListener('fetch', event => {
   event.respondWith(
-    caches.match(event.request).then(response => {
-      return response || fetch(event.request);
-    })
+    // 先嘗試去網路抓取最新的檔案
+    fetch(event.request)
+      .then(response => {
+        // 如果抓取成功，順便更新快取裡的備份
+        if (response && response.status === 200) {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
+        }
+        return response;
+      })
+      .catch(() => {
+        // 如果沒網路 (斷網)，才從快取裡面拿舊檔案出來顯示
+        return caches.match(event.request);
+      })
   );
 });
