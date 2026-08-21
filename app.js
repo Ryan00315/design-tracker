@@ -216,59 +216,37 @@ function patchGanttVisuals(ganttInst, containerSelector) {
   scrollToTodayMinus2Days(ganttInst, containerSelector);
 }
 
-function scrollToTodayMinus2Days(containerSelector) {
-  // 分次遞進嘗試（避免 Frappe Gantt 內部 SVG 尚未產生完畢）
-  [50, 150, 300, 500].forEach(delay => {
-    setTimeout(() => {
-      const container = document.querySelector(containerSelector);
-      if (!container) return;
+function scrollToTodayMinus2Days(ganttInst, containerSelector) {
+  if (!ganttInst || !ganttInst.gantt_start) return;
 
-      // 1. 優先尋找 Frappe Gantt 內建的 today 高亮元素 (rect 或 line)
-      const todayHighlight = container.querySelector('.today-highlight') || container.querySelector('.current-date-highlight');
-      
-      let targetX = null;
-      let colWidth = 38; // 預設單日格子寬度
+  const container = document.querySelector(containerSelector);
+  if (!container) return;
 
-      // 抓取第一格寬度作為基準
-      const firstTick = container.querySelector('.tick');
-      if (firstTick) {
-        const w = parseFloat(firstTick.getAttribute('width'));
-        if (!isNaN(w) && w > 0) colWidth = w;
-      }
+  // 取得單格寬度 (Frappe Gantt 預設 Day 模式下每格為 38px)
+  const columnWidth = ganttInst.options.column_width || 38;
 
-      if (todayHighlight) {
-        const xAttr = todayHighlight.getAttribute('x');
-        if (xAttr !== null) {
-          targetX = parseFloat(xAttr);
-        }
-      }
+  // 計算圖表起始日與「今天」相差幾天
+  const chartStartDate = new Date(ganttInst.gantt_start);
+  chartStartDate.setHours(0, 0, 0, 0);
 
-      // 2. 若抓不到 todayHighlight，改由 lower-text 日期格文字比對
-      if (targetX === null) {
-        const today = new Date();
-        const todayNumStr = String(today.getDate());
-        const lowerTexts = Array.from(container.querySelectorAll('.lower-text'));
-        
-        // 找到今天對應的文字座標
-        for (let el of lowerTexts) {
-          if (el.textContent.trim() === todayNumStr) {
-            const x = parseFloat(el.getAttribute('x'));
-            if (!isNaN(x)) {
-              targetX = x;
-              break;
-            }
-          }
-        }
-      }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-      // 3. 執行精確滾動：將視窗最左邊對準「今天 X 座標 - 2天的寬度」
-      if (targetX !== null && targetX > 0) {
-        const scrollPosition = Math.max(0, targetX - (colWidth * 2));
-        container.scrollLeft = scrollPosition; // 直接指定
-        container.scrollTo({ left: scrollPosition, behavior: 'smooth' }); // 平滑補充
-      }
-    }, delay);
-  });
+  const diffTime = today.getTime() - chartStartDate.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  // 目標位置：今天的天數索引往前扣 2 天
+  const targetDaysIndex = Math.max(0, diffDays - 2);
+  const targetScrollLeft = targetDaysIndex * columnWidth;
+
+  // 延遲確保 DOM 渲染後執行滾動
+  setTimeout(() => {
+    container.scrollLeft = targetScrollLeft;
+  }, 100);
+
+  setTimeout(() => {
+    container.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
+  }, 250);
 }
 
 onAuthStateChanged(auth, async (user) => {
@@ -841,14 +819,20 @@ function renderProjects() {
 
   if (ganttTasks.length > 0) {
     const chartContainer = document.getElementById("gantt-chart-container");
-    chartContainer.className = isLockedState ? "gantt-right-panel locked-gantt" : "gantt-right-panel";
+    chartContainer.className = "gantt-right-panel";
     chartContainer.innerHTML = '<div id="gantt-chart"></div>';
     setTimeout(() => {
       if (document.getElementById("tab-projects").style.display === "none") return;
       ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
-        view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true
+        view_mode: 'Day', 
+        language: 'zh', 
+        header_height: 50, 
+        bar_height: 20, 
+        padding: 18, 
+        readonly: true 
       });
       patchGanttVisuals(ganttInstance, '#gantt-chart-container');
+      scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container'); // 🚀 傳入實例計算
     }, 150); 
   }
 }
