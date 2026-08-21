@@ -41,6 +41,9 @@ let summaryGanttInstance = null;
 let currentWeeklyReportId = null;
 let isEditMode = false;
 
+// 建立/追加專案模式 ('new' | 'append')
+let createProjectMode = 'new';
+
 let calCurrentYear = new Date().getFullYear();
 let calCurrentMonth = new Date().getMonth();
 let activeCalDateStr = null;
@@ -111,17 +114,56 @@ document.getElementById('btn-toggle-create').addEventListener('click', () => {
   form.style.display = isHidden ? 'block' : 'none';
 
   if (isHidden) {
-    renderCollabCheckboxes([]);
     if (selectedProjectId && selectedProjectId !== 'SUMMARY') {
-      const activeProj = allProjectsData.find(p => p.id === selectedProjectId);
-      if (activeProj && activeProj.ownerId === viewingUserId) {
-        document.getElementById("proj-name").value = activeProj.title;
-        document.getElementById("proj-color").value = activeProj.color || "bar-primary";
-        renderCollabCheckboxes(activeProj.collaborators || []);
-      }
+      window.setCreateProjectMode('append');
+    } else {
+      window.setCreateProjectMode('new');
     }
   }
 });
+
+// 🚀 切換「建立全新專案」與「追加細項至目前專案」
+window.setCreateProjectMode = (mode) => {
+  createProjectMode = mode;
+  const btnNew = document.getElementById("btn-mode-new-proj");
+  const btnAppend = document.getElementById("btn-mode-append-proj");
+  const nameInput = document.getElementById("proj-name");
+  const colorInput = document.getElementById("proj-color");
+  const label = document.getElementById("lbl-proj-name");
+
+  if (mode === 'new') {
+    btnNew.classList.add("active");
+    btnAppend.classList.remove("active");
+    nameInput.value = "";
+    nameInput.readOnly = false;
+    nameInput.placeholder = "例：2026 產品外觀設計案";
+    colorInput.value = "bar-primary";
+    label.innerText = "主專案名稱 (建立全新專案)";
+    renderCollabCheckboxes([]);
+  } else {
+    btnAppend.classList.add("active");
+    btnNew.classList.remove("active");
+    label.innerText = "追加至現有專案";
+    
+    let activeProj = null;
+    if (selectedProjectId && selectedProjectId !== 'SUMMARY') {
+      activeProj = allProjectsData.find(p => p.id === selectedProjectId && p.ownerId === viewingUserId);
+    }
+    if (!activeProj) {
+      const myProjs = allProjectsData.filter(p => p.ownerId === viewingUserId);
+      if (myProjs.length > 0) activeProj = myProjs[0];
+    }
+
+    if (activeProj) {
+      nameInput.value = activeProj.title;
+      colorInput.value = activeProj.color || "bar-primary";
+      renderCollabCheckboxes(activeProj.collaborators || []);
+    } else {
+      alert("目前尚無專案可追加，已為您切換為「建立全新專案」模式！");
+      window.setCreateProjectMode('new');
+    }
+  }
+};
 
 function renderCollabCheckboxes(selectedDepts = []) {
   const container = document.getElementById("collab-departments-checkboxes");
@@ -584,6 +626,7 @@ function renderProjects() {
 
   emptyState.style.display = "none"; 
 
+  // 總覽視圖
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; 
     summaryView.style.display = "block";
@@ -674,6 +717,7 @@ function renderProjects() {
     return;
   }
 
+  // 個別專案視圖
   summaryView.style.display = "none"; 
   detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
@@ -748,11 +792,14 @@ function renderProjects() {
     const isInputLocked = task.isCompleted || !canOperateThisTask; 
     
     let canEditTask = isEditMode && isAuthorizedEditor && canOperateThisTask;
+    
+    // 🚀 編輯模式下提供 上移、下移、編輯、刪除 按鈕
     let editHtml = canEditTask ? `
       <div style="display:inline-flex; align-items:center; gap:2px; margin-left:auto; flex-shrink:0;">
         <button type="button" class="btn-sort" onclick="moveActiveProjectTask('${activeProj.id}', ${index}, -1)" title="上移">↑</button>
         <button type="button" class="btn-sort" onclick="moveActiveProjectTask('${activeProj.id}', ${index}, 1)" title="下移">↓</button>
-        <button class="action-btn" onclick="openGeneralEdit('task', '${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️</button>
+        <button class="action-btn" onclick="openGeneralEdit('task', '${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px; border-color:var(--warning); color:var(--warning);" title="編輯細項">✏️</button>
+        <button class="action-btn danger" onclick="deleteActiveProjectTask('${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px;" title="刪除此細項">🗑️</button>
       </div>` : '';
 
     const row = document.createElement("div"); 
@@ -774,6 +821,7 @@ function renderProjects() {
         historyHtml = `<div style="max-height: 160px; overflow-y: auto;">` + 
           `<table style="width:100%; table-layout:fixed; border-collapse:collapse; margin:0; background:transparent;"><colgroup><col style="width:50%;"><col style="width:50%;"></colgroup><tbody>` +
           sortedHistory.map((h, i) => {
+            let note = h.type === 'create' ? '<span style="color:var(--text-muted)">(建立)</span>' : (h.type === 'complete' ? '<span style="color:var(--success)">(結案)</span>' : '');
             let remarkHtml = '';
             if (h.type === 'complete' && h.delayReason) remarkHtml = `<span class="pill pill-danger" style="white-space:normal; word-wrap:break-word;">Delay: ${h.delayReason}</span>`;
             else if (h.remark) remarkHtml = `<span style="color: var(--text-muted); white-space:normal; word-wrap:break-word;">${h.remark}</span>`;
@@ -820,9 +868,34 @@ window.moveActiveProjectTask = async (projId, index, direction) => {
   await updateDoc(doc(db, "projects", projId), { tasks });
 };
 
+// 🚀 刪除專案細項
+window.deleteActiveProjectTask = async (projId, index) => {
+  const proj = allProjectsData.find(p => p.id === projId);
+  if (!proj || !proj.tasks || !proj.tasks[index]) return;
+  const taskName = proj.tasks[index].name;
+
+  if (!confirm(`⚠️ 確定要刪除任務細項「${taskName}」嗎？刪除後無法復原。`)) return;
+
+  const tasks = [...proj.tasks];
+  tasks.splice(index, 1);
+
+  if (tasks.length === 0) {
+    if (!confirm("⚠️ 該專案已無任何細項，是否要直接刪除整個專案？")) {
+      return;
+    }
+    await deleteDoc(doc(db, "projects", projId));
+    selectedProjectId = 'SUMMARY';
+    alert("專案已刪除！");
+  } else {
+    await updateDoc(doc(db, "projects", projId), { tasks });
+    alert("已刪除該任務細項！");
+  }
+};
+
 window.openAddCollabTaskModal = () => {
   document.getElementById("collab-task-name").value = "";
   document.getElementById("collab-task-start").value = "";
+  document.getElementById("collab-task-days").value = "1";
   document.getElementById("collab-task-end").value = "";
   document.getElementById("collab-task-modal").classList.add("active");
 };
@@ -990,14 +1063,14 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, uid: auth.currentUser.uid };
   const ownerNameToSave = targetUser.name || currentUserData.name;
 
-  const existingProj = allProjectsData.find(p => p.title === title && p.ownerId === viewingUserId);
+  const existingProj = (createProjectMode === 'append') ? allProjectsData.find(p => p.title === title && p.ownerId === viewingUserId) : null;
   let newProjId = "";
 
   if (existingProj) {
     const updatedTasks = [...existingProj.tasks, ...tasks];
     await updateDoc(doc(db, "projects", existingProj.id), { tasks: updatedTasks, color: color, collaborators });
     newProjId = existingProj.id;
-    alert(`已成功更新專案「${title}」！`);
+    alert(`已成功將細項追加至專案「${title}」！`);
   } else {
     const docRef = await addDoc(collection(db, "projects"), { 
       title, color, collaborators, ownerId: viewingUserId, ownerName: ownerNameToSave, 
