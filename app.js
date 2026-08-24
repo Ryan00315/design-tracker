@@ -1,7 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { 
   getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
-  updatePassword, createUserWithEmailAndPassword, sendPasswordResetEmail
+  updatePassword, createUserWithEmailAndPassword, sendPasswordResetEmail,
+  setPersistence, browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 import { 
   getFirestore, doc, getDoc, setDoc, deleteDoc, collection, addDoc, updateDoc, 
@@ -20,6 +21,8 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+// 🚀 強制設定登入狀態永久保存在瀏覽器/手機中
+setPersistence(auth, browserLocalPersistence).catch((error) => console.log("Persistence Error:", error));
 const db = getFirestore(app);
 
 const roleNames = { admin: "系統管理員", top_manager: "高級主管", manager: "主管", assistant_manager: "副主管", staff: "人員" };
@@ -76,6 +79,22 @@ function initDynamicUI() {
     .kpi-number { font-size: 18px !important; }
     .col-sum-name.clickable { cursor: pointer; text-decoration: underline; color: var(--primary); transition: 0.2s; }
     .col-sum-name.clickable:hover { color: #1d4ed8; font-weight: bold; }
+    
+    /* 🚀 修復手機版左側人員選單被擋住的問題 */
+    .mobile-fixed-dropdown {
+        position: fixed !important;
+        top: 60px !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: calc(100vh - 60px) !important;
+        background: #f1f5f9 !important;
+        z-index: 999999 !important; /* 設定超級高的層級，蓋掉所有甘特圖 */
+        display: flex !important;
+        flex-direction: column;
+        overflow-y: auto !important;
+        padding: 20px !important;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
     
     @media (max-width: 768px) {
       .kpi-row { grid-template-columns: repeat(5, 1fr) !important; gap: 4px !important; }
@@ -192,11 +211,9 @@ window.toggleSubMenu = () => {
     if (isOpen) {
       document.body.appendChild(list); 
       list.classList.add('mobile-fixed-dropdown'); 
-      list.style.display = 'flex'; 
     } else {
       wrapper.appendChild(list); 
       list.classList.remove('mobile-fixed-dropdown'); 
-      list.style.display = '';
     }
   }
 };
@@ -506,7 +523,6 @@ window.switchViewingUser = (uid, name) => {
   if (list.classList.contains('mobile-fixed-dropdown')) {
     wrapper.appendChild(list); 
     list.classList.remove('mobile-fixed-dropdown'); 
-    list.style.display = '';
   }
 };
 
@@ -655,10 +671,15 @@ function getAdHocDateStr(evt) {
   return new Date().toISOString().split('T')[0];
 }
 
+// 🚀 強制讓年份濾網直接過濾所有專案，不論是否已結案
 function spansYear(p, y) {
   if(y === 'all') return true;
-  if(!p.tasks || p.tasks.length === 0) return true;
-  let min = "9999", max = "0000";
+  if(!p.tasks || p.tasks.length === 0) {
+      // 若無任務，拿專案建立時間來判斷
+      const createdDate = p.createdAt && typeof p.createdAt.toDate === 'function' ? p.createdAt.toDate() : new Date();
+      return createdDate.getFullYear() === y;
+  }
+  let min = "9999-12-31", max = "0000-01-01";
   p.tasks.forEach(t => { 
       if (t.start < min) min = t.start; 
       if (t.end > max) max = t.end; 
@@ -703,16 +724,11 @@ function renderProjects() {
   const yearFilterVal = document.getElementById('project-year-filter')?.value || new Date().getFullYear().toString();
   const selectedYear = yearFilterVal === 'all' ? 'all' : parseInt(yearFilterVal);
 
-  const baseProjects = allProjectsData.filter(p => {
-    const isAllDone = p.tasks && p.tasks.length > 0 && p.tasks.every(t => t.isCompleted);
-    if (isAllDone && selectedYear !== 'all') {
-        return spansYear(p, selectedYear);
-    }
-    return true;
-  });
+  // 🚀 將年份濾網套用到「所有專案與事件」上！不跨年份直接隱藏
+  const baseProjects = allProjectsData.filter(p => spansYear(p, selectedYear));
 
   const baseAdHocs = allAdHocData.filter(e => {
-    if (e.isCompleted && selectedYear !== 'all') {
+    if (selectedYear !== 'all') {
         const eY = parseInt(getAdHocDateStr(e).substring(0,4));
         return eY === selectedYear;
     }
@@ -734,7 +750,6 @@ function renderProjects() {
     }
   });
 
-  // 🚀 將所有與登入者相關的專案合併 (不論是建立者還是協作者)
   const allInvolvedProjectsMap = new Map();
   userProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
   collabProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
@@ -742,20 +757,17 @@ function renderProjects() {
 
   let countOngoing = 0, countCompleted = 0, countDelayed = 0;
   
-  // 🚀 核心邏輯：動態計算 KPI 數字
   allInvolvedProjects.forEach(p => {
     let relevantTasks = [];
     if (p.ownerId === viewingUserId) {
-      // 專案主：看所有任務
       relevantTasks = p.tasks || [];
       if (relevantTasks.length === 0) {
         countOngoing++;
         return;
       }
     } else {
-      // 協作單位：只看自己新增/指派的任務！
       relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
-      if (relevantTasks.length === 0) return; // 如果還沒加任務，不計入 KPI
+      if (relevantTasks.length === 0) return; 
     }
 
     const isAllDone = relevantTasks.every(t => t.isCompleted);
@@ -771,7 +783,6 @@ function renderProjects() {
   document.getElementById('stat-collab').innerText = collabProjects.length;
   if(document.getElementById('stat-all')) document.getElementById('stat-all').innerText = allInvolvedProjects.length;
 
-  // 🚀 核心邏輯：依據身份動態過濾清單
   let activeList = [];
   if (currentFilter === 'collab') {
     activeList = collabProjects;
@@ -828,7 +839,6 @@ function renderProjects() {
     return; 
   }
 
-  // 🚀 「返回總覽」紫色外框按鈕
   if (selectedProjectId !== 'SUMMARY') {
     const summaryBtn = document.createElement("button");
     summaryBtn.className = `proj-tab`;
@@ -873,9 +883,8 @@ function renderProjects() {
     activeList.forEach(p => {
       if(!p.tasks || p.tasks.length === 0) return;
       
-      // 🚀 總覽計算也獨立隔離
       let relevantTasks = (p.ownerId === viewingUserId) ? p.tasks : p.tasks.filter(t => t.assigneeId === viewingUserId);
-      let tasksForTimeline = relevantTasks.length > 0 ? relevantTasks : p.tasks; // 如果都沒任務，至少顯示專案原始範圍
+      let tasksForTimeline = relevantTasks.length > 0 ? relevantTasks : p.tasks; 
       
       let minStart = "9999-12-31"; 
       let maxEnd = "0000-01-01"; 
@@ -938,7 +947,6 @@ function renderProjects() {
       const row = document.createElement("div"); 
       row.className = "gantt-row";
       if (item.type === 'project') {
-        // 🚀 若有延遲，直接顯示紅字 Delay
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : item.progress+'%';
         if (item.hasDelay && !item.isDone) {
             statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
