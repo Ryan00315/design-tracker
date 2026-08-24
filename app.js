@@ -436,12 +436,19 @@ onAuthStateChanged(auth, async (user) => {
       const userDoc = await getDoc(doc(db, "users", user.uid));
       if (userDoc.exists()) {
         currentUserData = userDoc.data();
+        
+        // 🚀 自動修復機制：如果登入的帳號在資料庫中沒有 Email，立刻補寫進去！
+        if (!currentUserData.email && user.email) {
+            currentUserData.email = user.email;
+            await updateDoc(doc(db, "users", user.uid), { email: user.email });
+        }
       } else {
-        currentUserData = { name: user.email.split('@')[0], dept: "設計部", role: "admin", canEdit: false };
+        // 新建帳號時同時寫入 Email
+        currentUserData = { name: user.email.split('@')[0], email: user.email, dept: "設計部", role: "admin", canEdit: false };
         await setDoc(doc(db, "users", user.uid), currentUserData, { merge: true });
       }
     } catch (e) { 
-      currentUserData = { name: user.email.split('@')[0], dept: "設計部", role: "admin", canEdit: false }; 
+      currentUserData = { name: user.email.split('@')[0], email: user.email, dept: "設計部", role: "admin", canEdit: false }; 
     }
     
     const displayName = currentUserData.name || user.email.split('@')[0];
@@ -825,10 +832,10 @@ function renderProjects() {
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
-  // 🚀 嚴格依照「正在檢視的人所屬部門」來抓取協作專案，杜絕管理員亂入
   const collabProjects = allProjectsData.filter(p => {
     const collabs = p.collaborators || [];
     if (collabs.length === 0) return false;
+    if (currentUserData.role === 'admin') return true; 
     return collabs.includes(targetDept) || p.ownerId === viewingUserId;
   });
 
@@ -845,8 +852,7 @@ function renderProjects() {
     const ownerDept = getUserDept(p.ownerId);
     const isOwnerDept = (targetDept === ownerDept); 
 
-    // 🚀 嚴格視角隔離：不管是不是管理員，現在看哪個部門，就只顯示哪個部門該看的進度
-    if (isOwnerDept) {
+    if (isOwnerDept || currentUserData.role === 'admin') {
       relevantTasks = p.tasks || [];
     } else {
       relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
@@ -862,7 +868,7 @@ function renderProjects() {
 
     const inYear = spansYear(p, selectedYear);
 
-    if (isOwnerDept) {
+    if (isOwnerDept || currentUserData.role === 'admin') {
        if (relevantTasks.length === 0 || !isAllDone) { countOngoing++; projectsOngoing.push(p); }
        if (hasDelay) { countDelayed++; projectsDelayed.push(p); }
     } else {
@@ -989,7 +995,7 @@ function renderProjects() {
     activeList.forEach(p => {
       const ownerDept = getUserDept(p.ownerId);
       const isOwnerDept = (targetDept === ownerDept); 
-      let relevantTasks = isOwnerDept ? p.tasks : (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
+      let relevantTasks = (isOwnerDept || currentUserData.role === 'admin') ? p.tasks : (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
       let tasksForTimeline = relevantTasks.length > 0 ? relevantTasks : (p.tasks || []); 
       
       let minStart = "9999-12-31"; 
@@ -1102,6 +1108,9 @@ function renderProjects() {
     return;
   }
 
+  // ==========================================
+  // ⭐ 顯示詳細專案畫面
+  // ==========================================
   summaryView.style.display = "none"; 
   detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
@@ -1146,7 +1155,7 @@ function renderProjects() {
     btnProjectAddTask.style.display = "none";
   }
 
-  // 🚀 刪除專案按鈕：防呆機制！必須在開啟編輯模式時才顯示
+  // 🚀 刪除專案防呆：必須在開啟編輯模式時才顯示
   delProjBtn.style.display = (isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod))) ? "inline-block" : "none";
 
   const leftBody = document.getElementById("gantt-left-body");
