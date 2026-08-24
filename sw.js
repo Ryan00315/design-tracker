@@ -3,17 +3,15 @@
 // ==========================================
 
 // 💡 每次您更新了 app.js 或 style.css，請記得把這裡的 v1 往上加 (例如改成 v2, v3...)
-const CACHE_NAME = 'pms-cache-v1'; 
+const CACHE_NAME = 'pms-cache-v1'; // 👈 記得改一下版本號
 
-// 這些是守衛需要抓下來存進硬碟的檔案清單
 const urlsToCache = [
   './',
   './index.html',
   './style.css',
   './app.js',
-  './favicon.ico' // 👈 配合剛剛改名的小圖示
+  './k-192.png' // 👈 確保這裡是 ./k-192.png
 ];
-
 // 1. 安裝階段：把上面的檔案通通存起來
 self.addEventListener('install', event => {
   // skipWaiting() 會讓新的 Service Worker 不要等，準備立刻接管
