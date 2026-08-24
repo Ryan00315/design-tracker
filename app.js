@@ -21,7 +21,6 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-// 🚀 強制設定登入狀態永久保存在瀏覽器/手機中，避免 PWA 快取誤清登入憑證
 setPersistence(auth, browserLocalPersistence).catch((error) => console.log("Persistence Error:", error));
 const db = getFirestore(app);
 
@@ -58,7 +57,6 @@ const taiwanHolidayMap = {
   '10-25': '光復節', '10-26': '補假', '12-25': '行憲紀念日'
 };
 
-// 取得今天的日期字串 (yyyy-mm-dd)
 function getTodayStr() {
     const d = new Date();
     const y = d.getFullYear();
@@ -67,7 +65,6 @@ function getTodayStr() {
     return `${y}-${m}-${day}`;
 }
 
-// 取得某 UID 對應的部門
 function getUserDept(uid) {
     if (!uid) return "設計部";
     if (uid === auth.currentUser?.uid) return currentUserData.dept || "設計部";
@@ -175,6 +172,7 @@ window.switchNav = (tabId, title, elem) => {
   }
 };
 
+// 🚀 編輯模式開關按鈕控制邏輯
 document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => {
   isEditMode = !isEditMode;
   const btn = document.getElementById("btn-toggle-edit-mode");
@@ -190,70 +188,52 @@ document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => 
   renderWeeklyReports();
 });
 
-// 🚀 聰明的編輯按鈕隱藏器：只要權限不符、或超過 7 天沒動作，就整顆按鈕沒收！
+// 🚀 智慧判斷「開啟編輯模式」按鈕是否該顯示
 function checkEditModeVisibility() {
   const btn = document.getElementById("btn-toggle-edit-mode");
   if (!btn) return;
 
   let shouldShow = false;
 
-  // 1. 如果是系統管理員或擁有全局修改權限 -> 永遠顯示
+  // 1. 如果有開放權限 (管理員/全局權限)，永久出現
   if (currentUserData.role === 'admin' || currentUserData.canEdit) {
     shouldShow = true;
   } else {
-    // 2. 如果在特定專案內
+    // 2. 沒開放權限的帳號，只有在特定專案畫面且在7日內才出現
     if (selectedProjectId !== 'SUMMARY') {
       const p = allProjectsData.find(x => x.id === selectedProjectId);
       if (p) {
         const ownerDept = getUserDept(p.ownerId);
         const isOwnerDept = (currentUserData.dept === ownerDept);
         const isOwner = (p.ownerId === auth.currentUser?.uid) || isOwnerDept;
-        const isCollab = p.collaborators && p.collaborators.includes(currentUserData.dept);
         const inGrace = isWithin7DaysGracePeriod(p);
 
-        // 如果是建立單位且在 7 天內，或者是協作單位(因為要加細項) -> 顯示
-        if ((isOwner && inGrace) || isCollab) {
+        // 如果是建立單位且專案還在7日內，顯示
+        if (isOwner && inGrace) {
           shouldShow = true;
-        } else {
-           // 如果超過 7 天，但有「自己剛建立不到 7 天的細項」 -> 還是給他顯示，讓他改剛建好的
-           const hasTaskInGrace = (p.tasks || []).some(t => {
-             if (t.assigneeId !== auth.currentUser?.uid && !isOwnerDept) return false;
+        }
+
+        // 如果是協作單位，且他「有自己7日內建立的細項」，才讓他看到編輯按鈕以防寫錯字
+        const isCollab = p.collaborators && p.collaborators.includes(currentUserData.dept);
+        if (isCollab) {
+          const hasTaskInGrace = (p.tasks || []).some(t => {
+             if (t.assigneeId !== auth.currentUser?.uid) return false;
              let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
              return ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
-           });
-           if (hasTaskInGrace) shouldShow = true;
+          });
+          if (hasTaskInGrace) shouldShow = true;
         }
       }
-    } else {
-       // 3. 在總覽(SUMMARY)畫面：只要有任一個專案符合條件，就顯示
-       const hasEditableProject = allProjectsData.some(p => {
-         const ownerDept = getUserDept(p.ownerId);
-         const isOwnerDept = (currentUserData.dept === ownerDept);
-         const isOwner = (p.ownerId === auth.currentUser?.uid) || isOwnerDept;
-         const isCollab = p.collaborators && p.collaborators.includes(currentUserData.dept);
-         const inGrace = isWithin7DaysGracePeriod(p);
-         if ((isOwner && inGrace) || isCollab) return true;
-         
-         return (p.tasks || []).some(t => {
-           if (t.assigneeId !== auth.currentUser?.uid && !isOwnerDept) return false;
-           let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
-           return ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
-         });
-       });
-       if (hasEditableProject) {
-         shouldShow = true;
-       }
     }
   }
 
-  // 🚀 如果系統判定不該顯示編輯按鈕，就強制把編輯模式「關閉」
+  // 若判定應隱藏，且目前狀態是開啟的，強制幫它關掉
   if (!shouldShow && isEditMode) {
     isEditMode = false;
     btn.innerHTML = "✏️ 開啟編輯模式";
     btn.style.background = "transparent";
   }
 
-  // 執行顯示或隱藏
   btn.style.display = shouldShow ? "inline-block" : "none";
 }
 
@@ -622,7 +602,7 @@ window.switchViewingUser = (uid, name) => {
 
   selectedProjectId = 'SUMMARY'; 
   
-  // 🚀 自動重設編輯按鈕為關閉
+  // 自動關閉編輯模式防呆
   isEditMode = false;
   const editBtn = document.getElementById("btn-toggle-edit-mode");
   if(editBtn) {
@@ -750,9 +730,9 @@ window.setProjectFilter = (status) => {
   renderProjects();
 };
 
+// 切換專案時，強制關閉編輯模式以防呆
 window.selectProject = (projId) => { 
   selectedProjectId = projId; 
-  // 🚀 防呆機制：只要切換專案，就自動把「編輯模式」關閉！
   isEditMode = false;
   const editBtn = document.getElementById("btn-toggle-edit-mode");
   if(editBtn) {
@@ -839,7 +819,7 @@ function getGraceDaysLeft(proj) {
 }
 
 function renderProjects() {
-  // 🚀 在每次畫面重繪時，自動判定編輯按鈕是否該顯示
+  // 🚀 自動檢查並控制「開啟編輯模式」按鈕的顯示與隱藏
   checkEditModeVisibility();
 
   const isViewingSelf = (viewingUserId === auth.currentUser.uid);
@@ -1137,11 +1117,11 @@ function renderProjects() {
   const isAuthorizedMaster = currentUserData.role === 'admin' || currentUserData.canEdit === true || isProjOwner;
   const inGracePeriod = isAuthorizedMaster && isWithin7DaysGracePeriod(activeProj);
   
+  // 🚀 編輯主檔按鈕需要處於編輯模式下才顯示
   let canEditMainProj = isEditMode && inGracePeriod;
-  
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯主資訊</button>` : '';
-  let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#2563eb; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
   
+  let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#2563eb; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
   let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="font-size:11px; margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
 
   let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
@@ -1155,7 +1135,8 @@ function renderProjects() {
 
   lockBtn.style.display = "none"; 
 
-  const canAddTask = isEditMode && (isAuthorizedMaster || isCollabMember);
+  // 🚀 新增細項按鈕：不需要編輯模式，只要有權限就顯示！
+  const canAddTask = (isAuthorizedMaster || isCollabMember);
 
   if (canAddTask) {
     btnProjectAddTask.style.display = "inline-block";
@@ -1164,7 +1145,7 @@ function renderProjects() {
     btnProjectAddTask.style.display = "none";
   }
 
-  // 🚀 防呆機制：刪除專案按鈕必須在開啟「編輯模式」時才出現！
+  // 🚀 刪除專案防呆：必須在編輯模式下，且擁有權限並在 7 天內，才會出現！
   delProjBtn.style.display = (isEditMode && isAuthorizedMaster && inGracePeriod) ? "inline-block" : "none";
 
   const leftBody = document.getElementById("gantt-left-body");
@@ -1199,6 +1180,7 @@ function renderProjects() {
     const canOperateThisTask = (isAuthorizedMaster || isMyTask);
     const isInputLocked = task.isCompleted || !canOperateThisTask; 
     
+    // 🚀 編輯個別任務：需要編輯模式，且符合權限與 7 天規則
     let canEditTask = isEditMode && (
       currentUserData.role === 'admin' || 
       currentUserData.canEdit === true || 
