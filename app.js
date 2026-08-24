@@ -734,7 +734,7 @@ function renderProjects() {
     }
   });
 
-  // 🚀 核心修正：把「自己的專案」和「協作專案」合併在一起，剔除重複項
+  // 🚀 將所有與登入者相關的專案合併 (不論是建立者還是協作者)
   const allInvolvedProjectsMap = new Map();
   userProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
   collabProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
@@ -742,14 +742,25 @@ function renderProjects() {
 
   let countOngoing = 0, countCompleted = 0, countDelayed = 0;
   
-  // 🚀 只要這專案有我的份，就精準計算它的總狀態！
+  // 🚀 核心邏輯：動態計算 KPI 數字
   allInvolvedProjects.forEach(p => {
-    if (!p.tasks || p.tasks.length === 0) {
-      countOngoing++;
-      return;
+    let relevantTasks = [];
+    if (p.ownerId === viewingUserId) {
+      // 專案主：看所有任務
+      relevantTasks = p.tasks || [];
+      if (relevantTasks.length === 0) {
+        countOngoing++;
+        return;
+      }
+    } else {
+      // 協作單位：只看自己新增/指派的任務！
+      relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
+      if (relevantTasks.length === 0) return; // 如果還沒加任務，不計入 KPI
     }
-    const isAllDone = p.tasks.every(t => t.isCompleted);
-    const hasDelay = p.tasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
+
+    const isAllDone = relevantTasks.every(t => t.isCompleted);
+    const hasDelay = relevantTasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
+    
     if (isAllDone) countCompleted++; else countOngoing++;
     if (hasDelay) countDelayed++;
   });
@@ -760,17 +771,26 @@ function renderProjects() {
   document.getElementById('stat-collab').innerText = collabProjects.length;
   if(document.getElementById('stat-all')) document.getElementById('stat-all').innerText = allInvolvedProjects.length;
 
+  // 🚀 核心邏輯：依據身份動態過濾清單
   let activeList = [];
   if (currentFilter === 'collab') {
     activeList = collabProjects;
   } else if (currentFilter === 'all') {
     activeList = allInvolvedProjects;
   } else {
-    // 🚀 清單過濾現在會包含所有的「協作專案」了！
     activeList = allInvolvedProjects.filter(p => {
-      if (!p.tasks || p.tasks.length === 0) return currentFilter === 'ongoing';
-      const isAllDone = p.tasks.every(t => t.isCompleted);
-      const hasDelay = p.tasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
+      let relevantTasks = [];
+      if (p.ownerId === viewingUserId) {
+        relevantTasks = p.tasks || [];
+        if (relevantTasks.length === 0) return currentFilter === 'ongoing';
+      } else {
+        relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
+        if (relevantTasks.length === 0) return false;
+      }
+
+      const isAllDone = relevantTasks.every(t => t.isCompleted);
+      const hasDelay = relevantTasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
+      
       if (currentFilter === 'completed') return isAllDone;
       if (currentFilter === 'delayed') return hasDelay;
       return !isAllDone;
@@ -808,6 +828,7 @@ function renderProjects() {
     return; 
   }
 
+  // 🚀 「返回總覽」紫色外框按鈕
   if (selectedProjectId !== 'SUMMARY') {
     const summaryBtn = document.createElement("button");
     summaryBtn.className = `proj-tab`;
@@ -851,16 +872,30 @@ function renderProjects() {
 
     activeList.forEach(p => {
       if(!p.tasks || p.tasks.length === 0) return;
+      
+      // 🚀 總覽計算也獨立隔離
+      let relevantTasks = (p.ownerId === viewingUserId) ? p.tasks : p.tasks.filter(t => t.assigneeId === viewingUserId);
+      let tasksForTimeline = relevantTasks.length > 0 ? relevantTasks : p.tasks; // 如果都沒任務，至少顯示專案原始範圍
+      
       let minStart = "9999-12-31"; 
       let maxEnd = "0000-01-01"; 
-      let totalProg = 0;
-      p.tasks.forEach(t => { 
+      tasksForTimeline.forEach(t => { 
         if (t.start < minStart) minStart = t.start; 
         if (t.end > maxEnd) maxEnd = t.end; 
-        totalProg += (t.progress || 0); 
       });
-      let avgProg = Math.round(totalProg / p.tasks.length);
-      let isDone = p.tasks.every(t => t.isCompleted);
+
+      let avgProg = 0;
+      let isDone = false;
+      let hasDelay = false;
+
+      if (relevantTasks.length > 0) {
+        let totalProg = 0;
+        relevantTasks.forEach(t => totalProg += (t.progress || 0));
+        avgProg = Math.round(totalProg / relevantTasks.length);
+        isDone = relevantTasks.every(t => t.isCompleted);
+        hasDelay = relevantTasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
+      }
+      
       const hasCollab = (p.collaborators && p.collaborators.length > 0);
       
       combinedItems.push({
@@ -873,6 +908,7 @@ function renderProjects() {
         end: maxEnd, 
         progress: avgProg, 
         isDone: isDone, 
+        hasDelay: hasDelay, 
         isCollab: hasCollab, 
         custom_class: isDone ? 'bar-success' : (p.color || 'bar-primary')
       });
@@ -902,7 +938,12 @@ function renderProjects() {
       const row = document.createElement("div"); 
       row.className = "gantt-row";
       if (item.type === 'project') {
+        // 🚀 若有延遲，直接顯示紅字 Delay
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : item.progress+'%';
+        if (item.hasDelay && !item.isDone) {
+            statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
+        }
+
         let titleDisplay = item.isCollab 
           ? `<span style="color:var(--primary); font-weight:700;"><span style="color:var(--primary); margin-right:4px;">👥</span>${item.title}</span>`
           : `🗂️ ${item.title}`;
@@ -964,10 +1005,8 @@ function renderProjects() {
   const lockBtn = document.getElementById("btn-toggle-lock");
   const delProjBtn = document.getElementById("btn-delete-project");
 
-  // 🚀 永遠廢除手動鎖定功能，不顯示！
   lockBtn.style.display = "none"; 
 
-  // 🚀 關鍵：只要開啟編輯模式，且是專案負責人或是被指定的協作部門，就永遠能新增細項！
   const canAddTask = isEditMode && (currentUserData.role === 'admin' || currentUserData.canEdit || isProjOwner || isCollabMember);
 
   if (canAddTask) {
@@ -1005,14 +1044,12 @@ function renderProjects() {
     const taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
     const isMyTask = (auth.currentUser.uid === taskAssigneeId);
 
-    // 🚀 單獨計算這個「任務細項」自己的 7 天專屬寬限期
     let taskCreatedTime = task.createdAt || (activeProj.createdAt && typeof activeProj.createdAt.toMillis === 'function' ? activeProj.createdAt.toMillis() : Date.now());
     let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
 
     const canOperateThisTask = (isProjOwner || isMyTask || currentUserData.role === 'admin');
     const isInputLocked = task.isCompleted || !canOperateThisTask; 
     
-    // 🚀 細項編輯按鈕：只有管理員，或是 (專案主/任務負責人 且 在該細項的 7 天內) 才會顯示
     let canEditTask = isEditMode && (
       currentUserData.role === 'admin' || 
       currentUserData.canEdit === true || 
