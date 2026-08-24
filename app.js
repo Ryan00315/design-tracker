@@ -58,7 +58,7 @@ const taiwanHolidayMap = {
   '10-25': '光復節', '10-26': '補假', '12-25': '行憲紀念日'
 };
 
-// 取得今天的日期字串 (yyyy-mm-dd)，用來精準判斷 Delay
+// 取得今天的日期字串 (yyyy-mm-dd)
 function getTodayStr() {
     const d = new Date();
     const y = d.getFullYear();
@@ -84,14 +84,12 @@ function initDynamicUI() {
   
   const style = document.createElement('style');
   style.innerHTML = `
-    /* 按鈕縮小 20% */
     .kpi-card { padding: 8px 12px !important; min-height: unset !important; }
     .kpi-title { font-size: 11.5px !important; margin-bottom: 2px !important; }
     .kpi-number { font-size: 18px !important; }
     .col-sum-name.clickable { cursor: pointer; text-decoration: underline; color: var(--primary); transition: 0.2s; }
     .col-sum-name.clickable:hover { color: #1d4ed8; font-weight: bold; }
     
-    /* 🚀 調整左側面板寬度，讓名稱有雙倍空間 */
     .gantt-left-panel { flex: 0 0 48% !important; max-width: 48% !important; }
     .gantt-right-panel { flex: 0 0 52% !important; max-width: 52% !important; }
     
@@ -101,7 +99,6 @@ function initDynamicUI() {
     .col-owner { flex: 1.2 !important; }
     .col-act { flex: 0.8 !important; }
     
-    /* 🚀 修復手機版左側人員選單被擋住的問題 */
     .mobile-fixed-dropdown {
         position: fixed !important;
         top: 60px !important;
@@ -109,7 +106,7 @@ function initDynamicUI() {
         width: 100vw !important;
         height: calc(100vh - 60px) !important;
         background: #f1f5f9 !important;
-        z-index: 999999 !important; /* 設定超級高的層級，蓋掉所有甘特圖 */
+        z-index: 999999 !important;
         display: flex !important;
         flex-direction: column;
         overflow-y: auto !important;
@@ -127,7 +124,6 @@ function initDynamicUI() {
   `;
   document.head.appendChild(style);
 
-  // 插入年份篩選器 (預設目前年份)
   const btnWrapper = document.getElementById('btn-create-wrapper');
   if (btnWrapper && !document.getElementById('project-year-filter')) {
     const currentY = new Date().getFullYear();
@@ -145,7 +141,6 @@ function initDynamicUI() {
     sel.style.fontWeight = "bold";
     sel.innerHTML = options;
     sel.onchange = () => {
-      // 切換年份時，如果目前在未完成或Delay，主動跳到總覽，避免困惑
       if(currentFilter === 'ongoing' || currentFilter === 'delayed'){
          setProjectFilter('all');
       } else {
@@ -702,7 +697,6 @@ function getAdHocDateStr(evt) {
   return new Date().toISOString().split('T')[0];
 }
 
-// 🚀 年份判斷：檢查專案任務是否落於選定年份
 function spansYear(p, y) {
   if(y === 'all') return true;
   if(!p.tasks || p.tasks.length === 0) {
@@ -750,16 +744,16 @@ function getGraceDaysLeft(proj) {
 function renderProjects() {
   const isViewingSelf = (viewingUserId === auth.currentUser.uid);
   const myDept = currentUserData.dept || "設計部";
+  const targetUser = allUsersList.find(u => u.uid === viewingUserId);
+  const targetDept = isViewingSelf ? myDept : (targetUser?.dept || "設計部");
   
   const yearFilterVal = document.getElementById('project-year-filter')?.value || new Date().getFullYear().toString();
   const selectedYear = yearFilterVal === 'all' ? 'all' : parseInt(yearFilterVal);
   const todayStr = getTodayStr();
 
-  // 1. 取出基本資料
+  // 1. 取得自己的專案與協作專案
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
-
-  const targetDept = (viewingUserId === auth.currentUser.uid) ? (currentUserData.dept || "設計部") : ((allUsersList.find(u => u.uid === viewingUserId) || {}).dept || "設計部");
 
   const collabProjects = allProjectsData.filter(p => {
     const collabs = p.collaborators || [];
@@ -767,43 +761,44 @@ function renderProjects() {
     return collabs.includes(targetDept) || p.ownerId === viewingUserId;
   });
 
-  // 2. 合併該用戶有參與的所有專案
   const allInvolvedProjectsMap = new Map();
   userProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
   collabProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
   const allInvolvedProjects = Array.from(allInvolvedProjectsMap.values());
 
-  // 3. 變數準備
   let countOngoing = 0, countCompleted = 0, countDelayed = 0, countAllInYear = 0;
   let projectsOngoing = [], projectsCompleted = [], projectsDelayed = [], projectsAll = [];
 
-  // 4. 🚀 核心邏輯：依據身份隔離視角，並獨立過濾年份與狀態
   allInvolvedProjects.forEach(p => {
     let relevantTasks = [];
     if (p.ownerId === viewingUserId) {
       relevantTasks = p.tasks || [];
     } else {
+      // 🚀 協作者只看指派給自己的任務，若還沒指派任務，不列入個人未完成/完成，但它會留在「協作專案」分頁中！
       relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
     }
 
-    // 🚀 如果沒有任何任務，但自己是負責人或協作者，代表「待處理」，強制作為未完成
-    let isAllDone = relevantTasks.length > 0 && relevantTasks.every(t => t.isCompleted);
-    // 🚀 Delay 邏輯：有任務未完成，且今天的日期大於預計完成日
-    let hasDelay = relevantTasks.length > 0 && relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
+    let isAllDone = false;
+    let hasDelay = false;
+
+    if (relevantTasks.length > 0) {
+      isAllDone = relevantTasks.every(t => t.isCompleted);
+      hasDelay = relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
+    }
 
     const inYear = spansYear(p, selectedYear);
 
-    // 🚀 未完成與 Delay 無視年份，永遠緊盯！
-    if (relevantTasks.length === 0 || !isAllDone) {
-       countOngoing++;
-       projectsOngoing.push(p);
-    }
-    if (hasDelay) {
-       countDelayed++;
-       projectsDelayed.push(p);
+    // 🚀 未完成與 Delay 計算
+    if (p.ownerId === viewingUserId) {
+       if (relevantTasks.length === 0 || !isAllDone) { countOngoing++; projectsOngoing.push(p); }
+       if (hasDelay) { countDelayed++; projectsDelayed.push(p); }
+    } else {
+       // 協作者：有自己的任務且未完成才算未完成
+       if (relevantTasks.length > 0 && !isAllDone) { countOngoing++; projectsOngoing.push(p); }
+       if (relevantTasks.length > 0 && hasDelay) { countDelayed++; projectsDelayed.push(p); }
     }
 
-    // 🚀 完成與總覽：受年份濾網限制
+    // 完成與總覽計算
     if (isAllDone && inYear) {
        countCompleted++;
        projectsCompleted.push(p);
@@ -814,7 +809,6 @@ function renderProjects() {
     }
   });
 
-  // 事件也比照辦理
   let adHocsOngoing = userAdHocs.filter(e => !e.isCompleted);
   let adHocsDelayed = userAdHocs.filter(e => !e.isCompleted && e.startDate < todayStr);
   let adHocsCompleted = userAdHocs.filter(e => e.isCompleted && (selectedYear === 'all' || parseInt(getAdHocDateStr(e).substring(0,4)) === selectedYear));
@@ -825,14 +819,12 @@ function renderProjects() {
   countDelayed += adHocsDelayed.length;
   countAllInYear += adHocsAll.length;
 
-  // 更新上方看板數字
   document.getElementById('stat-ongoing').innerText = countOngoing; 
   document.getElementById('stat-completed').innerText = countCompleted; 
   document.getElementById('stat-delay').innerText = countDelayed;
   document.getElementById('stat-collab').innerText = collabProjects.length;
   if(document.getElementById('stat-all')) document.getElementById('stat-all').innerText = countAllInYear;
 
-  // 🚀 根據所選 Tab 給予對應的清單
   let activeList = [];
   let activeAdHocs = [];
 
@@ -846,7 +838,7 @@ function renderProjects() {
       activeList = projectsDelayed;
       activeAdHocs = adHocsDelayed;
   } else if (currentFilter === 'collab') {
-      activeList = collabProjects;
+      activeList = collabProjects; 
       activeAdHocs = [];
   } else if (currentFilter === 'all') {
       activeList = projectsAll;
@@ -854,7 +846,6 @@ function renderProjects() {
   }
   activeList = Array.from(new Set(activeList)); 
 
-  // 若目前檢視的專案不在清單內，強制退回總覽
   if (selectedProjectId !== 'SUMMARY') {
     if (!activeList.find(p => p.id === selectedProjectId)) selectedProjectId = 'SUMMARY';
   }
@@ -872,7 +863,12 @@ function renderProjects() {
     return; 
   }
 
-  // 🚀 隱藏總覽按鈕，除非進入詳細畫面才會出現「🔙 返回總覽」
+  let summaryBtnText = "⭐ 所有專案總覽";
+  if (currentFilter === 'ongoing') summaryBtnText = "⭐ 未完成總覽";
+  else if (currentFilter === 'completed') summaryBtnText = "⭐ 完成總覽";
+  else if (currentFilter === 'delayed') summaryBtnText = "⭐ Delay 總覽";
+  else if (currentFilter === 'collab') summaryBtnText = "⭐ 協作專案總覽";
+
   if (selectedProjectId !== 'SUMMARY') {
     const summaryBtn = document.createElement("button");
     summaryBtn.className = `proj-tab`;
@@ -884,7 +880,6 @@ function renderProjects() {
     tabsContainer.appendChild(summaryBtn);
   }
 
-  // 渲染專案分頁標籤
   activeList.forEach(p => {
     const hasCollab = (p.collaborators && p.collaborators.length > 0);
     const btn = document.createElement("button"); 
@@ -898,9 +893,6 @@ function renderProjects() {
 
   emptyState.style.display = "none"; 
 
-  // ==========================================
-  // ⭐ 顯示總覽畫面
-  // ==========================================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; 
     summaryView.style.display = "block";
@@ -947,6 +939,12 @@ function renderProjects() {
         avgProg = Math.round(totalProg / relevantTasks.length);
         isDone = relevantTasks.every(t => t.isCompleted);
         hasDelay = relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
+      } else if (p.tasks && p.tasks.length > 0) {
+        let totalProg = 0;
+        p.tasks.forEach(t => totalProg += (t.progress || 0));
+        avgProg = Math.round(totalProg / p.tasks.length);
+        isDone = p.tasks.every(t => t.isCompleted);
+        hasDelay = p.tasks.some(t => !t.isCompleted && todayStr > t.end);
       }
       
       const hasCollab = (p.collaborators && p.collaborators.length > 0);
@@ -1035,9 +1033,6 @@ function renderProjects() {
     return;
   }
 
-  // ==========================================
-  // ⭐ 顯示詳細專案畫面
-  // ==========================================
   summaryView.style.display = "none"; 
   detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
