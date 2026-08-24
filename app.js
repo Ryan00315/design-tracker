@@ -91,8 +91,6 @@ function initDynamicUI() {
     .kpi-card { padding: 8px 12px !important; min-height: unset !important; }
     .kpi-title { font-size: 11.5px !important; margin-bottom: 2px !important; }
     .kpi-number { font-size: 18px !important; }
-    
-    /* 🚀 移除底線，修改游標懸停效果 */
     .col-sum-name.clickable { cursor: pointer; text-decoration: none; transition: 0.2s; }
     .col-sum-name.clickable:hover { opacity: 0.7; }
     
@@ -494,23 +492,24 @@ function loadSidebarSubordinates() {
     const myRole = currentUserData.role; 
     const myDept = currentUserData.dept || "設計部";
 
-    const allUsersArray = [];
+    // 🚀 全局快取人員名單，供所有部門檢視邏輯使用
+    allUsersList = [];
     snapshot.forEach(docSnap => {
-      allUsersArray.push({ uid: docSnap.id, ...docSnap.data() });
+      allUsersList.push({ uid: docSnap.id, ...docSnap.data() });
     });
 
     const isSubordinate = (bossUid, targetUid) => {
-      let current = allUsersArray.find(u => u.uid === targetUid);
+      let current = allUsersList.find(u => u.uid === targetUid);
       let depth = 0;
       while (current && current.supervisorId && depth < 10) {
         if (current.supervisorId === bossUid) return true;
-        current = allUsersArray.find(u => u.uid === current.supervisorId);
+        current = allUsersList.find(u => u.uid === current.supervisorId);
         depth++;
       }
       return false;
     };
 
-    allUsersArray.forEach(u => {
+    allUsersList.forEach(u => {
       if (u.uid === myUid) return;
 
       const targetRole = u.role; 
@@ -570,6 +569,9 @@ function loadSidebarSubordinates() {
       membersHtml += `</div>`;
       list.innerHTML += membersHtml;
     });
+
+    // 🚀 當人員資料變動，觸發重新渲染以確保權限最新
+    renderProjects();
   });
 }
 
@@ -889,11 +891,21 @@ function renderProjects() {
   countDelayed += adHocsDelayed.length;
   countAllInYear += adHocsAll.length;
 
-  document.getElementById('stat-ongoing').innerText = countOngoing; 
-  document.getElementById('stat-completed').innerText = countCompleted; 
-  document.getElementById('stat-delay').innerText = countDelayed;
-  document.getElementById('stat-collab').innerText = collabProjects.length;
-  if(document.getElementById('stat-all')) document.getElementById('stat-all').innerText = countAllInYear;
+  // 🚀 為了讓重新載入資料時也能同步 KPI，直接更新 DOM
+  const elOngoing = document.getElementById('stat-ongoing');
+  if(elOngoing) elOngoing.innerText = countOngoing; 
+  
+  const elCompleted = document.getElementById('stat-completed');
+  if(elCompleted) elCompleted.innerText = countCompleted; 
+  
+  const elDelay = document.getElementById('stat-delay');
+  if(elDelay) elDelay.innerText = countDelayed;
+  
+  const elCollab = document.getElementById('stat-collab');
+  if(elCollab) elCollab.innerText = collabProjects.length;
+  
+  const elAll = document.getElementById('stat-all');
+  if(elAll) elAll.innerText = countAllInYear;
 
   let activeList = [];
   let activeAdHocs = [];
@@ -957,6 +969,9 @@ function renderProjects() {
 
   emptyState.style.display = "none"; 
 
+  // ==========================================
+  // ⭐ 顯示總覽畫面
+  // ==========================================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; 
     summaryView.style.display = "block";
@@ -1057,7 +1072,6 @@ function renderProjects() {
             statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
         }
 
-        // 🚀 主專案黑字、協作藍字，並保留游標與變色效果，無底線
         let titleDisplay = item.isCollab 
           ? `<span style="color:#2563eb; font-weight:700;"><span style="color:#2563eb; margin-right:4px;">👥</span>${item.title}</span>`
           : `<span style="color:#0f172a; font-weight:700;">🗂️ ${item.title}</span>`;
@@ -1094,6 +1108,9 @@ function renderProjects() {
     return;
   }
 
+  // ==========================================
+  // ⭐ 顯示詳細專案畫面
+  // ==========================================
   summaryView.style.display = "none"; 
   detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
@@ -1128,7 +1145,7 @@ function renderProjects() {
 
   lockBtn.style.display = "none"; 
 
-  // 🚀 新增細項按鈕：不需要編輯模式，只要有權限就永遠顯示！
+  // 🚀 新增細項：不需編輯模式，只要有權限(全局/協作者) 或是 (建立者在7天內) 就顯示
   const canAddTask = hasGlobalEdit || isCollabMember || (isProjOwner && inGracePeriod);
 
   if (canAddTask) {
@@ -1138,6 +1155,7 @@ function renderProjects() {
     btnProjectAddTask.style.display = "none";
   }
 
+  // 🚀 刪除按鈕必須開啟編輯模式才顯示
   delProjBtn.style.display = (isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod))) ? "inline-block" : "none";
 
   const leftBody = document.getElementById("gantt-left-body");
