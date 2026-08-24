@@ -67,7 +67,7 @@ function getTodayStr() {
     return `${y}-${m}-${day}`;
 }
 
-// 🚀 自動重構 UI 介面：縮小高度、增加總覽按鈕與年份篩選器
+// 🚀 自動重構 UI 介面：縮小高度、增加總覽按鈕與年份篩選器、並微調左右比例
 function initDynamicUI() {
   if(document.getElementById('filter-all')) return; 
 
@@ -88,9 +88,18 @@ function initDynamicUI() {
     .kpi-card { padding: 8px 12px !important; min-height: unset !important; }
     .kpi-title { font-size: 11.5px !important; margin-bottom: 2px !important; }
     .kpi-number { font-size: 18px !important; }
-    /* 總覽清單游標效果 */
     .col-sum-name.clickable { cursor: pointer; text-decoration: underline; color: var(--primary); transition: 0.2s; }
     .col-sum-name.clickable:hover { color: #1d4ed8; font-weight: bold; }
+    
+    /* 🚀 調整左側面板寬度，讓名稱有雙倍空間 */
+    .gantt-left-panel { flex: 0 0 48% !important; max-width: 48% !important; }
+    .gantt-right-panel { flex: 0 0 52% !important; max-width: 52% !important; }
+    
+    .col-sum-name, .col-name { flex: 3 !important; }
+    .col-sum-date, .col-date { flex: 1.2 !important; }
+    .col-sum-prog, .col-prog { flex: 0.8 !important; }
+    .col-owner { flex: 1.2 !important; }
+    .col-act { flex: 0.8 !important; }
     
     /* 🚀 修復手機版左側人員選單被擋住的問題 */
     .mobile-fixed-dropdown {
@@ -112,6 +121,8 @@ function initDynamicUI() {
       .kpi-row { grid-template-columns: repeat(5, 1fr) !important; gap: 4px !important; }
       .kpi-title { font-size: 10px !important; }
       .kpi-card { padding: 6px 4px !important; }
+      .gantt-left-panel { flex: 0 0 100% !important; max-width: 100% !important; }
+      .gantt-right-panel { display: none !important; }
     }
   `;
   document.head.appendChild(style);
@@ -134,6 +145,7 @@ function initDynamicUI() {
     sel.style.fontWeight = "bold";
     sel.innerHTML = options;
     sel.onchange = () => {
+      // 切換年份時，如果目前在未完成或Delay，主動跳到總覽，避免困惑
       if(currentFilter === 'ongoing' || currentFilter === 'delayed'){
          setProjectFilter('all');
       } else {
@@ -690,7 +702,7 @@ function getAdHocDateStr(evt) {
   return new Date().toISOString().split('T')[0];
 }
 
-// 🚀 年份過濾判斷器：如果所有細項都完全沒跨到該年，就回傳 false 隱藏它
+// 🚀 年份判斷：檢查專案任務是否落於選定年份
 function spansYear(p, y) {
   if(y === 'all') return true;
   if(!p.tasks || p.tasks.length === 0) {
@@ -743,33 +755,30 @@ function renderProjects() {
   const selectedYear = yearFilterVal === 'all' ? 'all' : parseInt(yearFilterVal);
   const todayStr = getTodayStr();
 
-  // 把所有專案跟事件先撈出來
+  // 1. 取出基本資料
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
+
+  const targetDept = (viewingUserId === auth.currentUser.uid) ? (currentUserData.dept || "設計部") : ((allUsersList.find(u => u.uid === viewingUserId) || {}).dept || "設計部");
 
   const collabProjects = allProjectsData.filter(p => {
     const collabs = p.collaborators || [];
     if (collabs.length === 0) return false;
-    if (isViewingSelf) {
-      return collabs.includes(myDept) || p.ownerId === auth.currentUser.uid;
-    } else {
-      const targetUser = allUsersList.find(u => u.uid === viewingUserId);
-      const targetDept = targetUser?.dept || "設計部";
-      return collabs.includes(targetDept) || p.ownerId === auth.currentUser.uid;
-    }
+    return collabs.includes(targetDept) || p.ownerId === viewingUserId;
   });
 
+  // 2. 合併該用戶有參與的所有專案
   const allInvolvedProjectsMap = new Map();
   userProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
   collabProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
   const allInvolvedProjects = Array.from(allInvolvedProjectsMap.values());
 
-  // 🚀 分類變數
+  // 3. 變數準備
   let countOngoing = 0, countCompleted = 0, countDelayed = 0, countAllInYear = 0;
   let projectsOngoing = [], projectsCompleted = [], projectsDelayed = [], projectsAll = [];
 
+  // 4. 🚀 核心邏輯：依據身份隔離視角，並獨立過濾年份與狀態
   allInvolvedProjects.forEach(p => {
-    // 🚀 視角隔離：自己管自己的進度
     let relevantTasks = [];
     if (p.ownerId === viewingUserId) {
       relevantTasks = p.tasks || [];
@@ -777,21 +786,15 @@ function renderProjects() {
       relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
     }
 
-    let isAllDone = false;
-    let hasDelay = false;
-
-    if (relevantTasks.length === 0) {
-      isAllDone = false;
-    } else {
-      isAllDone = relevantTasks.every(t => t.isCompleted);
-      // 🚀 完美 Delay 邏輯：只要細項未達 100%，且過期了，才算 Delay！100% 就不算！
-      hasDelay = relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
-    }
+    // 🚀 如果沒有任何任務，但自己是負責人或協作者，代表「待處理」，強制作為未完成
+    let isAllDone = relevantTasks.length > 0 && relevantTasks.every(t => t.isCompleted);
+    // 🚀 Delay 邏輯：有任務未完成，且今天的日期大於預計完成日
+    let hasDelay = relevantTasks.length > 0 && relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
 
     const inYear = spansYear(p, selectedYear);
 
-    // 未完成 & Delay：永遠顯示 (不受年份限制)
-    if (!isAllDone) {
+    // 🚀 未完成與 Delay 無視年份，永遠緊盯！
+    if (relevantTasks.length === 0 || !isAllDone) {
        countOngoing++;
        projectsOngoing.push(p);
     }
@@ -800,7 +803,7 @@ function renderProjects() {
        projectsDelayed.push(p);
     }
 
-    // 完成 & 總覽：受年份濾網限制
+    // 🚀 完成與總覽：受年份濾網限制
     if (isAllDone && inYear) {
        countCompleted++;
        projectsCompleted.push(p);
@@ -817,12 +820,12 @@ function renderProjects() {
   let adHocsCompleted = userAdHocs.filter(e => e.isCompleted && (selectedYear === 'all' || parseInt(getAdHocDateStr(e).substring(0,4)) === selectedYear));
   let adHocsAll = userAdHocs.filter(e => selectedYear === 'all' || parseInt(getAdHocDateStr(e).substring(0,4)) === selectedYear);
 
-  // 🚀 將插單 (AdHoc) 的數量加進上方的 KPI 統計中
   countOngoing += adHocsOngoing.length;
   countCompleted += adHocsCompleted.length;
   countDelayed += adHocsDelayed.length;
   countAllInYear += adHocsAll.length;
 
+  // 更新上方看板數字
   document.getElementById('stat-ongoing').innerText = countOngoing; 
   document.getElementById('stat-completed').innerText = countCompleted; 
   document.getElementById('stat-delay').innerText = countDelayed;
@@ -843,14 +846,15 @@ function renderProjects() {
       activeList = projectsDelayed;
       activeAdHocs = adHocsDelayed;
   } else if (currentFilter === 'collab') {
-      activeList = collabProjects; // 協作清單暫不設限
+      activeList = collabProjects;
       activeAdHocs = [];
   } else if (currentFilter === 'all') {
       activeList = projectsAll;
       activeAdHocs = adHocsAll;
   }
-  activeList = Array.from(new Set(activeList)); // 防呆去重
+  activeList = Array.from(new Set(activeList)); 
 
+  // 若目前檢視的專案不在清單內，強制退回總覽
   if (selectedProjectId !== 'SUMMARY') {
     if (!activeList.find(p => p.id === selectedProjectId)) selectedProjectId = 'SUMMARY';
   }
@@ -868,14 +872,7 @@ function renderProjects() {
     return; 
   }
 
-  // 🚀 聰明動態更名的總覽標題 (用於甘特圖上方的標題)
-  let summaryLabel = "所有專案";
-  if (currentFilter === 'ongoing') summaryLabel = "未完成";
-  else if (currentFilter === 'completed') summaryLabel = "已完成";
-  else if (currentFilter === 'delayed') summaryLabel = "Delay";
-  else if (currentFilter === 'collab') summaryLabel = "協作專案";
-
-  // 🚀 只有在「進入具體專案」時，才顯示「🔙 返回總覽」按鈕！如果在總覽畫面，就隱藏它，保持畫面乾淨！
+  // 🚀 隱藏總覽按鈕，除非進入詳細畫面才會出現「🔙 返回總覽」
   if (selectedProjectId !== 'SUMMARY') {
     const summaryBtn = document.createElement("button");
     summaryBtn.className = `proj-tab`;
@@ -887,6 +884,7 @@ function renderProjects() {
     tabsContainer.appendChild(summaryBtn);
   }
 
+  // 渲染專案分頁標籤
   activeList.forEach(p => {
     const hasCollab = (p.collaborators && p.collaborators.length > 0);
     const btn = document.createElement("button"); 
@@ -900,14 +898,21 @@ function renderProjects() {
 
   emptyState.style.display = "none"; 
 
+  // ==========================================
+  // ⭐ 顯示總覽畫面
+  // ==========================================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; 
     summaryView.style.display = "block";
     
+    let summaryLabel = "所有專案";
+    if (currentFilter === 'ongoing') summaryLabel = "未完成";
+    else if (currentFilter === 'completed') summaryLabel = "已完成";
+    else if (currentFilter === 'delayed') summaryLabel = "Delay";
+    else if (currentFilter === 'collab') summaryLabel = "協作專案";
+    
     const panelHeadSpan = document.querySelector('#project-summary-view .panel-head span');
-    if (panelHeadSpan) {
-        panelHeadSpan.innerText = `⭐ 專案與事件總覽排程 (${summaryLabel}清單)`;
-    }
+    if (panelHeadSpan) panelHeadSpan.innerText = `⭐ 專案與事件總覽排程 (${summaryLabel}清單)`;
 
     const sumLeftBody = document.getElementById("gantt-summary-left-body");
     sumLeftBody.innerHTML = "";
@@ -917,18 +922,20 @@ function renderProjects() {
     let sIdx = 0;
 
     activeList.forEach(p => {
-      if(!p.tasks || p.tasks.length === 0) return;
-      
-      // 🚀 總覽計算也獨立隔離
-      let relevantTasks = (p.ownerId === viewingUserId) ? p.tasks : p.tasks.filter(t => t.assigneeId === viewingUserId);
-      let tasksForTimeline = relevantTasks.length > 0 ? relevantTasks : p.tasks; // 如果都沒任務，至少顯示專案原始範圍
+      let relevantTasks = (p.ownerId === viewingUserId) ? p.tasks : (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
+      let tasksForTimeline = relevantTasks.length > 0 ? relevantTasks : (p.tasks || []); 
       
       let minStart = "9999-12-31"; 
       let maxEnd = "0000-01-01"; 
-      tasksForTimeline.forEach(t => { 
-        if (t.start < minStart) minStart = t.start; 
-        if (t.end > maxEnd) maxEnd = t.end; 
-      });
+      if (tasksForTimeline.length === 0) {
+          minStart = getTodayStr();
+          maxEnd = getTodayStr();
+      } else {
+          tasksForTimeline.forEach(t => { 
+            if (t.start < minStart) minStart = t.start; 
+            if (t.end > maxEnd) maxEnd = t.end; 
+          });
+      }
 
       let avgProg = 0;
       let isDone = false;
@@ -963,6 +970,8 @@ function renderProjects() {
     activeAdHocs.forEach(evt => {
       let eDate = getAdHocDateStr(evt);
       let prog = evt.isCompleted ? 100 : 0;
+      let hasDelay = !evt.isCompleted && eDate < todayStr;
+      
       combinedItems.push({
         type: 'adhoc', 
         sortDate: new Date(eDate).getTime(), 
@@ -972,6 +981,7 @@ function renderProjects() {
         end: eDate, 
         progress: prog, 
         isDone: evt.isCompleted, 
+        hasDelay: hasDelay,
         isCollab: false, 
         custom_class: 'bar-danger'
       });
@@ -985,7 +995,6 @@ function renderProjects() {
       row.className = "gantt-row";
       if (item.type === 'project') {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : item.progress+'%';
-        // 🚀 若有延遲且未完成，總覽清單直接紅字警告
         if (item.hasDelay && !item.isDone) {
             statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
         }
@@ -994,10 +1003,12 @@ function renderProjects() {
           ? `<span style="color:var(--primary); font-weight:700;"><span style="color:var(--primary); margin-right:4px;">👥</span>${item.title}</span>`
           : `🗂️ ${item.title}`;
           
-        // 🚀 點擊專案名稱，瞬間跳轉到該專案
         row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')">${titleDisplay}</div><div class="col-sum-date">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-sum-prog">${statusText}</div>`;
       } else {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
+        if (item.hasDelay && !item.isDone) {
+            statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
+        }
         row.innerHTML = `<div class="col-sum-name" style="color:var(--danger);" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date">${item.start.substring(5)}</div><div class="col-sum-prog">${statusText}</div>`;
       }
       sumLeftBody.appendChild(row);
@@ -1024,6 +1035,9 @@ function renderProjects() {
     return;
   }
 
+  // ==========================================
+  // ⭐ 顯示詳細專案畫面
+  // ==========================================
   summaryView.style.display = "none"; 
   detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
@@ -1041,7 +1055,6 @@ function renderProjects() {
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯主資訊</button>` : '';
   let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#2563eb; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
   
-  // 🚀 恢復您原本指定的帶有「剩餘天數」的標籤寫法！
   let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="font-size:11px; margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
 
   let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
@@ -1072,7 +1085,7 @@ function renderProjects() {
   if(listBody) listBody.innerHTML = "";
 
   const ganttTasks = [];
-  activeProj.tasks.forEach((task, index) => {
+  (activeProj.tasks || []).forEach((task, index) => {
     const currentProgress = task.progress || 0;
     const workDays = getWorkingDays(task.start, task.end);
     
