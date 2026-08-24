@@ -55,7 +55,6 @@ const taiwanHolidayMap = {
   '10-25': '光復節', '10-26': '補假', '12-25': '行憲紀念日'
 };
 
-// 🚀 自動重構 UI 介面：縮小高度、增加總覽按鈕與年份篩選器
 function initDynamicUI() {
   if(document.getElementById('filter-all')) return; 
 
@@ -72,11 +71,9 @@ function initDynamicUI() {
   
   const style = document.createElement('style');
   style.innerHTML = `
-    /* 按鈕縮小 20% */
     .kpi-card { padding: 8px 12px !important; min-height: unset !important; }
     .kpi-title { font-size: 11.5px !important; margin-bottom: 2px !important; }
     .kpi-number { font-size: 18px !important; }
-    /* 總覽清單游標效果 */
     .col-sum-name.clickable { cursor: pointer; text-decoration: underline; color: var(--primary); transition: 0.2s; }
     .col-sum-name.clickable:hover { color: #1d4ed8; font-weight: bold; }
     
@@ -88,7 +85,6 @@ function initDynamicUI() {
   `;
   document.head.appendChild(style);
 
-  // 插入年份篩選器
   const btnWrapper = document.getElementById('btn-create-wrapper');
   if (btnWrapper && !document.getElementById('project-year-filter')) {
     const currentY = new Date().getFullYear();
@@ -659,7 +655,6 @@ function getAdHocDateStr(evt) {
   return new Date().toISOString().split('T')[0];
 }
 
-// 判斷某個專案是否跨越選定的年份
 function spansYear(p, y) {
   if(y === 'all') return true;
   if(!p.tasks || p.tasks.length === 0) return true;
@@ -708,7 +703,6 @@ function renderProjects() {
   const yearFilterVal = document.getElementById('project-year-filter')?.value || new Date().getFullYear().toString();
   const selectedYear = yearFilterVal === 'all' ? 'all' : parseInt(yearFilterVal);
 
-  // 🚀 過濾已完成且未跨年度的專案
   const baseProjects = allProjectsData.filter(p => {
     const isAllDone = p.tasks && p.tasks.length > 0 && p.tasks.every(t => t.isCompleted);
     if (isAllDone && selectedYear !== 'all') {
@@ -740,37 +734,41 @@ function renderProjects() {
     }
   });
 
-  let countOngoing = 0, countCompleted = 0, countDelayed = 0, countCollab = collabProjects.length;
-  userProjects.forEach(p => {
-    if (!p.tasks || p.tasks.length === 0) return;
+  // 🚀 核心修正：把「自己的專案」和「協作專案」合併在一起，剔除重複項
+  const allInvolvedProjectsMap = new Map();
+  userProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
+  collabProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
+  const allInvolvedProjects = Array.from(allInvolvedProjectsMap.values());
+
+  let countOngoing = 0, countCompleted = 0, countDelayed = 0;
+  
+  // 🚀 只要這專案有我的份，就精準計算它的總狀態！
+  allInvolvedProjects.forEach(p => {
+    if (!p.tasks || p.tasks.length === 0) {
+      countOngoing++;
+      return;
+    }
     const isAllDone = p.tasks.every(t => t.isCompleted);
     const hasDelay = p.tasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
     if (isAllDone) countCompleted++; else countOngoing++;
     if (hasDelay) countDelayed++;
   });
   
-  let countAll = userProjects.length;
-  collabProjects.forEach(cp => {
-      if(!userProjects.find(p => p.id === cp.id)) countAll++;
-  });
-
   document.getElementById('stat-ongoing').innerText = countOngoing; 
   document.getElementById('stat-completed').innerText = countCompleted; 
   document.getElementById('stat-delay').innerText = countDelayed;
-  document.getElementById('stat-collab').innerText = countCollab;
-  if(document.getElementById('stat-all')) document.getElementById('stat-all').innerText = countAll;
+  document.getElementById('stat-collab').innerText = collabProjects.length;
+  if(document.getElementById('stat-all')) document.getElementById('stat-all').innerText = allInvolvedProjects.length;
 
   let activeList = [];
   if (currentFilter === 'collab') {
     activeList = collabProjects;
   } else if (currentFilter === 'all') {
-    activeList = [...userProjects];
-    collabProjects.forEach(cp => {
-        if(!activeList.find(p => p.id === cp.id)) activeList.push(cp);
-    });
+    activeList = allInvolvedProjects;
   } else {
-    activeList = userProjects.filter(p => {
-      if (!p.tasks || p.tasks.length === 0) return false;
+    // 🚀 清單過濾現在會包含所有的「協作專案」了！
+    activeList = allInvolvedProjects.filter(p => {
+      if (!p.tasks || p.tasks.length === 0) return currentFilter === 'ongoing';
       const isAllDone = p.tasks.every(t => t.isCompleted);
       const hasDelay = p.tasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
       if (currentFilter === 'completed') return isAllDone;
@@ -789,6 +787,8 @@ function renderProjects() {
   } else if (currentFilter === 'delayed') {
     const todayStr = new Date().toISOString().split('T')[0];
     activeAdHocs = userAdHocs.filter(e => !e.isCompleted && e.startDate < todayStr);
+  } else if (currentFilter === 'collab') {
+    activeAdHocs = [];
   }
 
   if (selectedProjectId !== 'SUMMARY') {
@@ -808,13 +808,12 @@ function renderProjects() {
     return; 
   }
 
-  // 🚀 將「返回總覽」按鈕套上紫色樣式
   if (selectedProjectId !== 'SUMMARY') {
     const summaryBtn = document.createElement("button");
     summaryBtn.className = `proj-tab`;
-    summaryBtn.style.border = "2px solid #8b5cf6"; // 紫色邊框
-    summaryBtn.style.color = "#8b5cf6";            // 紫色文字
-    summaryBtn.style.fontWeight = "bold";          // 加粗字體
+    summaryBtn.style.border = "2px solid #8b5cf6"; 
+    summaryBtn.style.color = "#8b5cf6";            
+    summaryBtn.style.fontWeight = "bold";          
     summaryBtn.innerText = "🔙 返回總覽清單"; 
     summaryBtn.onclick = () => selectProject('SUMMARY'); 
     tabsContainer.appendChild(summaryBtn);
@@ -954,7 +953,7 @@ function renderProjects() {
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯主資訊</button>` : '';
   let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#2563eb; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
   
-  let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="font-size:11px; margin-left:8px;">🟢 專案 7 日內可編輯</span>` : '';
+  let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="font-size:11px; margin-left:8px;">🟢 專案主檔 7 日內可修改</span>` : '';
 
   let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
   let titleDisplayName = `<span style="color:#2563eb; font-weight:700;">${titlePrefixIcon}${activeProj.title}</span>`;
@@ -965,7 +964,10 @@ function renderProjects() {
   const lockBtn = document.getElementById("btn-toggle-lock");
   const delProjBtn = document.getElementById("btn-delete-project");
 
-  // 🚀 核心修復：只要開啟編輯模式，且是專案主或協作部門，➕ 新增細項按鈕永遠存在，不受 7 天限制！
+  // 🚀 永遠廢除手動鎖定功能，不顯示！
+  lockBtn.style.display = "none"; 
+
+  // 🚀 關鍵：只要開啟編輯模式，且是專案負責人或是被指定的協作部門，就永遠能新增細項！
   const canAddTask = isEditMode && (currentUserData.role === 'admin' || currentUserData.canEdit || isProjOwner || isCollabMember);
 
   if (canAddTask) {
@@ -975,7 +977,6 @@ function renderProjects() {
     btnProjectAddTask.style.display = "none";
   }
 
-  lockBtn.style.display = "none"; 
   delProjBtn.style.display = (isAuthorizedEditor || (isProjOwner && inGracePeriod)) ? "inline-block" : "none";
 
   const leftBody = document.getElementById("gantt-left-body");
@@ -1181,7 +1182,6 @@ window.submitAddProjectTask = async () => {
     history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '追加任務細項' }]
   };
 
-  // 🚀 自動尋找合適的插入位置 (依據開始日期)
   const updatedTasks = [...proj.tasks];
   let insertIndex = updatedTasks.length; 
   for (let i = 0; i < updatedTasks.length; i++) {
