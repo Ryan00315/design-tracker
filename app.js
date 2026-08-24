@@ -55,6 +55,63 @@ const taiwanHolidayMap = {
   '10-25': '光復節', '10-26': '補假', '12-25': '行憲紀念日'
 };
 
+// 🚀 自動重構 UI 介面：縮小高度、增加總覽按鈕與年份篩選器
+function initDynamicUI() {
+  if(document.getElementById('filter-all')) return; 
+
+  const kpiRow = document.querySelector('.kpi-row');
+  if (kpiRow) {
+    kpiRow.innerHTML = `
+      <div class="kpi-card active" id="filter-ongoing" onclick="setProjectFilter('ongoing')"><div class="kpi-title">未完成</div><div class="kpi-number" id="stat-ongoing">0</div></div>
+      <div class="kpi-card" id="filter-completed" onclick="setProjectFilter('completed')"><div class="kpi-title">完成</div><div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div></div>
+      <div class="kpi-card" id="filter-delayed" onclick="setProjectFilter('delayed')"><div class="kpi-title">Delay</div><div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div></div>
+      <div class="kpi-card" id="filter-collab" onclick="setProjectFilter('collab')"><div class="kpi-title">協作專案</div><div class="kpi-number" id="stat-collab" style="color: var(--primary);">0</div></div>
+      <div class="kpi-card" id="filter-all" onclick="setProjectFilter('all')"><div class="kpi-title">專案總覽</div><div class="kpi-number" id="stat-all" style="color: var(--warning);">0</div></div>
+    `;
+  }
+  
+  const style = document.createElement('style');
+  style.innerHTML = `
+    /* 按鈕縮小 20% */
+    .kpi-card { padding: 8px 12px !important; min-height: unset !important; }
+    .kpi-title { font-size: 11.5px !important; margin-bottom: 2px !important; }
+    .kpi-number { font-size: 18px !important; }
+    /* 總覽清單游標效果 */
+    .col-sum-name.clickable { cursor: pointer; text-decoration: underline; color: var(--primary); transition: 0.2s; }
+    .col-sum-name.clickable:hover { color: #1d4ed8; font-weight: bold; }
+    
+    @media (max-width: 768px) {
+      .kpi-row { grid-template-columns: repeat(5, 1fr) !important; gap: 4px !important; }
+      .kpi-title { font-size: 10px !important; }
+      .kpi-card { padding: 6px 4px !important; }
+    }
+  `;
+  document.head.appendChild(style);
+
+  // 插入年份篩選器
+  const btnWrapper = document.getElementById('btn-create-wrapper');
+  if (btnWrapper && !document.getElementById('project-year-filter')) {
+    const currentY = new Date().getFullYear();
+    let options = '';
+    for(let y = currentY - 3; y <= currentY + 3; y++){
+        options += `<option value="${y}" ${y === currentY ? 'selected' : ''}>${y}年</option>`;
+    }
+    options += `<option value="all">所有年份</option>`;
+    
+    const sel = document.createElement('select');
+    sel.id = "project-year-filter";
+    sel.className = "input-control";
+    sel.style.width = "100px";
+    sel.style.marginRight = "10px";
+    sel.style.fontWeight = "bold";
+    sel.innerHTML = options;
+    sel.onchange = () => renderProjects();
+    
+    btnWrapper.insertBefore(sel, btnWrapper.firstChild);
+  }
+}
+initDynamicUI();
+
 window.switchNav = (tabId, title, elem) => {
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -70,7 +127,6 @@ window.switchNav = (tabId, title, elem) => {
   }
 };
 
-// 🚀 開啟編輯模式：只要是專案擁有者、或是協作部門，隨時都可以開啟
 document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => {
   if (selectedProjectId !== 'SUMMARY') {
     if (currentUserData.role !== 'admin' && !currentUserData.canEdit) {
@@ -557,10 +613,10 @@ window.moveTaskRow = (btn, direction) => {
 
 window.setProjectFilter = (status) => {
   currentFilter = status;
-  document.getElementById('filter-ongoing').classList.toggle('active', status === 'ongoing');
-  document.getElementById('filter-completed').classList.toggle('active', status === 'completed');
-  document.getElementById('filter-delayed').classList.toggle('active', status === 'delayed');
-  document.getElementById('filter-collab').classList.toggle('active', status === 'collab');
+  document.querySelectorAll('.kpi-card').forEach(el => el.classList.remove('active'));
+  const activeBtn = document.getElementById('filter-' + status);
+  if(activeBtn) activeBtn.classList.add('active');
+  
   selectedProjectId = 'SUMMARY'; 
   renderProjects();
 };
@@ -603,6 +659,20 @@ function getAdHocDateStr(evt) {
   return new Date().toISOString().split('T')[0];
 }
 
+// 判斷某個專案是否跨越選定的年份
+function spansYear(p, y) {
+  if(y === 'all') return true;
+  if(!p.tasks || p.tasks.length === 0) return true;
+  let min = "9999", max = "0000";
+  p.tasks.forEach(t => { 
+      if (t.start < min) min = t.start; 
+      if (t.end > max) max = t.end; 
+  });
+  const startY = parseInt(min.substring(0,4));
+  const endY = parseInt(max.substring(0,4));
+  return y >= startY && y <= endY;
+}
+
 function isWithin7DaysGracePeriod(proj) {
   if (!proj || !proj.createdAt) return false;
   let createdTime;
@@ -635,10 +705,30 @@ function renderProjects() {
   const isViewingSelf = (viewingUserId === auth.currentUser.uid);
   const myDept = currentUserData.dept || "設計部";
   
-  const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
-  const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
+  const yearFilterVal = document.getElementById('project-year-filter')?.value || new Date().getFullYear().toString();
+  const selectedYear = yearFilterVal === 'all' ? 'all' : parseInt(yearFilterVal);
 
-  const collabProjects = allProjectsData.filter(p => {
+  // 🚀 過濾已完成且未跨年度的專案
+  const baseProjects = allProjectsData.filter(p => {
+    const isAllDone = p.tasks && p.tasks.length > 0 && p.tasks.every(t => t.isCompleted);
+    if (isAllDone && selectedYear !== 'all') {
+        return spansYear(p, selectedYear);
+    }
+    return true;
+  });
+
+  const baseAdHocs = allAdHocData.filter(e => {
+    if (e.isCompleted && selectedYear !== 'all') {
+        const eY = parseInt(getAdHocDateStr(e).substring(0,4));
+        return eY === selectedYear;
+    }
+    return true;
+  });
+
+  const userProjects = baseProjects.filter(p => p.ownerId === viewingUserId);
+  const userAdHocs = baseAdHocs.filter(e => e.ownerId === viewingUserId);
+
+  const collabProjects = baseProjects.filter(p => {
     const collabs = p.collaborators || [];
     if (collabs.length === 0) return false;
     if (isViewingSelf) {
@@ -659,14 +749,25 @@ function renderProjects() {
     if (hasDelay) countDelayed++;
   });
   
+  let countAll = userProjects.length;
+  collabProjects.forEach(cp => {
+      if(!userProjects.find(p => p.id === cp.id)) countAll++;
+  });
+
   document.getElementById('stat-ongoing').innerText = countOngoing; 
   document.getElementById('stat-completed').innerText = countCompleted; 
   document.getElementById('stat-delay').innerText = countDelayed;
   document.getElementById('stat-collab').innerText = countCollab;
+  if(document.getElementById('stat-all')) document.getElementById('stat-all').innerText = countAll;
 
   let activeList = [];
   if (currentFilter === 'collab') {
     activeList = collabProjects;
+  } else if (currentFilter === 'all') {
+    activeList = [...userProjects];
+    collabProjects.forEach(cp => {
+        if(!activeList.find(p => p.id === cp.id)) activeList.push(cp);
+    });
   } else {
     activeList = userProjects.filter(p => {
       if (!p.tasks || p.tasks.length === 0) return false;
@@ -676,6 +777,18 @@ function renderProjects() {
       if (currentFilter === 'delayed') return hasDelay;
       return !isAllDone;
     });
+  }
+
+  let activeAdHocs = [];
+  if (currentFilter === 'all') {
+    activeAdHocs = userAdHocs;
+  } else if (currentFilter === 'ongoing') {
+    activeAdHocs = userAdHocs.filter(e => !e.isCompleted);
+  } else if (currentFilter === 'completed') {
+    activeAdHocs = userAdHocs.filter(e => e.isCompleted);
+  } else if (currentFilter === 'delayed') {
+    const todayStr = new Date().toISOString().split('T')[0];
+    activeAdHocs = userAdHocs.filter(e => !e.isCompleted && e.startDate < todayStr);
   }
 
   if (selectedProjectId !== 'SUMMARY') {
@@ -688,31 +801,28 @@ function renderProjects() {
   const emptyState = document.getElementById("empty-state");
   tabsContainer.innerHTML = "";
 
-  if (activeList.length === 0 && (currentFilter === 'collab' || userAdHocs.length === 0)) { 
+  if (activeList.length === 0 && activeAdHocs.length === 0) { 
     detailView.style.display = "none"; 
     summaryView.style.display = "none"; 
     emptyState.style.display = "block"; 
     return; 
   }
 
-  const summaryBtn = document.createElement("button");
-  summaryBtn.className = `proj-tab ${selectedProjectId === 'SUMMARY' ? 'active' : ''}`;
-  summaryBtn.innerText = "⭐ 所有專案總覽"; 
-  summaryBtn.onclick = () => selectProject('SUMMARY'); 
-  tabsContainer.appendChild(summaryBtn);
+  if (selectedProjectId !== 'SUMMARY') {
+    const summaryBtn = document.createElement("button");
+    summaryBtn.className = `proj-tab`;
+    summaryBtn.innerText = "🔙 返回總覽清單"; 
+    summaryBtn.onclick = () => selectProject('SUMMARY'); 
+    tabsContainer.appendChild(summaryBtn);
+  }
 
   activeList.forEach(p => {
     const hasCollab = (p.collaborators && p.collaborators.length > 0);
     const btn = document.createElement("button"); 
     btn.className = `proj-tab ${hasCollab ? 'is-collab' : ''} ${p.id === selectedProjectId ? 'active' : ''}`;
     btn.title = p.title;
-    
-    if (hasCollab) {
-      btn.innerHTML = `<span>👥 ${p.title}</span>`;
-    } else {
-      btn.innerText = p.title;
-    }
-    
+    if (hasCollab) btn.innerHTML = `<span>👥 ${p.title}</span>`;
+    else btn.innerText = p.title;
     btn.onclick = () => selectProject(p.id); 
     tabsContainer.appendChild(btn);
   });
@@ -722,6 +832,13 @@ function renderProjects() {
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; 
     summaryView.style.display = "block";
+    
+    const panelHeadSpan = document.querySelector('#project-summary-view .panel-head span');
+    if (panelHeadSpan) {
+        const filterNames = { ongoing: '未完成', completed: '已完成', delayed: 'Delay', collab: '協作', all: '所有' };
+        panelHeadSpan.innerText = `⭐ 專案與事件總覽排程 (${filterNames[currentFilter]}清單)`;
+    }
+
     const sumLeftBody = document.getElementById("gantt-summary-left-body");
     sumLeftBody.innerHTML = "";
     const ganttTasksSum = [];
@@ -747,6 +864,7 @@ function renderProjects() {
         type: 'project', 
         sortDate: new Date(minStart).getTime(), 
         idStr: `s_p_${sIdx++}`,
+        projId: p.id,
         title: p.title,
         start: minStart, 
         end: maxEnd, 
@@ -757,24 +875,22 @@ function renderProjects() {
       });
     });
 
-    if (currentFilter !== 'collab') {
-      userAdHocs.forEach(evt => {
-        let eDate = getAdHocDateStr(evt);
-        let prog = evt.isCompleted ? 100 : 0;
-        combinedItems.push({
-          type: 'adhoc', 
-          sortDate: new Date(eDate).getTime(), 
-          idStr: `s_e_${sIdx++}`,
-          title: evt.title, 
-          start: eDate, 
-          end: eDate, 
-          progress: prog, 
-          isDone: evt.isCompleted, 
-          isCollab: false, 
-          custom_class: 'bar-danger'
-        });
+    activeAdHocs.forEach(evt => {
+      let eDate = getAdHocDateStr(evt);
+      let prog = evt.isCompleted ? 100 : 0;
+      combinedItems.push({
+        type: 'adhoc', 
+        sortDate: new Date(eDate).getTime(), 
+        idStr: `s_e_${sIdx++}`,
+        title: evt.title, 
+        start: eDate, 
+        end: eDate, 
+        progress: prog, 
+        isDone: evt.isCompleted, 
+        isCollab: false, 
+        custom_class: 'bar-danger'
       });
-    }
+    });
 
     combinedItems.sort((a, b) => a.sortDate - b.sortDate);
 
@@ -788,7 +904,7 @@ function renderProjects() {
           ? `<span style="color:var(--primary); font-weight:700;"><span style="color:var(--primary); margin-right:4px;">👥</span>${item.title}</span>`
           : `🗂️ ${item.title}`;
           
-        row.innerHTML = `<div class="col-sum-name" title="${item.title}">${titleDisplay}</div><div class="col-sum-date">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-sum-prog">${statusText}</div>`;
+        row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')">${titleDisplay}</div><div class="col-sum-date">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-sum-prog">${statusText}</div>`;
       } else {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
         row.innerHTML = `<div class="col-sum-name" style="color:var(--danger);" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date">${item.start.substring(5)}</div><div class="col-sum-prog">${statusText}</div>`;
@@ -831,10 +947,10 @@ function renderProjects() {
   
   let canEditMainProj = isEditMode && (isAuthorizedEditor || (isProjOwner && inGracePeriod));
   
-  let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯專案</button>` : '';
+  let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯主資訊</button>` : '';
   let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#2563eb; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
   
-  let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="font-size:11px; margin-left:8px;">🟢 主資訊可編輯 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
+  let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="font-size:11px; margin-left:8px;">🟢 專案 7 日內可編輯</span>` : '';
 
   let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
   let titleDisplayName = `<span style="color:#2563eb; font-weight:700;">${titlePrefixIcon}${activeProj.title}</span>`;
@@ -845,17 +961,16 @@ function renderProjects() {
   const lockBtn = document.getElementById("btn-toggle-lock");
   const delProjBtn = document.getElementById("btn-delete-project");
 
-  // 🚀 關鍵修復：把舊的 `!isLockedState` 條件拿掉！只要是專案主或協作成員，就能永遠新增細項
+  // 🚀 核心修復：只要開啟編輯模式，且是專案主或協作部門，➕ 新增細項按鈕永遠存在，不受 7 天限制！
   const canAddTask = isEditMode && (currentUserData.role === 'admin' || currentUserData.canEdit || isProjOwner || isCollabMember);
 
   if (canAddTask) {
     btnProjectAddTask.style.display = "inline-block";
-    btnProjectAddTask.innerText = hasCollab ? "➕ 協作細項" : "➕ 細項";
+    btnProjectAddTask.innerText = hasCollab ? "➕ 協作細項" : "➕ 新增細項";
   } else {
     btnProjectAddTask.style.display = "none";
   }
 
-  // 🚀 將舊版的手動鎖定按鈕永遠隱藏，完全依靠 7 天自動鎖定防護機制
   lockBtn.style.display = "none"; 
   delProjBtn.style.display = (isAuthorizedEditor || (isProjOwner && inGracePeriod)) ? "inline-block" : "none";
 
@@ -892,7 +1007,7 @@ function renderProjects() {
     const canOperateThisTask = (isProjOwner || isMyTask || currentUserData.role === 'admin');
     const isInputLocked = task.isCompleted || !canOperateThisTask; 
     
-    // 🚀 編輯按鈕：只有管理員，或是 (專案主/任務負責人 且 在該細項的 7 天內) 才會顯示
+    // 🚀 細項編輯按鈕：只有管理員，或是 (專案主/任務負責人 且 在該細項的 7 天內) 才會顯示
     let canEditTask = isEditMode && (
       currentUserData.role === 'admin' || 
       currentUserData.canEdit === true || 
@@ -1014,7 +1129,7 @@ window.openAddProjectTaskModal = () => {
   if (!proj) return;
   const hasCollab = (proj.collaborators && proj.collaborators.length > 0);
   
-  document.getElementById("project-task-modal-title").innerText = hasCollab ? "➕ 協作細項" : "➕ 細項";
+  document.getElementById("project-task-modal-title").innerText = hasCollab ? "➕ 協作細項" : "➕ 新增細項";
   document.getElementById("project-task-modal-hint").innerText = hasCollab 
     ? "* 送出後，此細項負責人將自動設定為您的帳號。" 
     : "* 新增後自動加入目前專案中。";
@@ -1062,7 +1177,6 @@ window.submitAddProjectTask = async () => {
     history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '追加任務細項' }]
   };
 
-  // 🚀 自動尋找合適的插入位置 (依據開始日期)
   const updatedTasks = [...proj.tasks];
   let insertIndex = updatedTasks.length; 
   for (let i = 0; i < updatedTasks.length; i++) {
@@ -1221,14 +1335,10 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   renderProjects(); 
 });
 
-window.toggleCurrentProjectLock = async () => { 
-  alert("系統已升級為「細項獨立 7 天自動防護」機制，不再需要手動鎖定專案！");
-};
-
 window.deleteCurrentProject = async () => { 
   const p = allProjectsData.find(x => x.id === selectedProjectId);
   const inGrace = p && (auth.currentUser.uid === p.ownerId) && isWithin7DaysGracePeriod(p);
-  if (currentUserData.role !== 'admin' && !currentUserData.canEdit && !inGrace) return alert("權限不足！專案已超過 7 天寬限期，請聯繫管理員刪除。");
+  if (currentUserData.role !== 'admin' && !currentUserData.canEdit && !inGrace) return alert("權限不足！專案主檔已超過 7 天寬限期，請聯繫管理員刪除。");
   
   if (!confirm("⚠️ 確定要永久刪除此專案嗎？")) return; 
   await deleteDoc(doc(db, "projects", selectedProjectId)); 
