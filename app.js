@@ -919,8 +919,9 @@ function renderProjects() {
     activeList.forEach(p => {
       if(!p.tasks || p.tasks.length === 0) return;
       
+      // 🚀 總覽計算也獨立隔離
       let relevantTasks = (p.ownerId === viewingUserId) ? p.tasks : p.tasks.filter(t => t.assigneeId === viewingUserId);
-      let tasksForTimeline = relevantTasks.length > 0 ? relevantTasks : p.tasks; 
+      let tasksForTimeline = relevantTasks.length > 0 ? relevantTasks : p.tasks; // 如果都沒任務，至少顯示專案原始範圍
       
       let minStart = "9999-12-31"; 
       let maxEnd = "0000-01-01"; 
@@ -1040,7 +1041,8 @@ function renderProjects() {
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯主資訊</button>` : '';
   let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#2563eb; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
   
-  let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="font-size:11px; margin-left:8px;">🟢 專案主檔 7 日內可修改</span>` : '';
+  // 🚀 恢復您原本指定的帶有「剩餘天數」的標籤寫法！
+  let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="font-size:11px; margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
 
   let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
   let titleDisplayName = `<span style="color:#2563eb; font-weight:700;">${titlePrefixIcon}${activeProj.title}</span>`;
@@ -1244,7 +1246,7 @@ window.submitAddProjectTask = async () => {
   const proj = allProjectsData.find(p => p.id === selectedProjectId);
   if (!proj) return alert("找不到目前專案！");
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getTodayStr();
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   let passedDays = 0;
   if (todayStr >= start) passedDays = getWorkingDays(start, todayStr);
@@ -2161,7 +2163,7 @@ window.openGeneralEdit = (type, id, extra) => {
         let isMyTask = (auth.currentUser.uid === (t.assigneeId || p.ownerId));
         let isOwner = (auth.currentUser.uid === p.ownerId);
 
-        if ((isOwner || isMyTask) && tInGrace && !p.isLocked) isAuthorized = true;
+        if ((isOwner || isMyTask) && tInGrace) isAuthorized = true;
       } else if (type === 'project') {
         if ((auth.currentUser.uid === p.ownerId) && isWithin7DaysGracePeriod(p)) isAuthorized = true;
       }
