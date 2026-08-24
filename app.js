@@ -808,9 +808,13 @@ function renderProjects() {
     return; 
   }
 
+  // 🚀 將「返回總覽」按鈕套上紫色樣式
   if (selectedProjectId !== 'SUMMARY') {
     const summaryBtn = document.createElement("button");
     summaryBtn.className = `proj-tab`;
+    summaryBtn.style.border = "2px solid #8b5cf6"; // 紫色邊框
+    summaryBtn.style.color = "#8b5cf6";            // 紫色文字
+    summaryBtn.style.fontWeight = "bold";          // 加粗字體
     summaryBtn.innerText = "🔙 返回總覽清單"; 
     summaryBtn.onclick = () => selectProject('SUMMARY'); 
     tabsContainer.appendChild(summaryBtn);
@@ -1177,6 +1181,7 @@ window.submitAddProjectTask = async () => {
     history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '追加任務細項' }]
   };
 
+  // 🚀 自動尋找合適的插入位置 (依據開始日期)
   const updatedTasks = [...proj.tasks];
   let insertIndex = updatedTasks.length; 
   for (let i = 0; i < updatedTasks.length; i++) {
@@ -1413,7 +1418,7 @@ window.completeAdHoc = async (id) => {
 };
 
 window.deleteAdHoc = async (id) => { 
-  if (currentUserData.role !== 'admin' && !currentUserData.canEdit) return alert("權限不足！");
+  if (currentUserData.role !== 'admin') return alert("權限不足！");
   if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); 
 };
 
