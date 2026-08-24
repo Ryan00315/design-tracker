@@ -21,7 +21,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-// 🚀 強制設定登入狀態永久保存在瀏覽器/手機中
+// 🚀 強制設定登入狀態永久保存在瀏覽器/手機中，避免 PWA 快取誤清登入憑證
 setPersistence(auth, browserLocalPersistence).catch((error) => console.log("Persistence Error:", error));
 const db = getFirestore(app);
 
@@ -58,6 +58,7 @@ const taiwanHolidayMap = {
   '10-25': '光復節', '10-26': '補假', '12-25': '行憲紀念日'
 };
 
+// 取得今天的日期字串 (yyyy-mm-dd)
 function getTodayStr() {
     const d = new Date();
     const y = d.getFullYear();
@@ -66,6 +67,7 @@ function getTodayStr() {
     return `${y}-${m}-${day}`;
 }
 
+// 取得某 UID 對應的部門
 function getUserDept(uid) {
     if (!uid) return "設計部";
     if (uid === auth.currentUser?.uid) return currentUserData.dept || "設計部";
@@ -174,23 +176,6 @@ window.switchNav = (tabId, title, elem) => {
 };
 
 document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => {
-  if (selectedProjectId !== 'SUMMARY') {
-    if (currentUserData.role !== 'admin' && !currentUserData.canEdit) {
-      const p = allProjectsData.find(x => x.id === selectedProjectId);
-      const isOwner = p && p.ownerId === auth.currentUser?.uid;
-      const isCollab = p && p.collaborators && p.collaborators.includes(currentUserData.dept);
-      
-      if (!isOwner && !isCollab) {
-        alert("您並非此專案的負責人或協作部門，無法開啟編輯模式！");
-        return;
-      }
-
-      if (!isEditMode && p && !isWithin7DaysGracePeriod(p)) {
-          alert("💡 提示：此專案已建立超過 7 天，主資訊已鎖定不可刪除或修改！\n\n但您仍可「新增協作細項」或「修改您於 7 日內新增的細項」。");
-      }
-    }
-  }
-  
   isEditMode = !isEditMode;
   const btn = document.getElementById("btn-toggle-edit-mode");
   if (isEditMode) {
@@ -205,9 +190,71 @@ document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => 
   renderWeeklyReports();
 });
 
+// 🚀 聰明的編輯按鈕隱藏器：只要權限不符、或超過 7 天沒動作，就整顆按鈕沒收！
 function checkEditModeVisibility() {
   const btn = document.getElementById("btn-toggle-edit-mode");
-  btn.style.display = "inline-block";
+  if (!btn) return;
+
+  let shouldShow = false;
+
+  // 1. 如果是系統管理員或擁有全局修改權限 -> 永遠顯示
+  if (currentUserData.role === 'admin' || currentUserData.canEdit) {
+    shouldShow = true;
+  } else {
+    // 2. 如果在特定專案內
+    if (selectedProjectId !== 'SUMMARY') {
+      const p = allProjectsData.find(x => x.id === selectedProjectId);
+      if (p) {
+        const ownerDept = getUserDept(p.ownerId);
+        const isOwnerDept = (currentUserData.dept === ownerDept);
+        const isOwner = (p.ownerId === auth.currentUser?.uid) || isOwnerDept;
+        const isCollab = p.collaborators && p.collaborators.includes(currentUserData.dept);
+        const inGrace = isWithin7DaysGracePeriod(p);
+
+        // 如果是建立單位且在 7 天內，或者是協作單位(因為要加細項) -> 顯示
+        if ((isOwner && inGrace) || isCollab) {
+          shouldShow = true;
+        } else {
+           // 如果超過 7 天，但有「自己剛建立不到 7 天的細項」 -> 還是給他顯示，讓他改剛建好的
+           const hasTaskInGrace = (p.tasks || []).some(t => {
+             if (t.assigneeId !== auth.currentUser?.uid && !isOwnerDept) return false;
+             let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
+             return ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+           });
+           if (hasTaskInGrace) shouldShow = true;
+        }
+      }
+    } else {
+       // 3. 在總覽(SUMMARY)畫面：只要有任一個專案符合條件，就顯示
+       const hasEditableProject = allProjectsData.some(p => {
+         const ownerDept = getUserDept(p.ownerId);
+         const isOwnerDept = (currentUserData.dept === ownerDept);
+         const isOwner = (p.ownerId === auth.currentUser?.uid) || isOwnerDept;
+         const isCollab = p.collaborators && p.collaborators.includes(currentUserData.dept);
+         const inGrace = isWithin7DaysGracePeriod(p);
+         if ((isOwner && inGrace) || isCollab) return true;
+         
+         return (p.tasks || []).some(t => {
+           if (t.assigneeId !== auth.currentUser?.uid && !isOwnerDept) return false;
+           let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
+           return ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+         });
+       });
+       if (hasEditableProject) {
+         shouldShow = true;
+       }
+    }
+  }
+
+  // 🚀 如果系統判定不該顯示編輯按鈕，就強制把編輯模式「關閉」
+  if (!shouldShow && isEditMode) {
+    isEditMode = false;
+    btn.innerHTML = "✏️ 開啟編輯模式";
+    btn.style.background = "transparent";
+  }
+
+  // 執行顯示或隱藏
+  btn.style.display = shouldShow ? "inline-block" : "none";
 }
 
 document.getElementById('btn-toggle-create').addEventListener('click', () => {
@@ -446,7 +493,6 @@ onAuthStateChanged(auth, async (user) => {
       document.getElementById('nav-sub-wrapper').style.display = 'none';
     }
 
-    checkEditModeVisibility();
     initWeeklyDateAndLeave(); 
     addTaskRow(); 
     addWeeklyRow(); 
@@ -460,7 +506,6 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-// 🚀 人員檢視權限邏輯 (部門隔離與直屬關係)
 function loadSidebarSubordinates() {
   const rolePriority = { admin: 1, top_manager: 2, manager: 3, assistant_manager: 4, staff: 5 };
 
@@ -475,13 +520,11 @@ function loadSidebarSubordinates() {
     const myRole = currentUserData.role; 
     const myDept = currentUserData.dept || "設計部";
 
-    // 建立快照陣列，方便直屬關係遞迴搜尋
     const allUsersArray = [];
     snapshot.forEach(docSnap => {
       allUsersArray.push({ uid: docSnap.id, ...docSnap.data() });
     });
 
-    // 遞迴判斷：檢查 targetUid 是否在 bossUid 的直屬管理傘下 (防呆10層)
     const isSubordinate = (bossUid, targetUid) => {
       let current = allUsersArray.find(u => u.uid === targetUid);
       let depth = 0;
@@ -500,24 +543,20 @@ function loadSidebarSubordinates() {
       const targetDept = u.dept || "設計部";
       let canView = false;
 
-      // 1. 管理員與老闆：看全部部門
       if (myRole === 'admin' || myRole === 'top_manager') {
         canView = true;
       }
-      // 2. 部門主管：只能看【自己部門】的副主管與員工
       else if (myRole === 'manager') {
         if (targetDept === myDept && (targetRole === 'assistant_manager' || targetRole === 'staff')) {
           canView = true;
         }
       }
-      // 3. 副主管：只能看【自己部門】的員工
       else if (myRole === 'assistant_manager') {
         if (targetDept === myDept && targetRole === 'staff') {
           canView = true;
         }
       }
 
-      // 4. 直屬關係保底：如果他是直屬於您的(或下屬的下屬)，無條件顯示！
       if (canView || isSubordinate(myUid, u.uid)) {
         visibleUsers.push(u);
       }
@@ -582,7 +621,15 @@ window.switchViewingUser = (uid, name) => {
   document.getElementById('weekly-form-panel').style.display = isSelf ? 'block' : 'none';
 
   selectedProjectId = 'SUMMARY'; 
-  checkEditModeVisibility();
+  
+  // 🚀 自動重設編輯按鈕為關閉
+  isEditMode = false;
+  const editBtn = document.getElementById("btn-toggle-edit-mode");
+  if(editBtn) {
+     editBtn.innerHTML = "✏️ 開啟編輯模式";
+     editBtn.style.background = "transparent";
+  }
+
   renderProjects(); 
   renderAdHocEvents(); 
   renderWeeklyReports();
@@ -705,6 +752,7 @@ window.setProjectFilter = (status) => {
 
 window.selectProject = (projId) => { 
   selectedProjectId = projId; 
+  // 🚀 防呆機制：只要切換專案，就自動把「編輯模式」關閉！
   isEditMode = false;
   const editBtn = document.getElementById("btn-toggle-edit-mode");
   if(editBtn) {
@@ -737,7 +785,6 @@ function loadProjects() {
     snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
     renderProjects(); 
     refreshAllWeeklyProjSelects();
-    checkEditModeVisibility();
   }); 
 }
 
@@ -792,6 +839,9 @@ function getGraceDaysLeft(proj) {
 }
 
 function renderProjects() {
+  // 🚀 在每次畫面重繪時，自動判定編輯按鈕是否該顯示
+  checkEditModeVisibility();
+
   const isViewingSelf = (viewingUserId === auth.currentUser.uid);
   const myDept = currentUserData.dept || "設計部";
   const targetUser = allUsersList.find(u => u.uid === viewingUserId);
@@ -1114,8 +1164,8 @@ function renderProjects() {
     btnProjectAddTask.style.display = "none";
   }
 
-  // 🚀 修復：只有在開啟編輯模式，且有權限（管理員或 7 日內的專案主）才會顯示「刪除專案」按鈕
-  delProjBtn.style.display = (isEditMode && (isAuthorizedMaster && inGracePeriod)) ? "inline-block" : "none";
+  // 🚀 防呆機制：刪除專案按鈕必須在開啟「編輯模式」時才出現！
+  delProjBtn.style.display = (isEditMode && isAuthorizedMaster && inGracePeriod) ? "inline-block" : "none";
 
   const leftBody = document.getElementById("gantt-left-body");
   const listBody = document.getElementById("project-list-tbody");
