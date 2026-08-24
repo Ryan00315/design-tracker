@@ -496,9 +496,30 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(reg => console.log('PWA Service Worker 註冊成功！'))
-          .catch(err => console.log('PWA 註冊失敗：', err));
+        navigator.serviceWorker.register('./sw.js').then(reg => {
+          console.log('PWA 註冊成功！');
+          
+          // 🚀 終極殺招：只要發現後台有新版本的 sw.js，就強制更新並重新整理畫面！
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing;
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                console.log('發現新版本，準備強制更新！');
+                // 通知新的 Service Worker 立刻接管
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
+              }
+            });
+          });
+        }).catch(err => console.log('PWA 註冊失敗：', err));
+
+        // 當 Service Worker 真正切換接管時，自動重新整理網頁，套用新畫面！
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            window.location.reload();
+            refreshing = true;
+          }
+        });
       });
     }
   </script>
