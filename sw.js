@@ -49,3 +49,10 @@ self.addEventListener('fetch', event => {
       })
   );
 });
+
+// 監聽網頁傳來的強制接管指令
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
