@@ -818,6 +818,12 @@ function renderProjects() {
   let adHocsCompleted = userAdHocs.filter(e => e.isCompleted && (selectedYear === 'all' || parseInt(getAdHocDateStr(e).substring(0,4)) === selectedYear));
   let adHocsAll = userAdHocs.filter(e => selectedYear === 'all' || parseInt(getAdHocDateStr(e).substring(0,4)) === selectedYear);
 
+  // 🚀 將插單 (AdHoc) 的數量加進上方的 KPI 統計中
+  countOngoing += adHocsOngoing.length;
+  countCompleted += adHocsCompleted.length;
+  countDelayed += adHocsDelayed.length;
+  countAllInYear += adHocsAll.length;
+
   document.getElementById('stat-ongoing').innerText = countOngoing; 
   document.getElementById('stat-completed').innerText = countCompleted; 
   document.getElementById('stat-delay').innerText = countDelayed;
