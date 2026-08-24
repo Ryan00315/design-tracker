@@ -58,7 +58,6 @@ const taiwanHolidayMap = {
   '10-25': '光復節', '10-26': '補假', '12-25': '行憲紀念日'
 };
 
-// 取得今天的日期字串 (yyyy-mm-dd)
 function getTodayStr() {
     const d = new Date();
     const y = d.getFullYear();
@@ -67,7 +66,6 @@ function getTodayStr() {
     return `${y}-${m}-${day}`;
 }
 
-// 取得某 UID 對應的部門
 function getUserDept(uid) {
     if (!uid) return "設計部";
     if (uid === auth.currentUser?.uid) return currentUserData.dept || "設計部";
@@ -97,11 +95,10 @@ function initDynamicUI() {
     .col-sum-name.clickable { cursor: pointer; text-decoration: underline; color: var(--primary); transition: 0.2s; }
     .col-sum-name.clickable:hover { color: #1d4ed8; font-weight: bold; }
     
-    /* 🚀 再度擴大左側名稱欄位的寬度比例 (名稱佔絕大部分) */
     .gantt-left-panel { flex: 0 0 55% !important; max-width: 55% !important; }
     .gantt-right-panel { flex: 0 0 45% !important; max-width: 45% !important; }
     
-    .col-sum-name, .col-name { flex: 4 !important; } /* 名稱變超級寬 */
+    .col-sum-name, .col-name { flex: 4 !important; } 
     .col-sum-date, .col-date { flex: 1.2 !important; }
     .col-sum-prog, .col-prog { flex: 0.8 !important; }
     .col-owner { flex: 1.2 !important; }
@@ -186,6 +183,10 @@ document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => 
       if (!isOwner && !isCollab) {
         alert("您並非此專案的負責人或協作部門，無法開啟編輯模式！");
         return;
+      }
+
+      if (!isEditMode && p && !isWithin7DaysGracePeriod(p)) {
+          alert("💡 提示：此專案已建立超過 7 天，主資訊已鎖定不可刪除或修改！\n\n但您仍可「新增協作細項」或「修改您於 7 日內新增的細項」。");
       }
     }
   }
@@ -459,6 +460,7 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
+// 🚀 人員檢視權限邏輯 (部門隔離與直屬關係)
 function loadSidebarSubordinates() {
   const rolePriority = { admin: 1, top_manager: 2, manager: 3, assistant_manager: 4, staff: 5 };
 
@@ -469,20 +471,54 @@ function loadSidebarSubordinates() {
     list.innerHTML = `<li class="nav-sub-item active" id="sub-li-${auth.currentUser.uid}" onclick="switchViewingUser('${auth.currentUser.uid}', '自己 (個人專案)')">個人專案</li>`;
 
     const visibleUsers = [];
-    snapshot.forEach(docSnap => {
-      const u = { uid: docSnap.id, ...docSnap.data() };
-      if (u.uid === auth.currentUser.uid) return;
+    const myUid = auth.currentUser.uid;
+    const myRole = currentUserData.role; 
+    const myDept = currentUserData.dept || "設計部";
 
-      const myRole = currentUserData.role; 
+    // 建立快照陣列，方便直屬關係遞迴搜尋
+    const allUsersArray = [];
+    snapshot.forEach(docSnap => {
+      allUsersArray.push({ uid: docSnap.id, ...docSnap.data() });
+    });
+
+    // 遞迴判斷：檢查 targetUid 是否在 bossUid 的直屬管理傘下 (防呆10層)
+    const isSubordinate = (bossUid, targetUid) => {
+      let current = allUsersArray.find(u => u.uid === targetUid);
+      let depth = 0;
+      while (current && current.supervisorId && depth < 10) {
+        if (current.supervisorId === bossUid) return true;
+        current = allUsersArray.find(u => u.uid === current.supervisorId);
+        depth++;
+      }
+      return false;
+    };
+
+    allUsersArray.forEach(u => {
+      if (u.uid === myUid) return;
+
       const targetRole = u.role; 
+      const targetDept = u.dept || "設計部";
       let canView = false;
 
-      if (myRole === 'admin') canView = true;
-      else if (myRole === 'top_manager' && targetRole !== 'admin' && targetRole !== 'top_manager') canView = true;
-      else if (myRole === 'manager' && (targetRole === 'assistant_manager' || targetRole === 'staff')) canView = true;
-      else if (myRole === 'assistant_manager' && targetRole === 'staff') canView = true;
+      // 1. 管理員與老闆：看全部部門
+      if (myRole === 'admin' || myRole === 'top_manager') {
+        canView = true;
+      }
+      // 2. 部門主管：只能看【自己部門】的副主管與員工
+      else if (myRole === 'manager') {
+        if (targetDept === myDept && (targetRole === 'assistant_manager' || targetRole === 'staff')) {
+          canView = true;
+        }
+      }
+      // 3. 副主管：只能看【自己部門】的員工
+      else if (myRole === 'assistant_manager') {
+        if (targetDept === myDept && targetRole === 'staff') {
+          canView = true;
+        }
+      }
 
-      if (canView || u.supervisorId === auth.currentUser.uid) {
+      // 4. 直屬關係保底：如果他是直屬於您的(或下屬的下屬)，無條件顯示！
+      if (canView || isSubordinate(myUid, u.uid)) {
         visibleUsers.push(u);
       }
     });
@@ -669,6 +705,12 @@ window.setProjectFilter = (status) => {
 
 window.selectProject = (projId) => { 
   selectedProjectId = projId; 
+  isEditMode = false;
+  const editBtn = document.getElementById("btn-toggle-edit-mode");
+  if(editBtn) {
+     editBtn.innerHTML = "✏️ 開啟編輯模式";
+     editBtn.style.background = "transparent";
+  }
   renderProjects(); 
 };
 
@@ -759,11 +801,9 @@ function renderProjects() {
   const selectedYear = yearFilterVal === 'all' ? 'all' : parseInt(yearFilterVal);
   const todayStr = getTodayStr();
 
-  // 1. 取得自己的專案與協作專案
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
-  // 🚀 系統管理員特權：點擊「協作專案」時，可無條件看見全公司所有的協作專案
   const collabProjects = allProjectsData.filter(p => {
     const collabs = p.collaborators || [];
     if (collabs.length === 0) return false;
@@ -779,17 +819,14 @@ function renderProjects() {
   let countOngoing = 0, countCompleted = 0, countDelayed = 0, countAllInYear = 0;
   let projectsOngoing = [], projectsCompleted = [], projectsDelayed = [], projectsAll = [];
 
-  // 🚀 核心邏輯：依據身份隔離視角，並獨立過濾年份與狀態
   allInvolvedProjects.forEach(p => {
     let relevantTasks = [];
     const ownerDept = getUserDept(p.ownerId);
     const isOwnerDept = (targetDept === ownerDept); 
 
-    // 若是「專案建立單位」或是「系統管理員」，看全部細項
     if (isOwnerDept || currentUserData.role === 'admin') {
       relevantTasks = p.tasks || [];
     } else {
-      // 協作單位：只看自己所屬成員新增的任務
       relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
     }
 
@@ -798,23 +835,19 @@ function renderProjects() {
 
     if (relevantTasks.length > 0) {
       isAllDone = relevantTasks.every(t => t.isCompleted);
-      // 🚀 只有未達100% 且超過期限才算 Delay！滿 100% 就不算
       hasDelay = relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
     }
 
     const inYear = spansYear(p, selectedYear);
 
     if (isOwnerDept || currentUserData.role === 'admin') {
-       // 專案負責方：沒任務也算未完成，永遠緊盯
        if (relevantTasks.length === 0 || !isAllDone) { countOngoing++; projectsOngoing.push(p); }
        if (hasDelay) { countDelayed++; projectsDelayed.push(p); }
     } else {
-       // 協作方：只有真的有「自己建立的任務」且未完成，才算未完成與 Delay
        if (relevantTasks.length > 0 && !isAllDone) { countOngoing++; projectsOngoing.push(p); }
        if (relevantTasks.length > 0 && hasDelay) { countDelayed++; projectsDelayed.push(p); }
     }
 
-    // 完成與總覽受年份限制
     if (isAllDone && inYear && relevantTasks.length > 0) {
        countCompleted++;
        projectsCompleted.push(p);
@@ -825,7 +858,6 @@ function renderProjects() {
     }
   });
 
-  // 事件也比照辦理
   let adHocsOngoing = userAdHocs.filter(e => !e.isCompleted);
   let adHocsDelayed = userAdHocs.filter(e => !e.isCompleted && e.startDate < todayStr);
   let adHocsCompleted = userAdHocs.filter(e => e.isCompleted && (selectedYear === 'all' || parseInt(getAdHocDateStr(e).substring(0,4)) === selectedYear));
@@ -836,14 +868,12 @@ function renderProjects() {
   countDelayed += adHocsDelayed.length;
   countAllInYear += adHocsAll.length;
 
-  // 更新上方看板數字
   document.getElementById('stat-ongoing').innerText = countOngoing; 
   document.getElementById('stat-completed').innerText = countCompleted; 
   document.getElementById('stat-delay').innerText = countDelayed;
   document.getElementById('stat-collab').innerText = collabProjects.length;
   if(document.getElementById('stat-all')) document.getElementById('stat-all').innerText = countAllInYear;
 
-  // 🚀 根據所選 Tab 給予對應的清單
   let activeList = [];
   let activeAdHocs = [];
 
@@ -865,7 +895,6 @@ function renderProjects() {
   }
   activeList = Array.from(new Set(activeList)); 
 
-  // 若目前檢視的專案不在清單內，強制退回總覽
   if (selectedProjectId !== 'SUMMARY') {
     if (!activeList.find(p => p.id === selectedProjectId)) selectedProjectId = 'SUMMARY';
   }
@@ -883,7 +912,6 @@ function renderProjects() {
     return; 
   }
 
-  // 🚀 隱藏總覽按鈕，除非進入詳細畫面才會出現「🔙 返回總覽」
   if (selectedProjectId !== 'SUMMARY') {
     const summaryBtn = document.createElement("button");
     summaryBtn.className = `proj-tab`;
@@ -895,7 +923,6 @@ function renderProjects() {
     tabsContainer.appendChild(summaryBtn);
   }
 
-  // 渲染專案分頁標籤
   activeList.forEach(p => {
     const hasCollab = (p.collaborators && p.collaborators.length > 0);
     const btn = document.createElement("button"); 
@@ -909,9 +936,6 @@ function renderProjects() {
 
   emptyState.style.display = "none"; 
 
-  // ==========================================
-  // ⭐ 顯示總覽畫面
-  // ==========================================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; 
     summaryView.style.display = "block";
@@ -1048,16 +1072,13 @@ function renderProjects() {
     return;
   }
 
-  // ==========================================
-  // ⭐ 顯示詳細專案畫面
-  // ==========================================
   summaryView.style.display = "none"; 
   detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
   if(!activeProj) return; 
 
   const ownerDept = getUserDept(activeProj.ownerId);
-  const isProjOwnerDept = (currentUserData.dept === ownerDept); // 🚀 同一部門，權限共享！
+  const isProjOwnerDept = (currentUserData.dept === ownerDept); 
   const isProjOwner = (activeProj.ownerId === auth.currentUser.uid) || isProjOwnerDept;
   
   const hasCollab = (activeProj.collaborators && activeProj.collaborators.length > 0);
@@ -1084,7 +1105,6 @@ function renderProjects() {
 
   lockBtn.style.display = "none"; 
 
-  // 🚀 同部門或是協作單位皆可新增任務
   const canAddTask = isEditMode && (isAuthorizedMaster || isCollabMember);
 
   if (canAddTask) {
@@ -1094,7 +1114,8 @@ function renderProjects() {
     btnProjectAddTask.style.display = "none";
   }
 
-  delProjBtn.style.display = (isAuthorizedMaster && inGracePeriod) ? "inline-block" : "none";
+  // 🚀 修復：只有在開啟編輯模式，且有權限（管理員或 7 日內的專案主）才會顯示「刪除專案」按鈕
+  delProjBtn.style.display = (isEditMode && (isAuthorizedMaster && inGracePeriod)) ? "inline-block" : "none";
 
   const leftBody = document.getElementById("gantt-left-body");
   const listBody = document.getElementById("project-list-tbody");
