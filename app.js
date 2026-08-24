@@ -70,12 +70,14 @@ window.switchNav = (tabId, title, elem) => {
   }
 };
 
-// 🚀 修復：在總覽頁面點擊開啟編輯，完全放行不阻擋
 document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => {
   if (selectedProjectId !== 'SUMMARY') {
     if (currentUserData.role !== 'admin' && !currentUserData.canEdit) {
-      const hasGraceProj = allProjectsData.some(p => p.ownerId === auth.currentUser?.uid && isWithin7DaysGracePeriod(p));
-      if (!hasGraceProj) {
+      const p = allProjectsData.find(x => x.id === selectedProjectId);
+      const isOwnerGrace = p && p.ownerId === auth.currentUser?.uid && isWithin7DaysGracePeriod(p);
+      const isCollab = p && p.collaborators && p.collaborators.includes(currentUserData.dept);
+      
+      if (!isOwnerGrace && !isCollab) {
         alert("您的帳號尚未開放編輯權限！");
         return;
       }
@@ -96,7 +98,6 @@ document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => 
   renderWeeklyReports();
 });
 
-// 🚀 修復：永遠顯示編輯按鈕，但在點擊時才檢查個別專案的編輯權限
 function checkEditModeVisibility() {
   const btn = document.getElementById("btn-toggle-edit-mode");
   btn.style.display = "inline-block";
@@ -823,9 +824,12 @@ function renderProjects() {
   const isProjOwner = (activeProj.ownerId === auth.currentUser.uid);
   const hasCollab = (activeProj.collaborators && activeProj.collaborators.length > 0);
   const isCollabMember = hasCollab && activeProj.collaborators.includes(currentUserData.dept);
+  const isLockedState = !!activeProj.isLocked;
   
   const inGracePeriod = isProjOwner && isWithin7DaysGracePeriod(activeProj);
   const isAuthorizedEditor = (currentUserData.role === 'admin' || currentUserData.canEdit === true || inGracePeriod);
+  
+  // 主專案名稱編輯權限：仍依照原專案寬限期或管理員權限
   let canEditMainProj = isEditMode && isAuthorizedEditor && isProjOwner;
   
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯專案</button>` : '';
@@ -842,7 +846,8 @@ function renderProjects() {
   const lockBtn = document.getElementById("btn-toggle-lock");
   const delProjBtn = document.getElementById("btn-delete-project");
 
-  const canAddTask = isEditMode && (isProjOwner || isCollabMember || currentUserData.role === 'admin') && (isAuthorizedEditor || isCollabMember);
+  // 🚀 新增細項權限：只要專案未鎖定，協作人員可永遠新增協作細項
+  const canAddTask = isEditMode && !isLockedState && (currentUserData.role === 'admin' || currentUserData.canEdit || inGracePeriod || isCollabMember);
 
   if (canAddTask) {
     btnProjectAddTask.style.display = "inline-block";
@@ -850,8 +855,6 @@ function renderProjects() {
   } else {
     btnProjectAddTask.style.display = "none";
   }
-
-  const isLockedState = inGracePeriod ? false : !!activeProj.isLocked;
 
   if (isEditMode && (currentUserData.role === "admin" || currentUserData.role === "top_manager" || (isAuthorizedEditor && isProjOwner))) {
     lockBtn.style.display = inGracePeriod ? "none" : "inline-block"; 
@@ -889,10 +892,20 @@ function renderProjects() {
     const taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
     const isMyTask = (auth.currentUser.uid === taskAssigneeId);
 
+    // 🚀 計算單一「任務」自己的 7 天寬限期
+    let taskCreatedTime = task.createdAt || (activeProj.createdAt && typeof activeProj.createdAt.toMillis === 'function' ? activeProj.createdAt.toMillis() : Date.now());
+    let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+
     const canOperateThisTask = (isProjOwner || isMyTask || currentUserData.role === 'admin' || inGracePeriod);
     const isInputLocked = task.isCompleted || !canOperateThisTask; 
     
-    let canEditTask = isEditMode && isAuthorizedEditor && canOperateThisTask;
+    // 🚀 修改編輯/刪除細項的權限判斷：包含「負責人自己在任務的 7 天內」也能編輯
+    let canEditTask = isEditMode && !isLockedState && (
+      currentUserData.role === 'admin' || 
+      currentUserData.canEdit === true || 
+      (isProjOwner && inGracePeriod) || 
+      (isMyTask && isTaskInGrace)
+    );
     
     let editHtml = canEditTask ? `
       <div style="display:inline-flex; align-items:center; gap:2px; margin-left:auto; flex-shrink:0;">
@@ -1023,7 +1036,7 @@ window.submitAddProjectTask = async () => {
   const start = document.getElementById("add-task-start").value;
   const end = document.getElementById("add-task-end").value;
 
-  if (!name || !start || !end) return alert("任務細項欄位不可有空白！");
+  if (!name || !start || !end) return alert("任務細項欄位不可空白！");
   if (start > end) return alert("起始日不可大於結束日！");
 
   const proj = allProjectsData.find(p => p.id === selectedProjectId);
@@ -1046,6 +1059,7 @@ window.submitAddProjectTask = async () => {
     reportedCompleted: false,
     assigneeId: auth.currentUser.uid,
     assigneeName: currentUserData.name || auth.currentUser.email.split('@')[0],
+    createdAt: Date.now(), // 🚀 新增：賦予該細項獨立的建立時間戳記
     history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '追加任務細項' }]
   };
 
@@ -1170,6 +1184,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
       name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
       assigneeId: auth.currentUser.uid,
       assigneeName: myName,
+      createdAt: Date.now(), // 🚀 新增：賦予該細項獨立的建立時間戳記
       history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '專案建立' }] 
     });
   }
@@ -1928,21 +1943,38 @@ function renderOrgChart() {
 let currentEditData = {};
 
 window.openGeneralEdit = (type, id, extra) => {
-  let isAuthorized = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
+  let isAuthorized = false;
 
   if (type === 'project' || type === 'task') {
     const p = allProjectsData.find(x => x.id === id);
-    const inGrace = p && (auth.currentUser.uid === p.ownerId) && isWithin7DaysGracePeriod(p);
-    if (inGrace) isAuthorized = true;
+    if (p) {
+      if (currentUserData.role === 'admin' || currentUserData.canEdit) {
+        isAuthorized = true;
+      }
+      // 🚀 修復：如果使用者是細項負責人，而且該細項還在 7 天內，也允許進入編輯視窗
+      if (type === 'task') {
+        const t = p.tasks[extra];
+        const pInGrace = (auth.currentUser.uid === p.ownerId) && isWithin7DaysGracePeriod(p);
+        let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : 0);
+        let tInGrace = ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+        let isMyTask = (auth.currentUser.uid === (t.assigneeId || p.ownerId));
+
+        if (pInGrace || (isMyTask && tInGrace)) isAuthorized = true;
+      } else if (type === 'project') {
+        if ((auth.currentUser.uid === p.ownerId) && isWithin7DaysGracePeriod(p)) isAuthorized = true;
+      }
+    }
   } else if (type === 'weekly') {
     const w = allWeeklyData.find(x => x.id === id);
-    if (w && w.ownerId === auth.currentUser.uid && isWeeklyReportEditable(w)) {
+    if ((currentUserData.role === 'admin' || currentUserData.canEdit) || (w && w.ownerId === auth.currentUser.uid && isWeeklyReportEditable(w))) {
       isAuthorized = true;
     }
+  } else if (type === 'adhoc') {
+    if (currentUserData.role === 'admin' || currentUserData.canEdit) isAuthorized = true;
   }
 
   if (!isAuthorized) {
-    return alert("您的帳號無修改資料之權限！");
+    return alert("權限不足：您無法編輯此資料 (可能已超過 7 天寬限期)！");
   }
 
   currentEditData = { type, id, extra };
@@ -2049,22 +2081,6 @@ window.closeGeneralEditModal = () => document.getElementById("general-edit-modal
 
 window.saveGeneralEdit = async () => {
   const { type, id, extra } = currentEditData;
-  let isAuthorized = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
-
-  if (type === 'project' || type === 'task') {
-    const p = allProjectsData.find(x => x.id === id);
-    const inGrace = p && (auth.currentUser.uid === p.ownerId) && isWithin7DaysGracePeriod(p);
-    if (inGrace) isAuthorized = true;
-  } else if (type === 'weekly') {
-    const w = allWeeklyData.find(x => x.id === id);
-    if (w && w.ownerId === auth.currentUser.uid && isWeeklyReportEditable(w)) {
-      isAuthorized = true;
-    }
-  }
-
-  if (!isAuthorized) {
-    return alert("權限不足！");
-  }
 
   try {
     if (type === 'project') {
