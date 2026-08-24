@@ -452,7 +452,6 @@ onAuthStateChanged(auth, async (user) => {
     if (currentUserData.role === "admin") {
       document.getElementById("nav-org-manage").style.display = "flex"; 
       document.getElementById("nav-divider-org").style.display = "block"; 
-      loadOrgUsers();
     } else {
       document.getElementById("nav-org-manage").style.display = "none"; 
       document.getElementById("nav-divider-org").style.display = "none";
@@ -465,6 +464,8 @@ onAuthStateChanged(auth, async (user) => {
       document.getElementById('nav-sub-wrapper').style.display = 'none';
     }
 
+    // 依序執行，解決非同步問題
+    loadOrgUsers();
     initWeeklyDateAndLeave(); 
     addTaskRow(); 
     addWeeklyRow(); 
@@ -492,24 +493,23 @@ function loadSidebarSubordinates() {
     const myRole = currentUserData.role; 
     const myDept = currentUserData.dept || "設計部";
 
-    // 🚀 全局快取人員名單，供所有部門檢視邏輯使用
-    allUsersList = [];
+    const allUsersArray = [];
     snapshot.forEach(docSnap => {
-      allUsersList.push({ uid: docSnap.id, ...docSnap.data() });
+      allUsersArray.push({ uid: docSnap.id, ...docSnap.data() });
     });
 
     const isSubordinate = (bossUid, targetUid) => {
-      let current = allUsersList.find(u => u.uid === targetUid);
+      let current = allUsersArray.find(u => u.uid === targetUid);
       let depth = 0;
       while (current && current.supervisorId && depth < 10) {
         if (current.supervisorId === bossUid) return true;
-        current = allUsersList.find(u => u.uid === current.supervisorId);
+        current = allUsersArray.find(u => u.uid === current.supervisorId);
         depth++;
       }
       return false;
     };
 
-    allUsersList.forEach(u => {
+    allUsersArray.forEach(u => {
       if (u.uid === myUid) return;
 
       const targetRole = u.role; 
@@ -569,9 +569,6 @@ function loadSidebarSubordinates() {
       membersHtml += `</div>`;
       list.innerHTML += membersHtml;
     });
-
-    // 🚀 當人員資料變動，觸發重新渲染以確保權限最新
-    renderProjects();
   });
 }
 
@@ -891,19 +888,15 @@ function renderProjects() {
   countDelayed += adHocsDelayed.length;
   countAllInYear += adHocsAll.length;
 
-  // 🚀 為了讓重新載入資料時也能同步 KPI，直接更新 DOM
+  // 🚀 每次資料重算後立即更新 KPI 數字，解決「要點一下才會刷新」的非同步時間差 Bug
   const elOngoing = document.getElementById('stat-ongoing');
   if(elOngoing) elOngoing.innerText = countOngoing; 
-  
   const elCompleted = document.getElementById('stat-completed');
   if(elCompleted) elCompleted.innerText = countCompleted; 
-  
   const elDelay = document.getElementById('stat-delay');
   if(elDelay) elDelay.innerText = countDelayed;
-  
   const elCollab = document.getElementById('stat-collab');
   if(elCollab) elCollab.innerText = collabProjects.length;
-  
   const elAll = document.getElementById('stat-all');
   if(elAll) elAll.innerText = countAllInYear;
 
@@ -1145,8 +1138,11 @@ function renderProjects() {
 
   lockBtn.style.display = "none"; 
 
-  // 🚀 新增細項：不需編輯模式，只要有權限(全局/協作者) 或是 (建立者在7天內) 就顯示
-  const canAddTask = hasGlobalEdit || isCollabMember || (isProjOwner && inGracePeriod);
+  // 🚀 新增細項按鈕邏輯：協作單位永遠可見！但專案主超過 7 天後不可見！(管理員除外)
+  let canAddTask = false;
+  if (hasGlobalEdit) canAddTask = true;
+  else if (isCollabMember) canAddTask = true; // 協作單位無條件顯示
+  else if (isProjOwner && inGracePeriod) canAddTask = true; // 專案主只有7天內可新增
 
   if (canAddTask) {
     btnProjectAddTask.style.display = "inline-block";
@@ -1155,7 +1151,7 @@ function renderProjects() {
     btnProjectAddTask.style.display = "none";
   }
 
-  // 🚀 刪除按鈕必須開啟編輯模式才顯示
+  // 🚀 刪除專案防呆：必須在編輯模式下，且具有全局權限，或(專案主且在 7 天內)，才會出現！
   delProjBtn.style.display = (isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod))) ? "inline-block" : "none";
 
   const leftBody = document.getElementById("gantt-left-body");
@@ -1537,6 +1533,8 @@ function loadAdHocEvents() {
     allAdHocData = []; 
     snapshot.forEach(docSnap => allAdHocData.push({ id: docSnap.id, ...docSnap.data() })); 
     renderAdHocEvents(); 
+    // 強制重算 KPI
+    renderProjects();
   }); 
 }
 
@@ -1572,7 +1570,6 @@ function renderAdHocEvents() {
     `; 
     tbody.appendChild(tr);
   });
-  if(selectedProjectId === 'SUMMARY' && document.getElementById("tab-projects").style.display === "block") renderProjects(); 
 }
 
 document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
@@ -2548,6 +2545,8 @@ function loadOrgUsers() {
     });
 
     renderOrgChart(); 
+    // 🚀 當人員名單變動完成時，強制重算 KPI
+    renderProjects();
   });
 }
 
