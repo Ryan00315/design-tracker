@@ -134,7 +134,6 @@ function initDynamicUI() {
     sel.style.fontWeight = "bold";
     sel.innerHTML = options;
     sel.onchange = () => {
-      // 切換年份時，如果目前在未完成或Delay，主動跳到總覽，避免困惑
       if(currentFilter === 'ongoing' || currentFilter === 'delayed'){
          setProjectFilter('all');
       } else {
@@ -869,26 +868,21 @@ function renderProjects() {
     return; 
   }
 
-  // 🚀 聰明動態更名的總覽按鈕
-  let summaryBtnText = "⭐ 所有專案總覽";
-  if (currentFilter === 'ongoing') summaryBtnText = "⭐ 未完成總覽";
-  else if (currentFilter === 'completed') summaryBtnText = "⭐ 完成總覽";
-  else if (currentFilter === 'delayed') summaryBtnText = "⭐ Delay 總覽";
-  else if (currentFilter === 'collab') summaryBtnText = "⭐ 協作專案總覽";
+  // 🚀 聰明動態更名的總覽標題 (用於甘特圖上方的標題)
+  let summaryLabel = "所有專案";
+  if (currentFilter === 'ongoing') summaryLabel = "未完成";
+  else if (currentFilter === 'completed') summaryLabel = "已完成";
+  else if (currentFilter === 'delayed') summaryLabel = "Delay";
+  else if (currentFilter === 'collab') summaryLabel = "協作專案";
 
+  // 🚀 只有在「進入具體專案」時，才顯示「🔙 返回總覽」按鈕！如果在總覽畫面，就隱藏它，保持畫面乾淨！
   if (selectedProjectId !== 'SUMMARY') {
     const summaryBtn = document.createElement("button");
     summaryBtn.className = `proj-tab`;
     summaryBtn.style.border = "2px solid #8b5cf6"; 
     summaryBtn.style.color = "#8b5cf6";            
     summaryBtn.style.fontWeight = "bold";          
-    summaryBtn.innerText = "🔙 返回總覽清單"; 
-    summaryBtn.onclick = () => selectProject('SUMMARY'); 
-    tabsContainer.appendChild(summaryBtn);
-  } else {
-    const summaryBtn = document.createElement("button");
-    summaryBtn.className = `proj-tab active`;
-    summaryBtn.innerText = summaryBtnText; 
+    summaryBtn.innerText = "🔙 返回總覽"; 
     summaryBtn.onclick = () => selectProject('SUMMARY'); 
     tabsContainer.appendChild(summaryBtn);
   }
@@ -912,7 +906,7 @@ function renderProjects() {
     
     const panelHeadSpan = document.querySelector('#project-summary-view .panel-head span');
     if (panelHeadSpan) {
-        panelHeadSpan.innerText = `⭐ 專案與事件總覽排程 (${summaryBtnText.replace('⭐ ', '')})`;
+        panelHeadSpan.innerText = `⭐ 專案與事件總覽排程 (${summaryLabel}清單)`;
     }
 
     const sumLeftBody = document.getElementById("gantt-summary-left-body");
