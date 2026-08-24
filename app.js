@@ -21,7 +21,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-// 🚀 強制設定登入狀態永久保存在瀏覽器/手機中，避免 PWA 快取誤清登入憑證
+// 🚀 強制設定登入狀態永久保存在瀏覽器/手機中
 setPersistence(auth, browserLocalPersistence).catch((error) => console.log("Persistence Error:", error));
 const db = getFirestore(app);
 
@@ -67,7 +67,14 @@ function getTodayStr() {
     return `${y}-${m}-${day}`;
 }
 
-// 🚀 自動重構 UI 介面：縮小高度、增加總覽按鈕與年份篩選器、並微調左右比例
+// 取得某 UID 對應的部門
+function getUserDept(uid) {
+    if (!uid) return "設計部";
+    if (uid === auth.currentUser?.uid) return currentUserData.dept || "設計部";
+    const u = allUsersList.find(x => x.uid === uid);
+    return u ? (u.dept || "設計部") : "設計部";
+}
+
 function initDynamicUI() {
   if(document.getElementById('filter-all')) return; 
 
@@ -90,10 +97,11 @@ function initDynamicUI() {
     .col-sum-name.clickable { cursor: pointer; text-decoration: underline; color: var(--primary); transition: 0.2s; }
     .col-sum-name.clickable:hover { color: #1d4ed8; font-weight: bold; }
     
-    .gantt-left-panel { flex: 0 0 48% !important; max-width: 48% !important; }
-    .gantt-right-panel { flex: 0 0 52% !important; max-width: 52% !important; }
+    /* 🚀 再度擴大左側名稱欄位的寬度比例 (名稱佔絕大部分) */
+    .gantt-left-panel { flex: 0 0 55% !important; max-width: 55% !important; }
+    .gantt-right-panel { flex: 0 0 45% !important; max-width: 45% !important; }
     
-    .col-sum-name, .col-name { flex: 3 !important; }
+    .col-sum-name, .col-name { flex: 4 !important; } /* 名稱變超級寬 */
     .col-sum-date, .col-date { flex: 1.2 !important; }
     .col-sum-prog, .col-prog { flex: 0.8 !important; }
     .col-owner { flex: 1.2 !important; }
@@ -755,9 +763,11 @@ function renderProjects() {
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
+  // 🚀 系統管理員特權：點擊「協作專案」時，可無條件看見全公司所有的協作專案
   const collabProjects = allProjectsData.filter(p => {
     const collabs = p.collaborators || [];
     if (collabs.length === 0) return false;
+    if (currentUserData.role === 'admin') return true; 
     return collabs.includes(targetDept) || p.ownerId === viewingUserId;
   });
 
@@ -769,12 +779,17 @@ function renderProjects() {
   let countOngoing = 0, countCompleted = 0, countDelayed = 0, countAllInYear = 0;
   let projectsOngoing = [], projectsCompleted = [], projectsDelayed = [], projectsAll = [];
 
+  // 🚀 核心邏輯：依據身份隔離視角，並獨立過濾年份與狀態
   allInvolvedProjects.forEach(p => {
     let relevantTasks = [];
-    if (p.ownerId === viewingUserId) {
+    const ownerDept = getUserDept(p.ownerId);
+    const isOwnerDept = (targetDept === ownerDept); 
+
+    // 若是「專案建立單位」或是「系統管理員」，看全部細項
+    if (isOwnerDept || currentUserData.role === 'admin') {
       relevantTasks = p.tasks || [];
     } else {
-      // 🚀 協作者只看指派給自己的任務，若還沒指派任務，不列入個人未完成/完成，但它會留在「協作專案」分頁中！
+      // 協作單位：只看自己所屬成員新增的任務
       relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
     }
 
@@ -783,23 +798,24 @@ function renderProjects() {
 
     if (relevantTasks.length > 0) {
       isAllDone = relevantTasks.every(t => t.isCompleted);
+      // 🚀 只有未達100% 且超過期限才算 Delay！滿 100% 就不算
       hasDelay = relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
     }
 
     const inYear = spansYear(p, selectedYear);
 
-    // 🚀 未完成與 Delay 計算
-    if (p.ownerId === viewingUserId) {
+    if (isOwnerDept || currentUserData.role === 'admin') {
+       // 專案負責方：沒任務也算未完成，永遠緊盯
        if (relevantTasks.length === 0 || !isAllDone) { countOngoing++; projectsOngoing.push(p); }
        if (hasDelay) { countDelayed++; projectsDelayed.push(p); }
     } else {
-       // 協作者：有自己的任務且未完成才算未完成
+       // 協作方：只有真的有「自己建立的任務」且未完成，才算未完成與 Delay
        if (relevantTasks.length > 0 && !isAllDone) { countOngoing++; projectsOngoing.push(p); }
        if (relevantTasks.length > 0 && hasDelay) { countDelayed++; projectsDelayed.push(p); }
     }
 
-    // 完成與總覽計算
-    if (isAllDone && inYear) {
+    // 完成與總覽受年份限制
+    if (isAllDone && inYear && relevantTasks.length > 0) {
        countCompleted++;
        projectsCompleted.push(p);
     }
@@ -809,6 +825,7 @@ function renderProjects() {
     }
   });
 
+  // 事件也比照辦理
   let adHocsOngoing = userAdHocs.filter(e => !e.isCompleted);
   let adHocsDelayed = userAdHocs.filter(e => !e.isCompleted && e.startDate < todayStr);
   let adHocsCompleted = userAdHocs.filter(e => e.isCompleted && (selectedYear === 'all' || parseInt(getAdHocDateStr(e).substring(0,4)) === selectedYear));
@@ -819,12 +836,14 @@ function renderProjects() {
   countDelayed += adHocsDelayed.length;
   countAllInYear += adHocsAll.length;
 
+  // 更新上方看板數字
   document.getElementById('stat-ongoing').innerText = countOngoing; 
   document.getElementById('stat-completed').innerText = countCompleted; 
   document.getElementById('stat-delay').innerText = countDelayed;
   document.getElementById('stat-collab').innerText = collabProjects.length;
   if(document.getElementById('stat-all')) document.getElementById('stat-all').innerText = countAllInYear;
 
+  // 🚀 根據所選 Tab 給予對應的清單
   let activeList = [];
   let activeAdHocs = [];
 
@@ -846,6 +865,7 @@ function renderProjects() {
   }
   activeList = Array.from(new Set(activeList)); 
 
+  // 若目前檢視的專案不在清單內，強制退回總覽
   if (selectedProjectId !== 'SUMMARY') {
     if (!activeList.find(p => p.id === selectedProjectId)) selectedProjectId = 'SUMMARY';
   }
@@ -863,12 +883,7 @@ function renderProjects() {
     return; 
   }
 
-  let summaryBtnText = "⭐ 所有專案總覽";
-  if (currentFilter === 'ongoing') summaryBtnText = "⭐ 未完成總覽";
-  else if (currentFilter === 'completed') summaryBtnText = "⭐ 完成總覽";
-  else if (currentFilter === 'delayed') summaryBtnText = "⭐ Delay 總覽";
-  else if (currentFilter === 'collab') summaryBtnText = "⭐ 協作專案總覽";
-
+  // 🚀 隱藏總覽按鈕，除非進入詳細畫面才會出現「🔙 返回總覽」
   if (selectedProjectId !== 'SUMMARY') {
     const summaryBtn = document.createElement("button");
     summaryBtn.className = `proj-tab`;
@@ -880,6 +895,7 @@ function renderProjects() {
     tabsContainer.appendChild(summaryBtn);
   }
 
+  // 渲染專案分頁標籤
   activeList.forEach(p => {
     const hasCollab = (p.collaborators && p.collaborators.length > 0);
     const btn = document.createElement("button"); 
@@ -893,6 +909,9 @@ function renderProjects() {
 
   emptyState.style.display = "none"; 
 
+  // ==========================================
+  // ⭐ 顯示總覽畫面
+  // ==========================================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; 
     summaryView.style.display = "block";
@@ -914,7 +933,9 @@ function renderProjects() {
     let sIdx = 0;
 
     activeList.forEach(p => {
-      let relevantTasks = (p.ownerId === viewingUserId) ? p.tasks : (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
+      const ownerDept = getUserDept(p.ownerId);
+      const isOwnerDept = (targetDept === ownerDept); 
+      let relevantTasks = (isOwnerDept || currentUserData.role === 'admin') ? p.tasks : (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
       let tasksForTimeline = relevantTasks.length > 0 ? relevantTasks : (p.tasks || []); 
       
       let minStart = "9999-12-31"; 
@@ -939,12 +960,6 @@ function renderProjects() {
         avgProg = Math.round(totalProg / relevantTasks.length);
         isDone = relevantTasks.every(t => t.isCompleted);
         hasDelay = relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
-      } else if (p.tasks && p.tasks.length > 0) {
-        let totalProg = 0;
-        p.tasks.forEach(t => totalProg += (t.progress || 0));
-        avgProg = Math.round(totalProg / p.tasks.length);
-        isDone = p.tasks.every(t => t.isCompleted);
-        hasDelay = p.tasks.some(t => !t.isCompleted && todayStr > t.end);
       }
       
       const hasCollab = (p.collaborators && p.collaborators.length > 0);
@@ -1033,19 +1048,25 @@ function renderProjects() {
     return;
   }
 
+  // ==========================================
+  // ⭐ 顯示詳細專案畫面
+  // ==========================================
   summaryView.style.display = "none"; 
   detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
   if(!activeProj) return; 
 
-  const isProjOwner = (activeProj.ownerId === auth.currentUser.uid);
+  const ownerDept = getUserDept(activeProj.ownerId);
+  const isProjOwnerDept = (currentUserData.dept === ownerDept); // 🚀 同一部門，權限共享！
+  const isProjOwner = (activeProj.ownerId === auth.currentUser.uid) || isProjOwnerDept;
+  
   const hasCollab = (activeProj.collaborators && activeProj.collaborators.length > 0);
   const isCollabMember = hasCollab && activeProj.collaborators.includes(currentUserData.dept);
   
-  const inGracePeriod = isProjOwner && isWithin7DaysGracePeriod(activeProj);
-  const isAuthorizedEditor = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
+  const isAuthorizedMaster = currentUserData.role === 'admin' || currentUserData.canEdit === true || isProjOwner;
+  const inGracePeriod = isAuthorizedMaster && isWithin7DaysGracePeriod(activeProj);
   
-  let canEditMainProj = isEditMode && (isAuthorizedEditor || (isProjOwner && inGracePeriod));
+  let canEditMainProj = isEditMode && inGracePeriod;
   
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯主資訊</button>` : '';
   let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#2563eb; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
@@ -1063,7 +1084,8 @@ function renderProjects() {
 
   lockBtn.style.display = "none"; 
 
-  const canAddTask = isEditMode && (currentUserData.role === 'admin' || currentUserData.canEdit || isProjOwner || isCollabMember);
+  // 🚀 同部門或是協作單位皆可新增任務
+  const canAddTask = isEditMode && (isAuthorizedMaster || isCollabMember);
 
   if (canAddTask) {
     btnProjectAddTask.style.display = "inline-block";
@@ -1072,7 +1094,7 @@ function renderProjects() {
     btnProjectAddTask.style.display = "none";
   }
 
-  delProjBtn.style.display = (isAuthorizedEditor || (isProjOwner && inGracePeriod)) ? "inline-block" : "none";
+  delProjBtn.style.display = (isAuthorizedMaster && inGracePeriod) ? "inline-block" : "none";
 
   const leftBody = document.getElementById("gantt-left-body");
   const listBody = document.getElementById("project-list-tbody");
@@ -1103,7 +1125,7 @@ function renderProjects() {
     let taskCreatedTime = task.createdAt || (activeProj.createdAt && typeof activeProj.createdAt.toMillis === 'function' ? activeProj.createdAt.toMillis() : Date.now());
     let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
 
-    const canOperateThisTask = (isProjOwner || isMyTask || currentUserData.role === 'admin');
+    const canOperateThisTask = (isAuthorizedMaster || isMyTask);
     const isInputLocked = task.isCompleted || !canOperateThisTask; 
     
     let canEditTask = isEditMode && (
@@ -1324,12 +1346,13 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const tasks = [...proj.tasks];
   const targetTask = tasks[taskIndex];
   
+  const ownerDept = getUserDept(proj.ownerId);
+  const isOwnerDept = (currentUserData.dept === ownerDept); 
   const taskAssigneeId = targetTask.assigneeId || proj.ownerId;
   const isMyTask = (auth.currentUser.uid === taskAssigneeId);
-  const isProjOwner = (auth.currentUser.uid === proj.ownerId);
   
-  if (!isProjOwner && !isMyTask && currentUserData.role !== 'admin') {
-    return alert("權限不足：您並非此任務細項之負責人或專案建立者，無法更新進度！");
+  if (!isOwnerDept && !isMyTask && currentUserData.role !== 'admin') {
+    return alert("權限不足：您並非此任務細項之負責人或專案建立部門，無法更新進度！");
   }
 
   const inputElem = document.getElementById(`prog_input_${taskIndex}`);
@@ -2169,11 +2192,14 @@ window.openGeneralEdit = (type, id, extra) => {
         let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
         let tInGrace = ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
         let isMyTask = (auth.currentUser.uid === (t.assigneeId || p.ownerId));
-        let isOwner = (auth.currentUser.uid === p.ownerId);
+        const ownerDept = getUserDept(p.ownerId);
+        let isOwnerDept = (currentUserData.dept === ownerDept);
 
-        if ((isOwner || isMyTask) && tInGrace) isAuthorized = true;
+        if ((isOwnerDept || isMyTask) && tInGrace) isAuthorized = true;
       } else if (type === 'project') {
-        if ((auth.currentUser.uid === p.ownerId) && isWithin7DaysGracePeriod(p)) isAuthorized = true;
+        const ownerDept = getUserDept(p.ownerId);
+        const isOwnerDept = (currentUserData.dept === ownerDept);
+        if (isOwnerDept && isWithin7DaysGracePeriod(p)) isAuthorized = true;
       }
     }
   } else if (type === 'weekly') {
