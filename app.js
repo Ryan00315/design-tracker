@@ -91,8 +91,10 @@ function initDynamicUI() {
     .kpi-card { padding: 8px 12px !important; min-height: unset !important; }
     .kpi-title { font-size: 11.5px !important; margin-bottom: 2px !important; }
     .kpi-number { font-size: 18px !important; }
-    .col-sum-name.clickable { cursor: pointer; text-decoration: underline; color: var(--primary); transition: 0.2s; }
-    .col-sum-name.clickable:hover { color: #1d4ed8; font-weight: bold; }
+    
+    /* 🚀 移除底線，修改游標懸停效果 */
+    .col-sum-name.clickable { cursor: pointer; text-decoration: none; transition: 0.2s; }
+    .col-sum-name.clickable:hover { opacity: 0.7; }
     
     .gantt-left-panel { flex: 0 0 55% !important; max-width: 55% !important; }
     .gantt-right-panel { flex: 0 0 45% !important; max-width: 45% !important; }
@@ -187,18 +189,15 @@ document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => 
   renderWeeklyReports();
 });
 
-// 🚀 智慧判斷「開啟編輯模式」按鈕是否該顯示
 function checkEditModeVisibility() {
   const btn = document.getElementById("btn-toggle-edit-mode");
   if (!btn) return;
 
   let shouldShow = false;
 
-  // 1. 如果有開放權限 (管理員/全局權限)，永久出現
   if (currentUserData.role === 'admin' || currentUserData.canEdit) {
     shouldShow = true;
   } else {
-    // 2. 沒開放權限的帳號，只有在特定專案畫面內，且有東西可以編輯時才出現
     if (selectedProjectId !== 'SUMMARY') {
       const p = allProjectsData.find(x => x.id === selectedProjectId);
       if (p) {
@@ -206,24 +205,23 @@ function checkEditModeVisibility() {
         const isOwnerDept = (currentUserData.dept === ownerDept);
         const inGrace = isWithin7DaysGracePeriod(p);
 
-        // 如果是建立單位且專案還在7日內，顯示編輯模式
         if (isOwnerDept && inGrace) {
           shouldShow = true;
         }
 
-        // 如果是協作單位，或是專案超過7天了
-        // 只要他「有自己7日內建立的細項」，才讓他看到編輯按鈕以防寫錯字
-        const hasTaskInGrace = (p.tasks || []).some(t => {
-           if (t.assigneeId !== auth.currentUser?.uid && !isOwnerDept) return false;
-           let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
-           return ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
-        });
-        if (hasTaskInGrace) shouldShow = true;
+        const isCollab = p.collaborators && p.collaborators.includes(currentUserData.dept);
+        if (isCollab) {
+          const hasTaskInGrace = (p.tasks || []).some(t => {
+             if (t.assigneeId !== auth.currentUser?.uid) return false;
+             let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
+             return ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+          });
+          if (hasTaskInGrace) shouldShow = true;
+        }
       }
     }
   }
 
-  // 若判定應隱藏，且目前狀態是開啟的，強制幫它關掉
   if (!shouldShow && isEditMode) {
     isEditMode = false;
     btn.innerHTML = "✏️ 開啟編輯模式";
@@ -598,7 +596,6 @@ window.switchViewingUser = (uid, name) => {
 
   selectedProjectId = 'SUMMARY'; 
   
-  // 自動關閉編輯模式防呆
   isEditMode = false;
   const editBtn = document.getElementById("btn-toggle-edit-mode");
   if(editBtn) {
@@ -728,7 +725,6 @@ window.setProjectFilter = (status) => {
 
 window.selectProject = (projId) => { 
   selectedProjectId = projId; 
-  // 🚀 防呆機制：只要切換專案，就自動把「編輯模式」關閉！
   isEditMode = false;
   const editBtn = document.getElementById("btn-toggle-edit-mode");
   if(editBtn) {
@@ -815,7 +811,6 @@ function getGraceDaysLeft(proj) {
 }
 
 function renderProjects() {
-  // 🚀 在每次畫面重繪時，自動判定編輯按鈕是否該顯示
   checkEditModeVisibility();
 
   const isViewingSelf = (viewingUserId === auth.currentUser.uid);
@@ -1062,9 +1057,10 @@ function renderProjects() {
             statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
         }
 
+        // 🚀 主專案黑字、協作藍字，並保留游標與變色效果，無底線
         let titleDisplay = item.isCollab 
-          ? `<span style="color:var(--primary); font-weight:700;"><span style="color:var(--primary); margin-right:4px;">👥</span>${item.title}</span>`
-          : `🗂️ ${item.title}`;
+          ? `<span style="color:#2563eb; font-weight:700;"><span style="color:#2563eb; margin-right:4px;">👥</span>${item.title}</span>`
+          : `<span style="color:#0f172a; font-weight:700;">🗂️ ${item.title}</span>`;
           
         row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')">${titleDisplay}</div><div class="col-sum-date">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-sum-prog">${statusText}</div>`;
       } else {
@@ -1114,7 +1110,6 @@ function renderProjects() {
   const isAuthorizedMaster = hasGlobalEdit || isProjOwner;
   const inGracePeriod = isWithin7DaysGracePeriod(activeProj);
   
-  // 🚀 編輯主檔與刪除：必須開啟編輯模式，且具有全局權限，或是 (專案主檔在 7 日內) 才可以！
   let canEditMainProj = isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod));
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯主資訊</button>` : '';
   
@@ -1133,8 +1128,7 @@ function renderProjects() {
 
   lockBtn.style.display = "none"; 
 
-  // 🚀 新增細項按鈕：不需要編輯模式，只要有權限(全局/建立者/協作者)就永遠顯示！
-  // 建立者即使超過 7 天也「不能」新增，除非是管理員。協作單位則永遠可新增。
+  // 🚀 新增細項按鈕：不需要編輯模式，只要有權限就永遠顯示！
   const canAddTask = hasGlobalEdit || isCollabMember || (isProjOwner && inGracePeriod);
 
   if (canAddTask) {
@@ -1144,7 +1138,6 @@ function renderProjects() {
     btnProjectAddTask.style.display = "none";
   }
 
-  // 🚀 刪除專案防呆：必須在編輯模式下，且具有全局權限，或(專案主且在 7 天內)，才會出現！
   delProjBtn.style.display = (isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod))) ? "inline-block" : "none";
 
   const leftBody = document.getElementById("gantt-left-body");
@@ -1179,7 +1172,6 @@ function renderProjects() {
     const canOperateThisTask = (hasGlobalEdit || isMyTask || isProjOwnerDept);
     const isInputLocked = task.isCompleted || !canOperateThisTask; 
     
-    // 🚀 編輯個別任務：需要編輯模式，且(具全局權限 或 (負責人/部門主且在該細項的7天內))
     let canEditTask = isEditMode && (
       hasGlobalEdit || ((isProjOwner || isMyTask) && isTaskInGrace)
     );
