@@ -493,23 +493,23 @@ function loadSidebarSubordinates() {
     const myRole = currentUserData.role; 
     const myDept = currentUserData.dept || "設計部";
 
-    const allUsersArray = [];
+    allUsersList = [];
     snapshot.forEach(docSnap => {
-      allUsersArray.push({ uid: docSnap.id, ...docSnap.data() });
+      allUsersList.push({ uid: docSnap.id, ...docSnap.data() });
     });
 
     const isSubordinate = (bossUid, targetUid) => {
-      let current = allUsersArray.find(u => u.uid === targetUid);
+      let current = allUsersList.find(u => u.uid === targetUid);
       let depth = 0;
       while (current && current.supervisorId && depth < 10) {
         if (current.supervisorId === bossUid) return true;
-        current = allUsersArray.find(u => u.uid === current.supervisorId);
+        current = allUsersList.find(u => u.uid === current.supervisorId);
         depth++;
       }
       return false;
     };
 
-    allUsersArray.forEach(u => {
+    allUsersList.forEach(u => {
       if (u.uid === myUid) return;
 
       const targetRole = u.role; 
@@ -569,6 +569,8 @@ function loadSidebarSubordinates() {
       membersHtml += `</div>`;
       list.innerHTML += membersHtml;
     });
+
+    renderProjects();
   });
 }
 
@@ -824,10 +826,10 @@ function renderProjects() {
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
+  // 🚀 修復：不管是不是管理員，您的看板都只會顯示「您所屬/檢視部門」的協作專案
   const collabProjects = allProjectsData.filter(p => {
     const collabs = p.collaborators || [];
     if (collabs.length === 0) return false;
-    if (currentUserData.role === 'admin') return true; 
     return collabs.includes(targetDept) || p.ownerId === viewingUserId;
   });
 
@@ -844,7 +846,8 @@ function renderProjects() {
     const ownerDept = getUserDept(p.ownerId);
     const isOwnerDept = (targetDept === ownerDept); 
 
-    if (isOwnerDept || currentUserData.role === 'admin') {
+    // 🚀 嚴格視角隔離：自己部門建的看全部，協作單位只看自己的細項
+    if (isOwnerDept) {
       relevantTasks = p.tasks || [];
     } else {
       relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
@@ -860,7 +863,7 @@ function renderProjects() {
 
     const inYear = spansYear(p, selectedYear);
 
-    if (isOwnerDept || currentUserData.role === 'admin') {
+    if (isOwnerDept) {
        if (relevantTasks.length === 0 || !isAllDone) { countOngoing++; projectsOngoing.push(p); }
        if (hasDelay) { countDelayed++; projectsDelayed.push(p); }
     } else {
@@ -888,7 +891,6 @@ function renderProjects() {
   countDelayed += adHocsDelayed.length;
   countAllInYear += adHocsAll.length;
 
-  // 🚀 每次資料重算後立即更新 KPI 數字，解決「要點一下才會刷新」的非同步時間差 Bug
   const elOngoing = document.getElementById('stat-ongoing');
   if(elOngoing) elOngoing.innerText = countOngoing; 
   const elCompleted = document.getElementById('stat-completed');
@@ -988,7 +990,7 @@ function renderProjects() {
     activeList.forEach(p => {
       const ownerDept = getUserDept(p.ownerId);
       const isOwnerDept = (targetDept === ownerDept); 
-      let relevantTasks = (isOwnerDept || currentUserData.role === 'admin') ? p.tasks : (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
+      let relevantTasks = isOwnerDept ? p.tasks : (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
       let tasksForTimeline = relevantTasks.length > 0 ? relevantTasks : (p.tasks || []); 
       
       let minStart = "9999-12-31"; 
@@ -1138,11 +1140,8 @@ function renderProjects() {
 
   lockBtn.style.display = "none"; 
 
-  // 🚀 新增細項按鈕邏輯：協作單位永遠可見！但專案主超過 7 天後不可見！(管理員除外)
-  let canAddTask = false;
-  if (hasGlobalEdit) canAddTask = true;
-  else if (isCollabMember) canAddTask = true; // 協作單位無條件顯示
-  else if (isProjOwner && inGracePeriod) canAddTask = true; // 專案主只有7天內可新增
+  // 🚀 協作單位無條件可新增細項！
+  const canAddTask = hasGlobalEdit || isCollabMember || (isProjOwner && inGracePeriod);
 
   if (canAddTask) {
     btnProjectAddTask.style.display = "inline-block";
@@ -1533,8 +1532,6 @@ function loadAdHocEvents() {
     allAdHocData = []; 
     snapshot.forEach(docSnap => allAdHocData.push({ id: docSnap.id, ...docSnap.data() })); 
     renderAdHocEvents(); 
-    // 強制重算 KPI
-    renderProjects();
   }); 
 }
 
@@ -1570,6 +1567,7 @@ function renderAdHocEvents() {
     `; 
     tbody.appendChild(tr);
   });
+  if(selectedProjectId === 'SUMMARY' && document.getElementById("tab-projects").style.display === "block") renderProjects(); 
 }
 
 document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
@@ -2545,7 +2543,7 @@ function loadOrgUsers() {
     });
 
     renderOrgChart(); 
-    // 🚀 當人員名單變動完成時，強制重算 KPI
+    // 強制重算 KPI 避免時間差
     renderProjects();
   });
 }
