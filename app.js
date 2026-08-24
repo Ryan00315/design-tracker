@@ -21,7 +21,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-// 🚀 強制設定登入狀態永久保存在瀏覽器/手機中
+// 🚀 強制設定登入狀態永久保存在瀏覽器/手機中，避免 PWA 快取誤清登入憑證
 setPersistence(auth, browserLocalPersistence).catch((error) => console.log("Persistence Error:", error));
 const db = getFirestore(app);
 
@@ -58,6 +58,16 @@ const taiwanHolidayMap = {
   '10-25': '光復節', '10-26': '補假', '12-25': '行憲紀念日'
 };
 
+// 取得今天的日期字串 (yyyy-mm-dd)，用來精準判斷 Delay
+function getTodayStr() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+// 🚀 自動重構 UI 介面：縮小高度、增加總覽按鈕與年份篩選器
 function initDynamicUI() {
   if(document.getElementById('filter-all')) return; 
 
@@ -74,9 +84,11 @@ function initDynamicUI() {
   
   const style = document.createElement('style');
   style.innerHTML = `
+    /* 按鈕縮小 20% */
     .kpi-card { padding: 8px 12px !important; min-height: unset !important; }
     .kpi-title { font-size: 11.5px !important; margin-bottom: 2px !important; }
     .kpi-number { font-size: 18px !important; }
+    /* 總覽清單游標效果 */
     .col-sum-name.clickable { cursor: pointer; text-decoration: underline; color: var(--primary); transition: 0.2s; }
     .col-sum-name.clickable:hover { color: #1d4ed8; font-weight: bold; }
     
@@ -104,6 +116,7 @@ function initDynamicUI() {
   `;
   document.head.appendChild(style);
 
+  // 插入年份篩選器 (預設目前年份)
   const btnWrapper = document.getElementById('btn-create-wrapper');
   if (btnWrapper && !document.getElementById('project-year-filter')) {
     const currentY = new Date().getFullYear();
@@ -120,7 +133,14 @@ function initDynamicUI() {
     sel.style.marginRight = "10px";
     sel.style.fontWeight = "bold";
     sel.innerHTML = options;
-    sel.onchange = () => renderProjects();
+    sel.onchange = () => {
+      // 切換年份時，如果目前在未完成或Delay，主動跳到總覽，避免困惑
+      if(currentFilter === 'ongoing' || currentFilter === 'delayed'){
+         setProjectFilter('all');
+      } else {
+         renderProjects();
+      }
+    };
     
     btnWrapper.insertBefore(sel, btnWrapper.firstChild);
   }
@@ -671,11 +691,10 @@ function getAdHocDateStr(evt) {
   return new Date().toISOString().split('T')[0];
 }
 
-// 🚀 強制讓年份濾網直接過濾所有專案，不論是否已結案
+// 🚀 年份過濾判斷器：如果所有細項都完全沒跨到該年，就回傳 false 隱藏它
 function spansYear(p, y) {
   if(y === 'all') return true;
   if(!p.tasks || p.tasks.length === 0) {
-      // 若無任務，拿專案建立時間來判斷
       const createdDate = p.createdAt && typeof p.createdAt.toDate === 'function' ? p.createdAt.toDate() : new Date();
       return createdDate.getFullYear() === y;
   }
@@ -723,22 +742,13 @@ function renderProjects() {
   
   const yearFilterVal = document.getElementById('project-year-filter')?.value || new Date().getFullYear().toString();
   const selectedYear = yearFilterVal === 'all' ? 'all' : parseInt(yearFilterVal);
+  const todayStr = getTodayStr();
 
-  // 🚀 將年份濾網套用到「所有專案與事件」上！不跨年份直接隱藏
-  const baseProjects = allProjectsData.filter(p => spansYear(p, selectedYear));
+  // 把所有專案跟事件先撈出來
+  const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
+  const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
-  const baseAdHocs = allAdHocData.filter(e => {
-    if (selectedYear !== 'all') {
-        const eY = parseInt(getAdHocDateStr(e).substring(0,4));
-        return eY === selectedYear;
-    }
-    return true;
-  });
-
-  const userProjects = baseProjects.filter(p => p.ownerId === viewingUserId);
-  const userAdHocs = baseAdHocs.filter(e => e.ownerId === viewingUserId);
-
-  const collabProjects = baseProjects.filter(p => {
+  const collabProjects = allProjectsData.filter(p => {
     const collabs = p.collaborators || [];
     if (collabs.length === 0) return false;
     if (isViewingSelf) {
@@ -755,72 +765,86 @@ function renderProjects() {
   collabProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
   const allInvolvedProjects = Array.from(allInvolvedProjectsMap.values());
 
-  let countOngoing = 0, countCompleted = 0, countDelayed = 0;
-  
+  // 🚀 分類變數
+  let countOngoing = 0, countCompleted = 0, countDelayed = 0, countAllInYear = 0;
+  let projectsOngoing = [], projectsCompleted = [], projectsDelayed = [], projectsAll = [];
+
   allInvolvedProjects.forEach(p => {
+    // 🚀 視角隔離：自己管自己的進度
     let relevantTasks = [];
     if (p.ownerId === viewingUserId) {
       relevantTasks = p.tasks || [];
-      if (relevantTasks.length === 0) {
-        countOngoing++;
-        return;
-      }
     } else {
       relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
-      if (relevantTasks.length === 0) return; 
     }
 
-    const isAllDone = relevantTasks.every(t => t.isCompleted);
-    const hasDelay = relevantTasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
-    
-    if (isAllDone) countCompleted++; else countOngoing++;
-    if (hasDelay) countDelayed++;
+    let isAllDone = false;
+    let hasDelay = false;
+
+    if (relevantTasks.length === 0) {
+      isAllDone = false;
+    } else {
+      isAllDone = relevantTasks.every(t => t.isCompleted);
+      // 🚀 完美 Delay 邏輯：只要細項未達 100%，且過期了，才算 Delay！100% 就不算！
+      hasDelay = relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
+    }
+
+    const inYear = spansYear(p, selectedYear);
+
+    // 未完成 & Delay：永遠顯示 (不受年份限制)
+    if (!isAllDone) {
+       countOngoing++;
+       projectsOngoing.push(p);
+    }
+    if (hasDelay) {
+       countDelayed++;
+       projectsDelayed.push(p);
+    }
+
+    // 完成 & 總覽：受年份濾網限制
+    if (isAllDone && inYear) {
+       countCompleted++;
+       projectsCompleted.push(p);
+    }
+    if (inYear) {
+       countAllInYear++;
+       projectsAll.push(p);
+    }
   });
-  
+
+  // 事件也比照辦理
+  let adHocsOngoing = userAdHocs.filter(e => !e.isCompleted);
+  let adHocsDelayed = userAdHocs.filter(e => !e.isCompleted && e.startDate < todayStr);
+  let adHocsCompleted = userAdHocs.filter(e => e.isCompleted && (selectedYear === 'all' || parseInt(getAdHocDateStr(e).substring(0,4)) === selectedYear));
+  let adHocsAll = userAdHocs.filter(e => selectedYear === 'all' || parseInt(getAdHocDateStr(e).substring(0,4)) === selectedYear);
+
   document.getElementById('stat-ongoing').innerText = countOngoing; 
   document.getElementById('stat-completed').innerText = countCompleted; 
   document.getElementById('stat-delay').innerText = countDelayed;
   document.getElementById('stat-collab').innerText = collabProjects.length;
-  if(document.getElementById('stat-all')) document.getElementById('stat-all').innerText = allInvolvedProjects.length;
+  if(document.getElementById('stat-all')) document.getElementById('stat-all').innerText = countAllInYear;
 
+  // 🚀 根據所選 Tab 給予對應的清單
   let activeList = [];
-  if (currentFilter === 'collab') {
-    activeList = collabProjects;
-  } else if (currentFilter === 'all') {
-    activeList = allInvolvedProjects;
-  } else {
-    activeList = allInvolvedProjects.filter(p => {
-      let relevantTasks = [];
-      if (p.ownerId === viewingUserId) {
-        relevantTasks = p.tasks || [];
-        if (relevantTasks.length === 0) return currentFilter === 'ongoing';
-      } else {
-        relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
-        if (relevantTasks.length === 0) return false;
-      }
-
-      const isAllDone = relevantTasks.every(t => t.isCompleted);
-      const hasDelay = relevantTasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
-      
-      if (currentFilter === 'completed') return isAllDone;
-      if (currentFilter === 'delayed') return hasDelay;
-      return !isAllDone;
-    });
-  }
-
   let activeAdHocs = [];
-  if (currentFilter === 'all') {
-    activeAdHocs = userAdHocs;
-  } else if (currentFilter === 'ongoing') {
-    activeAdHocs = userAdHocs.filter(e => !e.isCompleted);
+
+  if (currentFilter === 'ongoing') {
+      activeList = projectsOngoing;
+      activeAdHocs = adHocsOngoing;
   } else if (currentFilter === 'completed') {
-    activeAdHocs = userAdHocs.filter(e => e.isCompleted);
+      activeList = projectsCompleted;
+      activeAdHocs = adHocsCompleted;
   } else if (currentFilter === 'delayed') {
-    const todayStr = new Date().toISOString().split('T')[0];
-    activeAdHocs = userAdHocs.filter(e => !e.isCompleted && e.startDate < todayStr);
+      activeList = projectsDelayed;
+      activeAdHocs = adHocsDelayed;
   } else if (currentFilter === 'collab') {
-    activeAdHocs = [];
+      activeList = collabProjects; // 協作清單暫不設限
+      activeAdHocs = [];
+  } else if (currentFilter === 'all') {
+      activeList = projectsAll;
+      activeAdHocs = adHocsAll;
   }
+  activeList = Array.from(new Set(activeList)); // 防呆去重
 
   if (selectedProjectId !== 'SUMMARY') {
     if (!activeList.find(p => p.id === selectedProjectId)) selectedProjectId = 'SUMMARY';
@@ -839,6 +863,13 @@ function renderProjects() {
     return; 
   }
 
+  // 🚀 聰明動態更名的總覽按鈕
+  let summaryBtnText = "⭐ 所有專案總覽";
+  if (currentFilter === 'ongoing') summaryBtnText = "⭐ 未完成總覽";
+  else if (currentFilter === 'completed') summaryBtnText = "⭐ 完成總覽";
+  else if (currentFilter === 'delayed') summaryBtnText = "⭐ Delay 總覽";
+  else if (currentFilter === 'collab') summaryBtnText = "⭐ 協作專案總覽";
+
   if (selectedProjectId !== 'SUMMARY') {
     const summaryBtn = document.createElement("button");
     summaryBtn.className = `proj-tab`;
@@ -846,6 +877,12 @@ function renderProjects() {
     summaryBtn.style.color = "#8b5cf6";            
     summaryBtn.style.fontWeight = "bold";          
     summaryBtn.innerText = "🔙 返回總覽清單"; 
+    summaryBtn.onclick = () => selectProject('SUMMARY'); 
+    tabsContainer.appendChild(summaryBtn);
+  } else {
+    const summaryBtn = document.createElement("button");
+    summaryBtn.className = `proj-tab active`;
+    summaryBtn.innerText = summaryBtnText; 
     summaryBtn.onclick = () => selectProject('SUMMARY'); 
     tabsContainer.appendChild(summaryBtn);
   }
@@ -869,8 +906,7 @@ function renderProjects() {
     
     const panelHeadSpan = document.querySelector('#project-summary-view .panel-head span');
     if (panelHeadSpan) {
-        const filterNames = { ongoing: '未完成', completed: '已完成', delayed: 'Delay', collab: '協作', all: '所有' };
-        panelHeadSpan.innerText = `⭐ 專案與事件總覽排程 (${filterNames[currentFilter]}清單)`;
+        panelHeadSpan.innerText = `⭐ 專案與事件總覽排程 (${summaryBtnText.replace('⭐ ', '')})`;
     }
 
     const sumLeftBody = document.getElementById("gantt-summary-left-body");
@@ -902,7 +938,7 @@ function renderProjects() {
         relevantTasks.forEach(t => totalProg += (t.progress || 0));
         avgProg = Math.round(totalProg / relevantTasks.length);
         isDone = relevantTasks.every(t => t.isCompleted);
-        hasDelay = relevantTasks.some(t => t.delayReason || (!t.isCompleted && new Date() > new Date(t.end)));
+        hasDelay = relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
       }
       
       const hasCollab = (p.collaborators && p.collaborators.length > 0);
@@ -948,6 +984,7 @@ function renderProjects() {
       row.className = "gantt-row";
       if (item.type === 'project') {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : item.progress+'%';
+        // 🚀 若有延遲且未完成，總覽清單直接紅字警告
         if (item.hasDelay && !item.isDone) {
             statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
         }
@@ -956,6 +993,7 @@ function renderProjects() {
           ? `<span style="color:var(--primary); font-weight:700;"><span style="color:var(--primary); margin-right:4px;">👥</span>${item.title}</span>`
           : `🗂️ ${item.title}`;
           
+        // 🚀 點擊專案名稱，瞬間跳轉到該專案
         row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')">${titleDisplay}</div><div class="col-sum-date">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-sum-prog">${statusText}</div>`;
       } else {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
@@ -1295,7 +1333,7 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
     return; 
   }
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getTodayStr();
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   let passedDays = 0; 
   if (todayStr >= targetTask.start) passedDays = getWorkingDays(targetTask.start, todayStr);
@@ -1340,7 +1378,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
 
   const taskRows = document.querySelectorAll('.task-row'); 
   const tasks = [];
-  const todayStr = new Date().toISOString().split('T')[0]; 
+  const todayStr = getTodayStr(); 
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
 
@@ -2123,7 +2161,7 @@ window.openGeneralEdit = (type, id, extra) => {
         let isMyTask = (auth.currentUser.uid === (t.assigneeId || p.ownerId));
         let isOwner = (auth.currentUser.uid === p.ownerId);
 
-        if ((isOwner || isMyTask) && tInGrace) isAuthorized = true;
+        if ((isOwner || isMyTask) && tInGrace && !p.isLocked) isAuthorized = true;
       } else if (type === 'project') {
         if ((auth.currentUser.uid === p.ownerId) && isWithin7DaysGracePeriod(p)) isAuthorized = true;
       }
