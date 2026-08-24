@@ -464,7 +464,6 @@ onAuthStateChanged(auth, async (user) => {
       document.getElementById('nav-sub-wrapper').style.display = 'none';
     }
 
-    // 依序執行，解決非同步問題
     loadOrgUsers();
     initWeeklyDateAndLeave(); 
     addTaskRow(); 
@@ -826,7 +825,7 @@ function renderProjects() {
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
-  // 🚀 修復：不管是不是管理員，您的看板都只會顯示「您所屬/檢視部門」的協作專案
+  // 🚀 嚴格依照「正在檢視的人所屬部門」來抓取協作專案，杜絕管理員亂入
   const collabProjects = allProjectsData.filter(p => {
     const collabs = p.collaborators || [];
     if (collabs.length === 0) return false;
@@ -846,7 +845,7 @@ function renderProjects() {
     const ownerDept = getUserDept(p.ownerId);
     const isOwnerDept = (targetDept === ownerDept); 
 
-    // 🚀 嚴格視角隔離：自己部門建的看全部，協作單位只看自己的細項
+    // 🚀 嚴格視角隔離：不管是不是管理員，現在看哪個部門，就只顯示哪個部門該看的進度
     if (isOwnerDept) {
       relevantTasks = p.tasks || [];
     } else {
@@ -1103,9 +1102,6 @@ function renderProjects() {
     return;
   }
 
-  // ==========================================
-  // ⭐ 顯示詳細專案畫面
-  // ==========================================
   summaryView.style.display = "none"; 
   detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
@@ -1140,7 +1136,7 @@ function renderProjects() {
 
   lockBtn.style.display = "none"; 
 
-  // 🚀 協作單位無條件可新增細項！
+  // 🚀 新增細項按鈕：不需要編輯模式！只要有特權、是協作單位，或是專案主在 7 天內，就能永遠顯示！
   const canAddTask = hasGlobalEdit || isCollabMember || (isProjOwner && inGracePeriod);
 
   if (canAddTask) {
@@ -1150,7 +1146,7 @@ function renderProjects() {
     btnProjectAddTask.style.display = "none";
   }
 
-  // 🚀 刪除專案防呆：必須在編輯模式下，且具有全局權限，或(專案主且在 7 天內)，才會出現！
+  // 🚀 刪除專案按鈕：防呆機制！必須在開啟編輯模式時才顯示
   delProjBtn.style.display = (isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod))) ? "inline-block" : "none";
 
   const leftBody = document.getElementById("gantt-left-body");
@@ -2543,8 +2539,6 @@ function loadOrgUsers() {
     });
 
     renderOrgChart(); 
-    // 強制重算 KPI 避免時間差
-    renderProjects();
   });
 }
 
