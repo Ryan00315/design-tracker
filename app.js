@@ -199,11 +199,11 @@ function checkEditModeVisibility() {
     if (selectedProjectId !== 'SUMMARY') {
       const p = allProjectsData.find(x => x.id === selectedProjectId);
       if (p) {
-        const ownerDept = getUserDept(p.ownerId);
-        const isOwnerDept = (currentUserData.dept === ownerDept);
+        // 嚴格判斷：只有「專案建立者」本人，在 7 天內才可以開啟編輯模式
+        const isProjOwner = (p.ownerId === auth.currentUser?.uid);
         const inGrace = isWithin7DaysGracePeriod(p);
 
-        if (isOwnerDept && inGrace) {
+        if (isProjOwner && inGrace) {
           shouldShow = true;
         }
 
@@ -829,7 +829,7 @@ function renderProjects() {
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
-  // 🚀 修復：移除管理員強制顯示全部協作的霸王條款，嚴格依靠 targetDept 過濾
+  // 🚀 視角絕對隔離：看誰就只顯示誰的部門的協作專案
   const collabProjects = allProjectsData.filter(p => {
     const collabs = p.collaborators || [];
     if (collabs.length === 0) return false;
@@ -849,7 +849,7 @@ function renderProjects() {
     const ownerDept = getUserDept(p.ownerId);
     const isOwnerDept = (targetDept === ownerDept); 
 
-    // 嚴格依據部門與指派人過濾
+    // 視角過濾：建檔部門看全部，協作單位看自己
     if (isOwnerDept) {
       relevantTasks = p.tasks || [];
     } else {
@@ -993,7 +993,6 @@ function renderProjects() {
     activeList.forEach(p => {
       const ownerDept = getUserDept(p.ownerId);
       const isOwnerDept = (targetDept === ownerDept); 
-      // 總覽也嚴格遵守部門視角
       let relevantTasks = isOwnerDept ? p.tasks : (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
       let tasksForTimeline = relevantTasks.length > 0 ? relevantTasks : (p.tasks || []); 
       
@@ -1117,13 +1116,13 @@ function renderProjects() {
 
   const ownerDept = getUserDept(activeProj.ownerId);
   const isProjOwnerDept = (currentUserData.dept === ownerDept); 
-  const isProjOwner = (activeProj.ownerId === auth.currentUser.uid) || isProjOwnerDept;
+  // 🚀 嚴格鎖死擁有者權限，不再被 isProjOwnerDept 綁架
+  const isProjOwner = (activeProj.ownerId === auth.currentUser.uid);
   
   const hasCollab = (activeProj.collaborators && activeProj.collaborators.length > 0);
   const isCollabMember = hasCollab && activeProj.collaborators.includes(currentUserData.dept);
   
   const hasGlobalEdit = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
-  const isAuthorizedMaster = hasGlobalEdit || isProjOwner;
   const inGracePeriod = isWithin7DaysGracePeriod(activeProj);
   
   let canEditMainProj = isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod));
@@ -1144,6 +1143,7 @@ function renderProjects() {
 
   lockBtn.style.display = "none"; 
 
+  // 🚀 新增細項按鈕：不需要編輯模式！只要有特權、是協作單位，或是專案主在 7 天內，就能永遠顯示！
   const canAddTask = hasGlobalEdit || isCollabMember || (isProjOwner && inGracePeriod);
 
   if (canAddTask) {
@@ -1153,6 +1153,7 @@ function renderProjects() {
     btnProjectAddTask.style.display = "none";
   }
 
+  // 🚀 刪除專案防呆：必須在開啟編輯模式時才顯示
   delProjBtn.style.display = (isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod))) ? "inline-block" : "none";
 
   const leftBody = document.getElementById("gantt-left-body");
@@ -1184,7 +1185,7 @@ function renderProjects() {
     let taskCreatedTime = task.createdAt || (activeProj.createdAt && typeof activeProj.createdAt.toMillis === 'function' ? activeProj.createdAt.toMillis() : Date.now());
     let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
 
-    const canOperateThisTask = (hasGlobalEdit || isMyTask || isProjOwnerDept);
+    const canOperateThisTask = (hasGlobalEdit || isMyTask || isProjOwner);
     const isInputLocked = task.isCompleted || !canOperateThisTask; 
     
     let canEditTask = isEditMode && (
@@ -1278,11 +1279,8 @@ window.deleteActiveProjectTask = async (projId, index) => {
   const task = proj.tasks[index];
   let taskCreatedTime = task.createdAt || (proj.createdAt && typeof proj.createdAt.toMillis === 'function' ? proj.createdAt.toMillis() : Date.now());
   let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
-  
-  const ownerDept = getUserDept(proj.ownerId);
-  const isProjOwnerDept = (currentUserData.dept === ownerDept); 
 
-  let isAuthorized = currentUserData.role === 'admin' || currentUserData.canEdit || ((proj.ownerId === auth.currentUser.uid || task.assigneeId === auth.currentUser.uid || isProjOwnerDept) && isTaskInGrace);
+  let isAuthorized = currentUserData.role === 'admin' || currentUserData.canEdit || ((proj.ownerId === auth.currentUser.uid || task.assigneeId === auth.currentUser.uid) && isTaskInGrace);
   
   if (!isAuthorized) return alert("⚠️ 此細項已超過 7 天編輯期限，只能請管理員協助刪除！");
 
@@ -1407,13 +1405,12 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const tasks = [...proj.tasks];
   const targetTask = tasks[taskIndex];
   
-  const ownerDept = getUserDept(proj.ownerId);
-  const isOwnerDept = (currentUserData.dept === ownerDept); 
+  const isProjOwner = (proj.ownerId === auth.currentUser.uid);
   const taskAssigneeId = targetTask.assigneeId || proj.ownerId;
   const isMyTask = (auth.currentUser.uid === taskAssigneeId);
   
-  if (!isOwnerDept && !isMyTask && currentUserData.role !== 'admin') {
-    return alert("權限不足：您並非此任務細項之負責人或專案建立部門，無法更新進度！");
+  if (!isProjOwner && !isMyTask && currentUserData.role !== 'admin') {
+    return alert("權限不足：您並非此任務細項之負責人或專案建立者，無法更新進度！");
   }
 
   const inputElem = document.getElementById(`prog_input_${taskIndex}`);
@@ -1534,6 +1531,7 @@ function loadAdHocEvents() {
     allAdHocData = []; 
     snapshot.forEach(docSnap => allAdHocData.push({ id: docSnap.id, ...docSnap.data() })); 
     renderAdHocEvents(); 
+    renderProjects();
   }); 
 }
 
@@ -1569,7 +1567,6 @@ function renderAdHocEvents() {
     `; 
     tbody.appendChild(tr);
   });
-  if(selectedProjectId === 'SUMMARY' && document.getElementById("tab-projects").style.display === "block") renderProjects(); 
 }
 
 document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
@@ -2253,14 +2250,13 @@ window.openGeneralEdit = (type, id, extra) => {
         let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
         let tInGrace = ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
         let isMyTask = (auth.currentUser.uid === (t.assigneeId || p.ownerId));
-        const ownerDept = getUserDept(p.ownerId);
-        let isOwnerDept = (currentUserData.dept === ownerDept);
+        let isProjOwner = (p.ownerId === auth.currentUser.uid);
 
-        if ((isOwnerDept || isMyTask) && tInGrace) isAuthorized = true;
+        // 🚀 必須是建立者本人或是任務指派者才可以編輯
+        if ((isProjOwner || isMyTask) && tInGrace) isAuthorized = true;
       } else if (type === 'project') {
-        const ownerDept = getUserDept(p.ownerId);
-        const isOwnerDept = (currentUserData.dept === ownerDept);
-        if (isOwnerDept && isWithin7DaysGracePeriod(p)) isAuthorized = true;
+        let isProjOwner = (p.ownerId === auth.currentUser.uid);
+        if (isProjOwner && isWithin7DaysGracePeriod(p)) isAuthorized = true;
       }
     }
   } else if (type === 'weekly') {
