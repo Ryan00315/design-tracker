@@ -69,88 +69,68 @@ const taiwanHolidayMap = {
 };
 
 // ==========================================
-// 🚀 全域事件代理攔截器 (絕對防當機機制)
+// 🚀 全域事件攔截器 (絕對防當機機制)
 // ==========================================
 document.addEventListener("click", async (e) => {
-  let t = e.target;
-  while(t && t !== document) {
-      if (t.id === 'btn-login') { 
-          e.preventDefault(); 
-          if(window.submitLogin) window.submitLogin(); 
-          return; 
-      }
-      if (t.id === 'btn-logout') { 
-          e.preventDefault(); 
-          signOut(auth); 
-          return; 
-      }
-      if (t.id === 'btn-toggle-edit-mode') { 
-          e.preventDefault(); 
-          if(window.toggleEditMode) window.toggleEditMode(); 
-          return; 
-      }
-      if (t.id === 'btn-toggle-create') { 
-          e.preventDefault(); 
-          if(window.toggleCreateProject) window.toggleCreateProject(); 
-          return; 
-      }
-      if (t.id === 'btn-add-project') { 
-          e.preventDefault(); 
-          if(window.submitNewProject) window.submitNewProject(); 
-          return; 
-      }
-      if (t.id === 'btn-add-adhoc') { 
-          e.preventDefault(); 
-          if(window.submitNewAdHoc) window.submitNewAdHoc(); 
-          return; 
-      }
-      if (t.id === 'btn-add-weekly') { 
-          e.preventDefault(); 
-          if(window.submitWeeklyReport) window.submitWeeklyReport(); 
-          return; 
-      }
-      if (t.id === 'btn-create-user') { 
-          e.preventDefault(); 
-          if(window.submitCreateUser) window.submitCreateUser(); 
-          return; 
-      }
-      if (t.id === 'btn-update-password') { 
-          e.preventDefault(); 
-          if(window.submitUpdatePassword) window.submitUpdatePassword(); 
-          return; 
-      }
-      t = t.parentNode;
+  const target = e.target;
+  const btnLogin = target.closest("#btn-login");
+  if (btnLogin) { 
+      e.preventDefault(); 
+      if(window.submitLogin) window.submitLogin(); 
+      return; 
+  }
+  const btnLogout = target.closest("#btn-logout");
+  if (btnLogout) { 
+      e.preventDefault(); 
+      signOut(auth); 
+      return; 
+  }
+  const btnToggleEdit = target.closest("#btn-toggle-edit-mode");
+  if (btnToggleEdit) { 
+      e.preventDefault(); 
+      if(window.toggleEditMode) window.toggleEditMode(); 
+      return; 
+  }
+  const btnToggleCreate = target.closest("#btn-toggle-create");
+  if (btnToggleCreate) { 
+      e.preventDefault(); 
+      if(window.toggleCreateProject) window.toggleCreateProject(); 
+      return; 
+  }
+  const btnAddProject = target.closest("#btn-add-project");
+  if (btnAddProject) { 
+      e.preventDefault(); 
+      if(window.submitNewProject) window.submitNewProject(); 
+      return; 
+  }
+  const btnAddAdhoc = target.closest("#btn-add-adhoc");
+  if (btnAddAdhoc) { 
+      e.preventDefault(); 
+      if(window.submitNewAdHoc) window.submitNewAdHoc(); 
+      return; 
+  }
+  const btnAddWeekly = target.closest("#btn-add-weekly");
+  if (btnAddWeekly) { 
+      e.preventDefault(); 
+      if(window.submitWeeklyReport) window.submitWeeklyReport(); 
+      return; 
+  }
+  const btnCreateUser = target.closest("#btn-create-user");
+  if (btnCreateUser) { 
+      e.preventDefault(); 
+      if(window.submitCreateUser) window.submitCreateUser(); 
+      return; 
+  }
+  const btnUpdatePwd = target.closest("#btn-update-password");
+  if (btnUpdatePwd) { 
+      e.preventDefault(); 
+      if(window.submitUpdatePassword) window.submitUpdatePassword(); 
+      return; 
   }
 });
 
 // ==========================================
-// 🚀 核心與共用函式區
-// ==========================================
-function getTodayStr() {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-}
-
-function getUserDept(uid) {
-    if (!uid) return "設計部";
-    if (uid === auth.currentUser?.uid) return currentUserData.dept || "設計部";
-    const u = allUsersList.find(x => x.uid === uid);
-    return u ? (u.dept || "設計部") : "設計部";
-}
-
-let renderTimer = null;
-window.triggerRenderProjects = () => {
-  if (renderTimer) clearTimeout(renderTimer);
-  renderTimer = setTimeout(() => {
-      if (auth.currentUser && window.renderProjects) window.renderProjects();
-  }, 150); 
-};
-
-// ==========================================
-// 🚀 UI 介面與按鈕安全注入
+// 🚀 核心 UI 與介面注入
 // ==========================================
 window.initDynamicUI = () => {
   if (document.getElementById('filter-all')) return; 
@@ -221,6 +201,8 @@ window.initDynamicUI = () => {
     };
     btnWrapper.insertBefore(sel, btnWrapper.firstChild);
   }
+
+  window.injectTemplateModal();
 };
 
 window.injectTemplateUI = () => {
@@ -286,7 +268,137 @@ window.injectTemplateModal = () => {
 };
 
 // ==========================================
-// 🚀 頂層操作方法 (綁定至 window 以供 HTML 呼叫)
+// 🚀 Auth 身份驗證與資料啟動器 (解決資料空白問題的核心)
+// ==========================================
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    const authSec = document.getElementById("auth-section");
+    if(authSec) authSec.style.display = "none";
+    const appSec = document.getElementById("app-section");
+    if(appSec) appSec.style.display = "flex";
+    
+    viewingUserId = user.uid;
+
+    try {
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (userDoc.exists()) {
+        currentUserData = userDoc.data();
+        if (!currentUserData.email && user.email) {
+            currentUserData.email = user.email;
+            await updateDoc(doc(db, "users", user.uid), { email: user.email });
+        }
+      } else {
+        currentUserData = { name: user.email ? user.email.split('@')[0] : "User", email: user.email || "", dept: "設計部", role: "admin", canEdit: false };
+        await setDoc(doc(db, "users", user.uid), currentUserData, { merge: true });
+      }
+    } catch (e) { 
+      currentUserData = { name: user.email ? user.email.split('@')[0] : "User", email: user.email || "", dept: "設計部", role: "admin", canEdit: false }; 
+    }
+    
+    const displayName = currentUserData.name || (currentUserData.email ? currentUserData.email.split('@')[0] : "User");
+    const nameEl = document.getElementById("user-display-name");
+    if (nameEl) nameEl.innerText = displayName;
+    
+    const avaEl = document.getElementById("user-avatar");
+    if (avaEl) avaEl.innerText = displayName.charAt(0).toUpperCase();
+    
+    const roleEl = document.getElementById("user-role-badge");
+    if (roleEl) roleEl.innerText = roleNames[currentUserData.role] || (currentUserData.role || "STAFF").toUpperCase();
+
+    const navOrg = document.getElementById("nav-org-manage");
+    const navDiv = document.getElementById("nav-divider-org");
+    if (currentUserData.role === "admin") {
+      if(navOrg) navOrg.style.display = "flex"; 
+      if(navDiv) navDiv.style.display = "block"; 
+    } else {
+      if(navOrg) navOrg.style.display = "none"; 
+      if(navDiv) navDiv.style.display = "none"; 
+    }
+
+    const navSub = document.getElementById('nav-sub-wrapper');
+    if (currentUserData.role !== 'staff') { 
+      if(navSub) navSub.style.display = 'block'; 
+    } else {
+      if(navSub) navSub.style.display = 'none';
+    }
+
+    window.initDynamicUI();
+    window.initWeeklyDateAndLeave(); 
+    window.addTaskRow(); 
+    window.addWeeklyRow(); 
+    
+    // 🔥 這是最關鍵的資料通道啟動，確保所有專案/人員讀取正常
+    window.setupDataListeners(user.uid);
+
+  } else {
+    const authSec = document.getElementById("auth-section");
+    if(authSec) authSec.style.display = "flex"; 
+    const appSec = document.getElementById("app-section");
+    if(appSec) appSec.style.display = "none";
+    
+    if (renderTimer) clearTimeout(renderTimer);
+    firebaseUnsubscribers.forEach(unsub => unsub());
+    firebaseUnsubscribers = [];
+  }
+});
+
+// 🚀 單一通道抓取所有資料，絕對不打結
+window.setupDataListeners = function(uid) {
+  firebaseUnsubscribers.forEach(unsub => unsub());
+  firebaseUnsubscribers = [];
+
+  // 1. 抓取人員清單
+  firebaseUnsubscribers.push(onSnapshot(collection(db, "users"), (snapshot) => {
+    allUsersList = [];
+    snapshot.forEach(docSnap => allUsersList.push({ uid: docSnap.id, ...docSnap.data() }));
+    if (currentUserData.role !== 'staff') window.renderSidebarSubordinates();
+    if (currentUserData.role === 'admin') window.renderOrgUsersTable();
+    window.triggerRenderProjects();
+  }));
+
+  // 2. 抓取專案模板
+  firebaseUnsubscribers.push(onSnapshot(doc(db, "settings", "project_templates"), (docSnap) => {
+    if (docSnap.exists() && Object.keys(docSnap.data()).length > 0) {
+      projectTemplates = { ...projectTemplates, ...docSnap.data() };
+    }
+    window.renderTemplateSelect();
+  }));
+
+  // 3. 抓取主專案
+  firebaseUnsubscribers.push(onSnapshot(query(collection(db, "projects")), (snapshot) => {
+    allProjectsData = []; 
+    snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
+    window.triggerRenderProjects(); 
+    window.refreshAllWeeklyProjSelects();
+  }));
+
+  // 4. 抓取插單事件
+  firebaseUnsubscribers.push(onSnapshot(query(collection(db, "ad_hoc_events")), (snapshot) => {
+    allAdHocData = []; 
+    snapshot.forEach(docSnap => allAdHocData.push({ id: docSnap.id, ...docSnap.data() })); 
+    window.renderAdHocEvents(); 
+    window.triggerRenderProjects();
+  }));
+
+  // 5. 抓取週報
+  firebaseUnsubscribers.push(onSnapshot(query(collection(db, "weekly_reports")), (snapshot) => {
+    allWeeklyData = []; 
+    snapshot.forEach(docSnap => allWeeklyData.push({ id: docSnap.id, ...docSnap.data() })); 
+    window.renderWeeklyReports(); 
+    window.refreshAllWeeklyProjSelects();
+  }));
+
+  // 6. 抓取行事曆
+  firebaseUnsubscribers.push(onSnapshot(query(collection(db, "calendar_todos"), where("ownerId", "==", uid)), (snapshot) => {
+    myCalendarTodos = [];
+    snapshot.forEach(docSnap => myCalendarTodos.push({ id: docSnap.id, ...docSnap.data() }));
+    window.renderCalendar();
+    if (activeCalDateStr) window.renderCalTodosModal(activeCalDateStr);
+  }));
+};
+
+// ==========================================
+// 🚀 全域函式掛載區 (防止 HTML 找不到函數而報錯)
 // ==========================================
 window.submitLogin = async () => {
   const email = document.getElementById("login-email")?.value.trim();
@@ -373,13 +485,14 @@ window.checkEditModeVisibility = () => {
   if (!btn || !auth.currentUser) return;
 
   let shouldShow = false;
+
   if (currentUserData.role === 'admin' || currentUserData.canEdit) {
     shouldShow = true;
   } else {
     if (selectedProjectId !== 'SUMMARY') {
       const p = allProjectsData.find(x => x.id === selectedProjectId);
       if (p) {
-        const ownerDept = getUserDept(p.ownerId);
+        const ownerDept = window.getUserDept ? window.getUserDept(p.ownerId) : getUserDept(p.ownerId);
         const isOwnerDept = (currentUserData.dept === ownerDept);
         const inGrace = window.isWithin7DaysGracePeriod ? window.isWithin7DaysGracePeriod(p) : false;
 
@@ -462,7 +575,7 @@ window.calculateEndDateByDays = (startDateStr, days) => {
       added++;
     }
   }
-  return formatDateSafe(curDate);
+  return window.formatDateSafe ? window.formatDateSafe(curDate) : formatDateSafe(curDate);
 };
 
 window.getNextWorkingDayStr = (dateStr) => {
@@ -473,13 +586,14 @@ window.getNextWorkingDayStr = (dateStr) => {
   return d.toISOString().split('T')[0];
 };
 
-function formatDateSafe(dateObj) { 
+window.formatDateSafe = (dateObj) => { 
   const y = dateObj.getFullYear(); 
   const m = String(dateObj.getMonth() + 1).padStart(2, '0'); 
   const d = String(dateObj.getDate()).padStart(2, '0'); 
   return `${y}-${m}-${d}`; 
-}
+};
 
+// 🚀 瀑布流自動推算
 window.cascadeDates = () => {
    const modeRadio = document.querySelector('input[name="tpl_mode"]:checked');
    if (!modeRadio || modeRadio.value !== 'seq') return;
@@ -612,7 +726,7 @@ window.renderTemplateSelect = () => {
 
 window.openTemplateEditModal = () => {
   const tplId = document.getElementById("tpl-select")?.value;
-  if (!tplId) return alert("請先從下拉選單中選擇一個模板！");
+  if (!tplId) return alert("請先從左側選單中選擇一個模板！");
   
   const tpl = projectTemplates[tplId] || projectTemplates[String(tplId)] || { name: `自訂模板 ${tplId}`, tasks: [] };
   document.getElementById("tpl-edit-id").value = tplId;
@@ -676,7 +790,7 @@ window.saveTemplate = async () => {
   try {
     await setDoc(doc(db, "settings", "project_templates"), projectTemplates, { merge: true });
   } catch (e) {
-    console.log("儲存至本機快取:", e);
+    console.log("寫入資料庫失敗，已儲存至暫存快取");
   }
   window.renderTemplateSelect();
   window.closeTemplateEditModal();
@@ -732,138 +846,6 @@ window.applyTemplate = () => {
   window.checkCascade();
 };
 
-window.loadTemplates = () => {
-  onSnapshot(doc(db, "settings", "project_templates"), (docSnap) => {
-    if (docSnap.exists() && Object.keys(docSnap.data()).length > 0) {
-      projectTemplates = { ...projectTemplates, ...docSnap.data() };
-    }
-    window.renderTemplateSelect();
-  }, (err) => {
-    window.renderTemplateSelect();
-  });
-};
-
-function scrollToTodayMinus2Days(ganttInst, containerSelector) {
-  const wrapper = document.querySelector(containerSelector);
-  if (!wrapper) return;
-
-  [80, 200].forEach(delay => {
-    setTimeout(() => {
-      const scrollElement = wrapper.querySelector('.gantt-container') || wrapper;
-      const svg = wrapper.querySelector('.gantt');
-      if (!scrollElement || !svg) return;
-
-      let todayIndex = -1;
-      const today = new Date();
-      today.setHours(0,0,0,0);
-
-      if (ganttInst && ganttInst.dates) {
-        ganttInst.dates.forEach((d, idx) => {
-          const checkD = new Date(d);
-          checkD.setHours(0,0,0,0);
-          if (checkD.getTime() === today.getTime() && todayIndex === -1) {
-            todayIndex = idx;
-          }
-        });
-      }
-
-      let colWidth = (ganttInst && ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
-      const firstTick = svg.querySelector('.tick');
-      if (firstTick) {
-        const w = parseFloat(firstTick.getAttribute('width'));
-        if (!isNaN(w) && w > 0) colWidth = w;
-      }
-
-      let targetScrollLeft = 0;
-      if (todayIndex !== -1) {
-        targetScrollLeft = Math.max(0, (todayIndex - 2) * colWidth);
-      } else {
-        const todayHighlight = svg.querySelector('.today-highlight') || svg.querySelector('.current-date-highlight');
-        if (todayHighlight) {
-          const x = parseFloat(todayHighlight.getAttribute('x'));
-          if (!isNaN(x)) {
-            targetScrollLeft = Math.max(0, x - (colWidth * 2));
-          }
-        }
-      }
-
-      scrollElement.scrollLeft = targetScrollLeft;
-      if (scrollElement !== wrapper) wrapper.scrollLeft = targetScrollLeft;
-    }, delay);
-  });
-}
-
-function patchGanttVisuals(ganttInst, containerSelector) {
-  if (!ganttInst || !ganttInst.dates || ganttInst.dates.length === 0) return;
-  const wrapper = document.querySelector(containerSelector);
-  if (!wrapper) return;
-  const svg = wrapper.querySelector('.gantt');
-  if (!svg) return;
-
-  const lowerTexts = Array.from(svg.querySelectorAll('.lower-text'));
-  const dayTicks = Array.from(svg.querySelectorAll('.tick')).filter(t => !t.classList.contains('thick'));
-
-  ganttInst.dates.forEach((date, i) => {
-    if (i < lowerTexts.length) {
-      const dStr = String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
-      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-      const isHoliday = !!taiwanHolidayMap[dStr];
-
-      if (isWeekend || isHoliday) {
-        lowerTexts[i].style.fill = '#ef4444'; 
-        lowerTexts[i].style.fontWeight = 'bold';
-        if (i < dayTicks.length) dayTicks[i].style.fill = 'rgba(239, 68, 68, 0.08)';
-      }
-    }
-  });
-
-  const scrollElement = wrapper.querySelector('.gantt-container') || wrapper;
-  const upperTexts = Array.from(svg.querySelectorAll('.upper-text'));
-  const colWidth = (ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
-
-  const updateStickyMonthHeader = () => {
-    const currentScrollLeft = scrollElement.scrollLeft;
-    const currentDayIndex = Math.min(
-      ganttInst.dates.length - 1,
-      Math.max(0, Math.floor(currentScrollLeft / colWidth))
-    );
-
-    const visibleDate = ganttInst.dates[currentDayIndex];
-    if (!visibleDate || upperTexts.length === 0) return;
-
-    const yyyy = visibleDate.getFullYear();
-    const mm = visibleDate.getMonth() + 1;
-    const currentHeaderStr = `${yyyy}年 ${mm}月`;
-
-    upperTexts.forEach((el, idx) => {
-      if (idx === 0) {
-        el.textContent = currentHeaderStr;
-        el.setAttribute('x', currentScrollLeft + 16);
-        el.setAttribute('text-anchor', 'start');
-        el.style.textAnchor = 'start';
-        el.style.fontWeight = '700';
-        el.style.fill = 'var(--primary)';
-        el.style.display = 'block';
-      } else {
-        const origX = parseFloat(el.getAttribute('data-orig-x') || el.getAttribute('x'));
-        if (!el.getAttribute('data-orig-x')) el.setAttribute('data-orig-x', origX);
-        if (origX < currentScrollLeft + 120) {
-          el.style.display = 'none';
-        } else {
-          el.style.display = 'block';
-        }
-      }
-    });
-  };
-
-  scrollElement.removeEventListener('scroll', scrollElement._ganttScrollHandler);
-  scrollElement._ganttScrollHandler = updateStickyMonthHeader;
-  scrollElement.addEventListener('scroll', updateStickyMonthHeader);
-
-  updateStickyMonthHeader();
-  scrollToTodayMinus2Days(ganttInst, containerSelector);
-}
-
 window.renderProjects = () => {
   if (!auth.currentUser) return;
   window.checkEditModeVisibility();
@@ -896,7 +878,7 @@ window.renderProjects = () => {
 
   allInvolvedProjects.forEach(p => {
     let relevantTasks = [];
-    const ownerDept = getUserDept(p.ownerId);
+    const ownerDept = window.getUserDept ? window.getUserDept(p.ownerId) : getUserDept(p.ownerId);
     const isOwnerDept = (targetDept === ownerDept); 
 
     if (isOwnerDept) {
@@ -1044,7 +1026,7 @@ window.renderProjects = () => {
     let sIdx = 0;
 
     activeList.forEach(p => {
-      const ownerDept = getUserDept(p.ownerId);
+      const ownerDept = window.getUserDept ? window.getUserDept(p.ownerId) : getUserDept(p.ownerId);
       const isOwnerDept = (targetDept === ownerDept); 
       let relevantTasks = isOwnerDept ? p.tasks : (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
       let tasksForTimeline = relevantTasks.length > 0 ? relevantTasks : (p.tasks || []); 
@@ -1151,8 +1133,8 @@ window.renderProjects = () => {
             summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { 
               view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true 
             });
-            patchGanttVisuals(summaryGanttInstance, '#gantt-chart-summary-container');
-            scrollToTodayMinus2Days(summaryGanttInstance, '#gantt-chart-summary-container'); 
+            window.patchGanttVisuals(summaryGanttInstance, '#gantt-chart-summary-container');
+            window.scrollToTodayMinus2Days(summaryGanttInstance, '#gantt-chart-summary-container'); 
           }, 30); 
       }
     } else { 
@@ -1170,7 +1152,7 @@ window.renderProjects = () => {
   const activeProj = activeList.find(p => p.id === selectedProjectId);
   if (!activeProj) return; 
 
-  const ownerDept = getUserDept(activeProj.ownerId);
+  const ownerDept = window.getUserDept ? window.getUserDept(activeProj.ownerId) : getUserDept(activeProj.ownerId);
   const isProjOwnerDept = (currentUserData.dept === ownerDept); 
   const isProjOwner = (activeProj.ownerId === auth.currentUser.uid);
   
@@ -1223,7 +1205,7 @@ window.renderProjects = () => {
   const ganttTasks = [];
   (activeProj.tasks || []).forEach((task, index) => {
     const currentProgress = task.progress || 0;
-    const workDays = getWorkingDays(task.start, task.end);
+    const workDays = window.getWorkingDays(task.start, task.end);
     
     const isCollabTask = task.assigneeId && (task.assigneeId !== activeProj.ownerId);
     let projColorClass = isCollabTask ? 'bar-pink' : (activeProj.color || 'bar-primary');
@@ -1312,75 +1294,14 @@ window.renderProjects = () => {
           ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
             view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true 
           });
-          patchGanttVisuals(ganttInstance, '#gantt-chart-container');
-          scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container'); 
+          window.patchGanttVisuals(ganttInstance, '#gantt-chart-container');
+          window.scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container'); 
         }, 50); 
     }
   } else {
     lastDetailGanttState = "";
     chartContainer.innerHTML = '';
   }
-};
-
-window.submitNewProject = async () => {
-  const title = document.getElementById("proj-name")?.value.trim();
-  const color = document.getElementById("proj-color")?.value;
-  if (!title) return alert("請填寫主專案名稱！");
-
-  const collabCheckboxes = document.querySelectorAll('input[name="collab_dept"]:checked');
-  const collaborators = Array.from(collabCheckboxes).map(cb => cb.value);
-
-  const taskRows = document.querySelectorAll('.task-row'); 
-  const tasks = [];
-  const todayStr = getTodayStr(); 
-  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
-  const myName = currentUserData.name || auth.currentUser?.email.split('@')[0];
-
-  for (let row of taskRows) {
-    const name = row.querySelector('.task-name')?.value.trim(); 
-    const start = row.querySelector('.task-start')?.value; 
-    const end = row.querySelector('.task-end')?.value;
-    if (!name || !start || !end) return alert("任務細項不可有空白欄位！");
-    if (start > end) return alert(`任務 [${name}] 的起始日不可大於完成日！`);
-    let passedDays = 0; 
-    if (todayStr >= start) passedDays = getWorkingDays(start, todayStr);
-    tasks.push({ 
-      name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
-      assigneeId: auth.currentUser.uid,
-      assigneeName: myName,
-      createdAt: Date.now(), 
-      history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '專案建立' }] 
-    });
-  }
-  
-  const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, uid: auth.currentUser.uid };
-  const ownerNameToSave = targetUser.name || currentUserData.name;
-
-  const docRef = await addDoc(collection(db, "projects"), { 
-    title, color, collaborators, ownerId: viewingUserId, ownerName: ownerNameToSave, 
-    tasks: tasks, createdAt: serverTimestamp() 
-  });
-
-  alert("🎉 新專案已成功建立！您享有 7 天免解鎖自由編輯期。");
-
-  const pName = document.getElementById("proj-name");
-  if(pName) pName.value = ""; 
-  
-  const tList = document.getElementById("task-list-container");
-  if(tList) tList.innerHTML = ""; 
-  
-  window.addTaskRow(); 
-  
-  const cSec = document.getElementById('create-project-section');
-  if(cSec) cSec.style.display = 'none';
-  
-  currentFilter = 'ongoing';
-  document.querySelectorAll('.kpi-card').forEach(el => el.classList.remove('active'));
-  const fo = document.getElementById('filter-ongoing');
-  if(fo) fo.classList.add('active');
-  
-  selectedProjectId = docRef.id;
-  window.triggerRenderProjects(); 
 };
 
 window.renderAdHocEvents = () => {
@@ -1416,100 +1337,6 @@ window.renderAdHocEvents = () => {
       <td style="white-space: nowrap; width: 1%;">${actionHtml}${editHtml}${delHtml}</td>
     `; 
     tbody.appendChild(tr);
-  });
-};
-
-window.submitNewAdHoc = async () => {
-  const title = document.getElementById("adhoc-title")?.value.trim(); 
-  const reason = document.getElementById("adhoc-reason")?.value.trim(); 
-  const start = document.getElementById("adhoc-start")?.value;
-  if (!title || !reason || !start) return alert("請填寫完整名稱、開始日期與原因！");
-  
-  const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name };
-  await addDoc(collection(db, "ad_hoc_events"), { 
-    ownerId: viewingUserId, 
-    ownerName: targetUser.name || '', 
-    title, reason, startDate: start, startDateTime: new Date().toLocaleString(), isCompleted: false, createdAt: serverTimestamp() 
-  });
-  
-  const atitle = document.getElementById("adhoc-title");
-  if(atitle) atitle.value = ""; 
-  const areason = document.getElementById("adhoc-reason");
-  if(areason) areason.value = ""; 
-  const astart = document.getElementById("adhoc-start");
-  if(astart) astart.value = ""; 
-  alert("事件紀錄完成！");
-};
-
-window.initWeeklyDateAndLeave = () => {
-  const dateInput = document.getElementById("rep-date");
-  const container = document.getElementById("leave-options-container");
-  if (!dateInput || !container) return;
-
-  const today = new Date();
-  const days = ['日', '一', '二', '三', '四', '五', '六'];
-  const day = today.getDay(); 
-  
-  dateInput.value = `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()} (${days[day]})`; 
-
-  const dStr = String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-  
-  const tmr = new Date(today);
-  tmr.setDate(today.getDate() + 1);
-  const tmrDay = tmr.getDay();
-  const tmrStr = String(tmr.getMonth() + 1).padStart(2, '0') + '-' + String(tmr.getDate()).padStart(2, '0');
-
-  const isTodayHoliday = !!taiwanHolidayMap[dStr];
-  const isTmrHoliday = !!taiwanHolidayMap[tmrStr];
-  const isTmrWeekend = (tmrDay === 0 || tmrDay === 6);
-
-  if (day >= 1 && day <= 4 && !isTodayHoliday && !isTmrHoliday && !isTmrWeekend) {
-    container.style.display = "flex";
-  } else {
-    container.style.display = "none";
-    document.querySelectorAll('input[name="leave_type"]').forEach(r => r.checked = false);
-    const or = document.getElementById('leave-other-reason');
-    if(or) {
-      or.style.display = 'none';
-      or.value = '';
-    }
-  }
-};
-
-window.populateWeeklyProjSelect = (selectElem) => {
-  selectElem.innerHTML = '<option value="">-- 請選擇主專案 --</option>';
-  const myProjs = allProjectsData.filter(p => p.ownerId === viewingUserId);
-  const availableProjs = myProjs.filter(p => window.getAvailableTasks(p.id).length > 0);
-  availableProjs.forEach(p => { selectElem.innerHTML += `<option value="${p.id}">${p.title}</option>`; });
-};
-
-window.updateWeeklyTaskSelect = (selectElem) => {
-  const taskSelect = selectElem.parentElement.querySelector('.weekly-task-select');
-  if(!taskSelect) return;
-  taskSelect.innerHTML = '<option value="">-- 請選擇細項 --</option>';
-  const projId = selectElem.value;
-  if(!projId) return;
-  const availableTasks = window.getAvailableTasks(projId);
-  availableTasks.forEach(t => { taskSelect.innerHTML += `<option value="${t.index}">${t.name}</option>`; });
-};
-
-window.addWeeklyRow = () => {
-  const container = document.getElementById("weekly-items-container");
-  if(!container) return;
-  const div = document.createElement('div'); 
-  div.className = "weekly-item-row"; 
-  div.style.cssText = "display:flex; gap:16px; margin-bottom:12px; align-items:flex-start; border: 1px solid var(--border-light); padding: 14px; border-radius: 8px; background: #fafafa;";
-  div.innerHTML = `<div style="flex:1; display:flex; flex-direction:column; gap:10px; border-right: 1px dashed var(--border); padding-right:16px;"><select class="input-control weekly-proj-select" onchange="window.updateWeeklyTaskSelect(this)" style="background:#fff;"></select><select class="input-control weekly-task-select" style="background:#fff;"><option value="">-- 請先選擇主專案 --</option></select></div><div style="flex:2.5;"><textarea class="input-control weekly-content" rows="3" placeholder="請填寫此任務的進度說明..." style="background:#fff;"></textarea></div><button class="action-btn danger" onclick="this.parentElement.remove()" style="padding: 10px; margin-left: 8px;">X</button>`;
-  container.appendChild(div); 
-  window.populateWeeklyProjSelect(div.querySelector('.weekly-proj-select'));
-};
-
-window.refreshAllWeeklyProjSelects = () => {
-  const selects = document.querySelectorAll('.weekly-proj-select');
-  selects.forEach(sel => { 
-    const currentVal = sel.value; 
-    window.populateWeeklyProjSelect(sel); 
-    sel.value = currentVal; 
   });
 };
 
@@ -1554,143 +1381,213 @@ window.renderWeeklyReports = () => {
   });
 };
 
-window.submitWeeklyReport = async () => {
-  try {
-    const today = new Date();
-    const days = ['日', '一', '二', '三', '四', '五', '六'];
-    let dateStr = document.getElementById("rep-date")?.value || `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()} (${days[today.getDay()]})`; 
-
-    let leaveType = "";
-    let leaveReason = "";
-    const leaveContainer = document.getElementById("leave-options-container");
-    
-    if (leaveContainer && leaveContainer.style.display === "flex") {
-      const checked = document.querySelector('input[name="leave_type"]:checked');
-      if (!checked) return alert("【注意】星期一至四提交週報，請務必勾選右側的請假或其他原因！");
-      leaveType = checked.value;
-      if (leaveType === "other") {
-        leaveReason = document.getElementById("leave-other-reason")?.value.trim();
-        if (!leaveReason) return alert("請填寫「其他」選項的理由說明！");
-      }
+window.renderOrgUsersTable = () => {
+  const tbody = document.getElementById("user-list-tbody"); 
+  const supervisorSelect = document.getElementById("new-user-supervisor");
+  if (tbody) tbody.innerHTML = ""; 
+  if (supervisorSelect) supervisorSelect.innerHTML = '<option value="">-- 無 --</option>'; 
+  
+  allUsersList.forEach(user => {
+    if (supervisorSelect && ["top_manager", "manager", "assistant_manager"].includes(user.role)) {
+      supervisorSelect.innerHTML += `<option value="${user.uid}">${user.name} (${roleNames[user.role] || user.role})</option>`;
     }
+  });
 
-    const rows = document.querySelectorAll('.weekly-item-row'); 
-    const items = [];
-    let hasIncomplete = false;
-
-    rows.forEach(r => {
-      const pSel = r.querySelector('.weekly-proj-select'); 
-      const tSel = r.querySelector('.weekly-task-select'); 
-      const content = r.querySelector('.weekly-content')?.value.trim();
-      
-      if (pSel?.value || tSel?.value || content) {
-        if (pSel?.value && tSel?.value && content) {
-          items.push({ projectId: pSel.value, projectName: pSel.options[pSel.selectedIndex].text, taskId: tSel.value, taskName: tSel.options[tSel.selectedIndex].text, content: content });
-        } else {
-          hasIncomplete = true;
-        }
+  if (tbody) {
+    let currentDeptGroup = "";
+    allUsersList.forEach(u => {
+      const uDept = u.dept || "設計部";
+      if (uDept !== currentDeptGroup) {
+        currentDeptGroup = uDept;
+        const deptTr = document.createElement("tr");
+        deptTr.innerHTML = `<td colspan="7" style="background: #f1f5f9; font-weight: 700; color: #334155; padding: 10px 16px;">🏢 ${currentDeptGroup}</td>`;
+        tbody.appendChild(deptTr);
       }
+
+      const supUser = allUsersList.find(x => x.uid === u.supervisorId); 
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td style="text-align: center;">
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer;">
+            <input type="checkbox" onchange="window.toggleUserEditPermission('${u.uid}', this.checked)" ${u.canEdit ? 'checked' : ''} ${currentUserData.role === 'admin' ? '' : 'disabled'}>
+            <span style="font-size:12px;">開放</span>
+          </label>
+        </td>
+        <td><strong>${u.name || '未命名'}</strong></td>
+        <td>${u.email || '-'}</td>
+        <td><span class="pill" style="background:#f1f5f9; color:#334155;">${u.dept || '設計部'}</span></td>
+        <td><span class="pill pill-role">${roleNames[u.role] || u.role}</span></td>
+        <td>${supUser ? `${supUser.name}` : "-"}</td>
+        <td>
+          <button class="action-btn" onclick="window.openEditModal('${u.uid}')" style="margin-right:4px;">編輯</button>
+          <button class="action-btn" onclick="window.resetUserPassword('${u.email}')" style="margin-right:4px;">重設密碼</button>
+          <button class="action-btn" onclick="window.rescueUserProjects('${u.uid}', '${u.name}')" style="margin-right:4px; border-color:#f59e0b; color:#f59e0b;" title="找回建立錯ID的資料">找回資料</button>
+          ${u.uid !== auth.currentUser?.uid ? `<button class="action-btn danger" onclick="window.deleteUserDoc('${u.uid}', '${u.name}')">刪除</button>` : ''}
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  if (document.getElementById("org-chart-view-container")) window.renderOrgChart();
+};
+
+window.renderOrgChart = () => {
+  const container = document.getElementById("org-chart-view-container");
+  if (!container) return;
+  container.innerHTML = "";
+
+  const mainWrapper = document.createElement("div");
+  mainWrapper.className = "org-dept-container";
+
+  const roleTiers = [
+    { key: "manager", label: "👔 部門主管", roles: ["manager", "top_manager", "admin"] },
+    { key: "assistant_manager", label: "💼 副主管", roles: ["assistant_manager"] },
+    { key: "staff", label: "👥 部門人員", roles: ["staff"] }
+  ];
+
+  departmentList.forEach(dept => {
+    const deptUsers = allUsersList.filter(u => (u.dept || "設計部") === dept);
+    if (deptUsers.length === 0) return;
+
+    let tierHtml = "";
+    roleTiers.forEach(tier => {
+      const tierMembers = deptUsers.filter(u => tier.roles.includes(u.role));
+      if (tierMembers.length === 0) return;
+
+      let memberCardsHtml = "";
+      tierMembers.forEach(u => {
+        const supUser = allUsersList.find(x => x.uid === u.supervisorId);
+        const isMgr = tier.key === "manager";
+        const supText = supUser ? `直屬: ${supUser.name}` : "直屬: 無";
+
+        memberCardsHtml += `
+          <div class="org-user-card ${isMgr ? 'is-mgr' : ''}" onclick="window.openEditModal('${u.uid}')" title="點擊編輯 ${u.name || '人員'} 的資訊">
+            <div class="org-card-avatar-sm ${isMgr ? 'mgr' : ''}">${(u.name || 'U').charAt(0).toUpperCase()}</div>
+            <div class="org-card-text">
+              <div class="org-card-user-name">${u.name || '未命名'} <small style="font-weight:normal; color:#64748b;">(${roleNames[u.role] || u.role})</small></div>
+              <div class="org-card-sup-name">${supText}</div>
+            </div>
+          </div>
+        `;
+      });
+
+      tierHtml += `
+        <div class="org-role-tier">
+          <div class="org-role-label">${tier.label}</div>
+          <div class="org-member-cards">${memberCardsHtml}</div>
+        </div>
+      `;
     });
 
-    if (hasIncomplete) return alert("您有填寫到一半的進度項目，請確認填寫完整 (包含專案、細項與說明)，或將該列的文字清空/刪除！");
-    
-    if (items.length === 0 && !leaveType) {
-      return alert("請完整填寫至少一項任務進度說明！");
-    }
+    const deptBlock = document.createElement("div");
+    deptBlock.className = "org-dept-block";
+    deptBlock.innerHTML = `
+      <div class="org-dept-header">
+        <div class="org-dept-title">
+          <span style="font-size:16px;">🏢</span>
+          <span>${dept}</span>
+        </div>
+        <span style="font-size:12px; font-weight:600; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:12px;">共 ${deptUsers.length} 人</span>
+      </div>
+      <div class="org-hierarchy-grid">
+        ${tierHtml}
+      </div>
+    `;
+    mainWrapper.appendChild(deptBlock);
+  });
+  container.appendChild(mainWrapper);
+};
 
-    const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, supervisorId: null };
-    const supervisorId = targetUser.supervisorId || null; 
-    const currentOwnerId = viewingUserId || auth.currentUser?.uid;
+window.renderCalendar = () => {
+  const grid = document.getElementById("calendar-grid");
+  if (!grid) return;
+  grid.innerHTML = "";
 
-    await addDoc(collection(db, "weekly_reports"), { 
-      ownerId: currentOwnerId, 
-      ownerName: targetUser.name || '', 
-      ownerSupervisorId: supervisorId, 
-      reportDate: dateStr, 
-      items: items, 
-      leaveType: leaveType || "", 
-      leaveReason: leaveReason || "",
-      createdAt: serverTimestamp(), 
-      supervisorNoted: false, 
-      topManagerNoted: false 
-    });
-    
-    const projectUpdates = {};
-    for (let item of items) {
-      const p = allProjectsData.find(x => x.id === item.projectId);
-      if (p) {
-        const tIndex = parseInt(item.taskId);
-        if (p.tasks[tIndex] && p.tasks[tIndex].isCompleted && !p.tasks[tIndex].reportedCompleted) {
-          if (!projectUpdates[p.id]) projectUpdates[p.id] = [...p.tasks];
-          projectUpdates[p.id][tIndex].reportedCompleted = true;
-        }
-      }
-    }
-    for (let pId in projectUpdates) await updateDoc(doc(db, "projects", pId), { tasks: projectUpdates[pId] });
-    
-    window.initWeeklyDateAndLeave(); 
-    const wContainer = document.getElementById("weekly-items-container");
-    if(wContainer) wContainer.innerHTML = ""; 
-    window.addWeeklyRow(); 
-    alert("週報已成功送出！在主管未閱讀前，您有 2 天修改寬限期。");
-    
-  } catch (err) {
-    console.error("送出週報錯誤：", err);
-    alert("發生系統錯誤導致無法送出：" + err.message);
+  const firstDayIndex = new Date(calCurrentYear, calCurrentMonth, 1).getDay();
+  const lastDate = new Date(calCurrentYear, calCurrentMonth + 1, 0).getDate();
+  const prevMonthLastDate = new Date(calCurrentYear, calCurrentMonth, 0).getDate();
+
+  const today = new Date();
+  const todayStr = window.getTodayStr ? window.getTodayStr() : getTodayStr();
+
+  for (let i = firstDayIndex - 1; i >= 0; i--) {
+    const dNum = prevMonthLastDate - i;
+    const prevM = calCurrentMonth === 0 ? 12 : calCurrentMonth;
+    const prevY = calCurrentMonth === 0 ? calCurrentYear - 1 : calCurrentYear;
+    const dStr = `${prevY}-${String(prevM).padStart(2, '0')}-${String(dNum).padStart(2, '0')}`;
+    grid.appendChild(window.createCalCellNode(dNum, dStr, true, todayStr, myCalendarTodos));
+  }
+
+  for (let d = 1; d <= lastDate; d++) {
+    const dStr = `${calCurrentYear}-${String(calCurrentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    grid.appendChild(window.createCalCellNode(d, dStr, false, todayStr, myCalendarTodos));
+  }
+
+  const totalCells = firstDayIndex + lastDate;
+  const remaining = (7 - (totalCells % 7)) % 7;
+  for (let n = 1; n <= remaining; n++) {
+    const nextM = calCurrentMonth === 11 ? 1 : calCurrentMonth + 2;
+    const nextY = calCurrentMonth === 11 ? calCurrentYear + 1 : calCurrentYear;
+    const dStr = `${nextY}-${String(nextM).padStart(2, '0')}-${String(n).padStart(2, '0')}`;
+    grid.appendChild(window.createCalCellNode(n, dStr, true, todayStr, myCalendarTodos));
   }
 };
 
-window.submitCreateUser = async () => {
-  const name = document.getElementById("new-user-name")?.value.trim(); 
-  const email = document.getElementById("new-user-email")?.value.trim(); 
-  const pass = document.getElementById("new-user-pass")?.value.trim();
-  const dept = document.getElementById("new-user-dept")?.value;
-  const role = document.getElementById("new-user-role")?.value;
-  const supervisorId = document.getElementById("new-user-supervisor")?.value || null;
+window.patchGanttVisuals = patchGanttVisuals;
+window.scrollToTodayMinus2Days = scrollToTodayMinus2Days;
+window.spansYear = spansYear;
+window.isWithin7DaysGracePeriod = isWithin7DaysGracePeriod;
+window.getGraceDaysLeft = getGraceDaysLeft;
+window.getAdHocDateStr = getAdHocDateStr;
+window.getUserDept = getUserDept;
 
-  if (!name || !email || !pass || pass.length < 6) return alert("資料填寫不全或密碼太短！");
-  try {
-    const secApp = initializeApp(firebaseConfig, "Secondary"); 
-    const secAuth = getAuth(secApp);
-    const userCred = await createUserWithEmailAndPassword(secAuth, email, pass); 
-    await signOut(secAuth);
-    await setDoc(doc(db, "users", userCred.user.uid), { 
-      name, email, dept, role, supervisorId, canEdit: false, createdAt: serverTimestamp() 
-    });
-    alert(`人員 ${name} 建立成功！`);
-  } catch (err) { 
-    alert("建立失敗: " + err.message); 
-  }
-};
-
-window.submitUpdatePassword = async () => {
-  const newPass = document.getElementById("profile-new-pass")?.value;
-  const confirmPass = document.getElementById("profile-confirm-pass")?.value;
-
-  if (!newPass || newPass.length < 6) return alert("新密碼至少需要 6 個字元！");
-  if (newPass !== confirmPass) return alert("兩次輸入的密碼不一致！");
-
-  if (!confirm("確定要更改您的登入密碼嗎？")) return;
-
-  try {
-    await updatePassword(auth.currentUser, newPass);
-    alert("✅ 密碼更換成功！下次登入請使用新密碼。");
-    const np = document.getElementById("profile-new-pass");
-    if(np) np.value = "";
-    const cp = document.getElementById("profile-confirm-pass");
-    if(cp) cp.value = "";
-  } catch (error) {
-    if (error.code === 'auth/requires-recent-login') {
-      alert("⚠️ 基於安全考量，更換密碼需要您『最近剛登入過』。\n請先點擊右上角登出，重新使用舊密碼登入後，再嘗試修改密碼！");
-    } else {
-      alert("密碼更換失敗：" + error.message);
-    }
-  }
-};
-
-// 確保其他全域對象也註冊
 Object.assign(window, {
-  getAvailableTasks, loadProjects, getAdHocDateStr, spansYear, isWithin7DaysGracePeriod, getGraceDaysLeft,
+  getAvailableTasks, loadProjects,
+  submitNewProject: async () => {
+    const title = document.getElementById("proj-name")?.value.trim();
+    const color = document.getElementById("proj-color")?.value;
+    if (!title) return alert("請填寫主專案名稱！");
+    const collabCheckboxes = document.querySelectorAll('input[name="collab_dept"]:checked');
+    const collaborators = Array.from(collabCheckboxes).map(cb => cb.value);
+    const taskRows = document.querySelectorAll('.task-row'); 
+    const tasks = [];
+    const todayStr = window.getTodayStr(); 
+    const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+    const myName = currentUserData.name || auth.currentUser?.email.split('@')[0];
+    for (let row of taskRows) {
+      const name = row.querySelector('.task-name')?.value.trim(); 
+      const start = row.querySelector('.task-start')?.value; 
+      const end = row.querySelector('.task-end')?.value;
+      if (!name || !start || !end) return alert("任務細項不可有空白欄位！");
+      if (start > end) return alert(`任務 [${name}] 的起始日不可大於完成日！`);
+      let passedDays = 0; 
+      if (todayStr >= start) passedDays = window.getWorkingDays(start, todayStr);
+      tasks.push({ 
+        name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
+        assigneeId: auth.currentUser.uid, assigneeName: myName, createdAt: Date.now(), 
+        history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '專案建立' }] 
+      });
+    }
+    const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, uid: auth.currentUser.uid };
+    const ownerNameToSave = targetUser.name || currentUserData.name;
+    const docRef = await addDoc(collection(db, "projects"), { 
+      title, color, collaborators, ownerId: viewingUserId, ownerName: ownerNameToSave, tasks: tasks, createdAt: serverTimestamp() 
+    });
+    alert("🎉 新專案已成功建立！您享有 7 天免解鎖自由編輯期。");
+    const pName = document.getElementById("proj-name");
+    if(pName) pName.value = ""; 
+    const tList = document.getElementById("task-list-container");
+    if(tList) tList.innerHTML = ""; 
+    window.addTaskRow(); 
+    const cSec = document.getElementById('create-project-section');
+    if(cSec) cSec.style.display = 'none';
+    currentFilter = 'ongoing';
+    document.querySelectorAll('.kpi-card').forEach(el => el.classList.remove('active'));
+    const fo = document.getElementById('filter-ongoing');
+    if(fo) fo.classList.add('active');
+    selectedProjectId = docRef.id;
+    window.triggerRenderProjects(); 
+  },
   moveActiveProjectTask: async (projId, index, direction) => {
     const proj = allProjectsData.find(p => p.id === projId);
     if (!proj || !proj.tasks) return;
@@ -1708,7 +1605,7 @@ Object.assign(window, {
     const task = proj.tasks[index];
     let taskCreatedTime = task.createdAt || (proj.createdAt && typeof proj.createdAt.toMillis === 'function' ? proj.createdAt.toMillis() : Date.now());
     let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
-    const ownerDept = getUserDept(proj.ownerId);
+    const ownerDept = window.getUserDept(proj.ownerId);
     const isProjOwnerDept = (currentUserData.dept === ownerDept); 
     let isAuthorized = currentUserData.role === 'admin' || currentUserData.canEdit || ((proj.ownerId === auth.currentUser.uid || task.assigneeId === auth.currentUser.uid || isProjOwnerDept) && isTaskInGrace);
     if (!isAuthorized) return alert("⚠️ 此細項已超過 7 天編輯期限，只能請管理員協助刪除！");
@@ -1748,7 +1645,7 @@ Object.assign(window, {
     if (start > end) return alert("起始日不可大於結束日！");
     const proj = allProjectsData.find(p => p.id === selectedProjectId);
     if (!proj) return alert("找不到目前專案！");
-    const todayStr = getTodayStr();
+    const todayStr = window.getTodayStr();
     const ts = new Date().toLocaleString('zh-TW', { hour12: false });
     let passedDays = 0;
     if (todayStr >= start) passedDays = window.getWorkingDays(start, todayStr);
@@ -1794,7 +1691,7 @@ Object.assign(window, {
     const proj = allProjectsData.find(p => p.id === projId);
     const tasks = [...proj.tasks];
     const targetTask = tasks[taskIndex];
-    const ownerDept = getUserDept(proj.ownerId);
+    const ownerDept = window.getUserDept(proj.ownerId);
     const isOwnerDept = (currentUserData.dept === ownerDept); 
     const taskAssigneeId = targetTask.assigneeId || proj.ownerId;
     const isMyTask = (auth.currentUser.uid === taskAssigneeId);
@@ -1811,7 +1708,7 @@ Object.assign(window, {
       inputElem.value = oldProg; 
       return; 
     }
-    const todayStr = getTodayStr();
+    const todayStr = window.getTodayStr();
     const ts = new Date().toLocaleString('zh-TW', { hour12: false });
     let passedDays = 0; 
     if (todayStr >= targetTask.start) passedDays = window.getWorkingDays(targetTask.start, todayStr);
@@ -1915,6 +1812,29 @@ Object.assign(window, {
     window.closeWeeklyModal(); 
     alert('已成功標記為 Noted (已閱)！該週報自此鎖定。');
   },
+  createCalCellNode: (dayNum, dateStr, isOtherMonth, todayStr, userTodos) => {
+    const cell = document.createElement("div");
+    cell.className = `cal-cell ${isOtherMonth ? 'other-month' : ''} ${dateStr === todayStr ? 'today' : ''}`;
+    const monthDayStr = dateStr.substring(5);
+    const dayOfWeek = new Date(dateStr).getDay();
+    const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+    const holidayName = taiwanHolidayMap[monthDayStr] || null;
+    if (!!holidayName || isWeekend) cell.classList.add("holiday");
+
+    let html = `<div style="display:flex; align-items:center;"><div class="cal-date-num">${dayNum}</div>${holidayName ? `<span class="cal-holiday-tag" title="${holidayName}">${holidayName}</span>` : ''}</div>`;
+    const dayTodos = userTodos.filter(t => t.date === dateStr);
+    if (dayTodos.length > 0) {
+      html += `<div class="cal-todo-preview-list">`;
+      dayTodos.slice(0, 3).forEach(todo => {
+        html += `<div class="cal-todo-pill ${todo.isCompleted ? 'completed' : ''}" style="color:${todo.color || '#0f172a'};">${todo.title}</div>`;
+      });
+      if (dayTodos.length > 3) html += `<div style="font-size:10px; color:var(--text-muted); text-align:right;">+${dayTodos.length - 3} 則...</div>`;
+      html += `</div>`;
+    }
+    cell.innerHTML = html;
+    cell.onclick = () => window.openCalDateModal(dateStr);
+    return cell;
+  },
   renderCalTodosModal: (dateStr) => {
     const myUid = auth.currentUser?.uid;
     const dayTodos = myCalendarTodos.filter(t => t.date === dateStr && t.ownerId === myUid);
@@ -1974,11 +1894,11 @@ Object.assign(window, {
           let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
           let tInGrace = ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
           let isMyTask = (auth.currentUser.uid === (t.assigneeId || p.ownerId));
-          const ownerDept = getUserDept(p.ownerId);
+          const ownerDept = window.getUserDept(p.ownerId);
           let isOwnerDept = (currentUserData.dept === ownerDept);
           if ((isOwnerDept || isMyTask) && tInGrace) isAuthorized = true;
         } else if (type === 'project') {
-          const ownerDept = getUserDept(p.ownerId);
+          const ownerDept = window.getUserDept(p.ownerId);
           const isOwnerDept = (currentUserData.dept === ownerDept);
           if (isOwnerDept && window.isWithin7DaysGracePeriod(p)) isAuthorized = true;
         }
@@ -2186,5 +2106,48 @@ Object.assign(window, {
       if (btnTable) btnTable.classList.add("active");
       if (btnChart) btnChart.classList.remove("active");
     }
+  },
+  initCalendarSelectors: () => {
+    const ySel = document.getElementById("cal-year-select");
+    const mSel = document.getElementById("cal-month-select");
+    if (!ySel || !mSel) return;
+    ySel.innerHTML = "";
+    const currentY = new Date().getFullYear();
+    for (let y = currentY - 5; y <= currentY + 5; y++) { ySel.innerHTML += `<option value="${y}" ${y === calCurrentYear ? 'selected' : ''}>${y} 年</option>`; }
+    mSel.innerHTML = "";
+    for (let m = 0; m < 12; m++) { mSel.innerHTML += `<option value="${m}" ${m === calCurrentMonth ? 'selected' : ''}>${m + 1} 月</option>`; }
+  },
+  onCalSelectChange: () => {
+    calCurrentYear = parseInt(document.getElementById("cal-year-select").value);
+    calCurrentMonth = parseInt(document.getElementById("cal-month-select").value);
+    window.renderCalendar();
+  },
+  changeCalMonth: (delta) => {
+    calCurrentMonth += delta;
+    if (calCurrentMonth > 11) { calCurrentMonth = 0; calCurrentYear++; } 
+    else if (calCurrentMonth < 0) { calCurrentMonth = 11; calCurrentYear--; }
+    window.initCalendarSelectors();
+    window.renderCalendar();
+  },
+  jumpCalToday: () => {
+    const today = new Date();
+    calCurrentYear = today.getFullYear();
+    calCurrentMonth = today.getMonth();
+    window.initCalendarSelectors();
+    window.renderCalendar();
+  },
+  toggleAddTodoInput: () => {
+    const box = document.getElementById("cal-add-todo-box");
+    if(!box) return;
+    const isHidden = box.style.display === "none";
+    box.style.display = isHidden ? "block" : "none";
+    if (isHidden) {
+      const txt = document.getElementById("cal-new-todo-text");
+      if(txt){ txt.value = ""; txt.focus(); }
+    }
+  },
+  closeCalTodoModal: () => {
+    document.getElementById("cal-todo-modal")?.classList.remove("active");
+    activeCalDateStr = null;
   }
 });
