@@ -29,7 +29,15 @@ const departmentList = ["總經理室", "企劃部", "業務部", "設計部", "
 
 let currentUserData = { role: "staff", name: "", dept: "設計部", canEdit: false };
 let allUsersList = [];
-let projectTemplates = {}; 
+
+// 🚀 預設內建 5 組模板，防止初次載入為空
+let projectTemplates = {
+  1: { name: "標準開發流程 1", tasks: [{ name: "需求訪談與規格確認", days: 2 }, { name: "設計打樣與確認", days: 3 }, { name: "量產製作", days: 5 }, { name: "品質檢驗", days: 2 }, { name: "交付驗收", days: 1 }] },
+  2: { name: "快速專案模板 2", tasks: [{ name: "專案啟動與分工", days: 1 }, { name: "設計製作", days: 2 }, { name: "審核確認", days: 1 }] },
+  3: { name: "自訂模板 3", tasks: [{ name: "前期規劃", days: 1 }, { name: "中期執行", days: 3 }, { name: "後期結案", days: 1 }] },
+  4: { name: "自訂模板 4", tasks: [] },
+  5: { name: "自訂模板 5", tasks: [] }
+}; 
 
 let viewingUserId = null; 
 let allProjectsData = [];
@@ -48,9 +56,6 @@ let calCurrentYear = new Date().getFullYear();
 let calCurrentMonth = new Date().getMonth();
 let activeCalDateStr = null;
 let showCompletedTodos = true;
-
-let lastSummaryGanttState = "";
-let lastDetailGanttState = "";
 
 const taiwanHolidayMap = {
   '01-01': '元旦', '01-02': '彈性放假', '02-15': '小年夜', '02-16': '除夕',
@@ -76,16 +81,39 @@ function getUserDept(uid) {
     return u ? (u.dept || "設計部") : "設計部";
 }
 
+// 🚀 頂層掛載篩選切換函式
+window.setProjectFilter = (status) => {
+  currentFilter = status;
+  document.querySelectorAll('.kpi-card').forEach(el => el.classList.remove('active'));
+  const activeBtn = document.getElementById('filter-' + status);
+  if (activeBtn) activeBtn.classList.add('active');
+  
+  selectedProjectId = 'SUMMARY'; 
+  renderProjects();
+};
+
+window.selectProject = (projId) => { 
+  selectedProjectId = projId; 
+  isEditMode = false;
+  const editBtn = document.getElementById("btn-toggle-edit-mode");
+  if (editBtn) {
+     editBtn.innerHTML = "✏️ 開啟編輯模式";
+     editBtn.style.background = "transparent";
+  }
+  renderProjects(); 
+};
+
+// 🚀 防抖動渲染
 let renderTimer = null;
 window.triggerRenderProjects = () => {
   if (renderTimer) clearTimeout(renderTimer);
   renderTimer = setTimeout(() => {
       renderProjects();
-  }, 150); 
+  }, 100); 
 };
 
 function initDynamicUI() {
-  if(document.getElementById('filter-all')) return; 
+  if (document.getElementById('filter-all')) return; 
 
   const kpiRow = document.querySelector('.kpi-row');
   if (kpiRow) {
@@ -100,7 +128,7 @@ function initDynamicUI() {
   
   const style = document.createElement('style');
   style.innerHTML = `
-    .kpi-card { padding: 8px 12px !important; min-height: unset !important; }
+    .kpi-card { padding: 8px 12px !important; min-height: unset !important; cursor: pointer; }
     .kpi-title { font-size: 11.5px !important; margin-bottom: 2px !important; }
     .kpi-number { font-size: 18px !important; }
     .col-sum-name.clickable { cursor: pointer; text-decoration: none; transition: 0.2s; }
@@ -144,7 +172,7 @@ function initDynamicUI() {
   if (btnWrapper && !document.getElementById('project-year-filter')) {
     const currentY = new Date().getFullYear();
     let options = '';
-    for(let y = currentY - 3; y <= currentY + 3; y++){
+    for (let y = currentY - 3; y <= currentY + 3; y++) {
         options += `<option value="${y}" ${y === currentY ? 'selected' : ''}>${y}年</option>`;
     }
     options += `<option value="all">所有年份</option>`;
@@ -157,7 +185,7 @@ function initDynamicUI() {
     sel.style.fontWeight = "bold";
     sel.innerHTML = options;
     sel.onchange = () => {
-      if(currentFilter === 'ongoing' || currentFilter === 'delayed'){
+      if (currentFilter === 'ongoing' || currentFilter === 'delayed') {
          setProjectFilter('all');
       } else {
          renderProjects();
@@ -171,6 +199,7 @@ function initDynamicUI() {
 }
 initDynamicUI();
 
+// 🚀 注入專案模板區塊 (緊湊排版與區隔設計)
 function injectTemplateUI() {
   const taskContainer = document.getElementById("task-list-container");
   if (!taskContainer || document.getElementById("template-section-wrapper")) return;
@@ -178,29 +207,30 @@ function injectTemplateUI() {
   const wrapper = document.createElement("div");
   wrapper.id = "template-section-wrapper";
   wrapper.className = "form-group";
+  wrapper.style.marginBottom = "14px";
   wrapper.innerHTML = `
-    <label class="form-label" style="font-weight:700; color:#8b5cf6;">📄 專案模板 (快速帶入排程)</label>
-    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; background:#f8fafc; padding:12px; border-radius:8px; border:1px dashed #cbd5e1; margin-bottom:12px;">
-      <select id="tpl-select" class="input-control" style="width:160px; margin:0;"></select>
-      <button type="button" class="action-btn" onclick="openTemplateEditModal()" style="padding:6px 10px; font-size:12px; border-color:#8b5cf6; color:#8b5cf6;">✏️ 編輯模板</button>
+    <label class="form-label" style="font-weight:700; color:#8b5cf6; margin-bottom:6px; display:block;">📄 專案模板 (快速帶入排程)</label>
+    <div style="display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
+      <select id="tpl-select" class="input-control" style="width:170px; margin:0; font-size:13px;"></select>
+      <button type="button" class="action-btn" onclick="openTemplateEditModal()" style="padding:6px 12px; font-size:12px; border-color:#8b5cf6; color:#8b5cf6; font-weight:600;">✏️ 編輯模板</button>
       
-      <div style="margin-left:24px; display:flex; gap:12px; align-items:center; background:#fff; padding:6px 12px; border-radius:6px; border:1px solid #e2e8f0;">
-        <label style="font-size:13px; cursor:pointer; display:flex; align-items:center; gap:4px;">
+      <div style="display:inline-flex; gap:12px; align-items:center; margin-left:14px; padding-left:14px; border-left:1px solid #cbd5e1;">
+        <label style="font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; margin:0; font-weight:500;">
           <input type="radio" name="tpl_mode" value="seq" checked onchange="checkCascade()"> 接續時間
         </label>
-        <label style="font-size:13px; cursor:pointer; display:flex; align-items:center; gap:4px;">
+        <label style="font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; margin:0; font-weight:500;">
           <input type="radio" name="tpl_mode" value="free" onchange="checkCascade()"> 自由時間
         </label>
-        <button type="button" class="action-btn" style="background:#10b981; color:#fff; border:none; padding:6px 12px; font-weight:bold; border-radius:4px;" onclick="applyTemplate()">帶入</button>
+        <button type="button" class="action-btn" style="background:#10b981; color:#fff; border:none; padding:6px 14px; font-weight:bold; border-radius:4px; font-size:12px; margin-left:4px;" onclick="applyTemplate()">帶入</button>
       </div>
     </div>
   `;
   taskContainer.parentNode.insertBefore(wrapper, taskContainer);
-  if(Object.keys(projectTemplates).length > 0) renderTemplateSelect();
+  renderTemplateSelect();
 }
 
 function injectTemplateModal() {
-   if(document.getElementById('template-edit-modal')) return;
+   if (document.getElementById('template-edit-modal')) return;
    const html = `
    <div class="modal" id="template-edit-modal" style="z-index:9999999;">
      <div class="modal-box" style="max-width: 600px;">
@@ -315,6 +345,8 @@ document.getElementById('btn-toggle-create').addEventListener('click', () => {
     renderCollabCheckboxes([]);
     document.getElementById("task-list-container").innerHTML = "";
     addTaskRow();
+    injectTemplateUI();
+    renderTemplateSelect();
   }
 });
 
@@ -398,14 +430,14 @@ window.cascadeDates = () => {
       
       if (i === 0) {
          if (startInput.value) {
-            endInput.value = calculateEndDateByDays(startInput.value, parseInt(daysInput.value)||1);
+            endInput.value = calculateEndDateByDays(startInput.value, parseInt(daysInput.value) || 1);
             endInput.min = startInput.value;
             prevEnd = endInput.value;
          }
       } else {
          if (prevEnd) {
             startInput.value = getNextWorkingDayStr(prevEnd);
-            endInput.value = calculateEndDateByDays(startInput.value, parseInt(daysInput.value)||1);
+            endInput.value = calculateEndDateByDays(startInput.value, parseInt(daysInput.value) || 1);
             endInput.min = startInput.value;
             prevEnd = endInput.value;
          }
@@ -505,25 +537,25 @@ window.moveTaskRow = (btn, direction) => {
 
 window.renderTemplateSelect = () => {
   const sel = document.getElementById("tpl-select");
-  if(!sel) return;
+  if (!sel) return;
   sel.innerHTML = `<option value="">-- 請選擇模板 --</option>`;
-  for(let i=1; i<=5; i++) {
-     const t = projectTemplates[i] || { name: `自訂模板 ${i}` };
+  for (let i = 1; i <= 5; i++) {
+     const t = projectTemplates[i] || projectTemplates[String(i)] || { name: `自訂模板 ${i}` };
      sel.innerHTML += `<option value="${i}">${t.name}</option>`;
   }
 };
 
 window.openTemplateEditModal = () => {
   const tplId = document.getElementById("tpl-select").value;
-  if (!tplId) return alert("請先從左側選單選擇一個模板！");
+  if (!tplId) return alert("請先從下拉選單中選擇一個模板！");
   
-  const tpl = projectTemplates[tplId] || { name: `自訂模板 ${tplId}`, tasks: [] };
+  const tpl = projectTemplates[tplId] || projectTemplates[String(tplId)] || { name: `自訂模板 ${tplId}`, tasks: [] };
   document.getElementById("tpl-edit-id").value = tplId;
   document.getElementById("tpl-edit-name").value = tpl.name;
   
   const container = document.getElementById("tpl-task-list-container");
   container.innerHTML = "";
-  if(tpl.tasks && tpl.tasks.length > 0) {
+  if (tpl.tasks && tpl.tasks.length > 0) {
      tpl.tasks.forEach(task => addTplTaskRow(task.name, task.days));
   } else {
      addTplTaskRow("", 1);
@@ -531,7 +563,7 @@ window.openTemplateEditModal = () => {
   document.getElementById("template-edit-modal").classList.add("active");
 };
 
-window.addTplTaskRow = (name="", days=1) => {
+window.addTplTaskRow = (name = "", days = 1) => {
   const container = document.getElementById("tpl-task-list-container");
   const div = document.createElement('div');
   div.className = "form-row tpl-task-row";
@@ -556,7 +588,7 @@ window.moveTplTaskRow = (btn, direction) => {
    } else if (direction === 1 && row.nextElementSibling) {
      row.parentNode.insertBefore(row.nextElementSibling, row);
    }
-}
+};
 
 window.closeTemplateEditModal = () => {
   document.getElementById("template-edit-modal").classList.remove("active");
@@ -570,11 +602,15 @@ window.saveTemplate = async () => {
   rows.forEach(r => {
      const tName = r.querySelector('.tpl-task-name').value.trim();
      const tDays = parseInt(r.querySelector('.tpl-task-days').value) || 1;
-     if(tName) tasks.push({ name: tName, days: tDays });
+     if (tName) tasks.push({ name: tName, days: tDays });
   });
   
   projectTemplates[tplId] = { name, tasks };
-  await setDoc(doc(db, "settings", "project_templates"), projectTemplates, { merge: true });
+  try {
+    await setDoc(doc(db, "settings", "project_templates"), projectTemplates, { merge: true });
+  } catch (e) {
+    console.log("儲存至本機快取:", e);
+  }
   renderTemplateSelect();
   closeTemplateEditModal();
   alert("🎉 模板儲存成功！");
@@ -583,7 +619,7 @@ window.saveTemplate = async () => {
 window.applyTemplate = () => {
   const tplId = document.getElementById("tpl-select").value;
   if (!tplId) return alert("請先選擇要帶入的模板！");
-  const tpl = projectTemplates[tplId];
+  const tpl = projectTemplates[tplId] || projectTemplates[String(tplId)];
   if (!tpl || !tpl.tasks || tpl.tasks.length === 0) return alert("此模板還是空的，請先點擊編輯模板建立任務！");
   
   const modeRadio = document.querySelector('input[name="tpl_mode"]:checked');
@@ -630,22 +666,138 @@ window.applyTemplate = () => {
 
 function loadTemplates() {
   onSnapshot(doc(db, "settings", "project_templates"), (docSnap) => {
-    if (docSnap.exists()) {
-      projectTemplates = docSnap.data();
-    } else {
-      projectTemplates = {
-        1: { name: "標準開發模板 1", tasks: [] },
-        2: { name: "快速專案模板 2", tasks: [] },
-        3: { name: "自訂模板 3", tasks: [] },
-        4: { name: "自訂模板 4", tasks: [] },
-        5: { name: "自訂模板 5", tasks: [] }
-      };
+    if (docSnap.exists() && Object.keys(docSnap.data()).length > 0) {
+      projectTemplates = { ...projectTemplates, ...docSnap.data() };
     }
+    renderTemplateSelect();
+  }, (err) => {
+    console.log("使用內建預設模板:", err);
     renderTemplateSelect();
   });
 }
 
-// 🚀 核心單一登入狀態監聽器
+function scrollToTodayMinus2Days(ganttInst, containerSelector) {
+  const wrapper = document.querySelector(containerSelector);
+  if (!wrapper) return;
+
+  [80, 200].forEach(delay => {
+    setTimeout(() => {
+      const scrollElement = wrapper.querySelector('.gantt-container') || wrapper;
+      const svg = wrapper.querySelector('.gantt');
+      if (!scrollElement || !svg) return;
+
+      let todayIndex = -1;
+      const today = new Date();
+      today.setHours(0,0,0,0);
+
+      if (ganttInst && ganttInst.dates) {
+        ganttInst.dates.forEach((d, idx) => {
+          const checkD = new Date(d);
+          checkD.setHours(0,0,0,0);
+          if (checkD.getTime() === today.getTime() && todayIndex === -1) {
+            todayIndex = idx;
+          }
+        });
+      }
+
+      let colWidth = (ganttInst && ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
+      const firstTick = svg.querySelector('.tick');
+      if (firstTick) {
+        const w = parseFloat(firstTick.getAttribute('width'));
+        if (!isNaN(w) && w > 0) colWidth = w;
+      }
+
+      let targetScrollLeft = 0;
+      if (todayIndex !== -1) {
+        targetScrollLeft = Math.max(0, (todayIndex - 2) * colWidth);
+      } else {
+        const todayHighlight = svg.querySelector('.today-highlight') || svg.querySelector('.current-date-highlight');
+        if (todayHighlight) {
+          const x = parseFloat(todayHighlight.getAttribute('x'));
+          if (!isNaN(x)) {
+            targetScrollLeft = Math.max(0, x - (colWidth * 2));
+          }
+        }
+      }
+
+      scrollElement.scrollLeft = targetScrollLeft;
+      if (scrollElement !== wrapper) wrapper.scrollLeft = targetScrollLeft;
+    }, delay);
+  });
+}
+
+function patchGanttVisuals(ganttInst, containerSelector) {
+  if (!ganttInst || !ganttInst.dates || ganttInst.dates.length === 0) return;
+  const wrapper = document.querySelector(containerSelector);
+  if (!wrapper) return;
+  const svg = wrapper.querySelector('.gantt');
+  if (!svg) return;
+
+  const lowerTexts = Array.from(svg.querySelectorAll('.lower-text'));
+  const dayTicks = Array.from(svg.querySelectorAll('.tick')).filter(t => !t.classList.contains('thick'));
+
+  ganttInst.dates.forEach((date, i) => {
+    if (i < lowerTexts.length) {
+      const dStr = String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+      const isHoliday = !!taiwanHolidayMap[dStr];
+
+      if (isWeekend || isHoliday) {
+        lowerTexts[i].style.fill = '#ef4444'; 
+        lowerTexts[i].style.fontWeight = 'bold';
+        if (i < dayTicks.length) dayTicks[i].style.fill = 'rgba(239, 68, 68, 0.08)';
+      }
+    }
+  });
+
+  const scrollElement = wrapper.querySelector('.gantt-container') || wrapper;
+  const upperTexts = Array.from(svg.querySelectorAll('.upper-text'));
+  const colWidth = (ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
+
+  const updateStickyMonthHeader = () => {
+    const currentScrollLeft = scrollElement.scrollLeft;
+    const currentDayIndex = Math.min(
+      ganttInst.dates.length - 1,
+      Math.max(0, Math.floor(currentScrollLeft / colWidth))
+    );
+
+    const visibleDate = ganttInst.dates[currentDayIndex];
+    if (!visibleDate || upperTexts.length === 0) return;
+
+    const yyyy = visibleDate.getFullYear();
+    const mm = visibleDate.getMonth() + 1;
+    const currentHeaderStr = `${yyyy}年 ${mm}月`;
+
+    upperTexts.forEach((el, idx) => {
+      if (idx === 0) {
+        el.textContent = currentHeaderStr;
+        el.setAttribute('x', currentScrollLeft + 16);
+        el.setAttribute('text-anchor', 'start');
+        el.style.textAnchor = 'start';
+        el.style.fontWeight = '700';
+        el.style.fill = 'var(--primary)';
+        el.style.display = 'block';
+      } else {
+        const origX = parseFloat(el.getAttribute('data-orig-x') || el.getAttribute('x'));
+        if (!el.getAttribute('data-orig-x')) el.setAttribute('data-orig-x', origX);
+        if (origX < currentScrollLeft + 120) {
+          el.style.display = 'none';
+        } else {
+          el.style.display = 'block';
+        }
+      }
+    });
+  };
+
+  scrollElement.removeEventListener('scroll', scrollElement._ganttScrollHandler);
+  scrollElement._ganttScrollHandler = updateStickyMonthHeader;
+  scrollElement.addEventListener('scroll', updateStickyMonthHeader);
+
+  updateStickyMonthHeader();
+  scrollToTodayMinus2Days(ganttInst, containerSelector);
+}
+
+// 🚀 單一乾淨的 Auth 狀態監聽器
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     document.getElementById("auth-section").style.display = "none";
@@ -844,7 +996,7 @@ window.switchViewingUser = (uid, name) => {
   
   isEditMode = false;
   const editBtn = document.getElementById("btn-toggle-edit-mode");
-  if(editBtn) {
+  if (editBtn) {
      editBtn.innerHTML = "✏️ 開啟編輯模式";
      editBtn.style.background = "transparent";
   }
@@ -862,20 +1014,15 @@ window.switchViewingUser = (uid, name) => {
   }
 };
 
-document.getElementById("btn-login").addEventListener("click", () => { 
-  signInWithEmailAndPassword(auth, document.getElementById("login-email").value.trim(), document.getElementById("login-password").value.trim()).catch(e=>alert(e.message)); 
-});
-document.getElementById("btn-logout").addEventListener("click", () => signOut(auth));
-
 function getAvailableTasks(projId) {
   const proj = allProjectsData.find(p => p.id === projId);
-  if(!proj || !proj.tasks) return [];
+  if (!proj || !proj.tasks) return [];
   return proj.tasks.map((t, i) => ({...t, index: i})).filter(t => {
     if (!t.isCompleted) return true; 
     if (t.reportedCompleted === true) return false; 
     const taskCompletedTime = t.completedAt ? new Date(t.completedAt.replace(/-/g, '/')).getTime() : 0;
     const alreadyReported = allWeeklyData.some(w => {
-      if(w.ownerId !== auth.currentUser.uid) return false;
+      if (w.ownerId !== auth.currentUser.uid) return false;
       const reportTime = w.createdAt ? w.createdAt.toDate().getTime() : Date.now();
       const hasTask = (w.items || []).some(item => item.projectId === proj.id && String(item.taskId) === String(t.index));
       return hasTask && reportTime > (taskCompletedTime - 60000);
@@ -900,8 +1047,8 @@ function getAdHocDateStr(evt) {
 }
 
 function spansYear(p, y) {
-  if(y === 'all') return true;
-  if(!p.tasks || p.tasks.length === 0) {
+  if (y === 'all') return true;
+  if (!p.tasks || p.tasks.length === 0) {
       const createdDate = p.createdAt && typeof p.createdAt.toDate === 'function' ? p.createdAt.toDate() : new Date();
       return createdDate.getFullYear() === y;
   }
@@ -1022,15 +1169,15 @@ function renderProjects() {
   countAllInYear += adHocsAll.length;
 
   const elOngoing = document.getElementById('stat-ongoing');
-  if(elOngoing) elOngoing.innerText = countOngoing; 
+  if (elOngoing) elOngoing.innerText = countOngoing; 
   const elCompleted = document.getElementById('stat-completed');
-  if(elCompleted) elCompleted.innerText = countCompleted; 
+  if (elCompleted) elCompleted.innerText = countCompleted; 
   const elDelay = document.getElementById('stat-delay');
-  if(elDelay) elDelay.innerText = countDelayed;
+  if (elDelay) elDelay.innerText = countDelayed;
   const elCollab = document.getElementById('stat-collab');
-  if(elCollab) elCollab.innerText = collabProjects.length;
+  if (elCollab) elCollab.innerText = collabProjects.length;
   const elAll = document.getElementById('stat-all');
-  if(elAll) elAll.innerText = countAllInYear;
+  if (elAll) elAll.innerText = countAllInYear;
 
   let activeList = [];
   let activeAdHocs = [];
@@ -1067,8 +1214,6 @@ function renderProjects() {
     detailView.style.display = "none"; 
     summaryView.style.display = "none"; 
     emptyState.style.display = "block"; 
-    lastSummaryGanttState = "";
-    lastDetailGanttState = "";
     return; 
   }
 
@@ -1214,25 +1359,19 @@ function renderProjects() {
       sumLeftBody.appendChild(row);
     });
 
+    const chartContainer = document.getElementById("gantt-chart-summary-container");
     if (ganttTasksSum.length > 0) {
-      const newSummaryState = JSON.stringify({ filter: currentFilter, tasks: ganttTasksSum });
-      const chartContainer = document.getElementById("gantt-chart-summary-container");
-      
-      if (lastSummaryGanttState !== newSummaryState || !chartContainer.querySelector('svg')) {
-          lastSummaryGanttState = newSummaryState;
-          chartContainer.innerHTML = '<div id="gantt-chart-summary"></div>';
-          setTimeout(() => {
-            if (document.getElementById("tab-projects").style.display === "none") return;
-            summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { 
-              view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true 
-            });
-            patchGanttVisuals(summaryGanttInstance, '#gantt-chart-summary-container');
-            scrollToTodayMinus2Days(summaryGanttInstance, '#gantt-chart-summary-container'); 
-          }, 30); 
-      }
+      chartContainer.innerHTML = '<div id="gantt-chart-summary"></div>';
+      setTimeout(() => {
+        if (document.getElementById("tab-projects").style.display === "none") return;
+        summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { 
+          view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true 
+        });
+        patchGanttVisuals(summaryGanttInstance, '#gantt-chart-summary-container');
+        scrollToTodayMinus2Days(summaryGanttInstance, '#gantt-chart-summary-container'); 
+      }, 30); 
     } else { 
-      lastSummaryGanttState = "";
-      document.getElementById("gantt-chart-summary-container").innerHTML = ''; 
+      chartContainer.innerHTML = ''; 
     }
     return;
   }
@@ -1243,7 +1382,7 @@ function renderProjects() {
   summaryView.style.display = "none"; 
   detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
-  if(!activeProj) return; 
+  if (!activeProj) return; 
 
   const ownerDept = getUserDept(activeProj.ownerId);
   const isProjOwnerDept = (currentUserData.dept === ownerDept); 
@@ -1274,7 +1413,6 @@ function renderProjects() {
 
   lockBtn.style.display = "none"; 
 
-  // 🚀 永久開放新增：只要有全局權限，或是協作單位，或是建立者，永遠開放新增按鈕！
   const canAddTask = hasGlobalEdit || isCollabMember || isProjOwner;
 
   if (canAddTask) {
@@ -1289,7 +1427,7 @@ function renderProjects() {
   const leftBody = document.getElementById("gantt-left-body");
   const listBody = document.getElementById("project-list-tbody");
   leftBody.innerHTML = ""; 
-  if(listBody) listBody.innerHTML = "";
+  if (listBody) listBody.innerHTML = "";
 
   const ganttTasks = [];
   (activeProj.tasks || []).forEach((task, index) => {
@@ -1368,26 +1506,20 @@ function renderProjects() {
     }
   });
 
+  const chartContainer = document.getElementById("gantt-chart-container");
+  chartContainer.className = "gantt-right-panel"; 
   if (ganttTasks.length > 0) {
-    const newDetailState = JSON.stringify({ id: selectedProjectId, tasks: ganttTasks });
-    const chartContainer = document.getElementById("gantt-chart-container");
-    chartContainer.className = "gantt-right-panel"; 
-    
-    if (lastDetailGanttState !== newDetailState || !chartContainer.querySelector('svg')) {
-        lastDetailGanttState = newDetailState;
-        chartContainer.innerHTML = '<div id="gantt-chart"></div>';
-        setTimeout(() => {
-          if (document.getElementById("tab-projects").style.display === "none") return;
-          ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
-            view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true 
-          });
-          patchGanttVisuals(ganttInstance, '#gantt-chart-container');
-          scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container'); 
-        }, 30); 
-    }
+    chartContainer.innerHTML = '<div id="gantt-chart"></div>';
+    setTimeout(() => {
+      if (document.getElementById("tab-projects").style.display === "none") return;
+      ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
+        view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true 
+      });
+      patchGanttVisuals(ganttInstance, '#gantt-chart-container');
+      scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container'); 
+    }, 30); 
   } else {
-    lastDetailGanttState = "";
-    document.getElementById("gantt-chart-container").innerHTML = '';
+    chartContainer.innerHTML = '';
   }
 }
 
@@ -1592,7 +1724,7 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   targetTask.history.push({ timestamp: ts, progress: newProg, type: newProg === 100 ? 'complete' : 'update', daysPassed: passedDays, remark: currentRemark, delayReason: delayReason || "" });
 
   await updateDoc(doc(db, "projects", projId), { tasks });
-  if(newProg !== 100) alert(`進度已更新為 ${newProg}%`);
+  if (newProg !== 100) alert(`進度已更新為 ${newProg}%`);
 };
 
 document.getElementById("btn-add-project").addEventListener("click", async () => {
@@ -1729,7 +1861,7 @@ window.completeAdHoc = async (id) => {
 
 window.deleteAdHoc = async (id) => { 
   if (currentUserData.role !== 'admin') return alert("權限不足！");
-  if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); 
+  if (confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); 
 };
 
 window.initWeeklyDateAndLeave = () => {
@@ -1767,7 +1899,7 @@ window.initWeeklyDateAndLeave = () => {
 document.querySelectorAll('input[name="leave_type"]').forEach(radio => {
   radio.addEventListener("change", (e) => {
     const reasonInput = document.getElementById("leave-other-reason");
-    if(e.target.value === "other") {
+    if (e.target.value === "other") {
       reasonInput.style.display = "block";
     } else {
       reasonInput.style.display = "none";
@@ -1787,7 +1919,7 @@ window.updateWeeklyTaskSelect = (selectElem) => {
   const taskSelect = selectElem.parentElement.querySelector('.weekly-task-select');
   taskSelect.innerHTML = '<option value="">-- 請選擇細項 --</option>';
   const projId = selectElem.value;
-  if(!projId) return;
+  if (!projId) return;
   const availableTasks = getAvailableTasks(projId);
   availableTasks.forEach(t => { taskSelect.innerHTML += `<option value="${t.index}">${t.name}</option>`; });
 };
@@ -1960,13 +2092,13 @@ window.deleteWeekly = async (id) => {
   const isAllowed = isWeeklyReportEditable(report);
   if (!isOwner && currentUserData.role !== 'admin') return alert("權限不足！");
   if (isOwner && !isAllowed && currentUserData.role !== 'admin') return alert("此週報已逾 2 天或已經主管審閱鎖定，無法刪除！");
-  if(confirm("確定永久刪除此週報嗎？")) await deleteDoc(doc(db, "weekly_reports", id)); 
+  if (confirm("確定永久刪除此週報嗎？")) await deleteDoc(doc(db, "weekly_reports", id)); 
 };
 
 window.openWeeklyModal = (id) => {
   currentWeeklyReportId = id; 
   const report = allWeeklyData.find(w => w.id === id); 
-  if(!report) return;
+  if (!report) return;
   
   let leaveTag = '';
   if (report.leaveType === 'leave') leaveTag = `<span class="pill pill-danger" style="margin-left:12px; font-size:12px;">📌 原因：請假</span>`;
@@ -2017,10 +2149,10 @@ window.openWeeklyModal = (id) => {
 window.closeWeeklyModal = () => document.getElementById('weekly-detail-modal').classList.remove('active');
 
 window.markWeeklyNoted = async (type) => {
-  if(!currentWeeklyReportId) return; 
+  if (!currentWeeklyReportId) return; 
   const updateData = {};
-  if(type === 'supervisor') updateData.supervisorNoted = true; 
-  if(type === 'top_manager') updateData.topManagerNoted = true;
+  if (type === 'supervisor') updateData.supervisorNoted = true; 
+  if (type === 'top_manager') updateData.topManagerNoted = true;
   await updateDoc(doc(db, "weekly_reports", currentWeeklyReportId), updateData);
   closeWeeklyModal(); 
   alert('已成功標記為 Noted (已閱)！該週報自此鎖定。');
@@ -2518,7 +2650,7 @@ window.saveGeneralEdit = async () => {
       const checkboxes = document.querySelectorAll('input[name="edit_collab"]:checked');
       const collaborators = Array.from(checkboxes).map(cb => cb.value);
 
-      if(title) await updateDoc(doc(db, "projects", id), { title, collaborators });
+      if (title) await updateDoc(doc(db, "projects", id), { title, collaborators });
       else return alert("專案名稱不可為空！");
     } else if (type === 'task') {
       const proj = allProjectsData.find(p => p.id === id); 
@@ -2613,8 +2745,8 @@ window.rescueUserProjects = async (uid, userName) => {
 function renderOrgUsersTable() {
   const tbody = document.getElementById("user-list-tbody"); 
   const supervisorSelect = document.getElementById("new-user-supervisor");
-  if(tbody) tbody.innerHTML = ""; 
-  if(supervisorSelect) supervisorSelect.innerHTML = '<option value="">-- 無 --</option>'; 
+  if (tbody) tbody.innerHTML = ""; 
+  if (supervisorSelect) supervisorSelect.innerHTML = '<option value="">-- 無 --</option>'; 
   
   allUsersList.forEach(user => {
     if (supervisorSelect && ["top_manager", "manager", "assistant_manager"].includes(user.role)) {
@@ -2622,7 +2754,7 @@ function renderOrgUsersTable() {
     }
   });
 
-  if(tbody) {
+  if (tbody) {
     let currentDeptGroup = "";
     allUsersList.forEach(u => {
       const uDept = u.dept || "設計部";
@@ -2657,7 +2789,7 @@ function renderOrgUsersTable() {
     });
   }
 
-  if(document.getElementById("org-chart-view-container")) renderOrgChart();
+  if (document.getElementById("org-chart-view-container")) renderOrgChart();
 }
 
 function loadOrgUsers() {
