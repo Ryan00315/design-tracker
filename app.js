@@ -158,7 +158,6 @@ function initDynamicUI() {
 }
 initDynamicUI();
 
-// 獨立的模板初始化函式，確保畫面能強制繪製
 function initTemplateUI() {
   let container = document.getElementById('template-selector-container');
   const taskContainer = document.getElementById("task-list-container");
@@ -167,14 +166,11 @@ function initTemplateUI() {
     container = document.createElement("div");
     container.id = "template-selector-container";
     container.style.cssText = "margin: 15px 0; padding: 15px; background: #eef2ff; border: 2px dashed #818cf8; border-radius: 8px;";
-    // 強制插入在「任務細項排程 (task-list-container)」之上
     taskContainer.parentNode.insertBefore(container, taskContainer);
   }
 
   if (container) {
-    // 預先繪製一次，防止 Firebase 報錯導致沒畫面
     renderTemplateUI();
-    
     if (!window.hasInitTemplateSnapshot) {
       window.hasInitTemplateSnapshot = true;
       try {
@@ -182,7 +178,7 @@ function initTemplateUI() {
           if(docSnap.exists()) {
             projectTemplates = docSnap.data().templates || projectTemplates;
           }
-          renderTemplateUI(); // 資料回來後更新畫面
+          renderTemplateUI(); 
         }, (err) => {
           console.warn("尚未建立模板資料庫或權限不足，將使用本地預設值:", err);
         });
@@ -198,10 +194,8 @@ window.renderTemplateUI = () => {
   if(!container) return;
   
   let html = `<div style="font-size:14px; font-weight:bold; margin-bottom:10px; color:#312e81;">⭐ 專案模板快速套用 (帶入會清除下方草稿)</div>`;
-  // 將所有元素放在同一個 flex 容器，並允許折行 (flex-wrap) 以防螢幕太小
   html += `<div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">`;
   
-  // 生成 1~5 號模板按鈕
   projectTemplates.forEach((tpl, i) => {
       html += `
       <div style="display:flex; align-items:center; gap:6px; border:1px solid #c7d2fe; padding:6px 10px; border-radius:6px; background:#fff; cursor:pointer;" onclick="document.getElementById('tpl_${i}').checked = true;">
@@ -211,10 +205,8 @@ window.renderTemplateUI = () => {
       </div>`;
   });
   
-  // 加上垂直分隔線以及右側的選項與按鈕
   html += `
       <div style="width:2px; height:24px; background:#94a3b8; margin:0 8px; border-radius:2px;"></div>
-      
       <div style="display:flex; gap:12px; align-items:center; background:#fff; padding:6px 12px; border-radius:6px; border:1px solid #e2e8f0;">
           <label style="cursor:pointer; font-size:13px; font-weight:bold; color:#0f172a; margin:0; display:flex; align-items:center;">
               <input type="radio" name="template_mode" value="sequential" checked style="margin-right:4px; margin-bottom:0;"> 接續時間
@@ -337,7 +329,6 @@ function checkEditModeVisibility() {
   btn.style.display = shouldShow ? "inline-block" : "none";
 }
 
-// 綁定在此，每次點擊都會確保模板出現
 document.getElementById('btn-toggle-create').addEventListener('click', () => {
   const form = document.getElementById('create-project-section');
   const isHidden = form.style.display === 'none';
@@ -347,10 +338,7 @@ document.getElementById('btn-toggle-create').addEventListener('click', () => {
     document.getElementById("proj-name").value = "";
     document.getElementById("proj-color").value = "bar-primary";
     renderCollabCheckboxes([]);
-    
-    // 強制觸發模板載入
     initTemplateUI();
-
     document.getElementById("task-list-container").innerHTML = "";
     document.getElementById("task-list-container").dataset.cascadeMode = ""; 
     addTaskRow();
@@ -590,7 +578,6 @@ onAuthStateChanged(auth, async (user) => {
     loadAdHocEvents(); 
     loadWeeklyReports();
     loadMyCalendarTodos(user.uid);
-    // 初次登入時初始化
     initTemplateUI();
   } else {
     document.getElementById("auth-section").style.display = "flex"; 
@@ -850,10 +837,10 @@ window.addTaskRow = () => {
   div.className = "form-row task-row"; 
   div.style.marginBottom = "8px";
   div.innerHTML = `
-    <div class="form-group" style="margin:0; flex:2;"><input type="text" class="input-control task-name" placeholder="細項名稱"></div>
-    <div class="form-group" style="margin:0; flex:1.2;"><input type="date" class="input-control task-start" value="${defaultStart}" onchange="onTaskStartChange(this, null)"></div>
+    <div class="form-group" style="margin:0; flex:3;"><input type="text" class="input-control task-name" placeholder="細項名稱"></div>
+    <div class="form-group" style="margin:0; flex:1.5;"><input type="date" class="input-control task-start" value="${defaultStart}" onchange="onTaskStartChange(this, null)"></div>
     <div class="form-group" style="margin:0; width:65px; flex-shrink:0;"><input type="number" min="1" class="input-control task-days" value="1" placeholder="天數" title="工作天數" oninput="onTaskDaysChange(this, null, null)"></div>
-    <div class="form-group" style="margin:0; flex:1.2;"><input type="date" class="input-control task-end" value="${defaultEnd}" min="${defaultStart}" onchange="onTaskEndChange(this, null, null)"></div>
+    <div class="form-group" style="margin:0; flex:1.5;"><input type="date" class="input-control task-end" value="${defaultEnd}" min="${defaultStart}" onchange="onTaskEndChange(this, null, null)"></div>
     <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
       <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
       <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
@@ -2443,9 +2430,9 @@ window.openGeneralEdit = (type, id, extra) => {
     form.innerHTML = `
       <div class="form-group"><label class="form-label">細項名稱</label><input type="text" id="edit-val-name" class="input-control" value="${task.name}"></div>
       <div class="form-row">
-        <div class="form-group" style="flex:1.2;"><label class="form-label">開始日期</label><input type="date" id="edit-val-start" class="input-control" value="${task.start}" onchange="onTaskStartChange(this, 'edit-val-end')"></div>
+        <div class="form-group" style="flex:1.5;"><label class="form-label">開始日期</label><input type="date" id="edit-val-start" class="input-control" value="${task.start}" onchange="onTaskStartChange(this, 'edit-val-end')"></div>
         <div class="form-group" style="width:65px; flex-shrink:0;"><label class="form-label">天數</label><input type="number" min="1" id="edit-val-days" class="input-control task-days" value="${taskDays}" oninput="onTaskDaysChange(this, 'edit-val-start', 'edit-val-end')"></div>
-        <div class="form-group" style="flex:1.2;"><label class="form-label">結束日期</label><input type="date" id="edit-val-end" class="input-control" value="${task.end}" min="${task.start}" onchange="onTaskEndChange(this, 'edit-val-start', 'edit-val-days')"></div>
+        <div class="form-group" style="flex:1.5;"><label class="form-label">結束日期</label><input type="date" id="edit-val-end" class="input-control" value="${task.end}" min="${task.start}" onchange="onTaskEndChange(this, 'edit-val-start', 'edit-val-days')"></div>
       </div>
     `;
   } else if (type === 'adhoc') {
@@ -2501,7 +2488,19 @@ window.openGeneralEdit = (type, id, extra) => {
     html += `</div>`;
     form.innerHTML = html;
   }
-  document.getElementById("general-edit-modal").classList.add("active");
+  
+  const modal = document.getElementById("general-edit-modal");
+  const modalBox = modal.querySelector('.modal-box');
+  if (modalBox) {
+    if (type === 'weekly') {
+      modalBox.style.width = "90vw";
+      modalBox.style.maxWidth = "800px";
+    } else {
+      modalBox.style.width = "";      // 恢復預設
+      modalBox.style.maxWidth = "";   // 恢復預設
+    }
+  }
+  modal.classList.add("active");
 };
 
 window.openTemplateEditor = (index) => {
@@ -2532,7 +2531,16 @@ window.openTemplateEditor = (index) => {
         tplContainer.appendChild(createTemplateTaskRow("", "", 1, ""));
     }
 
-    document.getElementById("general-edit-modal").classList.add("active");
+    const modal = document.getElementById("general-edit-modal");
+    
+    // 🔥 將彈跳視窗加大一倍，讓細項有充足空間展開
+    const modalBox = modal.querySelector('.modal-box');
+    if (modalBox) {
+        modalBox.style.width = "90vw";
+        modalBox.style.maxWidth = "1000px";
+    }
+    
+    modal.classList.add("active");
 };
 
 window.addTemplateTaskRow = () => {
@@ -2544,11 +2552,11 @@ window.createTemplateTaskRow = (name, start, days, end) => {
     div.className = "form-row tpl-task-row";
     div.style.marginBottom = "8px";
     div.innerHTML = `
-        <div class="form-group" style="margin:0; flex:2;"><input type="text" class="input-control task-name" placeholder="細項名稱" value="${name}"></div>
-        <div class="form-group" style="margin:0; flex:1.2;"><input type="date" class="input-control task-start tpl-task-start" value="${start}" onchange="onTaskStartChange(this, null)"></div>
+        <div class="form-group" style="margin:0; flex:3;"><input type="text" class="input-control task-name" placeholder="細項名稱" value="${name}"></div>
+        <div class="form-group" style="margin:0; flex:1.5;"><input type="date" class="input-control task-start tpl-task-start" value="${start}" onchange="onTaskStartChange(this, null)"></div>
         <div class="form-group" style="margin:0; width:65px; flex-shrink:0;"><input type="number" min="1" class="input-control task-days tpl-task-days" value="${days||1}" placeholder="天數" title="工作天數" oninput="onTaskDaysChange(this, null, null)"></div>
-        <div class="form-group" style="margin:0; flex:1.2;"><input type="date" class="input-control task-end tpl-task-end" value="${end}" min="${start}" onchange="onTaskEndChange(this, null, null)"></div>
-        <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
+        <div class="form-group" style="margin:0; flex:1.5;"><input type="date" class="input-control task-end tpl-task-end" value="${end}" min="${start}" onchange="onTaskEndChange(this, null, null)"></div>
+        <div style="display:flex; gap:4px; margin:0; flex-shrink:0; align-items:center;">
             <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
             <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
             <button type="button" class="action-btn danger" onclick="this.closest('.tpl-task-row').remove()" style="padding:8px 10px;">X</button>
@@ -2570,7 +2578,16 @@ window.onEditWeeklyProjChange = (idx) => {
   }
 };
 
-window.closeGeneralEditModal = () => document.getElementById("general-edit-modal").classList.remove("active");
+window.closeGeneralEditModal = () => {
+    const modal = document.getElementById("general-edit-modal");
+    modal.classList.remove("active");
+    // 關閉時重置寬度，避免影響其他小視窗
+    const modalBox = modal.querySelector('.modal-box');
+    if (modalBox) {
+        modalBox.style.width = "";
+        modalBox.style.maxWidth = "";
+    }
+};
 
 window.saveGeneralEdit = async () => {
   const { type, id, extra } = currentEditData;
