@@ -198,22 +198,32 @@ window.renderTemplateUI = () => {
   if(!container) return;
   
   let html = `<div style="font-size:14px; font-weight:bold; margin-bottom:10px; color:#312e81;">⭐ 專案模板快速套用 (帶入會清除下方草稿)</div>`;
-  html += `<div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">`;
+  // 將所有元素放在同一個 flex 容器，並允許折行 (flex-wrap) 以防螢幕太小
+  html += `<div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">`;
   
+  // 生成 1~5 號模板按鈕
   projectTemplates.forEach((tpl, i) => {
       html += `
-      <div style="display:flex; align-items:center; gap:6px; border:1px solid #c7d2fe; padding:8px 12px; border-radius:6px; background:#fff; cursor:pointer;" onclick="document.getElementById('tpl_${i}').checked = true;">
-          <input type="radio" name="selected_template" value="${i}" id="tpl_${i}" style="cursor:pointer; transform:scale(1.2);">
+      <div style="display:flex; align-items:center; gap:6px; border:1px solid #c7d2fe; padding:6px 10px; border-radius:6px; background:#fff; cursor:pointer;" onclick="document.getElementById('tpl_${i}').checked = true;">
+          <input type="radio" name="selected_template" value="${i}" id="tpl_${i}" style="cursor:pointer; transform:scale(1.1); margin:0;">
           <label for="tpl_${i}" style="cursor:pointer; margin:0; font-size:13px; font-weight:700; color:#3730a3;">${tpl.name}</label>
-          <button type="button" class="action-btn" style="padding:2px 8px; font-size:11px; background:#f1f5f9; color:#475569; border-color:#cbd5e1; margin-left:4px;" onclick="event.stopPropagation(); openTemplateEditor(${i})">✏️ 編輯</button>
+          <button type="button" class="action-btn" style="padding:2px 6px; font-size:11px; background:#f1f5f9; color:#475569; border-color:#cbd5e1; margin-left:2px;" onclick="event.stopPropagation(); openTemplateEditor(${i})">✏️</button>
       </div>`;
   });
   
-  html += `</div>`;
-  html += `<div style="display:flex; gap:15px; align-items:center; background:#fff; padding:10px 15px; border-radius:6px; border:1px solid #e2e8f0; width:fit-content;">
-      <label style="cursor:pointer; font-size:13px; font-weight:bold; color:#0f172a;"><input type="radio" name="template_mode" value="sequential" checked style="margin-right:6px;"> 接續時間</label>
-      <label style="cursor:pointer; font-size:13px; font-weight:bold; color:#0f172a;"><input type="radio" name="template_mode" value="free" style="margin-right:6px;"> 自由時間</label>
-      <button type="button" class="action-btn" style="background:#4f46e5; color:#fff; border:none; margin-left:15px; font-weight:bold;" onclick="applySelectedTemplate()">✅ 確認帶入模板</button>
+  // 加上垂直分隔線以及右側的選項與按鈕
+  html += `
+      <div style="width:2px; height:24px; background:#94a3b8; margin:0 8px; border-radius:2px;"></div>
+      
+      <div style="display:flex; gap:12px; align-items:center; background:#fff; padding:6px 12px; border-radius:6px; border:1px solid #e2e8f0;">
+          <label style="cursor:pointer; font-size:13px; font-weight:bold; color:#0f172a; margin:0; display:flex; align-items:center;">
+              <input type="radio" name="template_mode" value="sequential" checked style="margin-right:4px; margin-bottom:0;"> 接續時間
+          </label>
+          <label style="cursor:pointer; font-size:13px; font-weight:bold; color:#0f172a; margin:0; display:flex; align-items:center;">
+              <input type="radio" name="template_mode" value="free" style="margin-right:4px; margin-bottom:0;"> 自由時間
+          </label>
+          <button type="button" class="action-btn" style="background:#4f46e5; color:#fff; border:none; margin-left:4px; font-weight:bold; padding:4px 12px;" onclick="applySelectedTemplate()">✅ 確認帶入模板</button>
+      </div>
   </div>`;
   
   container.innerHTML = html;
@@ -2651,7 +2661,7 @@ window.resetUserPassword = (email) => {
 
 window.rescueUserProjects = async (uid, userName) => {
   if (!userName) return alert("請先為該人員設定姓名！");
-  if (!confirm(`【資料救援】\n即遇到系統中所有署名為「${userName}」的舊專案與事件，強制綁回給這個帳號。\n確定要進行修復嗎？`)) return;
+  if (!confirm(`【資料救援】\n即將掃描系統中所有署名為「${userName}」的舊專案與事件，強制綁回給這個帳號。\n確定要進行修復嗎？`)) return;
   try {
     let pCount = 0, wCount = 0;
     for (let p of allProjectsData) { 
