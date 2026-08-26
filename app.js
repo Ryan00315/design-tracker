@@ -35,6 +35,7 @@ let allProjectsData = [];
 let allAdHocData = [];
 let allWeeklyData = [];
 let myCalendarTodos = [];
+let projectTemplates = {}; 
 
 let currentFilter = 'ongoing'; 
 let selectedProjectId = 'SUMMARY'; 
@@ -154,8 +155,75 @@ function initDynamicUI() {
     
     btnWrapper.insertBefore(sel, btnWrapper.firstChild);
   }
+
+  // 🚀 注入專案模板介面
+  setTimeout(injectTemplateUI, 500);
+  injectTemplateModal();
 }
 initDynamicUI();
+
+// 🚀 注入專案模板選擇區塊
+function injectTemplateUI() {
+  const taskContainer = document.getElementById("task-list-container");
+  if (!taskContainer) return;
+  if (document.getElementById("template-section-wrapper")) return;
+
+  const wrapper = document.createElement("div");
+  wrapper.id = "template-section-wrapper";
+  wrapper.className = "form-group";
+  wrapper.innerHTML = `
+    <label class="form-label" style="font-weight:700; color:#8b5cf6;">📄 專案模板 (快速帶入排程)</label>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; background:#f8fafc; padding:12px; border-radius:8px; border:1px dashed #cbd5e1; margin-bottom:12px;">
+      <select id="tpl-select" class="input-control" style="width:160px; margin:0;"></select>
+      <button type="button" class="action-btn" onclick="openTemplateEditModal()" style="padding:6px 10px; font-size:12px; border-color:#8b5cf6; color:#8b5cf6;">✏️ 編輯模板</button>
+      <div style="margin-left:auto; display:flex; gap:12px; align-items:center; background:#fff; padding:6px 12px; border-radius:6px; border:1px solid #e2e8f0;">
+        <label style="font-size:13px; cursor:pointer; display:flex; align-items:center; gap:4px;">
+          <input type="radio" name="tpl_mode" value="seq" checked onchange="checkCascade()"> 接續時間
+        </label>
+        <label style="font-size:13px; cursor:pointer; display:flex; align-items:center; gap:4px;">
+          <input type="radio" name="tpl_mode" value="free" onchange="checkCascade()"> 自由時間
+        </label>
+        <button type="button" class="action-btn" style="background:#10b981; color:#fff; border:none; padding:6px 12px; font-weight:bold; border-radius:4px;" onclick="applyTemplate()">⬇️ 帶入</button>
+      </div>
+    </div>
+  `;
+  taskContainer.parentNode.insertBefore(wrapper, taskContainer);
+  renderTemplateSelect();
+}
+
+// 🚀 注入專案模板編輯彈窗
+function injectTemplateModal() {
+   if(document.getElementById('template-edit-modal')) return;
+   const html = `
+   <div class="modal" id="template-edit-modal" style="z-index:9999999;">
+     <div class="modal-box" style="max-width: 600px;">
+       <div class="modal-header">
+         <h3>✏️ 編輯專案模板</h3>
+         <button class="btn-close" onclick="closeTemplateEditModal()">×</button>
+       </div>
+       <div class="modal-body">
+         <input type="hidden" id="tpl-edit-id">
+         <div class="form-group">
+           <label class="form-label">自訂模板名稱</label>
+           <input type="text" id="tpl-edit-name" class="input-control" placeholder="例如：標準開發流程">
+         </div>
+         <div class="form-group" style="margin-bottom:0;">
+           <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
+              <span>預設任務細項設定</span>
+              <button type="button" class="action-btn" onclick="addTplTaskRow('', 1)">➕ 新增一列</button>
+           </label>
+           <div id="tpl-task-list-container" style="max-height:350px; overflow-y:auto; border:1px solid #e2e8f0; padding:12px; border-radius:8px; background:#f8fafc;"></div>
+         </div>
+       </div>
+       <div class="modal-footer" style="text-align:right;">
+         <button class="action-btn" onclick="closeTemplateEditModal()">取消</button>
+         <button class="action-btn" style="background:var(--primary); color:#fff; border:none;" onclick="saveTemplate()">💾 儲存模板</button>
+       </div>
+     </div>
+   </div>
+   `;
+   document.body.insertAdjacentHTML('beforeend', html);
+}
 
 window.switchNav = (tabId, title, elem) => {
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
@@ -187,6 +255,7 @@ document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => 
   renderWeeklyReports();
 });
 
+// 🚀 編輯模式開關防呆：超過 7 天主檔不可動，編輯按鈕直接沒收隱藏！
 function checkEditModeVisibility() {
   const btn = document.getElementById("btn-toggle-edit-mode");
   if (!btn) return;
@@ -199,23 +268,24 @@ function checkEditModeVisibility() {
     if (selectedProjectId !== 'SUMMARY') {
       const p = allProjectsData.find(x => x.id === selectedProjectId);
       if (p) {
-        // 嚴格判斷：只有「專案建立者」本人，在 7 天內才可以開啟編輯模式
-        const isProjOwner = (p.ownerId === auth.currentUser?.uid);
+        const ownerDept = getUserDept(p.ownerId);
+        const isOwnerDept = (currentUserData.dept === ownerDept);
         const inGrace = isWithin7DaysGracePeriod(p);
 
-        if (isProjOwner && inGrace) {
+        // 如果是建立單位，且專案還在 7 天內，允許編輯主檔，所以顯示
+        if (isOwnerDept && inGrace) {
           shouldShow = true;
         }
 
-        const isCollab = p.collaborators && p.collaborators.includes(currentUserData.dept);
-        if (isCollab) {
-          const hasTaskInGrace = (p.tasks || []).some(t => {
-             if (t.assigneeId !== auth.currentUser?.uid) return false;
-             let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
-             return ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
-          });
-          if (hasTaskInGrace) shouldShow = true;
-        }
+        // 如果是協作單位，或是專案已經超過 7 天，
+        // 系統會去掃描該人員「有沒有他自己 7 天內剛建立的細項」
+        // 如果有，才顯示編輯按鈕讓他可以修改錯字。如果都沒有，按鈕直接沒收！
+        const hasTaskInGrace = (p.tasks || []).some(t => {
+           if (t.assigneeId !== auth.currentUser?.uid) return false;
+           let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
+           return ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+        });
+        if (hasTaskInGrace) shouldShow = true;
       }
     }
   }
@@ -298,11 +368,277 @@ function calculateEndDateByDays(startDateStr, days) {
   return formatDateSafe(curDate);
 }
 
+function getNextWorkingDayStr(dateStr) {
+  if (!dateStr) return ''; 
+  let d = new Date(dateStr); 
+  d.setDate(d.getDate() + 1);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+  return d.toISOString().split('T')[0];
+}
+
 function formatDateSafe(dateObj) { 
   const y = dateObj.getFullYear(); 
   const m = String(dateObj.getMonth() + 1).padStart(2, '0'); 
   const d = String(dateObj.getDate()).padStart(2, '0'); 
   return `${y}-${m}-${d}`; 
+}
+
+// 🚀 自動瀑布流級聯計算日期 (只在「接續時間」模式下發動)
+window.cascadeDates = () => {
+   const rows = document.querySelectorAll('#task-list-container .task-row');
+   let prevEnd = null;
+   rows.forEach((row, i) => {
+      const startInput = row.querySelector('.task-start');
+      const daysInput = row.querySelector('.task-days');
+      const endInput = row.querySelector('.task-end');
+      
+      if (i === 0) {
+         if (startInput.value) {
+            endInput.value = calculateEndDateByDays(startInput.value, parseInt(daysInput.value)||1);
+            endInput.min = startInput.value;
+            prevEnd = endInput.value;
+         }
+      } else {
+         if (prevEnd) {
+            startInput.value = getNextWorkingDayStr(prevEnd);
+            endInput.value = calculateEndDateByDays(startInput.value, parseInt(daysInput.value)||1);
+            endInput.min = startInput.value;
+            prevEnd = endInput.value;
+         }
+      }
+   });
+};
+
+window.checkCascade = () => {
+   const modeRadio = document.querySelector('input[name="tpl_mode"]:checked');
+   if (modeRadio && modeRadio.value === 'seq') window.cascadeDates();
+};
+
+window.checkWorkingDay = (input) => { 
+  if (!input.value) return; 
+  const d = new Date(input.value); 
+  if (d.getDay() === 0 || d.getDay() === 6) { 
+    alert("系統規定只能點選工作日喔！"); 
+    input.value = ''; 
+  } 
+};
+
+window.onTaskStartChange = (startInput, targetEndId) => {
+  window.checkWorkingDay(startInput);
+  if (!startInput.value) return;
+  const row = startInput.closest('.task-row') || startInput.closest('#general-edit-form') || startInput.closest('.modal-box');
+  const endInput = typeof targetEndId === 'string' ? document.getElementById(targetEndId) : row?.querySelector('.task-end');
+  const daysInput = row?.querySelector('.task-days') || row?.querySelector('#add-task-days') || row?.querySelector('#edit-val-days');
+
+  if (endInput) {
+    endInput.min = startInput.value;
+    const days = daysInput ? parseInt(daysInput.value) || 1 : 1;
+    endInput.value = calculateEndDateByDays(startInput.value, days);
+  }
+};
+
+window.onTaskDaysChange = (daysInput, targetStartId, targetEndId) => {
+  const row = daysInput.closest('.task-row') || daysInput.closest('#general-edit-form') || daysInput.closest('.modal-box');
+  const startInput = typeof targetStartId === 'string' ? document.getElementById(targetStartId) : row?.querySelector('.task-start') || row?.querySelector('#add-task-start');
+  const endInput = typeof targetEndId === 'string' ? document.getElementById(targetEndId) : row?.querySelector('.task-end') || row?.querySelector('#add-task-end');
+
+  const days = parseInt(daysInput.value) || 1;
+  if (startInput && startInput.value && endInput) {
+    endInput.value = calculateEndDateByDays(startInput.value, days);
+    endInput.min = startInput.value;
+  }
+};
+
+window.onTaskEndChange = (endInput, targetStartId, targetDaysId) => {
+  window.checkWorkingDay(endInput);
+  const row = endInput.closest('.task-row') || endInput.closest('#general-edit-form') || endInput.closest('.modal-box');
+  const startInput = typeof targetStartId === 'string' ? document.getElementById(targetStartId) : row?.querySelector('.task-start') || row?.querySelector('#add-task-start');
+  const daysInput = typeof targetDaysId === 'string' ? document.getElementById(targetDaysId) : row?.querySelector('.task-days') || row?.querySelector('#add-task-days');
+
+  if (startInput && startInput.value && endInput.value) {
+    if (endInput.value < startInput.value) {
+      alert("預計結束日不可早於開始日！");
+      endInput.value = startInput.value;
+    }
+    const days = getWorkingDays(startInput.value, endInput.value);
+    if (daysInput) daysInput.value = days;
+  }
+};
+
+// 🚀 新增細項行，並加入級聯更新檢查
+window.addTaskRow = () => {
+  const container = document.getElementById("task-list-container"); 
+  const rows = container.querySelectorAll('.task-row');
+  let defaultStart = rows.length > 0 ? getNextWorkingDayStr(rows[rows.length - 1].querySelector('.task-end').value) : "";
+  let defaultEnd = defaultStart ? defaultStart : "";
+
+  const div = document.createElement('div'); 
+  div.className = "form-row task-row"; 
+  div.style.marginBottom = "8px";
+  div.innerHTML = `
+    <div class="form-group" style="margin:0; flex:2;"><input type="text" class="input-control task-name" placeholder="細項名稱"></div>
+    <div class="form-group" style="margin:0; flex:1.2;"><input type="date" class="input-control task-start" value="${defaultStart}" onchange="onTaskStartChange(this, null); checkCascade();"></div>
+    <div class="form-group" style="margin:0; width:65px; flex-shrink:0;"><input type="number" min="1" class="input-control task-days" value="1" placeholder="天數" title="工作天數" oninput="onTaskDaysChange(this, null, null); checkCascade();"></div>
+    <div class="form-group" style="margin:0; flex:1.2;"><input type="date" class="input-control task-end" value="${defaultEnd}" min="${defaultStart}" onchange="onTaskEndChange(this, null, null); checkCascade();"></div>
+    <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
+      <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1); checkCascade();" title="上移">↑</button>
+      <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1); checkCascade();" title="下移">↓</button>
+      <button type="button" class="action-btn danger" onclick="this.closest('.task-row').remove(); checkCascade();" style="padding:8px 10px;">X</button>
+    </div>
+  `;
+  container.appendChild(div);
+  checkCascade();
+};
+
+window.moveTaskRow = (btn, direction) => {
+  const row = btn.closest('.task-row');
+  if (!row) return;
+  if (direction === -1 && row.previousElementSibling) {
+    row.parentNode.insertBefore(row, row.previousElementSibling);
+  } else if (direction === 1 && row.nextElementSibling) {
+    row.parentNode.insertBefore(row.nextElementSibling, row);
+  }
+};
+
+// 🚀 模板相關功能函數
+window.renderTemplateSelect = () => {
+  const sel = document.getElementById("tpl-select");
+  if(!sel) return;
+  sel.innerHTML = `<option value="">-- 請選擇模板 --</option>`;
+  for(let i=1; i<=5; i++) {
+     const t = projectTemplates[i] || { name: `自訂模板 ${i}` };
+     sel.innerHTML += `<option value="${i}">${t.name}</option>`;
+  }
+};
+
+window.openTemplateEditModal = () => {
+  const tplId = document.getElementById("tpl-select").value;
+  if (!tplId) return alert("請先從左側選單選擇一個模板！");
+  
+  const tpl = projectTemplates[tplId] || { name: `自訂模板 ${tplId}`, tasks: [] };
+  document.getElementById("tpl-edit-id").value = tplId;
+  document.getElementById("tpl-edit-name").value = tpl.name;
+  
+  const container = document.getElementById("tpl-task-list-container");
+  container.innerHTML = "";
+  if(tpl.tasks && tpl.tasks.length > 0) {
+     tpl.tasks.forEach(task => addTplTaskRow(task.name, task.days));
+  } else {
+     addTplTaskRow("", 1);
+  }
+  document.getElementById("template-edit-modal").classList.add("active");
+};
+
+window.addTplTaskRow = (name="", days=1) => {
+  const container = document.getElementById("tpl-task-list-container");
+  const div = document.createElement('div');
+  div.className = "form-row tpl-task-row";
+  div.style.marginBottom = "8px";
+  div.innerHTML = `
+    <div class="form-group" style="margin:0; flex:3;"><input type="text" class="input-control tpl-task-name" placeholder="細項名稱" value="${name}"></div>
+    <div class="form-group" style="margin:0; width:80px; flex-shrink:0;"><input type="number" min="1" class="input-control tpl-task-days" value="${days}" placeholder="天數" title="預設天數"></div>
+    <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
+      <button type="button" class="action-btn btn-sort" onclick="moveTplTaskRow(this, -1)">↑</button>
+      <button type="button" class="action-btn btn-sort" onclick="moveTplTaskRow(this, 1)">↓</button>
+      <button type="button" class="action-btn danger" onclick="this.closest('.tpl-task-row').remove()" style="padding:8px 10px;">X</button>
+    </div>
+  `;
+  container.appendChild(div);
+};
+
+window.moveTplTaskRow = (btn, direction) => {
+   const row = btn.closest('.tpl-task-row');
+   if (!row) return;
+   if (direction === -1 && row.previousElementSibling) {
+     row.parentNode.insertBefore(row, row.previousElementSibling);
+   } else if (direction === 1 && row.nextElementSibling) {
+     row.parentNode.insertBefore(row.nextElementSibling, row);
+   }
+}
+
+window.closeTemplateEditModal = () => {
+  document.getElementById("template-edit-modal").classList.remove("active");
+};
+
+window.saveTemplate = async () => {
+  const tplId = document.getElementById("tpl-edit-id").value;
+  const name = document.getElementById("tpl-edit-name").value.trim() || `自訂模板 ${tplId}`;
+  const rows = document.querySelectorAll('.tpl-task-row');
+  const tasks = [];
+  rows.forEach(r => {
+     const tName = r.querySelector('.tpl-task-name').value.trim();
+     const tDays = parseInt(r.querySelector('.tpl-task-days').value) || 1;
+     if(tName) tasks.push({ name: tName, days: tDays });
+  });
+  
+  projectTemplates[tplId] = { name, tasks };
+  await setDoc(doc(db, "settings", "project_templates"), projectTemplates, { merge: true });
+  renderTemplateSelect();
+  closeTemplateEditModal();
+  alert("🎉 模板儲存成功！");
+};
+
+window.applyTemplate = () => {
+  const tplId = document.getElementById("tpl-select").value;
+  if (!tplId) return alert("請先選擇要帶入的模板！");
+  const tpl = projectTemplates[tplId];
+  if (!tpl || !tpl.tasks || tpl.tasks.length === 0) return alert("此模板還是空的，請先點擊編輯模板建立任務！");
+  
+  const mode = document.querySelector('input[name="tpl_mode"]:checked').value;
+  const container = document.getElementById("task-list-container");
+  container.innerHTML = ""; // 🚀 帶入時自動清除原有列表
+  
+  let currentDate = getTodayStr(); 
+  
+  tpl.tasks.forEach((t, i) => {
+     const div = document.createElement('div');
+     div.className = "form-row task-row";
+     div.style.marginBottom = "8px";
+     
+     let startStr = "";
+     let endStr = "";
+     let days = parseInt(t.days) || 1;
+
+     if (mode === 'seq') {
+        startStr = i === 0 ? currentDate : getNextWorkingDayStr(currentDate);
+        endStr = calculateEndDateByDays(startStr, days);
+        currentDate = endStr; 
+     } else {
+        days = 1; 
+        startStr = "";
+        endStr = "";
+     }
+
+     div.innerHTML = `
+        <div class="form-group" style="margin:0; flex:2;"><input type="text" class="input-control task-name" value="${t.name}" placeholder="細項名稱"></div>
+        <div class="form-group" style="margin:0; flex:1.2;"><input type="date" class="input-control task-start" value="${startStr}" onchange="onTaskStartChange(this, null); checkCascade();"></div>
+        <div class="form-group" style="margin:0; width:65px; flex-shrink:0;"><input type="number" min="1" class="input-control task-days" value="${days}" placeholder="天數" title="工作天數" oninput="onTaskDaysChange(this, null, null); checkCascade();"></div>
+        <div class="form-group" style="margin:0; flex:1.2;"><input type="date" class="input-control task-end" value="${endStr}" min="${startStr}" onchange="onTaskEndChange(this, null, null); checkCascade();"></div>
+        <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
+          <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1); checkCascade();" title="上移">↑</button>
+          <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1); checkCascade();" title="下移">↓</button>
+          <button type="button" class="action-btn danger" onclick="this.closest('.task-row').remove(); checkCascade();" style="padding:8px 10px;">X</button>
+        </div>
+     `;
+     container.appendChild(div);
+  });
+};
+
+function loadTemplates() {
+  onSnapshot(doc(db, "settings", "project_templates"), (docSnap) => {
+    if (docSnap.exists()) {
+      projectTemplates = docSnap.data();
+    } else {
+      projectTemplates = {
+        1: { name: "標準開發模板 1", tasks: [] },
+        2: { name: "快速專案模板 2", tasks: [] },
+        3: { name: "自訂模板 3", tasks: [] },
+        4: { name: "自訂模板 4", tasks: [] },
+        5: { name: "自訂模板 5", tasks: [] }
+      };
+    }
+    renderTemplateSelect();
+  });
 }
 
 function scrollToTodayMinus2Days(ganttInst, containerSelector) {
@@ -469,6 +805,7 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     loadOrgUsers();
+    loadTemplates(); // 載入模板資料
     initWeeklyDateAndLeave(); 
     addTaskRow(); 
     addWeeklyRow(); 
@@ -481,294 +818,6 @@ onAuthStateChanged(auth, async (user) => {
     document.getElementById("app-section").style.display = "none";
   }
 });
-
-function loadSidebarSubordinates() {
-  const rolePriority = { admin: 1, top_manager: 2, manager: 3, assistant_manager: 4, staff: 5 };
-
-  onSnapshot(collection(db, "users"), (snapshot) => {
-    const list = document.getElementById("nav-sub-list");
-    if (!list) return;
-
-    list.innerHTML = `<li class="nav-sub-item active" id="sub-li-${auth.currentUser.uid}" onclick="switchViewingUser('${auth.currentUser.uid}', '自己 (個人專案)')">個人專案</li>`;
-
-    const visibleUsers = [];
-    const myUid = auth.currentUser.uid;
-    const myRole = currentUserData.role; 
-    const myDept = currentUserData.dept || "設計部";
-
-    allUsersList = [];
-    snapshot.forEach(docSnap => {
-      allUsersList.push({ uid: docSnap.id, ...docSnap.data() });
-    });
-
-    const isSubordinate = (bossUid, targetUid) => {
-      let current = allUsersList.find(u => u.uid === targetUid);
-      let depth = 0;
-      while (current && current.supervisorId && depth < 10) {
-        if (current.supervisorId === bossUid) return true;
-        current = allUsersList.find(u => u.uid === current.supervisorId);
-        depth++;
-      }
-      return false;
-    };
-
-    allUsersList.forEach(u => {
-      if (u.uid === myUid) return;
-
-      const targetRole = u.role; 
-      const targetDept = u.dept || "設計部";
-      let canView = false;
-
-      if (myRole === 'admin' || myRole === 'top_manager') {
-        canView = true;
-      }
-      else if (myRole === 'manager') {
-        if (targetDept === myDept && (targetRole === 'assistant_manager' || targetRole === 'staff')) {
-          canView = true;
-        }
-      }
-      else if (myRole === 'assistant_manager') {
-        if (targetDept === myDept && targetRole === 'staff') {
-          canView = true;
-        }
-      }
-
-      if (canView || isSubordinate(myUid, u.uid)) {
-        visibleUsers.push(u);
-      }
-    });
-
-    departmentList.forEach((dept, dIdx) => {
-      const deptMembers = visibleUsers.filter(u => (u.dept || "設計部") === dept);
-      if (deptMembers.length === 0) return;
-
-      deptMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99));
-
-      const deptGroupId = `dept-group-${dIdx}`;
-      const isViewingMemberInDept = deptMembers.some(m => m.uid === viewingUserId);
-      const isExpanded = isViewingMemberInDept;
-
-      list.innerHTML += `
-        <li class="nav-sub-dept-header ${isExpanded ? 'open' : ''}" onclick="toggleDeptSubList('${deptGroupId}', this)">
-          <div style="display:flex; align-items:center; gap:6px;">
-            <span>🏢</span>
-            <span>${dept}</span>
-            <span class="dept-count-badge">${deptMembers.length}</span>
-          </div>
-          <span class="dept-arrow">▶</span>
-        </li>
-      `;
-
-      let membersHtml = `<div class="nav-sub-dept-members" id="${deptGroupId}" style="display:${isExpanded ? 'flex' : 'none'};">`;
-      deptMembers.forEach(u => {
-        const isActive = (viewingUserId === u.uid) ? 'active' : '';
-        membersHtml += `
-          <li class="nav-sub-item ${isActive}" id="sub-li-${u.uid}" onclick="switchViewingUser('${u.uid}', '${u.name}')">
-            ${u.name || '未命名'} 
-            <small style="color:#94a3b8; font-size:11px; margin-left:4px;">(${roleNames[u.role] || '人員'})</small>
-          </li>
-        `;
-      });
-      membersHtml += `</div>`;
-      list.innerHTML += membersHtml;
-    });
-
-    renderProjects();
-  });
-}
-
-window.toggleDeptSubList = (groupId, headerElem) => {
-  const container = document.getElementById(groupId);
-  if (!container) return;
-  const isHidden = container.style.display === 'none';
-  container.style.display = isHidden ? 'flex' : 'none';
-  headerElem.classList.toggle('open', isHidden);
-};
-
-window.switchViewingUser = (uid, name) => {
-  viewingUserId = uid;
-  document.querySelectorAll('.nav-sub-item').forEach(el => el.classList.remove('active'));
-  const targetLi = document.getElementById(`sub-li-${uid}`);
-  if (targetLi) targetLi.classList.add('active');
-
-  const isSelf = viewingUserId === auth.currentUser.uid;
-  document.getElementById('viewing-user-name').innerText = isSelf ? '' : `[ 正在檢視：${name} ]`;
-  document.getElementById('btn-create-wrapper').style.display = isSelf ? 'flex' : 'none';
-  document.getElementById('create-project-section').style.display = 'none';
-  document.getElementById('adhoc-form-panel').style.display = isSelf ? 'block' : 'none';
-  document.getElementById('weekly-form-panel').style.display = isSelf ? 'block' : 'none';
-
-  selectedProjectId = 'SUMMARY'; 
-  
-  isEditMode = false;
-  const editBtn = document.getElementById("btn-toggle-edit-mode");
-  if(editBtn) {
-     editBtn.innerHTML = "✏️ 開啟編輯模式";
-     editBtn.style.background = "transparent";
-  }
-
-  renderProjects(); 
-  renderAdHocEvents(); 
-  renderWeeklyReports();
-
-  const wrapper = document.getElementById('nav-sub-wrapper');
-  const list = document.getElementById('nav-sub-list');
-  if (wrapper.classList.contains('nav-menu-open')) wrapper.classList.remove('nav-menu-open');
-  if (list.classList.contains('mobile-fixed-dropdown')) {
-    wrapper.appendChild(list); 
-    list.classList.remove('mobile-fixed-dropdown'); 
-  }
-};
-
-document.getElementById("btn-login").addEventListener("click", () => { 
-  signInWithEmailAndPassword(auth, document.getElementById("login-email").value.trim(), document.getElementById("login-password").value.trim()).catch(e=>alert(e.message)); 
-});
-document.getElementById("btn-logout").addEventListener("click", () => signOut(auth));
-
-function getNextWorkingDayStr(dateStr) {
-  if (!dateStr) return ''; 
-  let d = new Date(dateStr); 
-  d.setDate(d.getDate() + 1);
-  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
-  return d.toISOString().split('T')[0];
-}
-
-window.checkWorkingDay = (input) => { 
-  if (!input.value) return; 
-  const d = new Date(input.value); 
-  if (d.getDay() === 0 || d.getDay() === 6) { 
-    alert("系統規定只能點選工作日喔！"); 
-    input.value = ''; 
-  } 
-};
-
-window.onTaskStartChange = (startInput, targetEndId) => {
-  window.checkWorkingDay(startInput);
-  if (!startInput.value) return;
-  const row = startInput.closest('.task-row') || startInput.closest('#general-edit-form') || startInput.closest('.modal-box');
-  const endInput = typeof targetEndId === 'string' ? document.getElementById(targetEndId) : row?.querySelector('.task-end');
-  const daysInput = row?.querySelector('.task-days') || row?.querySelector('#add-task-days') || row?.querySelector('#edit-val-days');
-
-  if (endInput) {
-    endInput.min = startInput.value;
-    const days = daysInput ? parseInt(daysInput.value) || 1 : 1;
-    endInput.value = calculateEndDateByDays(startInput.value, days);
-  }
-};
-
-window.onTaskDaysChange = (daysInput, targetStartId, targetEndId) => {
-  const row = daysInput.closest('.task-row') || daysInput.closest('#general-edit-form') || daysInput.closest('.modal-box');
-  const startInput = typeof targetStartId === 'string' ? document.getElementById(targetStartId) : row?.querySelector('.task-start') || row?.querySelector('#add-task-start');
-  const endInput = typeof targetEndId === 'string' ? document.getElementById(targetEndId) : row?.querySelector('.task-end') || row?.querySelector('#add-task-end');
-
-  const days = parseInt(daysInput.value) || 1;
-  if (startInput && startInput.value && endInput) {
-    endInput.value = calculateEndDateByDays(startInput.value, days);
-    endInput.min = startInput.value;
-  }
-};
-
-window.onTaskEndChange = (endInput, targetStartId, targetDaysId) => {
-  window.checkWorkingDay(endInput);
-  const row = endInput.closest('.task-row') || endInput.closest('#general-edit-form') || endInput.closest('.modal-box');
-  const startInput = typeof targetStartId === 'string' ? document.getElementById(targetStartId) : row?.querySelector('.task-start') || row?.querySelector('#add-task-start');
-  const daysInput = typeof targetDaysId === 'string' ? document.getElementById(targetDaysId) : row?.querySelector('.task-days') || row?.querySelector('#add-task-days');
-
-  if (startInput && startInput.value && endInput.value) {
-    if (endInput.value < startInput.value) {
-      alert("預計結束日不可早於開始日！");
-      endInput.value = startInput.value;
-    }
-    const days = getWorkingDays(startInput.value, endInput.value);
-    if (daysInput) daysInput.value = days;
-  }
-};
-
-window.addTaskRow = () => {
-  const container = document.getElementById("task-list-container"); 
-  const rows = container.querySelectorAll('.task-row');
-  let defaultStart = rows.length > 0 ? getNextWorkingDayStr(rows[rows.length - 1].querySelector('.task-end').value) : "";
-  let defaultEnd = defaultStart ? defaultStart : "";
-
-  const div = document.createElement('div'); 
-  div.className = "form-row task-row"; 
-  div.style.marginBottom = "8px";
-  div.innerHTML = `
-    <div class="form-group" style="margin:0; flex:2;"><input type="text" class="input-control task-name" placeholder="細項名稱"></div>
-    <div class="form-group" style="margin:0; flex:1.2;"><input type="date" class="input-control task-start" value="${defaultStart}" onchange="onTaskStartChange(this, null)"></div>
-    <div class="form-group" style="margin:0; width:65px; flex-shrink:0;"><input type="number" min="1" class="input-control task-days" value="1" placeholder="天數" title="工作天數" oninput="onTaskDaysChange(this, null, null)"></div>
-    <div class="form-group" style="margin:0; flex:1.2;"><input type="date" class="input-control task-end" value="${defaultEnd}" min="${defaultStart}" onchange="onTaskEndChange(this, null, null)"></div>
-    <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
-      <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
-      <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
-      <button type="button" class="action-btn danger" onclick="this.closest('.task-row').remove()" style="padding:8px 10px;">X</button>
-    </div>
-  `;
-  container.appendChild(div);
-};
-
-window.moveTaskRow = (btn, direction) => {
-  const row = btn.closest('.task-row');
-  if (!row) return;
-  if (direction === -1 && row.previousElementSibling) {
-    row.parentNode.insertBefore(row, row.previousElementSibling);
-  } else if (direction === 1 && row.nextElementSibling) {
-    row.parentNode.insertBefore(row.nextElementSibling, row);
-  }
-};
-
-window.setProjectFilter = (status) => {
-  currentFilter = status;
-  document.querySelectorAll('.kpi-card').forEach(el => el.classList.remove('active'));
-  const activeBtn = document.getElementById('filter-' + status);
-  if(activeBtn) activeBtn.classList.add('active');
-  
-  selectedProjectId = 'SUMMARY'; 
-  renderProjects();
-};
-
-window.selectProject = (projId) => { 
-  selectedProjectId = projId; 
-  isEditMode = false;
-  const editBtn = document.getElementById("btn-toggle-edit-mode");
-  if(editBtn) {
-     editBtn.innerHTML = "✏️ 開啟編輯模式";
-     editBtn.style.background = "transparent";
-  }
-  renderProjects(); 
-};
-
-window.getAvailableTasks = (projId) => {
-  const proj = allProjectsData.find(p => p.id === projId);
-  if(!proj || !proj.tasks) return [];
-  return proj.tasks.map((t, i) => ({...t, index: i})).filter(t => {
-    if (!t.isCompleted) return true; 
-    if (t.reportedCompleted === true) return false; 
-    const taskCompletedTime = t.completedAt ? new Date(t.completedAt.replace(/-/g, '/')).getTime() : 0;
-    const alreadyReported = allWeeklyData.some(w => {
-      if(w.ownerId !== auth.currentUser.uid) return false;
-      const reportTime = w.createdAt ? w.createdAt.toDate().getTime() : Date.now();
-      const hasTask = (w.items || []).some(item => item.projectId === proj.id && String(item.taskId) === String(t.index));
-      return hasTask && reportTime > (taskCompletedTime - 60000);
-    });
-    return !alreadyReported;
-  });
-};
-
-function loadProjects() {
-  onSnapshot(query(collection(db, "projects")), (snapshot) => {
-    allProjectsData = []; 
-    snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
-    renderProjects(); 
-    refreshAllWeeklyProjSelects();
-  }); 
-}
-
-function getAdHocDateStr(evt) {
-  if (evt.startDate) return evt.startDate;
-  if (evt.createdAt && evt.createdAt.toDate) return evt.createdAt.toDate().toISOString().split('T')[0];
-  return new Date().toISOString().split('T')[0];
-}
 
 function spansYear(p, y) {
   if(y === 'all') return true;
@@ -829,7 +878,6 @@ function renderProjects() {
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
-  // 🚀 視角絕對隔離：看誰就只顯示誰的部門的協作專案
   const collabProjects = allProjectsData.filter(p => {
     const collabs = p.collaborators || [];
     if (collabs.length === 0) return false;
@@ -849,7 +897,6 @@ function renderProjects() {
     const ownerDept = getUserDept(p.ownerId);
     const isOwnerDept = (targetDept === ownerDept); 
 
-    // 視角過濾：建檔部門看全部，協作單位看自己
     if (isOwnerDept) {
       relevantTasks = p.tasks || [];
     } else {
@@ -967,9 +1014,6 @@ function renderProjects() {
 
   emptyState.style.display = "none"; 
 
-  // ==========================================
-  // ⭐ 顯示總覽畫面
-  // ==========================================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; 
     summaryView.style.display = "block";
@@ -1106,9 +1150,6 @@ function renderProjects() {
     return;
   }
 
-  // ==========================================
-  // ⭐ 顯示詳細專案畫面
-  // ==========================================
   summaryView.style.display = "none"; 
   detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
@@ -1116,13 +1157,13 @@ function renderProjects() {
 
   const ownerDept = getUserDept(activeProj.ownerId);
   const isProjOwnerDept = (currentUserData.dept === ownerDept); 
-  // 🚀 嚴格鎖死擁有者權限，不再被 isProjOwnerDept 綁架
-  const isProjOwner = (activeProj.ownerId === auth.currentUser.uid);
+  const isProjOwner = (activeProj.ownerId === auth.currentUser.uid) || isProjOwnerDept;
   
   const hasCollab = (activeProj.collaborators && activeProj.collaborators.length > 0);
   const isCollabMember = hasCollab && activeProj.collaborators.includes(currentUserData.dept);
   
   const hasGlobalEdit = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
+  const isAuthorizedMaster = hasGlobalEdit || isProjOwner;
   const inGracePeriod = isWithin7DaysGracePeriod(activeProj);
   
   let canEditMainProj = isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod));
@@ -1143,8 +1184,8 @@ function renderProjects() {
 
   lockBtn.style.display = "none"; 
 
-  // 🚀 新增細項按鈕：不需要編輯模式！只要有特權、是協作單位，或是專案主在 7 天內，就能永遠顯示！
-  const canAddTask = hasGlobalEdit || isCollabMember || (isProjOwner && inGracePeriod);
+  // 🚀 永久開放新增：只要有全局權限，或是協作單位，或是建立者，永遠開放新增按鈕！不再受 7 天限制！
+  const canAddTask = hasGlobalEdit || isCollabMember || isProjOwner;
 
   if (canAddTask) {
     btnProjectAddTask.style.display = "inline-block";
@@ -1153,7 +1194,6 @@ function renderProjects() {
     btnProjectAddTask.style.display = "none";
   }
 
-  // 🚀 刪除專案防呆：必須在開啟編輯模式時才顯示
   delProjBtn.style.display = (isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod))) ? "inline-block" : "none";
 
   const leftBody = document.getElementById("gantt-left-body");
@@ -1182,10 +1222,11 @@ function renderProjects() {
     const taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
     const isMyTask = (auth.currentUser.uid === taskAssigneeId);
 
+    // 🚀 每一個細項，都有自己獨立的 7 天生命週期判斷
     let taskCreatedTime = task.createdAt || (activeProj.createdAt && typeof activeProj.createdAt.toMillis === 'function' ? activeProj.createdAt.toMillis() : Date.now());
     let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
 
-    const canOperateThisTask = (hasGlobalEdit || isMyTask || isProjOwner);
+    const canOperateThisTask = (hasGlobalEdit || isMyTask || isProjOwnerDept);
     const isInputLocked = task.isCompleted || !canOperateThisTask; 
     
     let canEditTask = isEditMode && (
@@ -1279,8 +1320,11 @@ window.deleteActiveProjectTask = async (projId, index) => {
   const task = proj.tasks[index];
   let taskCreatedTime = task.createdAt || (proj.createdAt && typeof proj.createdAt.toMillis === 'function' ? proj.createdAt.toMillis() : Date.now());
   let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+  
+  const ownerDept = getUserDept(proj.ownerId);
+  const isProjOwnerDept = (currentUserData.dept === ownerDept); 
 
-  let isAuthorized = currentUserData.role === 'admin' || currentUserData.canEdit || ((proj.ownerId === auth.currentUser.uid || task.assigneeId === auth.currentUser.uid) && isTaskInGrace);
+  let isAuthorized = currentUserData.role === 'admin' || currentUserData.canEdit || ((proj.ownerId === auth.currentUser.uid || task.assigneeId === auth.currentUser.uid || isProjOwnerDept) && isTaskInGrace);
   
   if (!isAuthorized) return alert("⚠️ 此細項已超過 7 天編輯期限，只能請管理員協助刪除！");
 
@@ -1405,12 +1449,13 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const tasks = [...proj.tasks];
   const targetTask = tasks[taskIndex];
   
-  const isProjOwner = (proj.ownerId === auth.currentUser.uid);
+  const ownerDept = getUserDept(proj.ownerId);
+  const isOwnerDept = (currentUserData.dept === ownerDept); 
   const taskAssigneeId = targetTask.assigneeId || proj.ownerId;
   const isMyTask = (auth.currentUser.uid === taskAssigneeId);
   
-  if (!isProjOwner && !isMyTask && currentUserData.role !== 'admin') {
-    return alert("權限不足：您並非此任務細項之負責人或專案建立者，無法更新進度！");
+  if (!isOwnerDept && !isMyTask && currentUserData.role !== 'admin') {
+    return alert("權限不足：您並非此任務細項之負責人或專案建立部門，無法更新進度！");
   }
 
   const inputElem = document.getElementById(`prog_input_${taskIndex}`);
@@ -1531,7 +1576,6 @@ function loadAdHocEvents() {
     allAdHocData = []; 
     snapshot.forEach(docSnap => allAdHocData.push({ id: docSnap.id, ...docSnap.data() })); 
     renderAdHocEvents(); 
-    renderProjects();
   }); 
 }
 
@@ -1567,6 +1611,7 @@ function renderAdHocEvents() {
     `; 
     tbody.appendChild(tr);
   });
+  if(selectedProjectId === 'SUMMARY' && document.getElementById("tab-projects").style.display === "block") renderProjects(); 
 }
 
 document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
@@ -2250,13 +2295,14 @@ window.openGeneralEdit = (type, id, extra) => {
         let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
         let tInGrace = ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
         let isMyTask = (auth.currentUser.uid === (t.assigneeId || p.ownerId));
-        let isProjOwner = (p.ownerId === auth.currentUser.uid);
+        const ownerDept = getUserDept(p.ownerId);
+        let isOwnerDept = (currentUserData.dept === ownerDept);
 
-        // 🚀 必須是建立者本人或是任務指派者才可以編輯
-        if ((isProjOwner || isMyTask) && tInGrace) isAuthorized = true;
+        if ((isOwnerDept || isMyTask) && tInGrace) isAuthorized = true;
       } else if (type === 'project') {
-        let isProjOwner = (p.ownerId === auth.currentUser.uid);
-        if (isProjOwner && isWithin7DaysGracePeriod(p)) isAuthorized = true;
+        const ownerDept = getUserDept(p.ownerId);
+        const isOwnerDept = (currentUserData.dept === ownerDept);
+        if (isOwnerDept && isWithin7DaysGracePeriod(p)) isAuthorized = true;
       }
     }
   } else if (type === 'weekly') {
