@@ -27,9 +27,6 @@ const db = getFirestore(app);
 const roleNames = { admin: "系統管理員", top_manager: "高級主管", manager: "主管", assistant_manager: "副主管", staff: "人員" };
 const departmentList = ["總經理室", "企劃部", "業務部", "設計部", "品檢部", "採購部", "廠部"];
 
-// ==========================================
-// 全域狀態變數
-// ==========================================
 let currentUserData = { role: "staff", name: "", dept: "設計部", canEdit: false };
 let allUsersList = [];
 let projectTemplates = {
@@ -71,7 +68,7 @@ const taiwanHolidayMap = {
 };
 
 // ==========================================
-// 基礎核心工具函式
+// 工具函式
 // ==========================================
 function getTodayStr() {
     const d = new Date();
@@ -165,20 +162,6 @@ function isWithin7DaysGracePeriod(proj) {
   return diffDays <= 7;
 }
 
-function getGraceDaysLeft(proj) {
-  if (!proj || !proj.createdAt) return 0;
-  let createdTime;
-  if (typeof proj.createdAt.toMillis === 'function') {
-    createdTime = proj.createdAt.toMillis();
-  } else if (proj.createdAt.seconds) {
-    createdTime = proj.createdAt.seconds * 1000;
-  } else {
-    createdTime = Date.now(); 
-  }
-  const diffDays = (Date.now() - createdTime) / (1000 * 60 * 60 * 24);
-  return Math.max(0, Math.ceil(7 - diffDays));
-}
-
 function triggerRenderProjects() {
   if (renderTimer) clearTimeout(renderTimer);
   renderTimer = setTimeout(() => {
@@ -187,8 +170,227 @@ function triggerRenderProjects() {
 }
 
 // ==========================================
-// 專案與模板功能
+// 統一事件委派與攔截器 (確保按鈕 100% 響應)
 // ==========================================
+document.addEventListener("click", async (e) => {
+  const target = e.target;
+
+  if (target.closest("#btn-login")) {
+    e.preventDefault();
+    const email = document.getElementById("login-email")?.value.trim();
+    const pass = document.getElementById("login-password")?.value.trim();
+    if (!email || !pass) return alert("請填寫帳號密碼！");
+    try { 
+      await signInWithEmailAndPassword(auth, email, pass); 
+    } catch (err) { 
+      alert("登入失敗: " + err.message); 
+    }
+    return;
+  }
+
+  if (target.closest("#btn-logout")) {
+    e.preventDefault();
+    signOut(auth);
+    return;
+  }
+
+  if (target.closest("#btn-toggle-edit-mode")) {
+    e.preventDefault();
+    if (!auth.currentUser) return;
+    isEditMode = !isEditMode;
+    const btn = document.getElementById("btn-toggle-edit-mode");
+    if (btn) {
+      btn.innerHTML = isEditMode ? "❌ 關閉編輯模式" : "✏️ 開啟編輯模式";
+      btn.style.background = isEditMode ? "var(--warning-bg)" : "transparent";
+    }
+    triggerRenderProjects();
+    renderAdHocEvents();
+    renderWeeklyReports();
+    return;
+  }
+
+  if (target.closest("#btn-toggle-create")) {
+    e.preventDefault();
+    const form = document.getElementById('create-project-section');
+    if (!form) return;
+    const isHidden = form.style.display === 'none';
+    form.style.display = isHidden ? 'block' : 'none';
+
+    if (isHidden) {
+      const projName = document.getElementById("proj-name");
+      if(projName) projName.value = "";
+      const projColor = document.getElementById("proj-color");
+      if(projColor) projColor.value = "bar-primary";
+      
+      renderCollabCheckboxes([]);
+      const taskContainer = document.getElementById("task-list-container");
+      if(taskContainer) taskContainer.innerHTML = "";
+      
+      addTaskRow();
+      injectTemplateUI();
+    }
+    return;
+  }
+
+  if (target.closest("#btn-add-project")) {
+    e.preventDefault();
+    submitNewProject();
+    return;
+  }
+
+  if (target.closest("#btn-project-add-task")) {
+    e.preventDefault();
+    openAddProjectTaskModal();
+    return;
+  }
+
+  if (target.closest("#btn-delete-project")) {
+    e.preventDefault();
+    deleteCurrentProject();
+    return;
+  }
+
+  // 模板編輯按鈕觸發
+  if (target.closest("button") && target.closest("button").textContent.includes("編輯模板")) {
+    e.preventDefault();
+    openTemplateEditModal();
+    return;
+  }
+
+  // 模板帶入按鈕觸發
+  if (target.closest("button") && target.closest("button").textContent.includes("帶入")) {
+    e.preventDefault();
+    applyTemplate();
+    return;
+  }
+});
+
+// ==========================================
+// 專案與模板 UI 管理
+// ==========================================
+function initDynamicUI() {
+  if (document.getElementById('filter-all')) return; 
+
+  const kpiRow = document.querySelector('.kpi-row');
+  if (kpiRow) {
+    kpiRow.innerHTML = `
+      <div class="kpi-card active" id="filter-ongoing" onclick="setProjectFilter('ongoing')"><div class="kpi-title">未完成</div><div class="kpi-number" id="stat-ongoing">0</div></div>
+      <div class="kpi-card" id="filter-completed" onclick="setProjectFilter('completed')"><div class="kpi-title">完成</div><div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div></div>
+      <div class="kpi-card" id="filter-delayed" onclick="setProjectFilter('delayed')"><div class="kpi-title">Delay</div><div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div></div>
+      <div class="kpi-card" id="filter-collab" onclick="setProjectFilter('collab')"><div class="kpi-title">協作專案</div><div class="kpi-number" id="stat-collab" style="color: var(--primary);">0</div></div>
+      <div class="kpi-card" id="filter-all" onclick="setProjectFilter('all')"><div class="kpi-title">專案總覽</div><div class="kpi-number" id="stat-all" style="color: var(--warning);">0</div></div>
+    `;
+  }
+  
+  const style = document.createElement('style');
+  style.innerHTML = `
+    .kpi-card { padding: 8px 12px !important; min-height: unset !important; cursor: pointer; }
+    .kpi-title { font-size: 11.5px !important; margin-bottom: 2px !important; }
+    .kpi-number { font-size: 18px !important; }
+    .col-sum-name.clickable { cursor: pointer; text-decoration: none; transition: 0.2s; }
+    .col-sum-name.clickable:hover { opacity: 0.7; }
+    .gantt-left-panel { flex: 0 0 55% !important; max-width: 55% !important; }
+    .gantt-right-panel { flex: 0 0 45% !important; max-width: 45% !important; }
+    .col-sum-name, .col-name { flex: 4 !important; } 
+    .col-sum-date, .col-date { flex: 1.2 !important; }
+    .col-sum-prog, .col-prog { flex: 0.8 !important; }
+    .col-owner { flex: 1.2 !important; }
+    .col-act { flex: 0.8 !important; }
+    .mobile-fixed-dropdown {
+        position: fixed !important; top: 60px !important; left: 0 !important; width: 100vw !important;
+        height: calc(100vh - 60px) !important; background: #f1f5f9 !important; z-index: 999999 !important;
+        display: flex !important; flex-direction: column; overflow-y: auto !important; padding: 20px !important;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+  `;
+  document.head.appendChild(style);
+
+  const btnWrapper = document.getElementById('btn-create-wrapper');
+  if (btnWrapper && !document.getElementById('project-year-filter')) {
+    const currentY = new Date().getFullYear();
+    let options = '';
+    for (let y = currentY - 3; y <= currentY + 3; y++) {
+        options += `<option value="${y}" ${y === currentY ? 'selected' : ''}>${y}年</option>`;
+    }
+    options += `<option value="all">所有年份</option>`;
+    
+    const sel = document.createElement('select');
+    sel.id = "project-year-filter";
+    sel.className = "input-control";
+    sel.style.width = "100px";
+    sel.style.marginRight = "10px";
+    sel.style.fontWeight = "bold";
+    sel.innerHTML = options;
+    sel.onchange = () => {
+      if (currentFilter === 'ongoing' || currentFilter === 'delayed') setProjectFilter('all');
+      else triggerRenderProjects();
+    };
+    btnWrapper.insertBefore(sel, btnWrapper.firstChild);
+  }
+}
+
+function injectTemplateUI() {
+  const taskContainer = document.getElementById("task-list-container");
+  if (!taskContainer || document.getElementById("template-section-wrapper")) return;
+
+  const wrapper = document.createElement("div");
+  wrapper.id = "template-section-wrapper";
+  wrapper.className = "form-group";
+  wrapper.style.marginBottom = "14px";
+  wrapper.innerHTML = `
+    <label class="form-label" style="font-weight:700; color:#8b5cf6; margin-bottom:6px; display:block;">📄 專案模板 (快速帶入排程)</label>
+    <div style="display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
+      <select id="tpl-select" class="input-control" style="width:170px; margin:0; font-size:13px;"></select>
+      <button type="button" class="action-btn" onclick="openTemplateEditModal()" style="padding:6px 12px; font-size:12px; border-color:#8b5cf6; color:#8b5cf6; font-weight:600;">✏️ 編輯模板</button>
+      
+      <div style="display:inline-flex; gap:12px; align-items:center; margin-left:14px; padding-left:14px; border-left:1px solid #cbd5e1;">
+        <label style="font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; margin:0; font-weight:500;">
+          <input type="radio" name="tpl_mode" value="seq" checked onchange="checkCascade()"> 接續時間
+        </label>
+        <label style="font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; margin:0; font-weight:500;">
+          <input type="radio" name="tpl_mode" value="free" onchange="checkCascade()"> 自由時間
+        </label>
+        <button type="button" class="action-btn" style="background:#10b981; color:#fff; border:none; padding:6px 14px; font-weight:bold; border-radius:4px; font-size:12px; margin-left:4px;" onclick="applyTemplate()">帶入</button>
+      </div>
+    </div>
+  `;
+  taskContainer.parentNode.insertBefore(wrapper, taskContainer);
+  renderTemplateSelect();
+}
+
+function injectTemplateModal() {
+   if (document.getElementById('template-edit-modal')) return;
+   const html = `
+   <div class="modal" id="template-edit-modal" style="z-index:9999999;">
+     <div class="modal-box" style="max-width: 600px;">
+       <div class="modal-header">
+         <h3>✏️ 編輯專案模板</h3>
+         <button class="btn-close" onclick="closeTemplateEditModal()">×</button>
+       </div>
+       <div class="modal-body">
+         <input type="hidden" id="tpl-edit-id">
+         <div class="form-group">
+           <label class="form-label">自訂模板名稱</label>
+           <input type="text" id="tpl-edit-name" class="input-control" placeholder="例如：標準開發流程">
+         </div>
+         <div class="form-group" style="margin-bottom:0;">
+           <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
+              <span>預設任務細項設定</span>
+              <button type="button" class="action-btn" onclick="addTplTaskRow('', 1)">➕ 新增一列</button>
+           </label>
+           <div id="tpl-task-list-container" style="max-height:350px; overflow-y:auto; border:1px solid #e2e8f0; padding:12px; border-radius:8px; background:#f8fafc;"></div>
+         </div>
+       </div>
+       <div class="modal-footer" style="text-align:right;">
+         <button class="action-btn" onclick="closeTemplateEditModal()">取消</button>
+         <button class="action-btn" style="background:var(--primary); color:#fff; border:none;" onclick="saveTemplate()">💾 儲存模板</button>
+       </div>
+     </div>
+   </div>
+   `;
+   document.body.insertAdjacentHTML('beforeend', html);
+}
+
 function renderTemplateSelect() {
   const sel = document.getElementById("tpl-select");
   if (!sel) return;
@@ -206,10 +408,8 @@ function openTemplateEditModal() {
   injectTemplateModal(); 
   
   const tpl = projectTemplates[tplId] || projectTemplates[String(tplId)] || { name: `自訂模板 ${tplId}`, tasks: [] };
-  const editIdElem = document.getElementById("tpl-edit-id");
-  const editNameElem = document.getElementById("tpl-edit-name");
-  if(editIdElem) editIdElem.value = tplId;
-  if(editNameElem) editNameElem.value = tpl.name;
+  document.getElementById("tpl-edit-id").value = tplId;
+  document.getElementById("tpl-edit-name").value = tpl.name;
   
   const container = document.getElementById("tpl-task-list-container");
   if(!container) return;
@@ -352,7 +552,7 @@ function cascadeDates() {
          if (prevEnd) {
             startInput.value = getNextWorkingDayStr(prevEnd);
             endInput.value = calculateEndDateByDays(startInput.value, parseInt(daysInput.value) || 1);
-            endInput.min = startInput.value;
+            startInput.min = startInput.value;
             prevEnd = endInput.value;
          }
       }
@@ -360,57 +560,6 @@ function cascadeDates() {
 }
 
 function checkCascade() { cascadeDates(); }
-
-function checkWorkingDay(input) { 
-  if (!input.value) return; 
-  const d = new Date(input.value); 
-  if (d.getDay() === 0 || d.getDay() === 6) { 
-    alert("系統規定只能點選工作日喔！"); 
-    input.value = ''; 
-  } 
-}
-
-function onTaskStartChange(startInput, targetEndId) {
-  checkWorkingDay(startInput);
-  if (!startInput.value) return;
-  const row = startInput.closest('.task-row') || startInput.closest('#general-edit-form') || startInput.closest('.modal-box');
-  const endInput = typeof targetEndId === 'string' ? document.getElementById(targetEndId) : row?.querySelector('.task-end');
-  const daysInput = row?.querySelector('.task-days') || row?.querySelector('#add-task-days') || row?.querySelector('#edit-val-days');
-
-  if (endInput) {
-    endInput.min = startInput.value;
-    const days = daysInput ? parseInt(daysInput.value) || 1 : 1;
-    endInput.value = calculateEndDateByDays(startInput.value, days);
-  }
-}
-
-function onTaskDaysChange(daysInput, targetStartId, targetEndId) {
-  const row = daysInput.closest('.task-row') || daysInput.closest('#general-edit-form') || daysInput.closest('.modal-box');
-  const startInput = typeof targetStartId === 'string' ? document.getElementById(targetStartId) : row?.querySelector('.task-start') || row?.querySelector('#add-task-start');
-  const endInput = typeof targetEndId === 'string' ? document.getElementById(targetEndId) : row?.querySelector('.task-end') || row?.querySelector('#add-task-end');
-
-  const days = parseInt(daysInput.value) || 1;
-  if (startInput && startInput.value && endInput) {
-    endInput.value = calculateEndDateByDays(startInput.value, days);
-    endInput.min = startInput.value;
-  }
-}
-
-function onTaskEndChange(endInput, targetStartId, targetDaysId) {
-  checkWorkingDay(endInput);
-  const row = endInput.closest('.task-row') || endInput.closest('#general-edit-form') || endInput.closest('.modal-box');
-  const startInput = typeof targetStartId === 'string' ? document.getElementById(targetStartId) : row?.querySelector('.task-start') || row?.querySelector('#add-task-start');
-  const daysInput = typeof targetDaysId === 'string' ? document.getElementById(targetDaysId) : row?.querySelector('.task-days') || row?.querySelector('#add-task-days');
-
-  if (startInput && startInput.value && endInput.value) {
-    if (endInput.value < startInput.value) {
-      alert("預計結束日不可早於開始日！");
-      endInput.value = startInput.value;
-    }
-    const days = getWorkingDays(startInput.value, endInput.value);
-    if (daysInput) daysInput.value = days;
-  }
-}
 
 function addTaskRow() {
   const container = document.getElementById("task-list-container"); 
@@ -422,121 +571,8 @@ function addTaskRow() {
   cascadeDates();
 }
 
-function moveTaskRow(btn, direction) {
-  const row = btn.closest('.task-row');
-  if (!row) return;
-  if (direction === -1 && row.previousElementSibling) {
-    row.parentNode.insertBefore(row, row.previousElementSibling);
-  } else if (direction === 1 && row.nextElementSibling) {
-    row.parentNode.insertBefore(row.nextElementSibling, row);
-  }
-}
-
 // ==========================================
-// 🚀 UI 結構注入
-// ==========================================
-function initDynamicUI() {
-  if (document.getElementById('filter-all')) return; 
-
-  const kpiRow = document.querySelector('.kpi-row');
-  if (kpiRow) {
-    kpiRow.innerHTML = `
-      <div class="kpi-card active" id="filter-ongoing" onclick="setProjectFilter('ongoing')"><div class="kpi-title">未完成</div><div class="kpi-number" id="stat-ongoing">0</div></div>
-      <div class="kpi-card" id="filter-completed" onclick="setProjectFilter('completed')"><div class="kpi-title">完成</div><div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div></div>
-      <div class="kpi-card" id="filter-delayed" onclick="setProjectFilter('delayed')"><div class="kpi-title">Delay</div><div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div></div>
-      <div class="kpi-card" id="filter-collab" onclick="setProjectFilter('collab')"><div class="kpi-title">協作專案</div><div class="kpi-number" id="stat-collab" style="color: var(--primary);">0</div></div>
-      <div class="kpi-card" id="filter-all" onclick="setProjectFilter('all')"><div class="kpi-title">專案總覽</div><div class="kpi-number" id="stat-all" style="color: var(--warning);">0</div></div>
-    `;
-  }
-  
-  const style = document.createElement('style');
-  style.innerHTML = `
-    .kpi-card { padding: 8px 12px !important; min-height: unset !important; cursor: pointer; }
-    .kpi-title { font-size: 11.5px !important; margin-bottom: 2px !important; }
-    .kpi-number { font-size: 18px !important; }
-    .col-sum-name.clickable { cursor: pointer; text-decoration: none; transition: 0.2s; }
-    .col-sum-name.clickable:hover { opacity: 0.7; }
-    .gantt-left-panel { flex: 0 0 55% !important; max-width: 55% !important; }
-    .gantt-right-panel { flex: 0 0 45% !important; max-width: 45% !important; }
-    .col-sum-name, .col-name { flex: 4 !important; } 
-    .col-sum-date, .col-date { flex: 1.2 !important; }
-    .col-sum-prog, .col-prog { flex: 0.8 !important; }
-    .col-owner { flex: 1.2 !important; }
-    .col-act { flex: 0.8 !important; }
-    .mobile-fixed-dropdown {
-        position: fixed !important; top: 60px !important; left: 0 !important; width: 100vw !important;
-        height: calc(100vh - 60px) !important; background: #f1f5f9 !important; z-index: 999999 !important;
-        display: flex !important; flex-direction: column; overflow-y: auto !important; padding: 20px !important;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-    }
-    @media (max-width: 768px) {
-      .kpi-row { grid-template-columns: repeat(5, 1fr) !important; gap: 4px !important; }
-      .kpi-title { font-size: 10px !important; }
-      .kpi-card { padding: 6px 4px !important; }
-      .gantt-left-panel { flex: 0 0 100% !important; max-width: 100% !important; }
-      .gantt-right-panel { display: none !important; }
-    }
-  `;
-  document.head.appendChild(style);
-
-  const btnWrapper = document.getElementById('btn-create-wrapper');
-  if (btnWrapper && !document.getElementById('project-year-filter')) {
-    const currentY = new Date().getFullYear();
-    let options = '';
-    for (let y = currentY - 3; y <= currentY + 3; y++) {
-        options += `<option value="${y}" ${y === currentY ? 'selected' : ''}>${y}年</option>`;
-    }
-    options += `<option value="all">所有年份</option>`;
-    const sel = document.createElement('select');
-    sel.id = "project-year-filter";
-    sel.className = "input-control";
-    sel.style.width = "100px";
-    sel.style.marginRight = "10px";
-    sel.style.fontWeight = "bold";
-    sel.innerHTML = options;
-    sel.onchange = () => {
-      if (currentFilter === 'ongoing' || currentFilter === 'delayed') setProjectFilter('all');
-      else triggerRenderProjects();
-    };
-    btnWrapper.insertBefore(sel, btnWrapper.firstChild);
-  }
-}
-
-function injectTemplateModal() {
-   if (document.getElementById('template-edit-modal')) return;
-   const html = `
-   <div class="modal" id="template-edit-modal" style="z-index:9999999;">
-     <div class="modal-box" style="max-width: 600px;">
-       <div class="modal-header">
-         <h3>✏️ 編輯專案模板</h3>
-         <button class="btn-close" onclick="closeTemplateEditModal()">×</button>
-       </div>
-       <div class="modal-body">
-         <input type="hidden" id="tpl-edit-id">
-         <div class="form-group">
-           <label class="form-label">自訂模板名稱</label>
-           <input type="text" id="tpl-edit-name" class="input-control" placeholder="例如：標準開發流程">
-         </div>
-         <div class="form-group" style="margin-bottom:0;">
-           <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
-              <span>預設任務細項設定</span>
-              <button type="button" class="action-btn" onclick="addTplTaskRow('', 1)">➕ 新增一列</button>
-           </label>
-           <div id="tpl-task-list-container" style="max-height:350px; overflow-y:auto; border:1px solid #e2e8f0; padding:12px; border-radius:8px; background:#f8fafc;"></div>
-         </div>
-       </div>
-       <div class="modal-footer" style="text-align:right;">
-         <button class="action-btn" onclick="closeTemplateEditModal()">取消</button>
-         <button class="action-btn" style="background:var(--primary); color:#fff; border:none;" onclick="saveTemplate()">💾 儲存模板</button>
-       </div>
-     </div>
-   </div>
-   `;
-   if (document.body) document.body.insertAdjacentHTML('beforeend', html);
-}
-
-// ==========================================
-// 🚀 Firebase 驗證與資料流通道
+// Firebase 身份驗證與資料串流
 // ==========================================
 onAuthStateChanged(auth, async (user) => {
   if (user) {
@@ -550,10 +586,6 @@ onAuthStateChanged(auth, async (user) => {
       const userDoc = await getDoc(doc(db, "users", user.uid));
       if (userDoc.exists()) {
         currentUserData = userDoc.data();
-        if (!currentUserData.email && user.email) {
-            currentUserData.email = user.email;
-            await updateDoc(doc(db, "users", user.uid), { email: user.email });
-        }
       } else {
         currentUserData = { name: user.email ? user.email.split('@')[0] : "User", email: user.email || "", dept: "設計部", role: "admin", canEdit: false };
         await setDoc(doc(db, "users", user.uid), currentUserData, { merge: true });
@@ -563,42 +595,30 @@ onAuthStateChanged(auth, async (user) => {
     }
     
     const displayName = currentUserData.name || (currentUserData.email ? currentUserData.email.split('@')[0] : "User");
-    const nameEl = document.getElementById("user-display-name");
-    if (nameEl) nameEl.innerText = displayName;
-    
-    const avaEl = document.getElementById("user-avatar");
-    if (avaEl) avaEl.innerText = displayName.charAt(0).toUpperCase();
-    
-    const roleEl = document.getElementById("user-role-badge");
-    if (roleEl) roleEl.innerText = roleNames[currentUserData.role] || (currentUserData.role || "STAFF").toUpperCase();
+    document.getElementById("user-display-name").innerText = displayName;
+    document.getElementById("user-avatar").innerText = displayName.charAt(0).toUpperCase();
+    document.getElementById("user-role-badge").innerText = roleNames[currentUserData.role] || (currentUserData.role || "STAFF").toUpperCase();
 
-    const navOrg = document.getElementById("nav-org-manage");
-    const navDiv = document.getElementById("nav-divider-org");
     if (currentUserData.role === "admin") {
-      if(navOrg) navOrg.style.display = "flex"; 
-      if(navDiv) navDiv.style.display = "block"; 
+      document.getElementById("nav-org-manage").style.display = "flex"; 
+      document.getElementById("nav-divider-org").style.display = "block"; 
     } else {
-      if(navOrg) navOrg.style.display = "none"; 
-      if(navDiv) navDiv.style.display = "none"; 
+      document.getElementById("nav-org-manage").style.display = "none"; 
+      document.getElementById("nav-divider-org").style.display = "none"; 
     }
 
-    const navSub = document.getElementById('nav-sub-wrapper');
     if (currentUserData.role !== 'staff') { 
-      if(navSub) navSub.style.display = 'block'; 
+      document.getElementById('nav-sub-wrapper').style.display = 'block'; 
     } else {
-      if(navSub) navSub.style.display = 'none';
+      document.getElementById('nav-sub-wrapper').style.display = 'none';
     }
 
     initDynamicUI();
     injectTemplateModal();
-    if(window.initWeeklyDateAndLeave) window.initWeeklyDateAndLeave(); 
-    if(window.addWeeklyRow) window.addWeeklyRow(); 
-    
     setupDataListeners(user.uid);
 
   } else {
-    const authSec = document.getElementById("auth-section");
-    if(authSec) authSec.style.display = "flex"; 
+    document.getElementById("auth-section").style.display = "flex"; 
     const appSec = document.getElementById("app-section");
     if(appSec) appSec.style.display = "none";
     
@@ -615,8 +635,8 @@ function setupDataListeners(uid) {
   firebaseUnsubscribers.push(onSnapshot(collection(db, "users"), (snapshot) => {
     allUsersList = [];
     snapshot.forEach(docSnap => allUsersList.push({ uid: docSnap.id, ...docSnap.data() }));
-    if (currentUserData.role !== 'staff' && renderSidebarSubordinates) renderSidebarSubordinates();
-    if (currentUserData.role === 'admin' && renderOrgUsersTable) renderOrgUsersTable();
+    if (currentUserData.role !== 'staff' && typeof renderSidebarSubordinates === 'function') renderSidebarSubordinates();
+    if (currentUserData.role === 'admin' && typeof renderOrgUsersTable === 'function') renderOrgUsersTable();
     triggerRenderProjects();
   }));
 
@@ -631,27 +651,17 @@ function setupDataListeners(uid) {
     allProjectsData = []; 
     snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
     triggerRenderProjects(); 
-    if(window.refreshAllWeeklyProjSelects) window.refreshAllWeeklyProjSelects();
   }));
 
   firebaseUnsubscribers.push(onSnapshot(query(collection(db, "ad_hoc_events")), (snapshot) => {
     allAdHocData = []; 
     snapshot.forEach(docSnap => allAdHocData.push({ id: docSnap.id, ...docSnap.data() })); 
-    renderAdHocEvents(); 
+    if (typeof renderAdHocEvents === 'function') renderAdHocEvents(); 
     triggerRenderProjects();
-  }));
-
-  firebaseUnsubscribers.push(onSnapshot(query(collection(db, "weekly_reports")), (snapshot) => {
-    allWeeklyData = []; 
-    snapshot.forEach(docSnap => allWeeklyData.push({ id: docSnap.id, ...docSnap.data() })); 
-    renderWeeklyReports(); 
-    if(window.refreshAllWeeklyProjSelects) window.refreshAllWeeklyProjSelects();
   }));
 }
 
-// ==========================================
-// 🚀 專案與甘特圖渲染核心
-// ==========================================
+// 專案與甘特圖核心渲染
 function renderProjects() {
   if (!auth.currentUser) return;
   checkEditModeVisibility();
@@ -777,8 +787,6 @@ function renderProjects() {
     if(detailView) detailView.style.display = "none"; 
     if(summaryView) summaryView.style.display = "none"; 
     if(emptyState) emptyState.style.display = "block"; 
-    lastSummaryGanttState = "";
-    lastDetailGanttState = "";
     return; 
   }
 
@@ -808,22 +816,10 @@ function renderProjects() {
 
   if (emptyState) emptyState.style.display = "none"; 
 
-  // ==========================================
-  // ⭐ 顯示總覽畫面
-  // ==========================================
   if (selectedProjectId === 'SUMMARY') {
     if(detailView) detailView.style.display = "none"; 
     if(summaryView) summaryView.style.display = "block";
     
-    let summaryLabel = "所有專案";
-    if (currentFilter === 'ongoing') summaryLabel = "未完成";
-    else if (currentFilter === 'completed') summaryLabel = "已完成";
-    else if (currentFilter === 'delayed') summaryLabel = "Delay";
-    else if (currentFilter === 'collab') summaryLabel = "協作專案";
-    
-    const panelHeadSpan = document.querySelector('#project-summary-view .panel-head span');
-    if (panelHeadSpan) panelHeadSpan.innerText = `⭐ 專案與事件總覽排程 (${summaryLabel}清單)`;
-
     const sumLeftBody = document.getElementById("gantt-summary-left-body");
     if(sumLeftBody) sumLeftBody.innerHTML = "";
     const ganttTasksSum = [];
@@ -864,18 +860,8 @@ function renderProjects() {
       const hasCollab = (p.collaborators && p.collaborators.length > 0);
       
       combinedItems.push({
-        type: 'project', 
-        sortDate: new Date(minStart).getTime(), 
-        idStr: `s_p_${sIdx++}`,
-        projId: p.id,
-        title: p.title,
-        start: minStart, 
-        end: maxEnd, 
-        progress: avgProg, 
-        isDone: isDone, 
-        hasDelay: hasDelay, 
-        isCollab: hasCollab, 
-        custom_class: isDone ? 'bar-success' : (p.color || 'bar-primary')
+        type: 'project', sortDate: new Date(minStart).getTime(), idStr: `s_p_${sIdx++}`, projId: p.id,
+        title: p.title, start: minStart, end: maxEnd, progress: avgProg, isDone: isDone, hasDelay: hasDelay, isCollab: hasCollab, custom_class: isDone ? 'bar-success' : (p.color || 'bar-primary')
       });
     });
 
@@ -885,17 +871,8 @@ function renderProjects() {
       let hasDelay = !evt.isCompleted && eDate < todayStr;
       
       combinedItems.push({
-        type: 'adhoc', 
-        sortDate: new Date(eDate).getTime(), 
-        idStr: `s_e_${sIdx++}`,
-        title: evt.title, 
-        start: eDate, 
-        end: eDate, 
-        progress: prog, 
-        isDone: evt.isCompleted, 
-        hasDelay: hasDelay,
-        isCollab: false, 
-        custom_class: 'bar-danger'
+        type: 'adhoc', sortDate: new Date(eDate).getTime(), idStr: `s_e_${sIdx++}`,
+        title: evt.title, start: eDate, end: eDate, progress: prog, isDone: evt.isCompleted, hasDelay: hasDelay, isCollab: false, custom_class: 'bar-danger'
       });
     });
 
@@ -907,209 +884,145 @@ function renderProjects() {
       row.className = "gantt-row";
       if (item.type === 'project') {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : item.progress+'%';
-        if (item.hasDelay && !item.isDone) {
-            statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
-        }
-
-        let titleDisplay = item.isCollab 
-          ? `<span style="color:#2563eb; font-weight:700;"><span style="color:#2563eb; margin-right:4px;">👥</span>${item.title}</span>`
-          : `<span style="color:#0f172a; font-weight:700;">🗂️ ${item.title}</span>`;
-          
-        row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')">${titleDisplay}</div><div class="col-sum-date">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-sum-prog">${statusText}</div>`;
+        if (item.hasDelay && !item.isDone) statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
+        let titleDisplay = item.isCollab ? `<span style="color:#2563eb; font-weight:700;">👥 ${item.title}</span>` : `<span style="color:#0f172a; font-weight:700;">🗂️ ${item.title}</span>`;
+        row.innerHTML = `<div class="col-sum-name clickable" onclick="selectProject('${item.projId}')">${titleDisplay}</div><div class="col-sum-date">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-sum-prog">${statusText}</div>`;
       } else {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
-        if (item.hasDelay && !item.isDone) {
-            statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
-        }
-        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger);" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date">${item.start.substring(5)}</div><div class="col-sum-prog">${statusText}</div>`;
+        if (item.hasDelay && !item.isDone) statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
+        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger);">🚨 ${item.title}</div><div class="col-sum-date">${item.start.substring(5)}</div><div class="col-sum-prog">${statusText}</div>`;
       }
       if(sumLeftBody) sumLeftBody.appendChild(row);
     });
 
     const chartContainer = document.getElementById("gantt-chart-summary-container");
-    if(!chartContainer) return;
-    
-    if (ganttTasksSum.length > 0) {
-      const newSummaryState = JSON.stringify({ filter: currentFilter, tasks: ganttTasksSum });
-      if (lastSummaryGanttState !== newSummaryState || !chartContainer.querySelector('svg')) {
-          lastSummaryGanttState = newSummaryState;
-          chartContainer.innerHTML = '<div id="gantt-chart-summary"></div>';
-          setTimeout(() => {
-            if (document.getElementById("tab-projects").style.display === "none") return;
-            try {
-              summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { 
-                view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true 
-              });
-              patchGanttVisuals(summaryGanttInstance, '#gantt-chart-summary-container');
-              scrollToTodayMinus2Days(summaryGanttInstance, '#gantt-chart-summary-container'); 
-            } catch(e) {}
-          }, 30); 
-      }
-    } else { 
-      lastSummaryGanttState = "";
-      chartContainer.innerHTML = ''; 
+    if(chartContainer && ganttTasksSum.length > 0) {
+      chartContainer.innerHTML = '<div id="gantt-chart-summary"></div>';
+      setTimeout(() => {
+        try {
+          summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true });
+        } catch(e) {}
+      }, 30);
     }
     return;
   }
 
-  // ==========================================
-  // ⭐ 顯示詳細專案畫面
-  // ==========================================
   if(summaryView) summaryView.style.display = "none"; 
   if(detailView) detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
   if (!activeProj) return; 
 
-  const ownerDept = getUserDept(activeProj.ownerId);
-  const isProjOwnerDept = (currentUserData.dept === ownerDept); 
-  const isProjOwner = (activeProj.ownerId === auth.currentUser.uid);
-  
-  const hasCollab = (activeProj.collaborators && activeProj.collaborators.length > 0);
-  const isCollabMember = hasCollab && activeProj.collaborators.includes(currentUserData.dept);
-  
-  const hasGlobalEdit = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
-  const isAuthorizedMaster = hasGlobalEdit || isProjOwnerDept; 
-  const inGracePeriod = isWithin7DaysGracePeriod(activeProj);
-  
-  let canEditMainProj = isEditMode && (hasGlobalEdit || (isAuthorizedMaster && inGracePeriod));
-  let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯主資訊</button>` : '';
-  
-  let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#2563eb; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
-  
-  let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="font-size:11px; margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
-
-  let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
-  let titleDisplayName = `<span style="color:#2563eb; font-weight:700;">${titlePrefixIcon}${activeProj.title}</span>`;
-  
-  const titleElem = document.getElementById("current-gantt-title");
-  if(titleElem) titleElem.innerHTML = `<span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} ${collabBadge} ${graceBadge} ${editProjBtn}`;
-  
-  const btnProjectAddTask = document.getElementById("btn-project-add-task");
-  const lockBtn = document.getElementById("btn-toggle-lock");
-  const delProjBtn = document.getElementById("btn-delete-project");
-
-  if(lockBtn) lockBtn.style.display = "none"; 
-
-  const canAddTask = hasGlobalEdit || isCollabMember || (isAuthorizedMaster && inGracePeriod);
-
-  if (btnProjectAddTask) {
-    if (canAddTask) {
-      btnProjectAddTask.style.display = "inline-block";
-      btnProjectAddTask.innerText = hasCollab ? "➕ 協作細項" : "➕ 新增細項";
-    } else {
-      btnProjectAddTask.style.display = "none";
-    }
-  }
-
-  if (delProjBtn) {
-    delProjBtn.style.display = (isEditMode && (hasGlobalEdit || (isAuthorizedMaster && inGracePeriod))) ? "inline-block" : "none";
-  }
-
   const leftBody = document.getElementById("gantt-left-body");
-  const listBody = document.getElementById("project-list-tbody");
-  if(leftBody) leftBody.innerHTML = ""; 
-  if(listBody) listBody.innerHTML = "";
+  if(leftBody) leftBody.innerHTML = "";
 
   const ganttTasks = [];
   (activeProj.tasks || []).forEach((task, index) => {
-    const currentProgress = task.progress || 0;
-    const workDays = getWorkingDays(task.start, task.end);
-    
-    const isCollabTask = task.assigneeId && (task.assigneeId !== activeProj.ownerId);
-    let projColorClass = isCollabTask ? 'bar-pink' : (activeProj.color || 'bar-primary');
-
-    ganttTasks.push({ 
-      id: `t_${index}`, 
-      name: task.name, 
-      start: task.start, 
-      end: task.end, 
-      progress: currentProgress, 
-      custom_class: task.isCompleted ? 'bar-success' : projColorClass 
-    });
-
-    const taskAssigneeId = task.assigneeId || activeProj.ownerId;
-    const taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
-    const isMyTask = (auth.currentUser?.uid === taskAssigneeId);
-
-    let taskCreatedTime = task.createdAt || (activeProj.createdAt && typeof activeProj.createdAt.toMillis === 'function' ? activeProj.createdAt.toMillis() : Date.now());
-    let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
-
-    const canOperateThisTask = (hasGlobalEdit || isMyTask || isAuthorizedMaster);
-    const isInputLocked = task.isCompleted || !canOperateThisTask; 
-    
-    let canEditTask = isEditMode && (
-      hasGlobalEdit || ((isAuthorizedMaster || isMyTask) && isTaskInGrace)
-    );
-    
-    let editHtml = canEditTask ? `
-      <div style="display:inline-flex; align-items:center; gap:2px; margin-left:auto; flex-shrink:0;">
-        <button type="button" class="btn-sort" onclick="moveActiveProjectTask('${activeProj.id}', ${index}, -1)" title="上移">↑</button>
-        <button type="button" class="btn-sort" onclick="moveActiveProjectTask('${activeProj.id}', ${index}, 1)" title="下移">↓</button>
-        <button class="action-btn" onclick="openGeneralEdit('task', '${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px; border-color:var(--warning); color:var(--warning);" title="編輯細項">✏️</button>
-        <button class="action-btn danger" onclick="deleteActiveProjectTask('${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px;" title="刪除此細項">🗑️</button>
-      </div>` : '';
+    ganttTasks.push({ id: `t_${index}`, name: task.name, start: task.start, end: task.end, progress: task.progress || 0, custom_class: task.isCompleted ? 'bar-success' : 'bar-primary' });
 
     const row = document.createElement("div"); 
     row.className = "gantt-row";
     row.innerHTML = `
-      <div class="col-name" title="${task.name}"><span style="overflow:hidden; text-overflow:ellipsis;">${task.name}</span>${editHtml}</div>
-      <div class="col-date">${workDays} 天</div>
-      <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''}> %</div>
-      <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')">${task.isCompleted ? '完成' : '確認'}</button></div>
-      <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
+      <div class="col-name">${task.name}</div>
+      <div class="col-date">${getWorkingDays(task.start, task.end)} 天</div>
+      <div class="col-prog"><input type="number" min="0" max="100" value="${task.progress || 0}" id="prog_input_${index}" ${task.isCompleted ? 'disabled' : ''}> %</div>
+      <div class="col-act"><button class="action-btn btn-sm" ${task.isCompleted ? 'disabled' : ''} onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')">${task.isCompleted ? '完成' : '確認'}</button></div>
+      <div class="col-owner">${task.assigneeName || '負責人'}</div>
     `;
     if(leftBody) leftBody.appendChild(row);
-
-    if (listBody) {
-      let historyHtml = '';
-      const historyList = task.history || [];
-      if (historyList.length > 0) {
-        const sortedHistory = [...historyList].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        historyHtml = `<div style="max-height: 160px; overflow-y: auto;">` + 
-          `<table style="width:100%; table-layout:fixed; border-collapse:collapse; margin:0; background:transparent;"><colgroup><col style="width:50%;"><col style="width:50%;"></colgroup><tbody>` +
-          sortedHistory.map((h, i) => {
-            let note = h.type === 'create' ? '<span style="color:var(--text-muted)">(建立)</span>' : (h.type === 'complete' ? '<span style="color:var(--success)">(結案)</span>' : '');
-            let remarkHtml = '';
-            if (h.type === 'complete' && h.delayReason) remarkHtml = `<span class="pill pill-danger" style="white-space:normal; word-wrap:break-word;">Delay: ${h.delayReason}</span>`;
-            else if (h.remark) remarkHtml = `<span style="color: var(--text-muted); white-space:normal; word-wrap:break-word;">${h.remark}</span>`;
-            else remarkHtml = `<span style="color: #cbd5e1;">-</span>`;
-            const borderStyle = i === sortedHistory.length - 1 ? "" : "border-bottom:1px dashed var(--border-light);";
-            return `<tr style="${borderStyle}"><td style="padding: 10px 14px 10px 0; vertical-align: top; font-size:12px; border-right: 1px solid var(--border-light);"><span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span><br><div style="margin-top:4px;">歷時 <b>${h.daysPassed}</b> 工作天</div></td><td style="padding: 10px 0 10px 14px; vertical-align: top; font-size:12px;">${remarkHtml}</td></tr>`;
-          }).join('') + `</tbody></table></div>`;
-      } else {
-        historyHtml = `<div style="padding: 12px 0; color:var(--text-muted); font-size: 12px;">尚無紀錄</div>`;
-      }
-
-      const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="font-size:13px; padding:6px 10px;">已完成</span>` : `<span style="font-size:13px; font-weight:bold;">進度: ${task.progress || 0}%</span>`;
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td style="vertical-align: top; font-size: 14px;"><strong>${task.name}</strong></td><td style="vertical-align: top;">${taskAssigneeName}</td><td style="vertical-align: top;">${statusHtml}</td><td style="padding: 0 16px; vertical-align: top;">${historyHtml}</td><td style="padding: 0 16px; vertical-align: top;">${task.delayReason ? `<span class="pill pill-danger">Delay: ${task.delayReason}</span>` : '-'}</td>`;
-      listBody.appendChild(tr);
-    }
   });
 
   const chartContainer = document.getElementById("gantt-chart-container");
-  if(!chartContainer) return;
-  
-  chartContainer.className = "gantt-right-panel"; 
-  if (ganttTasks.length > 0) {
-    const newDetailState = JSON.stringify({ id: selectedProjectId, tasks: ganttTasks });
-    
-    if (lastDetailGanttState !== newDetailState || !chartContainer.querySelector('svg')) {
-        lastDetailGanttState = newDetailState;
-        chartContainer.innerHTML = '<div id="gantt-chart"></div>';
-        setTimeout(() => {
-          if (document.getElementById("tab-projects")?.style.display === "none") return;
-          try {
-              ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
-                view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true 
-              });
-              patchGanttVisuals(ganttInstance, '#gantt-chart-container');
-              scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container'); 
-          } catch(e) {}
-        }, 50); 
-    }
-  } else {
-    lastDetailGanttState = "";
-    chartContainer.innerHTML = '';
+  if(chartContainer && ganttTasks.length > 0) {
+    chartContainer.className = "gantt-right-panel";
+    chartContainer.innerHTML = '<div id="gantt-chart"></div>';
+    setTimeout(() => {
+      try {
+        ganttInstance = new Gantt("#gantt-chart", ganttTasks, { view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true });
+      } catch(e) {}
+    }, 30);
   }
 }
+
+// ==========================================
+// 全域函式綁定 (將內部函式安全暴露給網頁)
+// ==========================================
+window.submitNewProject = async () => {
+  const title = document.getElementById("proj-name")?.value.trim();
+  if (!title) return alert("請填寫主專案名稱！");
+  const color = document.getElementById("proj-color")?.value || "bar-primary";
+  const collabCheckboxes = document.querySelectorAll('input[name="collab_dept"]:checked');
+  const collaborators = Array.from(collabCheckboxes).map(cb => cb.value);
+  const taskRows = document.querySelectorAll('.task-row'); 
+  const tasks = [];
+  const todayStr = getTodayStr(); 
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+  const myName = currentUserData.name || auth.currentUser?.email.split('@')[0];
+  
+  for (let row of taskRows) {
+    const name = row.querySelector('.task-name')?.value.trim(); 
+    const start = row.querySelector('.task-start')?.value; 
+    const end = row.querySelector('.task-end')?.value;
+    if (!name || !start || !end) return alert("任務細項不可有空白欄位！");
+    tasks.push({ 
+      name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
+      assigneeId: auth.currentUser.uid, assigneeName: myName, createdAt: Date.now(), 
+      history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: getWorkingDays(start, todayStr), delayReason: '', remark: '專案建立' }] 
+    });
+  }
+  
+  const docRef = await addDoc(collection(db, "projects"), { 
+    title, color, collaborators, ownerId: viewingUserId, ownerName: myName, tasks, createdAt: serverTimestamp() 
+  });
+  alert("🎉 新專案已成功建立！");
+  document.getElementById("proj-name").value = ""; 
+  document.getElementById("task-list-container").innerHTML = ""; 
+  addTaskRow(); 
+  document.getElementById('create-project-section').style.display = 'none';
+  selectedProjectId = docRef.id;
+  triggerRenderProjects(); 
+};
+
+window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
+  const proj = allProjectsData.find(p => p.id === projId);
+  const tasks = [...proj.tasks];
+  const targetTask = tasks[taskIndex];
+  const inputElem = document.getElementById(`prog_input_${taskIndex}`);
+  let newProg = parseInt(inputElem.value); 
+  if (isNaN(newProg)) newProg = 0;
+  targetTask.progress = newProg;
+  if (newProg >= 100) {
+    targetTask.isCompleted = true;
+    targetTask.completedAt = new Date().toLocaleString('zh-TW', { hour12: false });
+  }
+  await updateDoc(doc(db, "projects", projId), { tasks });
+  alert("進度更新成功！");
+};
+
+window.switchNav = (tabId, title, elem) => {
+  document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const targetPane = document.getElementById(tabId);
+  if (targetPane) targetPane.style.display = 'block';
+  if (elem) elem.classList.add('active');
+  const tTitle = document.getElementById('current-title');
+  if (tTitle) tTitle.innerText = title;
+  if (tabId === 'tab-projects') triggerRenderProjects();
+};
+
+window.setProjectFilter = setProjectFilter;
+window.selectProject = selectProject;
+window.toggleSubMenu = toggleSubMenu;
+window.addTaskRow = addTaskRow;
+window.moveTaskRow = moveTaskRow;
+window.renderTemplateSelect = renderTemplateSelect;
+window.openTemplateEditModal = openTemplateEditModal;
+window.addTplTaskRow = addTplTaskRow;
+window.moveTplTaskRow = moveTplTaskRow;
+window.closeTemplateEditModal = closeTemplateEditModal;
+window.saveTemplate = saveTemplate;
+window.applyTemplate = applyTemplate;
+window.cascadeDates = cascadeDates;
+window.checkCascade = checkCascade;
+window.onTaskStartChange = onTaskStartChange;
+window.onTaskDaysChange = onTaskDaysChange;
+window.onTaskEndChange = onTaskEndChange;
