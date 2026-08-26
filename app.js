@@ -49,7 +49,6 @@ let calCurrentMonth = new Date().getMonth();
 let activeCalDateStr = null;
 let showCompletedTodos = true;
 
-// 🚀 記錄甘特圖上一次的狀態字串，避免無意義的重繪閃爍
 let lastSummaryGanttState = "";
 let lastDetailGanttState = "";
 
@@ -77,7 +76,6 @@ function getUserDept(uid) {
     return u ? (u.dept || "設計部") : "設計部";
 }
 
-// 🚀 緩衝渲染器 (Debounce)：等資料都湊齊了再畫，避免畫面瘋狂閃爍
 let renderTimer = null;
 window.triggerRenderProjects = () => {
   if (renderTimer) clearTimeout(renderTimer);
@@ -168,13 +166,11 @@ function initDynamicUI() {
     btnWrapper.insertBefore(sel, btnWrapper.firstChild);
   }
 
-  // 🚀 同步注入模板區塊
   injectTemplateUI();
   injectTemplateModal();
 }
 initDynamicUI();
 
-// 🚀 注入專案模板選擇區塊 (修正排版間距與文字)
 function injectTemplateUI() {
   const taskContainer = document.getElementById("task-list-container");
   if (!taskContainer || document.getElementById("template-section-wrapper")) return;
@@ -392,7 +388,6 @@ function formatDateSafe(dateObj) {
   return `${y}-${m}-${d}`; 
 }
 
-// 🚀 瀑布流日期級聯計算
 window.cascadeDates = () => {
    const rows = document.querySelectorAll('#task-list-container .task-row');
    let prevEnd = null;
@@ -646,154 +641,233 @@ function loadTemplates() {
         5: { name: "自訂模板 5", tasks: [] }
       };
     }
-    const sel = document.getElementById("tpl-select");
-    if(sel) renderTemplateSelect();
+    renderTemplateSelect();
   });
 }
 
-window.setProjectFilter = (status) => {
-  currentFilter = status;
-  document.querySelectorAll('.kpi-card').forEach(el => el.classList.remove('active'));
-  const activeBtn = document.getElementById('filter-' + status);
-  if(activeBtn) activeBtn.classList.add('active');
-  
-  selectedProjectId = 'SUMMARY'; 
-  renderProjects();
+// 🚀 核心單一登入狀態監聽器
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    document.getElementById("auth-section").style.display = "none";
+    document.getElementById("app-section").style.display = "flex";
+    viewingUserId = user.uid;
+
+    try {
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (userDoc.exists()) {
+        currentUserData = userDoc.data();
+        if (!currentUserData.email && user.email) {
+            currentUserData.email = user.email;
+            await updateDoc(doc(db, "users", user.uid), { email: user.email });
+        }
+      } else {
+        currentUserData = { name: user.email.split('@')[0], email: user.email, dept: "設計部", role: "admin", canEdit: false };
+        await setDoc(doc(db, "users", user.uid), currentUserData, { merge: true });
+      }
+    } catch (e) { 
+      currentUserData = { name: user.email.split('@')[0], email: user.email, dept: "設計部", role: "admin", canEdit: false }; 
+    }
+    
+    const displayName = currentUserData.name || user.email.split('@')[0];
+    document.getElementById("user-display-name").innerText = displayName;
+    document.getElementById("user-avatar").innerText = displayName.charAt(0).toUpperCase();
+    document.getElementById("user-role-badge").innerText = roleNames[currentUserData.role] || (currentUserData.role || "STAFF").toUpperCase();
+
+    if (currentUserData.role === "admin") {
+      document.getElementById("nav-org-manage").style.display = "flex"; 
+      document.getElementById("nav-divider-org").style.display = "block"; 
+    } else {
+      document.getElementById("nav-org-manage").style.display = "none"; 
+      document.getElementById("nav-divider-org").style.display = "none"; 
+    }
+
+    if (currentUserData.role !== 'staff') { 
+      document.getElementById('nav-sub-wrapper').style.display = 'block'; 
+    } else {
+      document.getElementById('nav-sub-wrapper').style.display = 'none';
+    }
+
+    startUsersListener();
+    loadTemplates();
+    initWeeklyDateAndLeave(); 
+    addTaskRow(); 
+    addWeeklyRow(); 
+    loadProjects(); 
+    loadAdHocEvents(); 
+    loadWeeklyReports();
+    loadMyCalendarTodos(user.uid);
+  } else {
+    document.getElementById("auth-section").style.display = "flex"; 
+    document.getElementById("app-section").style.display = "none";
+  }
+});
+
+function startUsersListener() {
+  onSnapshot(collection(db, "users"), (snapshot) => {
+    allUsersList = [];
+    snapshot.forEach(docSnap => {
+      allUsersList.push({ uid: docSnap.id, ...docSnap.data() });
+    });
+
+    const rolePriority = { admin: 1, top_manager: 2, manager: 3, assistant_manager: 4, staff: 5 };
+    allUsersList.sort((a, b) => {
+      const deptA = a.dept || "設計部";
+      const deptB = b.dept || "設計部";
+      const deptIdxA = departmentList.indexOf(deptA);
+      const deptIdxB = departmentList.indexOf(deptB);
+
+      if (deptIdxA !== deptIdxB) {
+        return (deptIdxA === -1 ? 99 : deptIdxA) - (deptIdxB === -1 ? 99 : deptIdxB);
+      }
+      return (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99);
+    });
+
+    if (currentUserData.role !== 'staff') { 
+      renderSidebarSubordinates(); 
+    }
+    if (currentUserData.role === 'admin') {
+      renderOrgUsersTable();
+    }
+    
+    window.triggerRenderProjects();
+  });
+}
+
+function renderSidebarSubordinates() {
+  const list = document.getElementById("nav-sub-list");
+  if (!list) return;
+
+  list.innerHTML = `<li class="nav-sub-item active" id="sub-li-${auth.currentUser.uid}" onclick="switchViewingUser('${auth.currentUser.uid}', '自己 (個人專案)')">個人專案</li>`;
+
+  const visibleUsers = [];
+  const myUid = auth.currentUser.uid;
+  const myRole = currentUserData.role; 
+  const myDept = currentUserData.dept || "設計部";
+
+  const isSubordinate = (bossUid, targetUid) => {
+    let current = allUsersList.find(u => u.uid === targetUid);
+    let depth = 0;
+    while (current && current.supervisorId && depth < 10) {
+      if (current.supervisorId === bossUid) return true;
+      current = allUsersList.find(u => u.uid === current.supervisorId);
+      depth++;
+    }
+    return false;
+  };
+
+  allUsersList.forEach(u => {
+    if (u.uid === myUid) return;
+
+    const targetRole = u.role; 
+    const targetDept = u.dept || "設計部";
+    let canView = false;
+
+    if (myRole === 'admin' || myRole === 'top_manager') {
+      canView = true;
+    }
+    else if (myRole === 'manager') {
+      if (targetDept === myDept && (targetRole === 'assistant_manager' || targetRole === 'staff')) {
+        canView = true;
+      }
+    }
+    else if (myRole === 'assistant_manager') {
+      if (targetDept === myDept && targetRole === 'staff') {
+        canView = true;
+      }
+    }
+
+    if (canView || isSubordinate(myUid, u.uid)) {
+      visibleUsers.push(u);
+    }
+  });
+
+  const rolePriority = { admin: 1, top_manager: 2, manager: 3, assistant_manager: 4, staff: 5 };
+
+  departmentList.forEach((dept, dIdx) => {
+    const deptMembers = visibleUsers.filter(u => (u.dept || "設計部") === dept);
+    if (deptMembers.length === 0) return;
+
+    deptMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99));
+
+    const deptGroupId = `dept-group-${dIdx}`;
+    const isViewingMemberInDept = deptMembers.some(m => m.uid === viewingUserId);
+    const isExpanded = isViewingMemberInDept;
+
+    list.innerHTML += `
+      <li class="nav-sub-dept-header ${isExpanded ? 'open' : ''}" onclick="toggleDeptSubList('${deptGroupId}', this)">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span>🏢</span>
+          <span>${dept}</span>
+          <span class="dept-count-badge">${deptMembers.length}</span>
+        </div>
+        <span class="dept-arrow">▶</span>
+      </li>
+    `;
+
+    let membersHtml = `<div class="nav-sub-dept-members" id="${deptGroupId}" style="display:${isExpanded ? 'flex' : 'none'};">`;
+    deptMembers.forEach(u => {
+      const isActive = (viewingUserId === u.uid) ? 'active' : '';
+      membersHtml += `
+        <li class="nav-sub-item ${isActive}" id="sub-li-${u.uid}" onclick="switchViewingUser('${u.uid}', '${u.name}')">
+          ${u.name || '未命名'} 
+          <small style="color:#94a3b8; font-size:11px; margin-left:4px;">(${roleNames[u.role] || '人員'})</small>
+        </li>
+      `;
+    });
+    membersHtml += `</div>`;
+    list.innerHTML += membersHtml;
+  });
+}
+
+window.toggleDeptSubList = (groupId, headerElem) => {
+  const container = document.getElementById(groupId);
+  if (!container) return;
+  const isHidden = container.style.display === 'none';
+  container.style.display = isHidden ? 'flex' : 'none';
+  headerElem.classList.toggle('open', isHidden);
 };
 
-window.selectProject = (projId) => { 
-  selectedProjectId = projId; 
+window.switchViewingUser = (uid, name) => {
+  viewingUserId = uid;
+  document.querySelectorAll('.nav-sub-item').forEach(el => el.classList.remove('active'));
+  const targetLi = document.getElementById(`sub-li-${uid}`);
+  if (targetLi) targetLi.classList.add('active');
+
+  const isSelf = viewingUserId === auth.currentUser.uid;
+  document.getElementById('viewing-user-name').innerText = isSelf ? '' : `[ 正在檢視：${name} ]`;
+  document.getElementById('btn-create-wrapper').style.display = isSelf ? 'flex' : 'none';
+  document.getElementById('create-project-section').style.display = 'none';
+  document.getElementById('adhoc-form-panel').style.display = isSelf ? 'block' : 'none';
+  document.getElementById('weekly-form-panel').style.display = isSelf ? 'block' : 'none';
+
+  selectedProjectId = 'SUMMARY'; 
+  
   isEditMode = false;
   const editBtn = document.getElementById("btn-toggle-edit-mode");
   if(editBtn) {
      editBtn.innerHTML = "✏️ 開啟編輯模式";
      editBtn.style.background = "transparent";
   }
+
   renderProjects(); 
+  renderAdHocEvents(); 
+  renderWeeklyReports();
+
+  const wrapper = document.getElementById('nav-sub-wrapper');
+  const list = document.getElementById('nav-sub-list');
+  if (wrapper.classList.contains('nav-menu-open')) wrapper.classList.remove('nav-menu-open');
+  if (list.classList.contains('mobile-fixed-dropdown')) {
+    wrapper.appendChild(list); 
+    list.classList.remove('mobile-fixed-dropdown'); 
+  }
 };
 
-function scrollToTodayMinus2Days(ganttInst, containerSelector) {
-  const wrapper = document.querySelector(containerSelector);
-  if (!wrapper) return;
+document.getElementById("btn-login").addEventListener("click", () => { 
+  signInWithEmailAndPassword(auth, document.getElementById("login-email").value.trim(), document.getElementById("login-password").value.trim()).catch(e=>alert(e.message)); 
+});
+document.getElementById("btn-logout").addEventListener("click", () => signOut(auth));
 
-  [80, 200].forEach(delay => {
-    setTimeout(() => {
-      const scrollElement = wrapper.querySelector('.gantt-container') || wrapper;
-      const svg = wrapper.querySelector('.gantt');
-      if (!scrollElement || !svg) return;
-
-      let todayIndex = -1;
-      const today = new Date();
-      today.setHours(0,0,0,0);
-
-      if (ganttInst && ganttInst.dates) {
-        ganttInst.dates.forEach((d, idx) => {
-          const checkD = new Date(d);
-          checkD.setHours(0,0,0,0);
-          if (checkD.getTime() === today.getTime() && todayIndex === -1) {
-            todayIndex = idx;
-          }
-        });
-      }
-
-      let colWidth = (ganttInst && ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
-      const firstTick = svg.querySelector('.tick');
-      if (firstTick) {
-        const w = parseFloat(firstTick.getAttribute('width'));
-        if (!isNaN(w) && w > 0) colWidth = w;
-      }
-
-      let targetScrollLeft = 0;
-      if (todayIndex !== -1) {
-        targetScrollLeft = Math.max(0, (todayIndex - 2) * colWidth);
-      } else {
-        const todayHighlight = svg.querySelector('.today-highlight') || svg.querySelector('.current-date-highlight');
-        if (todayHighlight) {
-          const x = parseFloat(todayHighlight.getAttribute('x'));
-          if (!isNaN(x)) {
-            targetScrollLeft = Math.max(0, x - (colWidth * 2));
-          }
-        }
-      }
-
-      scrollElement.scrollLeft = targetScrollLeft;
-      if (scrollElement !== wrapper) wrapper.scrollLeft = targetScrollLeft;
-    }, delay);
-  });
-}
-
-function patchGanttVisuals(ganttInst, containerSelector) {
-  if (!ganttInst || !ganttInst.dates || ganttInst.dates.length === 0) return;
-  const wrapper = document.querySelector(containerSelector);
-  if (!wrapper) return;
-  const svg = wrapper.querySelector('.gantt');
-  if (!svg) return;
-
-  const lowerTexts = Array.from(svg.querySelectorAll('.lower-text'));
-  const dayTicks = Array.from(svg.querySelectorAll('.tick')).filter(t => !t.classList.contains('thick'));
-
-  ganttInst.dates.forEach((date, i) => {
-    if (i < lowerTexts.length) {
-      const dStr = String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
-      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-      const isHoliday = !!taiwanHolidayMap[dStr];
-
-      if (isWeekend || isHoliday) {
-        lowerTexts[i].style.fill = '#ef4444'; 
-        lowerTexts[i].style.fontWeight = 'bold';
-        if (i < dayTicks.length) dayTicks[i].style.fill = 'rgba(239, 68, 68, 0.08)';
-      }
-    }
-  });
-
-  const scrollElement = wrapper.querySelector('.gantt-container') || wrapper;
-  const upperTexts = Array.from(svg.querySelectorAll('.upper-text'));
-  const colWidth = (ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
-
-  const updateStickyMonthHeader = () => {
-    const currentScrollLeft = scrollElement.scrollLeft;
-    const currentDayIndex = Math.min(
-      ganttInst.dates.length - 1,
-      Math.max(0, Math.floor(currentScrollLeft / colWidth))
-    );
-
-    const visibleDate = ganttInst.dates[currentDayIndex];
-    if (!visibleDate || upperTexts.length === 0) return;
-
-    const yyyy = visibleDate.getFullYear();
-    const mm = visibleDate.getMonth() + 1;
-    const currentHeaderStr = `${yyyy}年 ${mm}月`;
-
-    upperTexts.forEach((el, idx) => {
-      if (idx === 0) {
-        el.textContent = currentHeaderStr;
-        el.setAttribute('x', currentScrollLeft + 16);
-        el.setAttribute('text-anchor', 'start');
-        el.style.textAnchor = 'start';
-        el.style.fontWeight = '700';
-        el.style.fill = 'var(--primary)';
-        el.style.display = 'block';
-      } else {
-        const origX = parseFloat(el.getAttribute('data-orig-x') || el.getAttribute('x'));
-        if (!el.getAttribute('data-orig-x')) el.setAttribute('data-orig-x', origX);
-        if (origX < currentScrollLeft + 120) {
-          el.style.display = 'none';
-        } else {
-          el.style.display = 'block';
-        }
-      }
-    });
-  };
-
-  scrollElement.removeEventListener('scroll', scrollElement._ganttScrollHandler);
-  scrollElement._ganttScrollHandler = updateStickyMonthHeader;
-  scrollElement.addEventListener('scroll', updateStickyMonthHeader);
-
-  updateStickyMonthHeader();
-  scrollToTodayMinus2Days(ganttInst, containerSelector);
-}
-
-window.getAvailableTasks = (projId) => {
+function getAvailableTasks(projId) {
   const proj = allProjectsData.find(p => p.id === projId);
   if(!proj || !proj.tasks) return [];
   return proj.tasks.map((t, i) => ({...t, index: i})).filter(t => {
@@ -808,7 +882,7 @@ window.getAvailableTasks = (projId) => {
     });
     return !alreadyReported;
   });
-};
+}
 
 function loadProjects() {
   onSnapshot(query(collection(db, "projects")), (snapshot) => {
@@ -1140,7 +1214,6 @@ function renderProjects() {
       sumLeftBody.appendChild(row);
     });
 
-    // 🚀 防閃爍檢測：只在資料變更或 SVG 丟失時重繪甘特圖
     if (ganttTasksSum.length > 0) {
       const newSummaryState = JSON.stringify({ filter: currentFilter, tasks: ganttTasksSum });
       const chartContainer = document.getElementById("gantt-chart-summary-container");
@@ -1201,7 +1274,8 @@ function renderProjects() {
 
   lockBtn.style.display = "none"; 
 
-  const canAddTask = hasGlobalEdit || isCollabMember || (isAuthorizedMaster && inGracePeriod);
+  // 🚀 永久開放新增：只要有全局權限，或是協作單位，或是建立者，永遠開放新增按鈕！
+  const canAddTask = hasGlobalEdit || isCollabMember || isProjOwner;
 
   if (canAddTask) {
     btnProjectAddTask.style.display = "inline-block";
@@ -1241,7 +1315,7 @@ function renderProjects() {
     let taskCreatedTime = task.createdAt || (activeProj.createdAt && typeof activeProj.createdAt.toMillis === 'function' ? activeProj.createdAt.toMillis() : Date.now());
     let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
 
-    const canOperateThisTask = (hasGlobalEdit || isMyTask || isAuthorizedMaster);
+    const canOperateThisTask = (hasGlobalEdit || isMyTask || isProjOwnerDept);
     const isInputLocked = task.isCompleted || !canOperateThisTask; 
     
     let canEditTask = isEditMode && (
@@ -1294,7 +1368,6 @@ function renderProjects() {
     }
   });
 
-  // 🚀 防閃爍檢測：只在資料變更或 SVG 丟失時重繪甘特圖
   if (ganttTasks.length > 0) {
     const newDetailState = JSON.stringify({ id: selectedProjectId, tasks: ganttTasks });
     const chartContainer = document.getElementById("gantt-chart-container");
@@ -1468,13 +1541,12 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const tasks = [...proj.tasks];
   const targetTask = tasks[taskIndex];
   
-  const ownerDept = getUserDept(proj.ownerId);
-  const isOwnerDept = (currentUserData.dept === ownerDept); 
+  const isProjOwner = (proj.ownerId === auth.currentUser.uid);
   const taskAssigneeId = targetTask.assigneeId || proj.ownerId;
   const isMyTask = (auth.currentUser.uid === taskAssigneeId);
   
-  if (!isOwnerDept && !isMyTask && currentUserData.role !== 'admin') {
-    return alert("權限不足：您並非此任務細項之負責人或專案建立部門，無法更新進度！");
+  if (!isProjOwner && !isMyTask && currentUserData.role !== 'admin') {
+    return alert("權限不足：您並非此任務細項之負責人或專案建立者，無法更新進度！");
   }
 
   const inputElem = document.getElementById(`prog_input_${taskIndex}`);
@@ -1707,7 +1779,7 @@ document.querySelectorAll('input[name="leave_type"]').forEach(radio => {
 window.populateWeeklyProjSelect = (selectElem) => {
   selectElem.innerHTML = '<option value="">-- 請選擇主專案 --</option>';
   const myProjs = allProjectsData.filter(p => p.ownerId === viewingUserId);
-  const availableProjs = myProjs.filter(p => window.getAvailableTasks(p.id).length > 0);
+  const availableProjs = myProjs.filter(p => getAvailableTasks(p.id).length > 0);
   availableProjs.forEach(p => { selectElem.innerHTML += `<option value="${p.id}">${p.title}</option>`; });
 };
 
@@ -1716,7 +1788,7 @@ window.updateWeeklyTaskSelect = (selectElem) => {
   taskSelect.innerHTML = '<option value="">-- 請選擇細項 --</option>';
   const projId = selectElem.value;
   if(!projId) return;
-  const availableTasks = window.getAvailableTasks(projId);
+  const availableTasks = getAvailableTasks(projId);
   availableTasks.forEach(t => { taskSelect.innerHTML += `<option value="${t.index}">${t.name}</option>`; });
 };
 
@@ -2314,14 +2386,12 @@ window.openGeneralEdit = (type, id, extra) => {
         let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
         let tInGrace = ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
         let isMyTask = (auth.currentUser.uid === (t.assigneeId || p.ownerId));
-        const ownerDept = getUserDept(p.ownerId);
-        let isOwnerDept = (currentUserData.dept === ownerDept);
+        let isProjOwner = (p.ownerId === auth.currentUser.uid);
 
-        if ((isOwnerDept || isMyTask) && tInGrace) isAuthorized = true;
+        if ((isProjOwner || isMyTask) && tInGrace) isAuthorized = true;
       } else if (type === 'project') {
-        const ownerDept = getUserDept(p.ownerId);
-        const isOwnerDept = (currentUserData.dept === ownerDept);
-        if (isOwnerDept && isWithin7DaysGracePeriod(p)) isAuthorized = true;
+        let isProjOwner = (p.ownerId === auth.currentUser.uid);
+        if (isProjOwner && isWithin7DaysGracePeriod(p)) isAuthorized = true;
       }
     }
   } else if (type === 'weekly') {
@@ -2540,77 +2610,58 @@ window.rescueUserProjects = async (uid, userName) => {
   }
 };
 
-function loadOrgUsers() {
-  const rolePriority = { admin: 1, top_manager: 2, manager: 3, assistant_manager: 4, staff: 5 };
-
-  onSnapshot(collection(db, "users"), (snapshot) => {
-    const tbody = document.getElementById("user-list-tbody"); 
-    const supervisorSelect = document.getElementById("new-user-supervisor");
-    if(tbody) tbody.innerHTML = ""; 
-    if(supervisorSelect) supervisorSelect.innerHTML = '<option value="">-- 無 --</option>'; 
-    allUsersList = [];
-    
-    snapshot.forEach(docSnap => {
-      const u = docSnap.data(); 
-      allUsersList.push({ uid: docSnap.id, ...u });
-      if (supervisorSelect && ["top_manager", "manager", "assistant_manager"].includes(u.role)) {
-        supervisorSelect.innerHTML += `<option value="${docSnap.id}">${u.name} (${roleNames[u.role] || u.role})</option>`;
-      }
-    });
-
-    allUsersList.sort((a, b) => {
-      const deptA = a.dept || "設計部";
-      const deptB = b.dept || "設計部";
-      const deptIdxA = departmentList.indexOf(deptA);
-      const deptIdxB = departmentList.indexOf(deptB);
-
-      if (deptIdxA !== deptIdxB) {
-        return (deptIdxA === -1 ? 99 : deptIdxA) - (deptIdxB === -1 ? 99 : deptIdxB);
-      }
-      return (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99);
-    });
-
-    if(tbody) {
-      let currentDeptGroup = "";
-      allUsersList.forEach(u => {
-        const uDept = u.dept || "設計部";
-        if (uDept !== currentDeptGroup) {
-          currentDeptGroup = uDept;
-          const deptTr = document.createElement("tr");
-          deptTr.innerHTML = `<td colspan="7" style="background: #f1f5f9; font-weight: 700; color: #334155; padding: 10px 16px;">🏢 ${currentDeptGroup}</td>`;
-          tbody.appendChild(deptTr);
-        }
-
-        const supUser = allUsersList.find(x => x.uid === u.supervisorId); 
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td style="text-align: center;">
-            <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer;">
-              <input type="checkbox" onchange="toggleUserEditPermission('${u.uid}', this.checked)" ${u.canEdit ? 'checked' : ''} ${currentUserData.role === 'admin' ? '' : 'disabled'}>
-              <span style="font-size:12px;">開放</span>
-            </label>
-          </td>
-          <td><strong>${u.name || '未命名'}</strong></td>
-          <td>${u.email || '-'}</td>
-          <td><span class="pill" style="background:#f1f5f9; color:#334155;">${u.dept || '設計部'}</span></td>
-          <td><span class="pill pill-role">${roleNames[u.role] || u.role}</span></td>
-          <td>${supUser ? `${supUser.name}` : "-"}</td>
-          <td>
-            <button class="action-btn" onclick="openEditModal('${u.uid}')" style="margin-right:4px;">編輯</button>
-            <button class="action-btn" onclick="resetUserPassword('${u.email}')" style="margin-right:4px;">重設密碼</button>
-            <button class="action-btn" onclick="rescueUserProjects('${u.uid}', '${u.name}')" style="margin-right:4px; border-color:#f59e0b; color:#f59e0b;" title="找回建立錯ID的資料">找回資料</button>
-            ${u.uid !== auth.currentUser.uid ? `<button class="action-btn danger" onclick="deleteUserDoc('${u.uid}', '${u.name}')">刪除</button>` : ''}
-          </td>`;
-        tbody.appendChild(tr);
-      });
+function renderOrgUsersTable() {
+  const tbody = document.getElementById("user-list-tbody"); 
+  const supervisorSelect = document.getElementById("new-user-supervisor");
+  if(tbody) tbody.innerHTML = ""; 
+  if(supervisorSelect) supervisorSelect.innerHTML = '<option value="">-- 無 --</option>'; 
+  
+  allUsersList.forEach(user => {
+    if (supervisorSelect && ["top_manager", "manager", "assistant_manager"].includes(user.role)) {
+      supervisorSelect.innerHTML += `<option value="${user.uid}">${user.name} (${roleNames[user.role] || user.role})</option>`;
     }
-
-    if(document.getElementById("org-chart-view-container")) renderOrgChart(); 
-    if (currentUserData.role !== 'staff') renderSidebarSubordinates();
-    
-    // 🚀 單一通道：資料載入完畢後，安全觸發畫面重繪
-    window.triggerRenderProjects();
   });
+
+  if(tbody) {
+    let currentDeptGroup = "";
+    allUsersList.forEach(u => {
+      const uDept = u.dept || "設計部";
+      if (uDept !== currentDeptGroup) {
+        currentDeptGroup = uDept;
+        const deptTr = document.createElement("tr");
+        deptTr.innerHTML = `<td colspan="7" style="background: #f1f5f9; font-weight: 700; color: #334155; padding: 10px 16px;">🏢 ${currentDeptGroup}</td>`;
+        tbody.appendChild(deptTr);
+      }
+
+      const supUser = allUsersList.find(x => x.uid === u.supervisorId); 
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td style="text-align: center;">
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer;">
+            <input type="checkbox" onchange="toggleUserEditPermission('${u.uid}', this.checked)" ${u.canEdit ? 'checked' : ''} ${currentUserData.role === 'admin' ? '' : 'disabled'}>
+            <span style="font-size:12px;">開放</span>
+          </label>
+        </td>
+        <td><strong>${u.name || '未命名'}</strong></td>
+        <td>${u.email || '-'}</td>
+        <td><span class="pill" style="background:#f1f5f9; color:#334155;">${u.dept || '設計部'}</span></td>
+        <td><span class="pill pill-role">${roleNames[u.role] || u.role}</span></td>
+        <td>${supUser ? `${supUser.name}` : "-"}</td>
+        <td>
+          <button class="action-btn" onclick="openEditModal('${u.uid}')" style="margin-right:4px;">編輯</button>
+          <button class="action-btn" onclick="resetUserPassword('${u.email}')" style="margin-right:4px;">重設密碼</button>
+          <button class="action-btn" onclick="rescueUserProjects('${u.uid}', '${u.name}')" style="margin-right:4px; border-color:#f59e0b; color:#f59e0b;" title="找回建立錯ID的資料">找回資料</button>
+          ${u.uid !== auth.currentUser.uid ? `<button class="action-btn danger" onclick="deleteUserDoc('${u.uid}', '${u.name}')">刪除</button>` : ''}
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  if(document.getElementById("org-chart-view-container")) renderOrgChart();
+}
+
+function loadOrgUsers() {
+  renderOrgUsersTable();
 }
 
 document.getElementById("btn-create-user").addEventListener("click", async () => {
