@@ -158,21 +158,38 @@ function initDynamicUI() {
 }
 initDynamicUI();
 
+// 獨立的模板初始化函式，確保畫面能強制繪製
 function initTemplateUI() {
-  if(document.getElementById('template-selector-container')) return;
+  let container = document.getElementById('template-selector-container');
   const taskContainer = document.getElementById("task-list-container");
-  if(taskContainer) {
-    const container = document.createElement("div");
+  
+  if (!container && taskContainer) {
+    container = document.createElement("div");
     container.id = "template-selector-container";
-    container.style.cssText = "margin: 15px 0; padding: 12px; background: #eef2ff; border: 1px dashed #a5b4fc; border-radius: 8px;";
+    container.style.cssText = "margin: 15px 0; padding: 15px; background: #eef2ff; border: 2px dashed #818cf8; border-radius: 8px;";
+    // 強制插入在「任務細項排程 (task-list-container)」之上
     taskContainer.parentNode.insertBefore(container, taskContainer);
+  }
+
+  if (container) {
+    // 預先繪製一次，防止 Firebase 報錯導致沒畫面
+    renderTemplateUI();
     
-    onSnapshot(doc(db, "settings", "project_templates"), (docSnap) => {
-      if(docSnap.exists()) {
-        projectTemplates = docSnap.data().templates || projectTemplates;
+    if (!window.hasInitTemplateSnapshot) {
+      window.hasInitTemplateSnapshot = true;
+      try {
+        onSnapshot(doc(db, "settings", "project_templates"), (docSnap) => {
+          if(docSnap.exists()) {
+            projectTemplates = docSnap.data().templates || projectTemplates;
+          }
+          renderTemplateUI(); // 資料回來後更新畫面
+        }, (err) => {
+          console.warn("尚未建立模板資料庫或權限不足，將使用本地預設值:", err);
+        });
+      } catch (e) {
+        console.warn("模板讀取錯誤:", e);
       }
-      renderTemplateUI();
-    });
+    }
   }
 }
 
@@ -180,22 +197,25 @@ window.renderTemplateUI = () => {
   const container = document.getElementById("template-selector-container");
   if(!container) return;
   
-  let html = `<div style="font-weight:bold; margin-bottom:10px; color:#3730a3;">📋 專案模板 (套用時將清除下方草稿細項)</div>`;
+  let html = `<div style="font-size:14px; font-weight:bold; margin-bottom:10px; color:#312e81;">⭐ 專案模板快速套用 (帶入會清除下方草稿)</div>`;
   html += `<div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">`;
+  
   projectTemplates.forEach((tpl, i) => {
       html += `
-      <div style="display:flex; align-items:center; gap:6px; border:1px solid #c7d2fe; padding:6px 10px; border-radius:6px; background:#fff;">
-          <input type="radio" name="selected_template" value="${i}" id="tpl_${i}" style="cursor:pointer;">
-          <label for="tpl_${i}" style="cursor:pointer; margin:0; font-size:13px; font-weight:600; color:#312e81;">${tpl.name}</label>
-          <button type="button" class="action-btn" style="padding:2px 6px; font-size:10px; background:#f1f5f9; color:#475569; border-color:#cbd5e1;" onclick="openTemplateEditor(${i})">✏️</button>
+      <div style="display:flex; align-items:center; gap:6px; border:1px solid #c7d2fe; padding:8px 12px; border-radius:6px; background:#fff; cursor:pointer;" onclick="document.getElementById('tpl_${i}').checked = true;">
+          <input type="radio" name="selected_template" value="${i}" id="tpl_${i}" style="cursor:pointer; transform:scale(1.2);">
+          <label for="tpl_${i}" style="cursor:pointer; margin:0; font-size:13px; font-weight:700; color:#3730a3;">${tpl.name}</label>
+          <button type="button" class="action-btn" style="padding:2px 8px; font-size:11px; background:#f1f5f9; color:#475569; border-color:#cbd5e1; margin-left:4px;" onclick="event.stopPropagation(); openTemplateEditor(${i})">✏️ 編輯</button>
       </div>`;
   });
+  
   html += `</div>`;
-  html += `<div style="display:flex; gap:15px; align-items:center; background:#fff; padding:8px 12px; border-radius:6px; border:1px solid #e2e8f0; width:fit-content;">
-      <label style="cursor:pointer; font-size:13px; font-weight:bold; color:#0f172a;"><input type="radio" name="template_mode" value="sequential" checked> 接續時間</label>
-      <label style="cursor:pointer; font-size:13px; font-weight:bold; color:#0f172a;"><input type="radio" name="template_mode" value="free"> 自由時間</label>
-      <button type="button" class="action-btn" style="background:#4f46e5; color:#fff; border:none; margin-left:10px;" onclick="applySelectedTemplate()">✅ 帶入模板</button>
+  html += `<div style="display:flex; gap:15px; align-items:center; background:#fff; padding:10px 15px; border-radius:6px; border:1px solid #e2e8f0; width:fit-content;">
+      <label style="cursor:pointer; font-size:13px; font-weight:bold; color:#0f172a;"><input type="radio" name="template_mode" value="sequential" checked style="margin-right:6px;"> 接續時間</label>
+      <label style="cursor:pointer; font-size:13px; font-weight:bold; color:#0f172a;"><input type="radio" name="template_mode" value="free" style="margin-right:6px;"> 自由時間</label>
+      <button type="button" class="action-btn" style="background:#4f46e5; color:#fff; border:none; margin-left:15px; font-weight:bold;" onclick="applySelectedTemplate()">✅ 確認帶入模板</button>
   </div>`;
+  
   container.innerHTML = html;
 };
 
@@ -211,7 +231,7 @@ window.applySelectedTemplate = () => {
 
   if(!tpl.tasks || tpl.tasks.length === 0) {
       addTaskRow();
-      return alert("套用成功，但此模板沒有預設的細項。");
+      return alert("套用成功，但此模板目前沒有預設的細項喔！");
   }
 
   tpl.tasks.forEach(t => {
@@ -278,7 +298,6 @@ function checkEditModeVisibility() {
     if (selectedProjectId !== 'SUMMARY') {
       const p = allProjectsData.find(x => x.id === selectedProjectId);
       if (p) {
-        // 嚴格判斷：只有「專案建立者」本人，在 7 天內才可以開啟編輯模式 (主專案資訊)
         const isProjOwner = (p.ownerId === auth.currentUser?.uid);
         const inGrace = isWithin7DaysGracePeriod(p);
 
@@ -308,6 +327,7 @@ function checkEditModeVisibility() {
   btn.style.display = shouldShow ? "inline-block" : "none";
 }
 
+// 綁定在此，每次點擊都會確保模板出現
 document.getElementById('btn-toggle-create').addEventListener('click', () => {
   const form = document.getElementById('create-project-section');
   const isHidden = form.style.display === 'none';
@@ -317,8 +337,12 @@ document.getElementById('btn-toggle-create').addEventListener('click', () => {
     document.getElementById("proj-name").value = "";
     document.getElementById("proj-color").value = "bar-primary";
     renderCollabCheckboxes([]);
+    
+    // 強制觸發模板載入
+    initTemplateUI();
+
     document.getElementById("task-list-container").innerHTML = "";
-    document.getElementById("task-list-container").dataset.cascadeMode = ""; // Reset mode
+    document.getElementById("task-list-container").dataset.cascadeMode = ""; 
     addTaskRow();
   }
 });
@@ -556,6 +580,7 @@ onAuthStateChanged(auth, async (user) => {
     loadAdHocEvents(); 
     loadWeeklyReports();
     loadMyCalendarTodos(user.uid);
+    // 初次登入時初始化
     initTemplateUI();
   } else {
     document.getElementById("auth-section").style.display = "flex"; 
@@ -737,7 +762,7 @@ window.cascadeDatesIfSequential = (startRow) => {
         const daysInput = row.querySelector('.task-days');
         const endInput = row.querySelector('.task-end');
 
-        if (!startInput.value) break; // 如果這項沒有起始日，中斷串聯
+        if (!startInput.value) break; 
 
         const days = parseInt(daysInput.value) || 1;
         endInput.value = calculateEndDateByDays(startInput.value, days);
@@ -2626,7 +2651,7 @@ window.resetUserPassword = (email) => {
 
 window.rescueUserProjects = async (uid, userName) => {
   if (!userName) return alert("請先為該人員設定姓名！");
-  if (!confirm(`【資料救援】\n即將掃描系統中所有署名為「${userName}」的舊專案與事件，強制綁回給這個帳號。\n確定要進行修復嗎？`)) return;
+  if (!confirm(`【資料救援】\n即遇到系統中所有署名為「${userName}」的舊專案與事件，強制綁回給這個帳號。\n確定要進行修復嗎？`)) return;
   try {
     let pCount = 0, wCount = 0;
     for (let p of allProjectsData) { 
