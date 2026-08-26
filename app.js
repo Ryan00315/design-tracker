@@ -35,6 +35,7 @@ let allProjectsData = [];
 let allAdHocData = [];
 let allWeeklyData = [];
 let myCalendarTodos = [];
+let projectTemplates = Array.from({length: 5}, (_, i) => ({ id: i, name: `模板${i+1}`, tasks: [] }));
 
 let currentFilter = 'ongoing'; 
 let selectedProjectId = 'SUMMARY'; 
@@ -157,6 +158,84 @@ function initDynamicUI() {
 }
 initDynamicUI();
 
+function initTemplateUI() {
+  if(document.getElementById('template-selector-container')) return;
+  const taskContainer = document.getElementById("task-list-container");
+  if(taskContainer) {
+    const container = document.createElement("div");
+    container.id = "template-selector-container";
+    container.style.cssText = "margin: 15px 0; padding: 12px; background: #eef2ff; border: 1px dashed #a5b4fc; border-radius: 8px;";
+    taskContainer.parentNode.insertBefore(container, taskContainer);
+    
+    onSnapshot(doc(db, "settings", "project_templates"), (docSnap) => {
+      if(docSnap.exists()) {
+        projectTemplates = docSnap.data().templates || projectTemplates;
+      }
+      renderTemplateUI();
+    });
+  }
+}
+
+window.renderTemplateUI = () => {
+  const container = document.getElementById("template-selector-container");
+  if(!container) return;
+  
+  let html = `<div style="font-weight:bold; margin-bottom:10px; color:#3730a3;">📋 專案模板 (套用時將清除下方草稿細項)</div>`;
+  html += `<div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">`;
+  projectTemplates.forEach((tpl, i) => {
+      html += `
+      <div style="display:flex; align-items:center; gap:6px; border:1px solid #c7d2fe; padding:6px 10px; border-radius:6px; background:#fff;">
+          <input type="radio" name="selected_template" value="${i}" id="tpl_${i}" style="cursor:pointer;">
+          <label for="tpl_${i}" style="cursor:pointer; margin:0; font-size:13px; font-weight:600; color:#312e81;">${tpl.name}</label>
+          <button type="button" class="action-btn" style="padding:2px 6px; font-size:10px; background:#f1f5f9; color:#475569; border-color:#cbd5e1;" onclick="openTemplateEditor(${i})">✏️</button>
+      </div>`;
+  });
+  html += `</div>`;
+  html += `<div style="display:flex; gap:15px; align-items:center; background:#fff; padding:8px 12px; border-radius:6px; border:1px solid #e2e8f0; width:fit-content;">
+      <label style="cursor:pointer; font-size:13px; font-weight:bold; color:#0f172a;"><input type="radio" name="template_mode" value="sequential" checked> 接續時間</label>
+      <label style="cursor:pointer; font-size:13px; font-weight:bold; color:#0f172a;"><input type="radio" name="template_mode" value="free"> 自由時間</label>
+      <button type="button" class="action-btn" style="background:#4f46e5; color:#fff; border:none; margin-left:10px;" onclick="applySelectedTemplate()">✅ 帶入模板</button>
+  </div>`;
+  container.innerHTML = html;
+};
+
+window.applySelectedTemplate = () => {
+  const checked = document.querySelector('input[name="selected_template"]:checked');
+  if(!checked) return alert("請先選擇一個模板！");
+  const mode = document.querySelector('input[name="template_mode"]:checked').value;
+  const tpl = projectTemplates[checked.value];
+
+  const container = document.getElementById("task-list-container");
+  container.innerHTML = ""; 
+  container.dataset.cascadeMode = mode;
+
+  if(!tpl.tasks || tpl.tasks.length === 0) {
+      addTaskRow();
+      return alert("套用成功，但此模板沒有預設的細項。");
+  }
+
+  tpl.tasks.forEach(t => {
+      const div = document.createElement('div'); 
+      div.className = "form-row task-row"; 
+      div.style.marginBottom = "8px";
+      
+      let days = mode === 'free' ? 1 : (t.days || 1);
+
+      div.innerHTML = `
+          <div class="form-group" style="margin:0; flex:2;"><input type="text" class="input-control task-name" placeholder="細項名稱" value="${t.name}"></div>
+          <div class="form-group" style="margin:0; flex:1.2;"><input type="date" class="input-control task-start" value="" onchange="onTaskStartChange(this, null)"></div>
+          <div class="form-group" style="margin:0; width:65px; flex-shrink:0;"><input type="number" min="1" class="input-control task-days" value="${days}" placeholder="天數" title="工作天數" oninput="onTaskDaysChange(this, null, null)"></div>
+          <div class="form-group" style="margin:0; flex:1.2;"><input type="date" class="input-control task-end" value="" onchange="onTaskEndChange(this, null, null)"></div>
+          <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
+            <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
+            <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
+            <button type="button" class="action-btn danger" onclick="this.closest('.task-row').remove()" style="padding:8px 10px;">X</button>
+          </div>
+      `;
+      container.appendChild(div);
+  });
+};
+
 window.switchNav = (tabId, title, elem) => {
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -199,7 +278,7 @@ function checkEditModeVisibility() {
     if (selectedProjectId !== 'SUMMARY') {
       const p = allProjectsData.find(x => x.id === selectedProjectId);
       if (p) {
-        // 嚴格判斷：只有「專案建立者」本人，在 7 天內才可以開啟編輯模式
+        // 嚴格判斷：只有「專案建立者」本人，在 7 天內才可以開啟編輯模式 (主專案資訊)
         const isProjOwner = (p.ownerId === auth.currentUser?.uid);
         const inGrace = isWithin7DaysGracePeriod(p);
 
@@ -239,6 +318,7 @@ document.getElementById('btn-toggle-create').addEventListener('click', () => {
     document.getElementById("proj-color").value = "bar-primary";
     renderCollabCheckboxes([]);
     document.getElementById("task-list-container").innerHTML = "";
+    document.getElementById("task-list-container").dataset.cascadeMode = ""; // Reset mode
     addTaskRow();
   }
 });
@@ -476,6 +556,7 @@ onAuthStateChanged(auth, async (user) => {
     loadAdHocEvents(); 
     loadWeeklyReports();
     loadMyCalendarTodos(user.uid);
+    initTemplateUI();
   } else {
     document.getElementById("auth-section").style.display = "flex"; 
     document.getElementById("app-section").style.display = "none";
@@ -642,37 +723,73 @@ window.checkWorkingDay = (input) => {
   } 
 };
 
+window.cascadeDatesIfSequential = (startRow) => {
+    const container = document.getElementById("task-list-container");
+    if (!container || container.dataset.cascadeMode !== 'sequential') return;
+
+    const rows = Array.from(container.querySelectorAll('.task-row'));
+    const startIndex = rows.indexOf(startRow);
+    if (startIndex === -1) return;
+
+    for (let i = startIndex; i < rows.length; i++) {
+        const row = rows[i];
+        const startInput = row.querySelector('.task-start');
+        const daysInput = row.querySelector('.task-days');
+        const endInput = row.querySelector('.task-end');
+
+        if (!startInput.value) break; // 如果這項沒有起始日，中斷串聯
+
+        const days = parseInt(daysInput.value) || 1;
+        endInput.value = calculateEndDateByDays(startInput.value, days);
+        endInput.min = startInput.value;
+
+        if (i + 1 < rows.length) {
+            const nextRow = rows[i + 1];
+            const nextStartInput = nextRow.querySelector('.task-start');
+            nextStartInput.value = getNextWorkingDayStr(endInput.value);
+        }
+    }
+};
+
 window.onTaskStartChange = (startInput, targetEndId) => {
   window.checkWorkingDay(startInput);
   if (!startInput.value) return;
-  const row = startInput.closest('.task-row') || startInput.closest('#general-edit-form') || startInput.closest('.modal-box');
-  const endInput = typeof targetEndId === 'string' ? document.getElementById(targetEndId) : row?.querySelector('.task-end');
-  const daysInput = row?.querySelector('.task-days') || row?.querySelector('#add-task-days') || row?.querySelector('#edit-val-days');
+  const row = startInput.closest('.task-row') || startInput.closest('.tpl-task-row') || startInput.closest('#general-edit-form') || startInput.closest('.modal-box');
+  const endInput = typeof targetEndId === 'string' ? document.getElementById(targetEndId) : row?.querySelector('.task-end') || row?.querySelector('.tpl-task-end');
+  const daysInput = row?.querySelector('.task-days') || row?.querySelector('.tpl-task-days') || row?.querySelector('#add-task-days') || row?.querySelector('#edit-val-days');
 
   if (endInput) {
     endInput.min = startInput.value;
     const days = daysInput ? parseInt(daysInput.value) || 1 : 1;
     endInput.value = calculateEndDateByDays(startInput.value, days);
   }
+
+  if (row && row.classList.contains('task-row') && row.closest('#task-list-container')) {
+      cascadeDatesIfSequential(row);
+  }
 };
 
 window.onTaskDaysChange = (daysInput, targetStartId, targetEndId) => {
-  const row = daysInput.closest('.task-row') || daysInput.closest('#general-edit-form') || daysInput.closest('.modal-box');
-  const startInput = typeof targetStartId === 'string' ? document.getElementById(targetStartId) : row?.querySelector('.task-start') || row?.querySelector('#add-task-start');
-  const endInput = typeof targetEndId === 'string' ? document.getElementById(targetEndId) : row?.querySelector('.task-end') || row?.querySelector('#add-task-end');
+  const row = daysInput.closest('.task-row') || daysInput.closest('.tpl-task-row') || daysInput.closest('#general-edit-form') || daysInput.closest('.modal-box');
+  const startInput = typeof targetStartId === 'string' ? document.getElementById(targetStartId) : row?.querySelector('.task-start') || row?.querySelector('.tpl-task-start') || row?.querySelector('#add-task-start');
+  const endInput = typeof targetEndId === 'string' ? document.getElementById(targetEndId) : row?.querySelector('.task-end') || row?.querySelector('.tpl-task-end') || row?.querySelector('#add-task-end');
 
   const days = parseInt(daysInput.value) || 1;
   if (startInput && startInput.value && endInput) {
     endInput.value = calculateEndDateByDays(startInput.value, days);
     endInput.min = startInput.value;
   }
+
+  if (row && row.classList.contains('task-row') && row.closest('#task-list-container')) {
+      cascadeDatesIfSequential(row);
+  }
 };
 
 window.onTaskEndChange = (endInput, targetStartId, targetDaysId) => {
   window.checkWorkingDay(endInput);
-  const row = endInput.closest('.task-row') || endInput.closest('#general-edit-form') || endInput.closest('.modal-box');
-  const startInput = typeof targetStartId === 'string' ? document.getElementById(targetStartId) : row?.querySelector('.task-start') || row?.querySelector('#add-task-start');
-  const daysInput = typeof targetDaysId === 'string' ? document.getElementById(targetDaysId) : row?.querySelector('.task-days') || row?.querySelector('#add-task-days');
+  const row = endInput.closest('.task-row') || endInput.closest('.tpl-task-row') || endInput.closest('#general-edit-form') || endInput.closest('.modal-box');
+  const startInput = typeof targetStartId === 'string' ? document.getElementById(targetStartId) : row?.querySelector('.task-start') || row?.querySelector('.tpl-task-start') || row?.querySelector('#add-task-start');
+  const daysInput = typeof targetDaysId === 'string' ? document.getElementById(targetDaysId) : row?.querySelector('.task-days') || row?.querySelector('.tpl-task-days') || row?.querySelector('#add-task-days');
 
   if (startInput && startInput.value && endInput.value) {
     if (endInput.value < startInput.value) {
@@ -681,6 +798,10 @@ window.onTaskEndChange = (endInput, targetStartId, targetDaysId) => {
     }
     const days = getWorkingDays(startInput.value, endInput.value);
     if (daysInput) daysInput.value = days;
+  }
+
+  if (row && row.classList.contains('task-row') && row.closest('#task-list-container')) {
+      cascadeDatesIfSequential(row);
   }
 };
 
@@ -708,7 +829,7 @@ window.addTaskRow = () => {
 };
 
 window.moveTaskRow = (btn, direction) => {
-  const row = btn.closest('.task-row');
+  const row = btn.closest('.task-row') || btn.closest('.tpl-task-row');
   if (!row) return;
   if (direction === -1 && row.previousElementSibling) {
     row.parentNode.insertBefore(row, row.previousElementSibling);
@@ -829,7 +950,6 @@ function renderProjects() {
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
-  // 🚀 視角絕對隔離：看誰就只顯示誰的部門的協作專案
   const collabProjects = allProjectsData.filter(p => {
     const collabs = p.collaborators || [];
     if (collabs.length === 0) return false;
@@ -849,7 +969,6 @@ function renderProjects() {
     const ownerDept = getUserDept(p.ownerId);
     const isOwnerDept = (targetDept === ownerDept); 
 
-    // 視角過濾：建檔部門看全部，協作單位看自己
     if (isOwnerDept) {
       relevantTasks = p.tasks || [];
     } else {
@@ -967,9 +1086,7 @@ function renderProjects() {
 
   emptyState.style.display = "none"; 
 
-  // ==========================================
   // ⭐ 顯示總覽畫面
-  // ==========================================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; 
     summaryView.style.display = "block";
@@ -1106,19 +1223,13 @@ function renderProjects() {
     return;
   }
 
-  // ==========================================
   // ⭐ 顯示詳細專案畫面
-  // ==========================================
   summaryView.style.display = "none"; 
   detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
   if(!activeProj) return; 
 
-  const ownerDept = getUserDept(activeProj.ownerId);
-  const isProjOwnerDept = (currentUserData.dept === ownerDept); 
-  // 🚀 嚴格鎖死擁有者權限，不再被 isProjOwnerDept 綁架
   const isProjOwner = (activeProj.ownerId === auth.currentUser.uid);
-  
   const hasCollab = (activeProj.collaborators && activeProj.collaborators.length > 0);
   const isCollabMember = hasCollab && activeProj.collaborators.includes(currentUserData.dept);
   
@@ -1129,7 +1240,6 @@ function renderProjects() {
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯主資訊</button>` : '';
   
   let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#2563eb; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
-  
   let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="font-size:11px; margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
 
   let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
@@ -1143,8 +1253,8 @@ function renderProjects() {
 
   lockBtn.style.display = "none"; 
 
-  // 🚀 新增細項按鈕：不需要編輯模式！只要有特權、是協作單位，或是專案主在 7 天內，就能永遠顯示！
-  const canAddTask = hasGlobalEdit || isCollabMember || (isProjOwner && inGracePeriod);
+  // 🚀 新增細項按鈕：永久開放！只要有特權、是協作單位，或是專案主，就能永遠顯示！(不受7天限制)
+  const canAddTask = hasGlobalEdit || isCollabMember || isProjOwner;
 
   if (canAddTask) {
     btnProjectAddTask.style.display = "inline-block";
@@ -1182,6 +1292,7 @@ function renderProjects() {
     const taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
     const isMyTask = (auth.currentUser.uid === taskAssigneeId);
 
+    // 🚀 判定「單個細項」是否在7天自由編輯期內 (依照任務自己的建立時間)
     let taskCreatedTime = task.createdAt || (activeProj.createdAt && typeof activeProj.createdAt.toMillis === 'function' ? activeProj.createdAt.toMillis() : Date.now());
     let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
 
@@ -2252,7 +2363,6 @@ window.openGeneralEdit = (type, id, extra) => {
         let isMyTask = (auth.currentUser.uid === (t.assigneeId || p.ownerId));
         let isProjOwner = (p.ownerId === auth.currentUser.uid);
 
-        // 🚀 必須是建立者本人或是任務指派者才可以編輯
         if ((isProjOwner || isMyTask) && tInGrace) isAuthorized = true;
       } else if (type === 'project') {
         let isProjOwner = (p.ownerId === auth.currentUser.uid);
@@ -2359,6 +2469,59 @@ window.openGeneralEdit = (type, id, extra) => {
   document.getElementById("general-edit-modal").classList.add("active");
 };
 
+window.openTemplateEditor = (index) => {
+    const tpl = projectTemplates[index];
+    currentEditData = { type: 'template', id: index };
+    document.getElementById("general-edit-title").innerText = `編輯模板：${tpl.name}`;
+
+    let html = `
+        <div class="form-group">
+            <label class="form-label">模板名稱</label>
+            <input type="text" id="edit-tpl-name" class="input-control" value="${tpl.name}">
+        </div>
+        <div class="form-group">
+            <label class="form-label">預設任務細項</label>
+            <div id="edit-tpl-tasks-container"></div>
+            <button type="button" class="action-btn" onclick="addTemplateTaskRow()" style="margin-top:8px;">➕ 新增模板細項</button>
+        </div>
+    `;
+    const form = document.getElementById("general-edit-form");
+    form.innerHTML = html;
+
+    const tplContainer = document.getElementById("edit-tpl-tasks-container");
+    if (tpl.tasks && tpl.tasks.length > 0) {
+        tpl.tasks.forEach(t => {
+            tplContainer.appendChild(createTemplateTaskRow(t.name, t.start, t.days, t.end));
+        });
+    } else {
+        tplContainer.appendChild(createTemplateTaskRow("", "", 1, ""));
+    }
+
+    document.getElementById("general-edit-modal").classList.add("active");
+};
+
+window.addTemplateTaskRow = () => {
+    document.getElementById("edit-tpl-tasks-container").appendChild(createTemplateTaskRow("", "", 1, ""));
+};
+
+window.createTemplateTaskRow = (name, start, days, end) => {
+    const div = document.createElement('div');
+    div.className = "form-row tpl-task-row";
+    div.style.marginBottom = "8px";
+    div.innerHTML = `
+        <div class="form-group" style="margin:0; flex:2;"><input type="text" class="input-control task-name" placeholder="細項名稱" value="${name}"></div>
+        <div class="form-group" style="margin:0; flex:1.2;"><input type="date" class="input-control task-start tpl-task-start" value="${start}" onchange="onTaskStartChange(this, null)"></div>
+        <div class="form-group" style="margin:0; width:65px; flex-shrink:0;"><input type="number" min="1" class="input-control task-days tpl-task-days" value="${days||1}" placeholder="天數" title="工作天數" oninput="onTaskDaysChange(this, null, null)"></div>
+        <div class="form-group" style="margin:0; flex:1.2;"><input type="date" class="input-control task-end tpl-task-end" value="${end}" min="${start}" onchange="onTaskEndChange(this, null, null)"></div>
+        <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
+            <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
+            <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
+            <button type="button" class="action-btn danger" onclick="this.closest('.tpl-task-row').remove()" style="padding:8px 10px;">X</button>
+        </div>
+    `;
+    return div;
+};
+
 window.onEditWeeklyProjChange = (idx) => {
   const pSel = document.getElementById(`edit-weekly-proj-${idx}`);
   const tSel = document.getElementById(`edit-weekly-task-${idx}`);
@@ -2424,6 +2587,20 @@ window.saveGeneralEdit = async () => {
         updateData.items = newItems;
       }
       await updateDoc(doc(db, "weekly_reports", id), updateData);
+    } else if (type === 'template') {
+      const newName = document.getElementById("edit-tpl-name").value.trim();
+      const rows = document.querySelectorAll('.tpl-task-row');
+      const tasks = [];
+      rows.forEach(r => {
+          const name = r.querySelector('.task-name').value.trim();
+          const start = r.querySelector('.task-start').value;
+          const days = parseInt(r.querySelector('.task-days').value) || 1;
+          const end = r.querySelector('.task-end').value;
+          if(name) tasks.push({ name, start, days, end });
+      });
+      projectTemplates[id].name = newName || `模板${id+1}`;
+      projectTemplates[id].tasks = tasks;
+      await setDoc(doc(db, "settings", "project_templates"), { templates: projectTemplates }, { merge: true });
     }
     closeGeneralEditModal(); 
     alert("✅ 資料修改成功！");
