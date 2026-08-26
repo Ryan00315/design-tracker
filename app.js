@@ -68,10 +68,10 @@ const taiwanHolidayMap = {
   '10-25': '光復節', '10-26': '補假', '12-25': '行憲紀念日'
 };
 
-// ==========================================
-// 🚀 第一防線：全域基礎函式絕對掛載 (防止找不到函式而當機)
-// ==========================================
-window.getTodayStr = () => {
+// ============================================================================
+// 核心工具函式 (強制綁定到 window，保證不當機)
+// ============================================================================
+window.getTodayStr = function() {
     const d = new Date();
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -79,14 +79,14 @@ window.getTodayStr = () => {
     return `${y}-${m}-${day}`;
 };
 
-window.getUserDept = (uid) => {
+window.getUserDept = function(uid) {
     if (!uid) return "設計部";
     if (uid === auth.currentUser?.uid) return currentUserData.dept || "設計部";
     const u = allUsersList.find(x => x.uid === uid);
     return u ? (u.dept || "設計部") : "設計部";
 };
 
-window.getWorkingDays = (startDate, endDate) => {
+window.getWorkingDays = function(startDate, endDate) {
   let count = 0; 
   let curDate = new Date(startDate); 
   let end = new Date(endDate);
@@ -99,14 +99,14 @@ window.getWorkingDays = (startDate, endDate) => {
   return Math.max(1, count);
 };
 
-window.formatDateSafe = (dateObj) => { 
+window.formatDateSafe = function(dateObj) { 
   const y = dateObj.getFullYear(); 
   const m = String(dateObj.getMonth() + 1).padStart(2, '0'); 
   const d = String(dateObj.getDate()).padStart(2, '0'); 
   return `${y}-${m}-${d}`; 
 };
 
-window.calculateEndDateByDays = (startDateStr, days) => {
+window.calculateEndDateByDays = function(startDateStr, days) {
   if (!startDateStr || isNaN(days) || days < 1) return startDateStr;
   let curDate = new Date(startDateStr);
   let added = 1;
@@ -119,7 +119,7 @@ window.calculateEndDateByDays = (startDateStr, days) => {
   return window.formatDateSafe(curDate);
 };
 
-window.getNextWorkingDayStr = (dateStr) => {
+window.getNextWorkingDayStr = function(dateStr) {
   if (!dateStr) return ''; 
   let d = new Date(dateStr); 
   d.setDate(d.getDate() + 1);
@@ -127,7 +127,7 @@ window.getNextWorkingDayStr = (dateStr) => {
   return d.toISOString().split('T')[0];
 };
 
-window.spansYear = (p, y) => {
+window.spansYear = function(p, y) {
   if(y === 'all') return true;
   if(!p.tasks || p.tasks.length === 0) {
       const createdDate = p.createdAt && typeof p.createdAt.toDate === 'function' ? p.createdAt.toDate() : new Date();
@@ -143,13 +143,13 @@ window.spansYear = (p, y) => {
   return y >= startY && y <= endY;
 };
 
-window.getAdHocDateStr = (evt) => {
+window.getAdHocDateStr = function(evt) {
   if (evt.startDate) return evt.startDate;
   if (evt.createdAt && evt.createdAt.toDate) return evt.createdAt.toDate().toISOString().split('T')[0];
   return new Date().toISOString().split('T')[0];
 };
 
-window.isWithin7DaysGracePeriod = (proj) => {
+window.isWithin7DaysGracePeriod = function(proj) {
   if (!proj || !proj.createdAt) return false;
   let createdTime;
   if (typeof proj.createdAt.toMillis === 'function') {
@@ -163,7 +163,7 @@ window.isWithin7DaysGracePeriod = (proj) => {
   return diffDays <= 7;
 };
 
-window.getGraceDaysLeft = (proj) => {
+window.getGraceDaysLeft = function(proj) {
   if (!proj || !proj.createdAt) return 0;
   let createdTime;
   if (typeof proj.createdAt.toMillis === 'function') {
@@ -178,78 +178,17 @@ window.getGraceDaysLeft = (proj) => {
 };
 
 let renderTimer = null;
-window.triggerRenderProjects = () => {
+window.triggerRenderProjects = function() {
   if (renderTimer) clearTimeout(renderTimer);
   renderTimer = setTimeout(() => {
-      if (auth.currentUser && window.renderProjects) window.renderProjects();
+      if (auth.currentUser) window.renderProjects();
   }, 150); 
 };
 
-// ==========================================
-// 🚀 第二防線：全域事件攔截器 (按鈕絕對不失效)
-// ==========================================
-document.addEventListener("click", async (e) => {
-  const target = e.target;
-  const btnLogin = target.closest("#btn-login");
-  if (btnLogin) { 
-      e.preventDefault(); 
-      if(window.submitLogin) window.submitLogin(); 
-      return; 
-  }
-  const btnLogout = target.closest("#btn-logout");
-  if (btnLogout) { 
-      e.preventDefault(); 
-      signOut(auth); 
-      return; 
-  }
-  const btnToggleEdit = target.closest("#btn-toggle-edit-mode");
-  if (btnToggleEdit) { 
-      e.preventDefault(); 
-      if(window.toggleEditMode) window.toggleEditMode(); 
-      return; 
-  }
-  const btnToggleCreate = target.closest("#btn-toggle-create");
-  if (btnToggleCreate) { 
-      e.preventDefault(); 
-      if(window.toggleCreateProject) window.toggleCreateProject(); 
-      return; 
-  }
-  const btnAddProject = target.closest("#btn-add-project");
-  if (btnAddProject) { 
-      e.preventDefault(); 
-      if(window.submitNewProject) window.submitNewProject(); 
-      return; 
-  }
-  const btnAddAdhoc = target.closest("#btn-add-adhoc");
-  if (btnAddAdhoc) { 
-      e.preventDefault(); 
-      if(window.submitNewAdHoc) window.submitNewAdHoc(); 
-      return; 
-  }
-  const btnAddWeekly = target.closest("#btn-add-weekly");
-  if (btnAddWeekly) { 
-      e.preventDefault(); 
-      if(window.submitWeeklyReport) window.submitWeeklyReport(); 
-      return; 
-  }
-  const btnCreateUser = target.closest("#btn-create-user");
-  if (btnCreateUser) { 
-      e.preventDefault(); 
-      if(window.submitCreateUser) window.submitCreateUser(); 
-      return; 
-  }
-  const btnUpdatePwd = target.closest("#btn-update-password");
-  if (btnUpdatePwd) { 
-      e.preventDefault(); 
-      if(window.submitUpdatePassword) window.submitUpdatePassword(); 
-      return; 
-  }
-});
-
-// ==========================================
-// 🚀 UI 與介面注入
-// ==========================================
-window.initDynamicUI = () => {
+// ============================================================================
+// UI 初始化與動態掛載
+// ============================================================================
+window.initDynamicUI = function() {
   if (document.getElementById('filter-all')) return; 
 
   const kpiRow = document.querySelector('.kpi-row');
@@ -318,11 +257,10 @@ window.initDynamicUI = () => {
     };
     btnWrapper.insertBefore(sel, btnWrapper.firstChild);
   }
-
-  window.injectTemplateModal();
 };
 
-window.injectTemplateUI = () => {
+// 🚀 模板 UI 注入 (只在打開新增專案時呼叫)
+window.ensureTemplateUI = function() {
   const taskContainer = document.getElementById("task-list-container");
   if (!taskContainer || document.getElementById("template-section-wrapper")) return;
 
@@ -351,7 +289,7 @@ window.injectTemplateUI = () => {
   window.renderTemplateSelect();
 };
 
-window.injectTemplateModal = () => {
+window.ensureTemplateModal = function() {
    if (document.getElementById('template-edit-modal')) return;
    const html = `
    <div class="modal" id="template-edit-modal" style="z-index:9999999;">
@@ -384,9 +322,97 @@ window.injectTemplateModal = () => {
    document.body.insertAdjacentHTML('beforeend', html);
 };
 
-// ==========================================
-// 🚀 資料庫監聽與 Auth 流 (一次補齊全部資料)
-// ==========================================
+
+// ============================================================================
+// 按鈕監聽與基礎設定 (原生綁定，防重整)
+// ============================================================================
+document.addEventListener("DOMContentLoaded", () => {
+  window.initDynamicUI();
+  window.ensureTemplateModal();
+
+  document.getElementById("btn-login")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    const email = document.getElementById("login-email")?.value.trim();
+    const pass = document.getElementById("login-password")?.value.trim();
+    if (!email || !pass) return alert("請填寫帳號密碼！");
+    signInWithEmailAndPassword(auth, email, pass).catch(err => alert("登入失敗: " + err.message));
+  });
+
+  document.getElementById("btn-logout")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    signOut(auth);
+  });
+
+  document.getElementById("btn-toggle-edit-mode")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (!auth.currentUser) return;
+    isEditMode = !isEditMode;
+    const btn = document.getElementById("btn-toggle-edit-mode");
+    if (isEditMode) {
+      btn.innerHTML = "❌ 關閉編輯模式"; 
+      btn.style.background = "var(--warning-bg)";
+    } else {
+      btn.innerHTML = "✏️ 開啟編輯模式"; 
+      btn.style.background = "transparent";
+    }
+    window.triggerRenderProjects(); 
+    if(window.renderAdHocEvents) window.renderAdHocEvents(); 
+    if(window.renderWeeklyReports) window.renderWeeklyReports();
+  });
+
+  document.getElementById('btn-toggle-create')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    const form = document.getElementById('create-project-section');
+    if (!form) return;
+    const isHidden = form.style.display === 'none';
+    form.style.display = isHidden ? 'block' : 'none';
+
+    if (isHidden) {
+      const projName = document.getElementById("proj-name");
+      if(projName) projName.value = "";
+      const projColor = document.getElementById("proj-color");
+      if(projColor) projColor.value = "bar-primary";
+      
+      if(window.renderCollabCheckboxes) window.renderCollabCheckboxes([]);
+      const taskContainer = document.getElementById("task-list-container");
+      if(taskContainer) taskContainer.innerHTML = "";
+      
+      if(window.addTaskRow) window.addTaskRow();
+      
+      // 🚀 展開時確保模板介面出現
+      window.ensureTemplateUI();
+    }
+  });
+
+  document.getElementById("btn-add-project")?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    if(window.submitNewProject) await window.submitNewProject();
+  });
+
+  document.getElementById("btn-add-adhoc")?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    if(window.submitNewAdHoc) await window.submitNewAdHoc();
+  });
+
+  document.getElementById("btn-add-weekly")?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    if(window.submitWeeklyReport) await window.submitWeeklyReport();
+  });
+
+  document.getElementById("btn-create-user")?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    if(window.submitCreateUser) await window.submitCreateUser();
+  });
+
+  document.getElementById("btn-update-password")?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    if(window.submitUpdatePassword) await window.submitUpdatePassword();
+  });
+});
+
+// ============================================================================
+// 認證與資料流通道 (確保所有資料一次載齊)
+// ============================================================================
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     const authSec = document.getElementById("auth-section");
@@ -440,11 +466,12 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     window.initDynamicUI();
-    window.initWeeklyDateAndLeave(); 
-    window.addTaskRow(); 
-    window.addWeeklyRow(); 
+    window.ensureTemplateModal();
+    if(window.initWeeklyDateAndLeave) window.initWeeklyDateAndLeave(); 
+    if(window.addTaskRow) window.addTaskRow(); 
+    if(window.addWeeklyRow) window.addWeeklyRow(); 
     
-    // 🚀 安全載入資料
+    // 🔥 資料啟動器
     window.setupDataListeners(user.uid);
 
   } else {
@@ -463,97 +490,60 @@ window.setupDataListeners = function(uid) {
   firebaseUnsubscribers.forEach(unsub => unsub());
   firebaseUnsubscribers = [];
 
+  // 1. 人員
   firebaseUnsubscribers.push(onSnapshot(collection(db, "users"), (snapshot) => {
     allUsersList = [];
     snapshot.forEach(docSnap => allUsersList.push({ uid: docSnap.id, ...docSnap.data() }));
-    if (currentUserData.role !== 'staff') window.renderSidebarSubordinates();
-    if (currentUserData.role === 'admin') window.renderOrgUsersTable();
+    if (currentUserData.role !== 'staff' && window.renderSidebarSubordinates) window.renderSidebarSubordinates();
+    if (currentUserData.role === 'admin' && window.renderOrgUsersTable) window.renderOrgUsersTable();
     window.triggerRenderProjects();
   }));
 
+  // 2. 模板
   firebaseUnsubscribers.push(onSnapshot(doc(db, "settings", "project_templates"), (docSnap) => {
     if (docSnap.exists() && Object.keys(docSnap.data()).length > 0) {
       projectTemplates = { ...projectTemplates, ...docSnap.data() };
     }
-    window.renderTemplateSelect();
+    if(window.renderTemplateSelect) window.renderTemplateSelect();
   }));
 
+  // 3. 專案
   firebaseUnsubscribers.push(onSnapshot(query(collection(db, "projects")), (snapshot) => {
     allProjectsData = []; 
     snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
     window.triggerRenderProjects(); 
-    window.refreshAllWeeklyProjSelects();
+    if(window.refreshAllWeeklyProjSelects) window.refreshAllWeeklyProjSelects();
   }));
 
+  // 4. 事件
   firebaseUnsubscribers.push(onSnapshot(query(collection(db, "ad_hoc_events")), (snapshot) => {
     allAdHocData = []; 
     snapshot.forEach(docSnap => allAdHocData.push({ id: docSnap.id, ...docSnap.data() })); 
-    window.renderAdHocEvents(); 
+    if(window.renderAdHocEvents) window.renderAdHocEvents(); 
     window.triggerRenderProjects();
   }));
 
+  // 5. 週報
   firebaseUnsubscribers.push(onSnapshot(query(collection(db, "weekly_reports")), (snapshot) => {
     allWeeklyData = []; 
     snapshot.forEach(docSnap => allWeeklyData.push({ id: docSnap.id, ...docSnap.data() })); 
-    window.renderWeeklyReports(); 
-    window.refreshAllWeeklyProjSelects();
+    if(window.renderWeeklyReports) window.renderWeeklyReports(); 
+    if(window.refreshAllWeeklyProjSelects) window.refreshAllWeeklyProjSelects();
   }));
 
+  // 6. 行事曆
   firebaseUnsubscribers.push(onSnapshot(query(collection(db, "calendar_todos"), where("ownerId", "==", uid)), (snapshot) => {
     myCalendarTodos = [];
     snapshot.forEach(docSnap => myCalendarTodos.push({ id: docSnap.id, ...docSnap.data() }));
-    window.renderCalendar();
-    if (activeCalDateStr) window.renderCalTodosModal(activeCalDateStr);
+    if(window.renderCalendar) window.renderCalendar();
+    if (activeCalDateStr && window.renderCalTodosModal) window.renderCalTodosModal(activeCalDateStr);
   }));
 };
 
-// ==========================================
-// 🚀 全域視窗函式掛載區 (Global functions)
-// ==========================================
-window.submitLogin = async () => {
-  const email = document.getElementById("login-email")?.value.trim();
-  const pass = document.getElementById("login-password")?.value.trim();
-  if (!email || !pass) return alert("請填寫帳號密碼！");
-  try { await signInWithEmailAndPassword(auth, email, pass); } 
-  catch (err) { alert("登入失敗: " + err.message); }
-};
-
-window.toggleEditMode = () => {
-  if (!auth.currentUser) return;
-  isEditMode = !isEditMode;
-  const btn = document.getElementById("btn-toggle-edit-mode");
-  if (btn) {
-    btn.innerHTML = isEditMode ? "❌ 關閉編輯模式" : "✏️ 開啟編輯模式";
-    btn.style.background = isEditMode ? "var(--warning-bg)" : "transparent";
-  }
-  window.triggerRenderProjects(); 
-  if(window.renderAdHocEvents) window.renderAdHocEvents(); 
-  if(window.renderWeeklyReports) window.renderWeeklyReports();
-};
-
-window.toggleCreateProject = () => {
-  const form = document.getElementById('create-project-section');
-  if (!form) return;
-  const isHidden = form.style.display === 'none';
-  form.style.display = isHidden ? 'block' : 'none';
-
-  if (isHidden) {
-    const projName = document.getElementById("proj-name");
-    if(projName) projName.value = "";
-    const projColor = document.getElementById("proj-color");
-    if(projColor) projColor.value = "bar-primary";
-    
-    if(window.renderCollabCheckboxes) window.renderCollabCheckboxes([]);
-    const taskContainer = document.getElementById("task-list-container");
-    if(taskContainer) taskContainer.innerHTML = "";
-    
-    if(window.addTaskRow) window.addTaskRow();
-    window.injectTemplateUI();
-    if(window.renderTemplateSelect) window.renderTemplateSelect();
-  }
-};
-
-window.setProjectFilter = (status) => {
+// ============================================================================
+// HTML 綁定之全域行為 (UI 切換、選單操作)
+// ============================================================================
+window.setProjectFilter = function(status) {
   currentFilter = status;
   document.querySelectorAll('.kpi-card').forEach(el => el.classList.remove('active'));
   const activeBtn = document.getElementById('filter-' + status);
@@ -562,7 +552,7 @@ window.setProjectFilter = (status) => {
   window.triggerRenderProjects();
 };
 
-window.selectProject = (projId) => { 
+window.selectProject = function(projId) { 
   selectedProjectId = projId; 
   isEditMode = false;
   const editBtn = document.getElementById("btn-toggle-edit-mode");
@@ -573,7 +563,7 @@ window.selectProject = (projId) => {
   window.triggerRenderProjects(); 
 };
 
-window.switchNav = (tabId, title, elem) => {
+window.switchNav = function(tabId, title, elem) {
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   const targetPane = document.getElementById(tabId);
@@ -590,7 +580,7 @@ window.switchNav = (tabId, title, elem) => {
   }
 };
 
-window.checkEditModeVisibility = () => {
+window.checkEditModeVisibility = function() {
   const btn = document.getElementById("btn-toggle-edit-mode");
   if (!btn || !auth.currentUser) return;
 
@@ -632,7 +622,7 @@ window.checkEditModeVisibility = () => {
   btn.style.display = shouldShow ? "inline-block" : "none";
 };
 
-window.renderCollabCheckboxes = (selectedDepts = []) => {
+window.renderCollabCheckboxes = function(selectedDepts = []) {
   const container = document.getElementById("collab-departments-checkboxes");
   if (!container) return;
   container.innerHTML = "";
@@ -646,7 +636,7 @@ window.renderCollabCheckboxes = (selectedDepts = []) => {
   });
 };
 
-window.toggleSubMenu = () => {
+window.toggleSubMenu = function() {
   const wrapper = document.getElementById('nav-sub-wrapper');
   const list = document.getElementById('nav-sub-list');
   if(!wrapper || !list) return;
@@ -662,7 +652,135 @@ window.toggleSubMenu = () => {
   }
 };
 
-window.cascadeDates = () => {
+window.renderSidebarSubordinates = function() {
+  if (!auth.currentUser) return;
+  const list = document.getElementById("nav-sub-list");
+  if (!list) return;
+
+  list.innerHTML = `<li class="nav-sub-item active" id="sub-li-${auth.currentUser.uid}" onclick="window.switchViewingUser('${auth.currentUser.uid}', '自己 (個人專案)')">個人專案</li>`;
+
+  const visibleUsers = [];
+  const myUid = auth.currentUser.uid;
+  const myRole = currentUserData.role; 
+  const myDept = currentUserData.dept || "設計部";
+
+  const isSubordinate = (bossUid, targetUid) => {
+    let current = allUsersList.find(u => u.uid === targetUid);
+    let depth = 0;
+    while (current && current.supervisorId && depth < 10) {
+      if (current.supervisorId === bossUid) return true;
+      current = allUsersList.find(u => u.uid === current.supervisorId);
+      depth++;
+    }
+    return false;
+  };
+
+  allUsersList.forEach(u => {
+    if (u.uid === myUid) return;
+    const targetRole = u.role; 
+    const targetDept = u.dept || "設計部";
+    let canView = false;
+    if (myRole === 'admin' || myRole === 'top_manager') canView = true;
+    else if (myRole === 'manager') { if (targetDept === myDept && (targetRole === 'assistant_manager' || targetRole === 'staff')) canView = true; }
+    else if (myRole === 'assistant_manager') { if (targetDept === myDept && targetRole === 'staff') canView = true; }
+    if (canView || isSubordinate(myUid, u.uid)) visibleUsers.push(u);
+  });
+
+  const rolePriority = { admin: 1, top_manager: 2, manager: 3, assistant_manager: 4, staff: 5 };
+
+  departmentList.forEach((dept, dIdx) => {
+    const deptMembers = visibleUsers.filter(u => (u.dept || "設計部") === dept);
+    if (deptMembers.length === 0) return;
+    deptMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99));
+
+    const deptGroupId = `dept-group-${dIdx}`;
+    const isViewingMemberInDept = deptMembers.some(m => m.uid === viewingUserId);
+    const isExpanded = isViewingMemberInDept;
+
+    list.innerHTML += `
+      <li class="nav-sub-dept-header ${isExpanded ? 'open' : ''}" onclick="window.toggleDeptSubList('${deptGroupId}', this)">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span>🏢</span>
+          <span>${dept}</span>
+          <span class="dept-count-badge">${deptMembers.length}</span>
+        </div>
+        <span class="dept-arrow">▶</span>
+      </li>
+    `;
+
+    let membersHtml = `<div class="nav-sub-dept-members" id="${deptGroupId}" style="display:${isExpanded ? 'flex' : 'none'};">`;
+    deptMembers.forEach(u => {
+      const isActive = (viewingUserId === u.uid) ? 'active' : '';
+      membersHtml += `
+        <li class="nav-sub-item ${isActive}" id="sub-li-${u.uid}" onclick="window.switchViewingUser('${u.uid}', '${u.name}')">
+          ${u.name || '未命名'} 
+          <small style="color:#94a3b8; font-size:11px; margin-left:4px;">(${roleNames[u.role] || '人員'})</small>
+        </li>
+      `;
+    });
+    membersHtml += `</div>`;
+    list.innerHTML += membersHtml;
+  });
+};
+
+window.toggleDeptSubList = function(groupId, headerElem) {
+  const container = document.getElementById(groupId);
+  if (!container) return;
+  const isHidden = container.style.display === 'none';
+  container.style.display = isHidden ? 'flex' : 'none';
+  headerElem.classList.toggle('open', isHidden);
+};
+
+window.switchViewingUser = function(uid, name) {
+  viewingUserId = uid;
+  document.querySelectorAll('.nav-sub-item').forEach(el => el.classList.remove('active'));
+  const targetLi = document.getElementById(`sub-li-${uid}`);
+  if (targetLi) targetLi.classList.add('active');
+
+  const isSelf = viewingUserId === auth.currentUser.uid;
+  const userN = document.getElementById('viewing-user-name');
+  if(userN) userN.innerText = isSelf ? '' : `[ 正在檢視：${name} ]`;
+  
+  const btnWrap = document.getElementById('btn-create-wrapper');
+  if(btnWrap) btnWrap.style.display = isSelf ? 'flex' : 'none';
+  
+  const createSec = document.getElementById('create-project-section');
+  if(createSec) createSec.style.display = 'none';
+  
+  const adhocSec = document.getElementById('adhoc-form-panel');
+  if(adhocSec) adhocSec.style.display = isSelf ? 'block' : 'none';
+  
+  const weekSec = document.getElementById('weekly-form-panel');
+  if(weekSec) weekSec.style.display = isSelf ? 'block' : 'none';
+
+  selectedProjectId = 'SUMMARY'; 
+  
+  isEditMode = false;
+  const editBtn = document.getElementById("btn-toggle-edit-mode");
+  if(editBtn) {
+     editBtn.innerHTML = "✏️ 開啟編輯模式";
+     editBtn.style.background = "transparent";
+  }
+
+  window.triggerRenderProjects(); 
+  if(window.renderAdHocEvents) window.renderAdHocEvents(); 
+  if(window.renderWeeklyReports) window.renderWeeklyReports();
+
+  const wrapper = document.getElementById('nav-sub-wrapper');
+  const list = document.getElementById('nav-sub-list');
+  if(wrapper && list) {
+    if (wrapper.classList.contains('nav-menu-open')) wrapper.classList.remove('nav-menu-open');
+    if (list.classList.contains('mobile-fixed-dropdown')) {
+      wrapper.appendChild(list); 
+      list.classList.remove('mobile-fixed-dropdown'); 
+    }
+  }
+};
+
+// ============================================================================
+// 日期、瀑布流、模板操作 (Template Engine)
+// ============================================================================
+window.cascadeDates = function() {
    const modeRadio = document.querySelector('input[name="tpl_mode"]:checked');
    if (!modeRadio || modeRadio.value !== 'seq') return;
 
@@ -692,11 +810,9 @@ window.cascadeDates = () => {
    });
 };
 
-window.checkCascade = () => {
-   window.cascadeDates();
-};
+window.checkCascade = function() { window.cascadeDates(); };
 
-window.checkWorkingDay = (input) => { 
+window.checkWorkingDay = function(input) { 
   if (!input.value) return; 
   const d = new Date(input.value); 
   if (d.getDay() === 0 || d.getDay() === 6) { 
@@ -705,7 +821,7 @@ window.checkWorkingDay = (input) => {
   } 
 };
 
-window.onTaskStartChange = (startInput, targetEndId) => {
+window.onTaskStartChange = function(startInput, targetEndId) {
   window.checkWorkingDay(startInput);
   if (!startInput.value) return;
   const row = startInput.closest('.task-row') || startInput.closest('#general-edit-form') || startInput.closest('.modal-box');
@@ -719,7 +835,7 @@ window.onTaskStartChange = (startInput, targetEndId) => {
   }
 };
 
-window.onTaskDaysChange = (daysInput, targetStartId, targetEndId) => {
+window.onTaskDaysChange = function(daysInput, targetStartId, targetEndId) {
   const row = daysInput.closest('.task-row') || daysInput.closest('#general-edit-form') || daysInput.closest('.modal-box');
   const startInput = typeof targetStartId === 'string' ? document.getElementById(targetStartId) : row?.querySelector('.task-start') || row?.querySelector('#add-task-start');
   const endInput = typeof targetEndId === 'string' ? document.getElementById(targetEndId) : row?.querySelector('.task-end') || row?.querySelector('#add-task-end');
@@ -731,7 +847,7 @@ window.onTaskDaysChange = (daysInput, targetStartId, targetEndId) => {
   }
 };
 
-window.onTaskEndChange = (endInput, targetStartId, targetDaysId) => {
+window.onTaskEndChange = function(endInput, targetStartId, targetDaysId) {
   window.checkWorkingDay(endInput);
   const row = endInput.closest('.task-row') || endInput.closest('#general-edit-form') || endInput.closest('.modal-box');
   const startInput = typeof targetStartId === 'string' ? document.getElementById(targetStartId) : row?.querySelector('.task-start') || row?.querySelector('#add-task-start');
@@ -747,7 +863,7 @@ window.onTaskEndChange = (endInput, targetStartId, targetDaysId) => {
   }
 };
 
-window.addTaskRow = () => {
+window.addTaskRow = function() {
   const container = document.getElementById("task-list-container"); 
   if (!container) return;
   const rows = container.querySelectorAll('.task-row');
@@ -772,7 +888,7 @@ window.addTaskRow = () => {
   window.checkCascade();
 };
 
-window.moveTaskRow = (btn, direction) => {
+window.moveTaskRow = function(btn, direction) {
   const row = btn.closest('.task-row');
   if (!row) return;
   if (direction === -1 && row.previousElementSibling) {
@@ -782,7 +898,7 @@ window.moveTaskRow = (btn, direction) => {
   }
 };
 
-window.renderTemplateSelect = () => {
+window.renderTemplateSelect = function() {
   const sel = document.getElementById("tpl-select");
   if (!sel) return;
   sel.innerHTML = `<option value="">-- 請選擇模板 --</option>`;
@@ -792,7 +908,7 @@ window.renderTemplateSelect = () => {
   }
 };
 
-window.openTemplateEditModal = () => {
+window.openTemplateEditModal = function() {
   const tplId = document.getElementById("tpl-select")?.value;
   if (!tplId) return alert("請先從下拉選單中選擇一個模板！");
   
@@ -811,7 +927,7 @@ window.openTemplateEditModal = () => {
   document.getElementById("template-edit-modal")?.classList.add("active");
 };
 
-window.addTplTaskRow = (name = "", days = 1) => {
+window.addTplTaskRow = function(name = "", days = 1) {
   const container = document.getElementById("tpl-task-list-container");
   if(!container) return;
   const div = document.createElement('div');
@@ -829,7 +945,7 @@ window.addTplTaskRow = (name = "", days = 1) => {
   container.appendChild(div);
 };
 
-window.moveTplTaskRow = (btn, direction) => {
+window.moveTplTaskRow = function(btn, direction) {
    const row = btn.closest('.tpl-task-row');
    if (!row) return;
    if (direction === -1 && row.previousElementSibling) {
@@ -839,11 +955,11 @@ window.moveTplTaskRow = (btn, direction) => {
    }
 };
 
-window.closeTemplateEditModal = () => {
+window.closeTemplateEditModal = function() {
   document.getElementById("template-edit-modal")?.classList.remove("active");
 };
 
-window.saveTemplate = async () => {
+window.saveTemplate = async function() {
   const tplId = document.getElementById("tpl-edit-id")?.value;
   const name = document.getElementById("tpl-edit-name")?.value.trim() || `自訂模板 ${tplId}`;
   const rows = document.querySelectorAll('.tpl-task-row');
@@ -858,14 +974,14 @@ window.saveTemplate = async () => {
   try {
     await setDoc(doc(db, "settings", "project_templates"), projectTemplates, { merge: true });
   } catch (e) {
-    console.log("儲存至本機快取:", e);
+    console.log("寫入資料庫失敗，已儲存至暫存區");
   }
   window.renderTemplateSelect();
   window.closeTemplateEditModal();
   alert("🎉 模板儲存成功！");
 };
 
-window.applyTemplate = () => {
+window.applyTemplate = function() {
   const tplId = document.getElementById("tpl-select")?.value;
   if (!tplId) return alert("請先選擇要帶入的模板！");
   const tpl = projectTemplates[tplId] || projectTemplates[String(tplId)];
@@ -914,7 +1030,131 @@ window.applyTemplate = () => {
   window.checkCascade();
 };
 
-window.renderProjects = () => {
+// ============================================================================
+// 渲染大禮包 (Gantt, Projects, OrgChart)
+// ============================================================================
+window.scrollToTodayMinus2Days = function(ganttInst, containerSelector) {
+  const wrapper = document.querySelector(containerSelector);
+  if (!wrapper) return;
+
+  [80, 200].forEach(delay => {
+    setTimeout(() => {
+      const scrollElement = wrapper.querySelector('.gantt-container') || wrapper;
+      const svg = wrapper.querySelector('.gantt');
+      if (!scrollElement || !svg) return;
+
+      let todayIndex = -1;
+      const today = new Date();
+      today.setHours(0,0,0,0);
+
+      if (ganttInst && ganttInst.dates) {
+        ganttInst.dates.forEach((d, idx) => {
+          const checkD = new Date(d);
+          checkD.setHours(0,0,0,0);
+          if (checkD.getTime() === today.getTime() && todayIndex === -1) {
+            todayIndex = idx;
+          }
+        });
+      }
+
+      let colWidth = (ganttInst && ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
+      const firstTick = svg.querySelector('.tick');
+      if (firstTick) {
+        const w = parseFloat(firstTick.getAttribute('width'));
+        if (!isNaN(w) && w > 0) colWidth = w;
+      }
+
+      let targetScrollLeft = 0;
+      if (todayIndex !== -1) {
+        targetScrollLeft = Math.max(0, (todayIndex - 2) * colWidth);
+      } else {
+        const todayHighlight = svg.querySelector('.today-highlight') || svg.querySelector('.current-date-highlight');
+        if (todayHighlight) {
+          const x = parseFloat(todayHighlight.getAttribute('x'));
+          if (!isNaN(x)) {
+            targetScrollLeft = Math.max(0, x - (colWidth * 2));
+          }
+        }
+      }
+
+      scrollElement.scrollLeft = targetScrollLeft;
+      if (scrollElement !== wrapper) wrapper.scrollLeft = targetScrollLeft;
+    }, delay);
+  });
+};
+
+window.patchGanttVisuals = function(ganttInst, containerSelector) {
+  if (!ganttInst || !ganttInst.dates || ganttInst.dates.length === 0) return;
+  const wrapper = document.querySelector(containerSelector);
+  if (!wrapper) return;
+  const svg = wrapper.querySelector('.gantt');
+  if (!svg) return;
+
+  const lowerTexts = Array.from(svg.querySelectorAll('.lower-text'));
+  const dayTicks = Array.from(svg.querySelectorAll('.tick')).filter(t => !t.classList.contains('thick'));
+
+  ganttInst.dates.forEach((date, i) => {
+    if (i < lowerTexts.length) {
+      const dStr = String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+      const isHoliday = !!taiwanHolidayMap[dStr];
+
+      if (isWeekend || isHoliday) {
+        lowerTexts[i].style.fill = '#ef4444'; 
+        lowerTexts[i].style.fontWeight = 'bold';
+        if (i < dayTicks.length) dayTicks[i].style.fill = 'rgba(239, 68, 68, 0.08)';
+      }
+    }
+  });
+
+  const scrollElement = wrapper.querySelector('.gantt-container') || wrapper;
+  const upperTexts = Array.from(svg.querySelectorAll('.upper-text'));
+  const colWidth = (ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
+
+  const updateStickyMonthHeader = () => {
+    const currentScrollLeft = scrollElement.scrollLeft;
+    const currentDayIndex = Math.min(
+      ganttInst.dates.length - 1,
+      Math.max(0, Math.floor(currentScrollLeft / colWidth))
+    );
+
+    const visibleDate = ganttInst.dates[currentDayIndex];
+    if (!visibleDate || upperTexts.length === 0) return;
+
+    const yyyy = visibleDate.getFullYear();
+    const mm = visibleDate.getMonth() + 1;
+    const currentHeaderStr = `${yyyy}年 ${mm}月`;
+
+    upperTexts.forEach((el, idx) => {
+      if (idx === 0) {
+        el.textContent = currentHeaderStr;
+        el.setAttribute('x', currentScrollLeft + 16);
+        el.setAttribute('text-anchor', 'start');
+        el.style.textAnchor = 'start';
+        el.style.fontWeight = '700';
+        el.style.fill = 'var(--primary)';
+        el.style.display = 'block';
+      } else {
+        const origX = parseFloat(el.getAttribute('data-orig-x') || el.getAttribute('x'));
+        if (!el.getAttribute('data-orig-x')) el.setAttribute('data-orig-x', origX);
+        if (origX < currentScrollLeft + 120) {
+          el.style.display = 'none';
+        } else {
+          el.style.display = 'block';
+        }
+      }
+    });
+  };
+
+  scrollElement.removeEventListener('scroll', scrollElement._ganttScrollHandler);
+  scrollElement._ganttScrollHandler = updateStickyMonthHeader;
+  scrollElement.addEventListener('scroll', updateStickyMonthHeader);
+
+  updateStickyMonthHeader();
+  window.scrollToTodayMinus2Days(ganttInst, containerSelector);
+};
+
+window.renderProjects = function() {
   if (!auth.currentUser) return;
   window.checkEditModeVisibility();
 
@@ -1198,11 +1438,13 @@ window.renderProjects = () => {
           chartContainer.innerHTML = '<div id="gantt-chart-summary"></div>';
           setTimeout(() => {
             if (document.getElementById("tab-projects")?.style.display === "none") return;
-            summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { 
-              view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true 
-            });
-            window.patchGanttVisuals(summaryGanttInstance, '#gantt-chart-summary-container');
-            window.scrollToTodayMinus2Days(summaryGanttInstance, '#gantt-chart-summary-container'); 
+            try {
+                summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { 
+                  view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true 
+                });
+                window.patchGanttVisuals(summaryGanttInstance, '#gantt-chart-summary-container');
+                window.scrollToTodayMinus2Days(summaryGanttInstance, '#gantt-chart-summary-container'); 
+            } catch(e) {}
           }, 30); 
       }
     } else { 
@@ -1359,11 +1601,13 @@ window.renderProjects = () => {
         chartContainer.innerHTML = '<div id="gantt-chart"></div>';
         setTimeout(() => {
           if (document.getElementById("tab-projects")?.style.display === "none") return;
-          ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
-            view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true 
-          });
-          window.patchGanttVisuals(ganttInstance, '#gantt-chart-container');
-          window.scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container'); 
+          try {
+              ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
+                view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true 
+              });
+              window.patchGanttVisuals(ganttInstance, '#gantt-chart-container');
+              window.scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container'); 
+          } catch(e) {}
         }, 50); 
     }
   } else {
@@ -1372,7 +1616,7 @@ window.renderProjects = () => {
   }
 };
 
-window.renderAdHocEvents = () => {
+window.renderAdHocEvents = function() {
   if (!auth.currentUser) return;
   const tbody = document.getElementById("adhoc-list-tbody"); 
   if (!tbody) return;
@@ -1408,7 +1652,7 @@ window.renderAdHocEvents = () => {
   });
 };
 
-window.renderWeeklyReports = () => {
+window.renderWeeklyReports = function() {
   const tbody = document.getElementById("weekly-list-tbody"); 
   if(!tbody) return;
   tbody.innerHTML = "";
@@ -1419,7 +1663,7 @@ window.renderWeeklyReports = () => {
 
   filtered.forEach((w, index) => {
     let isOwner = (w.ownerId === auth.currentUser?.uid);
-    let isAllowedTime = window.isWeeklyReportEditable(w);
+    let isAllowedTime = window.isWeeklyReportEditable ? window.isWeeklyReportEditable(w) : false;
     let canEditUI = (isEditMode || isAllowedTime) && isOwner && isAllowedTime;
     
     let editHtml = canEditUI ? `<button class="action-btn" style="margin-right:6px; border-color:var(--warning); color:var(--warning);" onclick="window.openGeneralEdit('weekly', '${w.id}')">✏️ 編輯</button>` : '';
@@ -1449,7 +1693,7 @@ window.renderWeeklyReports = () => {
   });
 };
 
-window.renderOrgUsersTable = () => {
+window.renderOrgUsersTable = function() {
   const tbody = document.getElementById("user-list-tbody"); 
   const supervisorSelect = document.getElementById("new-user-supervisor");
   if (tbody) tbody.innerHTML = ""; 
@@ -1499,7 +1743,7 @@ window.renderOrgUsersTable = () => {
   if (document.getElementById("org-chart-view-container")) window.renderOrgChart();
 };
 
-window.renderOrgChart = () => {
+window.renderOrgChart = function() {
   const container = document.getElementById("org-chart-view-container");
   if (!container) return;
   container.innerHTML = "";
@@ -1566,7 +1810,7 @@ window.renderOrgChart = () => {
   container.appendChild(mainWrapper);
 };
 
-window.renderCalendar = () => {
+window.renderCalendar = function() {
   const grid = document.getElementById("calendar-grid");
   if (!grid) return;
   grid.innerHTML = "";
@@ -1574,9 +1818,7 @@ window.renderCalendar = () => {
   const firstDayIndex = new Date(calCurrentYear, calCurrentMonth, 1).getDay();
   const lastDate = new Date(calCurrentYear, calCurrentMonth + 1, 0).getDate();
   const prevMonthLastDate = new Date(calCurrentYear, calCurrentMonth, 0).getDate();
-
-  const today = new Date();
-  const todayStr = window.getTodayStr ? window.getTodayStr() : getTodayStr();
+  const todayStr = window.getTodayStr();
 
   for (let i = firstDayIndex - 1; i >= 0; i--) {
     const dNum = prevMonthLastDate - i;
@@ -1601,27 +1843,95 @@ window.renderCalendar = () => {
   }
 };
 
-window.patchGanttVisuals = patchGanttVisuals;
-window.scrollToTodayMinus2Days = scrollToTodayMinus2Days;
+window.createCalCellNode = function(dayNum, dateStr, isOtherMonth, todayStr, userTodos) {
+  const cell = document.createElement("div");
+  cell.className = `cal-cell ${isOtherMonth ? 'other-month' : ''} ${dateStr === todayStr ? 'today' : ''}`;
+  const monthDayStr = dateStr.substring(5);
+  const dayOfWeek = new Date(dateStr).getDay();
+  const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+  const holidayName = taiwanHolidayMap[monthDayStr] || null;
+  if (!!holidayName || isWeekend) cell.classList.add("holiday");
 
-window.getAvailableTasks = function(projId) {
-  const proj = allProjectsData.find(p => p.id === projId);
-  if(!proj || !proj.tasks) return [];
-  return proj.tasks.map((t, i) => ({...t, index: i})).filter(t => {
-    if (!t.isCompleted) return true; 
-    if (t.reportedCompleted === true) return false; 
-    const taskCompletedTime = t.completedAt ? new Date(t.completedAt.replace(/-/g, '/')).getTime() : 0;
-    const alreadyReported = allWeeklyData.some(w => {
-      if(w.ownerId !== auth.currentUser.uid) return false;
-      const reportTime = w.createdAt ? w.createdAt.toDate().getTime() : Date.now();
-      const hasTask = (w.items || []).some(item => item.projectId === proj.id && String(item.taskId) === String(t.index));
-      return hasTask && reportTime > (taskCompletedTime - 60000);
+  let html = `<div style="display:flex; align-items:center;"><div class="cal-date-num">${dayNum}</div>${holidayName ? `<span class="cal-holiday-tag" title="${holidayName}">${holidayName}</span>` : ''}</div>`;
+  const dayTodos = userTodos.filter(t => t.date === dateStr);
+  if (dayTodos.length > 0) {
+    html += `<div class="cal-todo-preview-list">`;
+    dayTodos.slice(0, 3).forEach(todo => {
+      html += `<div class="cal-todo-pill ${todo.isCompleted ? 'completed' : ''}" style="color:${todo.color || '#0f172a'};">${todo.title}</div>`;
     });
-    return !alreadyReported;
-  });
+    if (dayTodos.length > 3) html += `<div style="font-size:10px; color:var(--text-muted); text-align:right;">+${dayTodos.length - 3} 則...</div>`;
+    html += `</div>`;
+  }
+  cell.innerHTML = html;
+  cell.onclick = () => window.openCalDateModal(dateStr);
+  return cell;
 };
 
+// ============================================================================
+// 後續全域綁定與功能支援 (包含行事曆、週報、操作)
+// ============================================================================
 Object.assign(window, {
+  getAvailableTasks: (projId) => {
+    const proj = allProjectsData.find(p => p.id === projId);
+    if(!proj || !proj.tasks) return [];
+    return proj.tasks.map((t, i) => ({...t, index: i})).filter(t => {
+      if (!t.isCompleted) return true; 
+      if (t.reportedCompleted === true) return false; 
+      const taskCompletedTime = t.completedAt ? new Date(t.completedAt.replace(/-/g, '/')).getTime() : 0;
+      const alreadyReported = allWeeklyData.some(w => {
+        if(w.ownerId !== auth.currentUser.uid) return false;
+        const reportTime = w.createdAt ? w.createdAt.toDate().getTime() : Date.now();
+        const hasTask = (w.items || []).some(item => item.projectId === proj.id && String(item.taskId) === String(t.index));
+        return hasTask && reportTime > (taskCompletedTime - 60000);
+      });
+      return !alreadyReported;
+    });
+  },
+  submitNewProject: async () => {
+    const title = document.getElementById("proj-name")?.value.trim();
+    const color = document.getElementById("proj-color")?.value;
+    if (!title) return alert("請填寫主專案名稱！");
+    const collabCheckboxes = document.querySelectorAll('input[name="collab_dept"]:checked');
+    const collaborators = Array.from(collabCheckboxes).map(cb => cb.value);
+    const taskRows = document.querySelectorAll('.task-row'); 
+    const tasks = [];
+    const todayStr = window.getTodayStr(); 
+    const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+    const myName = currentUserData.name || auth.currentUser?.email.split('@')[0];
+    for (let row of taskRows) {
+      const name = row.querySelector('.task-name')?.value.trim(); 
+      const start = row.querySelector('.task-start')?.value; 
+      const end = row.querySelector('.task-end')?.value;
+      if (!name || !start || !end) return alert("任務細項不可有空白欄位！");
+      if (start > end) return alert(`任務 [${name}] 的起始日不可大於完成日！`);
+      let passedDays = 0; 
+      if (todayStr >= start) passedDays = window.getWorkingDays(start, todayStr);
+      tasks.push({ 
+        name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
+        assigneeId: auth.currentUser.uid, assigneeName: myName, createdAt: Date.now(), 
+        history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '專案建立' }] 
+      });
+    }
+    const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, uid: auth.currentUser.uid };
+    const ownerNameToSave = targetUser.name || currentUserData.name;
+    const docRef = await addDoc(collection(db, "projects"), { 
+      title, color, collaborators, ownerId: viewingUserId, ownerName: ownerNameToSave, tasks: tasks, createdAt: serverTimestamp() 
+    });
+    alert("🎉 新專案已成功建立！您享有 7 天免解鎖自由編輯期。");
+    const pName = document.getElementById("proj-name");
+    if(pName) pName.value = ""; 
+    const tList = document.getElementById("task-list-container");
+    if(tList) tList.innerHTML = ""; 
+    window.addTaskRow(); 
+    const cSec = document.getElementById('create-project-section');
+    if(cSec) cSec.style.display = 'none';
+    currentFilter = 'ongoing';
+    document.querySelectorAll('.kpi-card').forEach(el => el.classList.remove('active'));
+    const fo = document.getElementById('filter-ongoing');
+    if(fo) fo.classList.add('active');
+    selectedProjectId = docRef.id;
+    window.triggerRenderProjects(); 
+  },
   moveActiveProjectTask: async (projId, index, direction) => {
     const proj = allProjectsData.find(p => p.id === projId);
     if (!proj || !proj.tasks) return;
@@ -1788,6 +2098,81 @@ Object.assign(window, {
     if (currentUserData.role !== 'admin') return alert("權限不足！");
     if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); 
   },
+  submitWeeklyReport: async () => {
+    try {
+      const today = new Date();
+      const days = ['日', '一', '二', '三', '四', '五', '六'];
+      let dateStr = document.getElementById("rep-date")?.value || `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()} (${days[today.getDay()]})`; 
+
+      let leaveType = "";
+      let leaveReason = "";
+      const leaveContainer = document.getElementById("leave-options-container");
+      
+      if (leaveContainer && leaveContainer.style.display === "flex") {
+        const checked = document.querySelector('input[name="leave_type"]:checked');
+        if (!checked) return alert("【注意】星期一至四提交週報，請務必勾選右側的請假或其他原因！");
+        leaveType = checked.value;
+        if (leaveType === "other") {
+          leaveReason = document.getElementById("leave-other-reason")?.value.trim();
+          if (!leaveReason) return alert("請填寫「其他」選項的理由說明！");
+        }
+      }
+
+      const rows = document.querySelectorAll('.weekly-item-row'); 
+      const items = [];
+      let hasIncomplete = false;
+
+      rows.forEach(r => {
+        const pSel = r.querySelector('.weekly-proj-select'); 
+        const tSel = r.querySelector('.weekly-task-select'); 
+        const content = r.querySelector('.weekly-content')?.value.trim();
+        
+        if (pSel?.value || tSel?.value || content) {
+          if (pSel?.value && tSel?.value && content) {
+            items.push({ projectId: pSel.value, projectName: pSel.options[pSel.selectedIndex].text, taskId: tSel.value, taskName: tSel.options[tSel.selectedIndex].text, content: content });
+          } else {
+            hasIncomplete = true;
+          }
+        }
+      });
+
+      if (hasIncomplete) return alert("您有填寫到一半的進度項目，請確認填寫完整 (包含專案、細項與說明)，或將該列的文字清空/刪除！");
+      if (items.length === 0 && !leaveType) return alert("請完整填寫至少一項任務進度說明！");
+
+      const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, supervisorId: null };
+      const supervisorId = targetUser.supervisorId || null; 
+      const currentOwnerId = viewingUserId || auth.currentUser?.uid;
+
+      await addDoc(collection(db, "weekly_reports"), { 
+        ownerId: currentOwnerId, ownerName: targetUser.name || '', ownerSupervisorId: supervisorId, reportDate: dateStr, 
+        items: items, leaveType: leaveType || "", leaveReason: leaveReason || "", createdAt: serverTimestamp(), 
+        supervisorNoted: false, topManagerNoted: false 
+      });
+      
+      const projectUpdates = {};
+      for (let item of items) {
+        const p = allProjectsData.find(x => x.id === item.projectId);
+        if (p) {
+          const tIndex = parseInt(item.taskId);
+          if (p.tasks[tIndex] && p.tasks[tIndex].isCompleted && !p.tasks[tIndex].reportedCompleted) {
+            if (!projectUpdates[p.id]) projectUpdates[p.id] = [...p.tasks];
+            projectUpdates[p.id][tIndex].reportedCompleted = true;
+          }
+        }
+      }
+      for (let pId in projectUpdates) await updateDoc(doc(db, "projects", pId), { tasks: projectUpdates[pId] });
+      
+      window.initWeeklyDateAndLeave(); 
+      const wContainer = document.getElementById("weekly-items-container");
+      if(wContainer) wContainer.innerHTML = ""; 
+      window.addWeeklyRow(); 
+      alert("週報已成功送出！在主管未閱讀前，您有 2 天修改寬限期。");
+      
+    } catch (err) {
+      console.error("送出週報錯誤：", err);
+      alert("發生系統錯誤導致無法送出：" + err.message);
+    }
+  },
   deleteWeekly: async (id) => { 
     const report = allWeeklyData.find(w => w.id === id);
     if (!report) return;
@@ -1846,28 +2231,15 @@ Object.assign(window, {
     window.closeWeeklyModal(); 
     alert('已成功標記為 Noted (已閱)！該週報自此鎖定。');
   },
-  createCalCellNode: (dayNum, dateStr, isOtherMonth, todayStr, userTodos) => {
-    const cell = document.createElement("div");
-    cell.className = `cal-cell ${isOtherMonth ? 'other-month' : ''} ${dateStr === todayStr ? 'today' : ''}`;
-    const monthDayStr = dateStr.substring(5);
-    const dayOfWeek = new Date(dateStr).getDay();
-    const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
-    const holidayName = taiwanHolidayMap[monthDayStr] || null;
-    if (!!holidayName || isWeekend) cell.classList.add("holiday");
-
-    let html = `<div style="display:flex; align-items:center;"><div class="cal-date-num">${dayNum}</div>${holidayName ? `<span class="cal-holiday-tag" title="${holidayName}">${holidayName}</span>` : ''}</div>`;
-    const dayTodos = userTodos.filter(t => t.date === dateStr);
-    if (dayTodos.length > 0) {
-      html += `<div class="cal-todo-preview-list">`;
-      dayTodos.slice(0, 3).forEach(todo => {
-        html += `<div class="cal-todo-pill ${todo.isCompleted ? 'completed' : ''}" style="color:${todo.color || '#0f172a'};">${todo.title}</div>`;
-      });
-      if (dayTodos.length > 3) html += `<div style="font-size:10px; color:var(--text-muted); text-align:right;">+${dayTodos.length - 3} 則...</div>`;
-      html += `</div>`;
-    }
-    cell.innerHTML = html;
-    cell.onclick = () => window.openCalDateModal(dateStr);
-    return cell;
+  openCalDateModal: (dateStr) => {
+    activeCalDateStr = dateStr;
+    const parts = dateStr.split('-');
+    const t = document.getElementById("cal-modal-date-title");
+    if(t) t.innerText = `${parts[0]}年${parseInt(parts[1])}月${parseInt(parts[2])}日`;
+    const box = document.getElementById("cal-add-todo-box");
+    if(box) box.style.display = "none";
+    window.renderCalTodosModal(dateStr);
+    document.getElementById("cal-todo-modal")?.classList.add("active");
   },
   renderCalTodosModal: (dateStr) => {
     const myUid = auth.currentUser?.uid;
@@ -2140,5 +2512,48 @@ Object.assign(window, {
       if (btnTable) btnTable.classList.add("active");
       if (btnChart) btnChart.classList.remove("active");
     }
+  },
+  initCalendarSelectors: () => {
+    const ySel = document.getElementById("cal-year-select");
+    const mSel = document.getElementById("cal-month-select");
+    if (!ySel || !mSel) return;
+    ySel.innerHTML = "";
+    const currentY = new Date().getFullYear();
+    for (let y = currentY - 5; y <= currentY + 5; y++) { ySel.innerHTML += `<option value="${y}" ${y === calCurrentYear ? 'selected' : ''}>${y} 年</option>`; }
+    mSel.innerHTML = "";
+    for (let m = 0; m < 12; m++) { mSel.innerHTML += `<option value="${m}" ${m === calCurrentMonth ? 'selected' : ''}>${m + 1} 月</option>`; }
+  },
+  onCalSelectChange: () => {
+    calCurrentYear = parseInt(document.getElementById("cal-year-select").value);
+    calCurrentMonth = parseInt(document.getElementById("cal-month-select").value);
+    window.renderCalendar();
+  },
+  changeCalMonth: (delta) => {
+    calCurrentMonth += delta;
+    if (calCurrentMonth > 11) { calCurrentMonth = 0; calCurrentYear++; } 
+    else if (calCurrentMonth < 0) { calCurrentMonth = 11; calCurrentYear--; }
+    window.initCalendarSelectors();
+    window.renderCalendar();
+  },
+  jumpCalToday: () => {
+    const today = new Date();
+    calCurrentYear = today.getFullYear();
+    calCurrentMonth = today.getMonth();
+    window.initCalendarSelectors();
+    window.renderCalendar();
+  },
+  toggleAddTodoInput: () => {
+    const box = document.getElementById("cal-add-todo-box");
+    if(!box) return;
+    const isHidden = box.style.display === "none";
+    box.style.display = isHidden ? "block" : "none";
+    if (isHidden) {
+      const txt = document.getElementById("cal-new-todo-text");
+      if(txt){ txt.value = ""; txt.focus(); }
+    }
+  },
+  closeCalTodoModal: () => {
+    document.getElementById("cal-todo-modal")?.classList.remove("active");
+    activeCalDateStr = null;
   }
 });
