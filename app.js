@@ -49,6 +49,10 @@ let calCurrentMonth = new Date().getMonth();
 let activeCalDateStr = null;
 let showCompletedTodos = true;
 
+// 🚀 記錄甘特圖上一次的狀態字串，避免無意義的重繪閃爍
+let lastSummaryGanttState = "";
+let lastDetailGanttState = "";
+
 const taiwanHolidayMap = {
   '01-01': '元旦', '01-02': '彈性放假', '02-15': '小年夜', '02-16': '除夕',
   '02-17': '春節初一', '02-18': '初二', '02-19': '初三', '02-20': '補假',
@@ -73,13 +77,13 @@ function getUserDept(uid) {
     return u ? (u.dept || "設計部") : "設計部";
 }
 
-// 🚀 防閃爍的緩衝渲染器 (Debounce)
+// 🚀 緩衝渲染器 (Debounce)：等資料都湊齊了再畫，避免畫面瘋狂閃爍
 let renderTimer = null;
 window.triggerRenderProjects = () => {
   if (renderTimer) clearTimeout(renderTimer);
   renderTimer = setTimeout(() => {
       renderProjects();
-  }, 200); 
+  }, 150); 
 };
 
 function initDynamicUI() {
@@ -161,20 +165,19 @@ function initDynamicUI() {
          renderProjects();
       }
     };
-    
     btnWrapper.insertBefore(sel, btnWrapper.firstChild);
   }
 
-  // 🚀 注入專案模板選單與編輯彈窗
-  setTimeout(injectTemplateUI, 300);
-  setTimeout(injectTemplateModal, 300);
+  // 🚀 同步注入模板區塊
+  injectTemplateUI();
+  injectTemplateModal();
 }
 initDynamicUI();
 
+// 🚀 注入專案模板選擇區塊 (修正排版間距與文字)
 function injectTemplateUI() {
   const taskContainer = document.getElementById("task-list-container");
-  if (!taskContainer) return;
-  if (document.getElementById("template-section-wrapper")) return;
+  if (!taskContainer || document.getElementById("template-section-wrapper")) return;
 
   const wrapper = document.createElement("div");
   wrapper.id = "template-section-wrapper";
@@ -184,14 +187,15 @@ function injectTemplateUI() {
     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; background:#f8fafc; padding:12px; border-radius:8px; border:1px dashed #cbd5e1; margin-bottom:12px;">
       <select id="tpl-select" class="input-control" style="width:160px; margin:0;"></select>
       <button type="button" class="action-btn" onclick="openTemplateEditModal()" style="padding:6px 10px; font-size:12px; border-color:#8b5cf6; color:#8b5cf6;">✏️ 編輯模板</button>
-      <div style="margin-left:auto; display:flex; gap:12px; align-items:center; background:#fff; padding:6px 12px; border-radius:6px; border:1px solid #e2e8f0;">
+      
+      <div style="margin-left:24px; display:flex; gap:12px; align-items:center; background:#fff; padding:6px 12px; border-radius:6px; border:1px solid #e2e8f0;">
         <label style="font-size:13px; cursor:pointer; display:flex; align-items:center; gap:4px;">
           <input type="radio" name="tpl_mode" value="seq" checked onchange="checkCascade()"> 接續時間
         </label>
         <label style="font-size:13px; cursor:pointer; display:flex; align-items:center; gap:4px;">
           <input type="radio" name="tpl_mode" value="free" onchange="checkCascade()"> 自由時間
         </label>
-        <button type="button" class="action-btn" style="background:#10b981; color:#fff; border:none; padding:6px 12px; font-weight:bold; border-radius:4px;" onclick="applyTemplate()">⬇️ 帶入</button>
+        <button type="button" class="action-btn" style="background:#10b981; color:#fff; border:none; padding:6px 12px; font-weight:bold; border-radius:4px;" onclick="applyTemplate()">帶入</button>
       </div>
     </div>
   `;
@@ -470,7 +474,6 @@ window.onTaskEndChange = (endInput, targetStartId, targetDaysId) => {
   }
 };
 
-// 新增細項行，並綁定級聯刷新
 window.addTaskRow = () => {
   const container = document.getElementById("task-list-container"); 
   const rows = container.querySelectorAll('.task-row');
@@ -505,7 +508,6 @@ window.moveTaskRow = (btn, direction) => {
   }
 };
 
-// 🚀 模板處理功能
 window.renderTemplateSelect = () => {
   const sel = document.getElementById("tpl-select");
   if(!sel) return;
@@ -592,7 +594,7 @@ window.applyTemplate = () => {
   const modeRadio = document.querySelector('input[name="tpl_mode"]:checked');
   const mode = modeRadio ? modeRadio.value : 'seq';
   const container = document.getElementById("task-list-container");
-  container.innerHTML = ""; // 帶入時自動清空原本欄位
+  container.innerHTML = ""; 
   
   let currentDate = getTodayStr(); 
   
@@ -649,11 +651,32 @@ function loadTemplates() {
   });
 }
 
+window.setProjectFilter = (status) => {
+  currentFilter = status;
+  document.querySelectorAll('.kpi-card').forEach(el => el.classList.remove('active'));
+  const activeBtn = document.getElementById('filter-' + status);
+  if(activeBtn) activeBtn.classList.add('active');
+  
+  selectedProjectId = 'SUMMARY'; 
+  renderProjects();
+};
+
+window.selectProject = (projId) => { 
+  selectedProjectId = projId; 
+  isEditMode = false;
+  const editBtn = document.getElementById("btn-toggle-edit-mode");
+  if(editBtn) {
+     editBtn.innerHTML = "✏️ 開啟編輯模式";
+     editBtn.style.background = "transparent";
+  }
+  renderProjects(); 
+};
+
 function scrollToTodayMinus2Days(ganttInst, containerSelector) {
   const wrapper = document.querySelector(containerSelector);
   if (!wrapper) return;
 
-  [80, 200, 400].forEach(delay => {
+  [80, 200].forEach(delay => {
     setTimeout(() => {
       const scrollElement = wrapper.querySelector('.gantt-container') || wrapper;
       const svg = wrapper.querySelector('.gantt');
@@ -768,169 +791,6 @@ function patchGanttVisuals(ganttInst, containerSelector) {
 
   updateStickyMonthHeader();
   scrollToTodayMinus2Days(ganttInst, containerSelector);
-}
-
-window.setProjectFilter = (status) => {
-  currentFilter = status;
-  document.querySelectorAll('.kpi-card').forEach(el => el.classList.remove('active'));
-  const activeBtn = document.getElementById('filter-' + status);
-  if(activeBtn) activeBtn.classList.add('active');
-  
-  selectedProjectId = 'SUMMARY'; 
-  renderProjects();
-};
-
-window.selectProject = (projId) => { 
-  selectedProjectId = projId; 
-  isEditMode = false;
-  const editBtn = document.getElementById("btn-toggle-edit-mode");
-  if(editBtn) {
-     editBtn.innerHTML = "✏️ 開啟編輯模式";
-     editBtn.style.background = "transparent";
-  }
-  renderProjects(); 
-};
-
-onAuthStateChanged(auth, async (user) => {
-  if (user) {
-    document.getElementById("auth-section").style.display = "none";
-    document.getElementById("app-section").style.display = "flex";
-    viewingUserId = user.uid;
-
-    try {
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      if (userDoc.exists()) {
-        currentUserData = userDoc.data();
-        if (!currentUserData.email && user.email) {
-            currentUserData.email = user.email;
-            await updateDoc(doc(db, "users", user.uid), { email: user.email });
-        }
-      } else {
-        currentUserData = { name: user.email.split('@')[0], email: user.email, dept: "設計部", role: "admin", canEdit: false };
-        await setDoc(doc(db, "users", user.uid), currentUserData, { merge: true });
-      }
-    } catch (e) { 
-      currentUserData = { name: user.email.split('@')[0], email: user.email, dept: "設計部", role: "admin", canEdit: false }; 
-    }
-    
-    const displayName = currentUserData.name || user.email.split('@')[0];
-    document.getElementById("user-display-name").innerText = displayName;
-    document.getElementById("user-avatar").innerText = displayName.charAt(0).toUpperCase();
-    document.getElementById("user-role-badge").innerText = roleNames[currentUserData.role] || (currentUserData.role || "STAFF").toUpperCase();
-
-    if (currentUserData.role === "admin") {
-      document.getElementById("nav-org-manage").style.display = "flex"; 
-      document.getElementById("nav-divider-org").style.display = "block"; 
-    } else {
-      document.getElementById("nav-org-manage").style.display = "none"; 
-      document.getElementById("nav-divider-org").style.display = "none";
-    }
-
-    if (currentUserData.role !== 'staff') { 
-      document.getElementById('nav-sub-wrapper').style.display = 'block'; 
-    } else {
-      document.getElementById('nav-sub-wrapper').style.display = 'none';
-    }
-
-    // 依序執行，解決非同步問題
-    loadOrgUsers();
-    initWeeklyDateAndLeave(); 
-    addTaskRow(); 
-    addWeeklyRow(); 
-    loadProjects(); 
-    loadAdHocEvents(); 
-    loadWeeklyReports();
-    loadMyCalendarTodos(user.uid);
-  } else {
-    document.getElementById("auth-section").style.display = "flex"; 
-    document.getElementById("app-section").style.display = "none";
-  }
-});
-
-function renderSidebarSubordinates() {
-  const list = document.getElementById("nav-sub-list");
-  if (!list) return;
-
-  list.innerHTML = `<li class="nav-sub-item active" id="sub-li-${auth.currentUser.uid}" onclick="switchViewingUser('${auth.currentUser.uid}', '自己 (個人專案)')">個人專案</li>`;
-
-  const visibleUsers = [];
-  const myUid = auth.currentUser.uid;
-  const myRole = currentUserData.role; 
-  const myDept = currentUserData.dept || "設計部";
-
-  const isSubordinate = (bossUid, targetUid) => {
-    let current = allUsersList.find(u => u.uid === targetUid);
-    let depth = 0;
-    while (current && current.supervisorId && depth < 10) {
-      if (current.supervisorId === bossUid) return true;
-      current = allUsersList.find(u => u.uid === current.supervisorId);
-      depth++;
-    }
-    return false;
-  };
-
-  allUsersList.forEach(u => {
-    if (u.uid === myUid) return;
-
-    const targetRole = u.role; 
-    const targetDept = u.dept || "設計部";
-    let canView = false;
-
-    if (myRole === 'admin' || myRole === 'top_manager') {
-      canView = true;
-    }
-    else if (myRole === 'manager') {
-      if (targetDept === myDept && (targetRole === 'assistant_manager' || targetRole === 'staff')) {
-        canView = true;
-      }
-    }
-    else if (myRole === 'assistant_manager') {
-      if (targetDept === myDept && targetRole === 'staff') {
-        canView = true;
-      }
-    }
-
-    if (canView || isSubordinate(myUid, u.uid)) {
-      visibleUsers.push(u);
-    }
-  });
-
-  const rolePriority = { admin: 1, top_manager: 2, manager: 3, assistant_manager: 4, staff: 5 };
-
-  departmentList.forEach((dept, dIdx) => {
-    const deptMembers = visibleUsers.filter(u => (u.dept || "設計部") === dept);
-    if (deptMembers.length === 0) return;
-
-    deptMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99));
-
-    const deptGroupId = `dept-group-${dIdx}`;
-    const isViewingMemberInDept = deptMembers.some(m => m.uid === viewingUserId);
-    const isExpanded = isViewingMemberInDept;
-
-    list.innerHTML += `
-      <li class="nav-sub-dept-header ${isExpanded ? 'open' : ''}" onclick="toggleDeptSubList('${deptGroupId}', this)">
-        <div style="display:flex; align-items:center; gap:6px;">
-          <span>🏢</span>
-          <span>${dept}</span>
-          <span class="dept-count-badge">${deptMembers.length}</span>
-        </div>
-        <span class="dept-arrow">▶</span>
-      </li>
-    `;
-
-    let membersHtml = `<div class="nav-sub-dept-members" id="${deptGroupId}" style="display:${isExpanded ? 'flex' : 'none'};">`;
-    deptMembers.forEach(u => {
-      const isActive = (viewingUserId === u.uid) ? 'active' : '';
-      membersHtml += `
-        <li class="nav-sub-item ${isActive}" id="sub-li-${u.uid}" onclick="switchViewingUser('${u.uid}', '${u.name}')">
-          ${u.name || '未命名'} 
-          <small style="color:#94a3b8; font-size:11px; margin-left:4px;">(${roleNames[u.role] || '人員'})</small>
-        </li>
-      `;
-    });
-    membersHtml += `</div>`;
-    list.innerHTML += membersHtml;
-  });
 }
 
 window.getAvailableTasks = (projId) => {
@@ -1133,6 +993,8 @@ function renderProjects() {
     detailView.style.display = "none"; 
     summaryView.style.display = "none"; 
     emptyState.style.display = "block"; 
+    lastSummaryGanttState = "";
+    lastDetailGanttState = "";
     return; 
   }
 
@@ -1278,22 +1140,25 @@ function renderProjects() {
       sumLeftBody.appendChild(row);
     });
 
+    // 🚀 防閃爍檢測：只在資料變更或 SVG 丟失時重繪甘特圖
     if (ganttTasksSum.length > 0) {
-      document.getElementById("gantt-chart-summary-container").innerHTML = '<div id="gantt-chart-summary"></div>';
-      setTimeout(() => {
-        if (document.getElementById("tab-projects").style.display === "none") return;
-        summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { 
-          view_mode: 'Day', 
-          language: 'zh', 
-          header_height: 50, 
-          bar_height: 20, 
-          padding: 18, 
-          readonly: true 
-        });
-        patchGanttVisuals(summaryGanttInstance, '#gantt-chart-summary-container');
-        scrollToTodayMinus2Days(summaryGanttInstance, '#gantt-chart-summary-container'); 
-      }, 100); 
+      const newSummaryState = JSON.stringify({ filter: currentFilter, tasks: ganttTasksSum });
+      const chartContainer = document.getElementById("gantt-chart-summary-container");
+      
+      if (lastSummaryGanttState !== newSummaryState || !chartContainer.querySelector('svg')) {
+          lastSummaryGanttState = newSummaryState;
+          chartContainer.innerHTML = '<div id="gantt-chart-summary"></div>';
+          setTimeout(() => {
+            if (document.getElementById("tab-projects").style.display === "none") return;
+            summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { 
+              view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true 
+            });
+            patchGanttVisuals(summaryGanttInstance, '#gantt-chart-summary-container');
+            scrollToTodayMinus2Days(summaryGanttInstance, '#gantt-chart-summary-container'); 
+          }, 30); 
+      }
     } else { 
+      lastSummaryGanttState = "";
       document.getElementById("gantt-chart-summary-container").innerHTML = ''; 
     }
     return;
@@ -1315,7 +1180,7 @@ function renderProjects() {
   const isCollabMember = hasCollab && activeProj.collaborators.includes(currentUserData.dept);
   
   const hasGlobalEdit = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
-  const isAuthorizedMaster = hasGlobalEdit || isProjOwnerDept; // 建立單位擁有管理權限
+  const isAuthorizedMaster = hasGlobalEdit || isProjOwnerDept; 
   const inGracePeriod = isWithin7DaysGracePeriod(activeProj);
   
   let canEditMainProj = isEditMode && (hasGlobalEdit || (isAuthorizedMaster && inGracePeriod));
@@ -1336,7 +1201,6 @@ function renderProjects() {
 
   lockBtn.style.display = "none"; 
 
-  // 🚀 永久開放新增細項：只要有權限(全局/協作者) 或是 (建立者在7天內) 就顯示
   const canAddTask = hasGlobalEdit || isCollabMember || (isAuthorizedMaster && inGracePeriod);
 
   if (canAddTask) {
@@ -1346,7 +1210,6 @@ function renderProjects() {
     btnProjectAddTask.style.display = "none";
   }
 
-  // 刪除按鈕必須開啟編輯模式才顯示
   delProjBtn.style.display = (isEditMode && (hasGlobalEdit || (isAuthorizedMaster && inGracePeriod))) ? "inline-block" : "none";
 
   const leftBody = document.getElementById("gantt-left-body");
@@ -1375,7 +1238,6 @@ function renderProjects() {
     const taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
     const isMyTask = (auth.currentUser.uid === taskAssigneeId);
 
-    // 🚀 每個任務細項獨立判斷 7 天期限
     let taskCreatedTime = task.createdAt || (activeProj.createdAt && typeof activeProj.createdAt.toMillis === 'function' ? activeProj.createdAt.toMillis() : Date.now());
     let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
 
@@ -1432,23 +1294,27 @@ function renderProjects() {
     }
   });
 
+  // 🚀 防閃爍檢測：只在資料變更或 SVG 丟失時重繪甘特圖
   if (ganttTasks.length > 0) {
+    const newDetailState = JSON.stringify({ id: selectedProjectId, tasks: ganttTasks });
     const chartContainer = document.getElementById("gantt-chart-container");
     chartContainer.className = "gantt-right-panel"; 
-    chartContainer.innerHTML = '<div id="gantt-chart"></div>';
-    setTimeout(() => {
-      if (document.getElementById("tab-projects").style.display === "none") return;
-      ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
-        view_mode: 'Day', 
-        language: 'zh', 
-        header_height: 50, 
-        bar_height: 20, 
-        padding: 18, 
-        readonly: true 
-      });
-      patchGanttVisuals(ganttInstance, '#gantt-chart-container');
-      scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container'); 
-    }, 100); 
+    
+    if (lastDetailGanttState !== newDetailState || !chartContainer.querySelector('svg')) {
+        lastDetailGanttState = newDetailState;
+        chartContainer.innerHTML = '<div id="gantt-chart"></div>';
+        setTimeout(() => {
+          if (document.getElementById("tab-projects").style.display === "none") return;
+          ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
+            view_mode: 'Day', language: 'zh', header_height: 50, bar_height: 20, padding: 18, readonly: true 
+          });
+          patchGanttVisuals(ganttInstance, '#gantt-chart-container');
+          scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container'); 
+        }, 30); 
+    }
+  } else {
+    lastDetailGanttState = "";
+    document.getElementById("gantt-chart-container").innerHTML = '';
   }
 }
 
@@ -2741,6 +2607,8 @@ function loadOrgUsers() {
 
     if(document.getElementById("org-chart-view-container")) renderOrgChart(); 
     if (currentUserData.role !== 'staff') renderSidebarSubordinates();
+    
+    // 🚀 單一通道：資料載入完畢後，安全觸發畫面重繪
     window.triggerRenderProjects();
   });
 }
