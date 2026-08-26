@@ -29,13 +29,13 @@ const departmentList = ["總經理室", "企劃部", "業務部", "設計部", "
 
 let currentUserData = { role: "staff", name: "", dept: "設計部", canEdit: false };
 let allUsersList = [];
+let projectTemplates = {}; 
 
 let viewingUserId = null; 
 let allProjectsData = [];
 let allAdHocData = [];
 let allWeeklyData = [];
 let myCalendarTodos = [];
-let projectTemplates = {}; 
 
 let currentFilter = 'ongoing'; 
 let selectedProjectId = 'SUMMARY'; 
@@ -156,7 +156,7 @@ function initDynamicUI() {
     btnWrapper.insertBefore(sel, btnWrapper.firstChild);
   }
 
-  // 🚀 注入專案模板介面
+  // 🚀 注入專案模板 UI 結構
   setTimeout(injectTemplateUI, 500);
   injectTemplateModal();
 }
@@ -255,7 +255,6 @@ document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => 
   renderWeeklyReports();
 });
 
-// 🚀 編輯模式開關防呆：超過 7 天主檔不可動，編輯按鈕直接沒收隱藏！
 function checkEditModeVisibility() {
   const btn = document.getElementById("btn-toggle-edit-mode");
   if (!btn) return;
@@ -272,20 +271,19 @@ function checkEditModeVisibility() {
         const isOwnerDept = (currentUserData.dept === ownerDept);
         const inGrace = isWithin7DaysGracePeriod(p);
 
-        // 如果是建立單位，且專案還在 7 天內，允許編輯主檔，所以顯示
         if (isOwnerDept && inGrace) {
           shouldShow = true;
         }
 
-        // 如果是協作單位，或是專案已經超過 7 天，
-        // 系統會去掃描該人員「有沒有他自己 7 天內剛建立的細項」
-        // 如果有，才顯示編輯按鈕讓他可以修改錯字。如果都沒有，按鈕直接沒收！
-        const hasTaskInGrace = (p.tasks || []).some(t => {
-           if (t.assigneeId !== auth.currentUser?.uid) return false;
-           let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
-           return ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
-        });
-        if (hasTaskInGrace) shouldShow = true;
+        const isCollab = p.collaborators && p.collaborators.includes(currentUserData.dept);
+        if (isCollab) {
+          const hasTaskInGrace = (p.tasks || []).some(t => {
+             if (t.assigneeId !== auth.currentUser?.uid) return false;
+             let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
+             return ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+          });
+          if (hasTaskInGrace) shouldShow = true;
+        }
       }
     }
   }
@@ -383,7 +381,7 @@ function formatDateSafe(dateObj) {
   return `${y}-${m}-${d}`; 
 }
 
-// 🚀 自動瀑布流級聯計算日期 (只在「接續時間」模式下發動)
+// 🚀 瀑布流日期級聯計算
 window.cascadeDates = () => {
    const rows = document.querySelectorAll('#task-list-container .task-row');
    let prevEnd = null;
@@ -465,7 +463,7 @@ window.onTaskEndChange = (endInput, targetStartId, targetDaysId) => {
   }
 };
 
-// 🚀 新增細項行，並加入級聯更新檢查
+// 🚀 新增細項行並綁定級聯刷新
 window.addTaskRow = () => {
   const container = document.getElementById("task-list-container"); 
   const rows = container.querySelectorAll('.task-row');
@@ -500,7 +498,7 @@ window.moveTaskRow = (btn, direction) => {
   }
 };
 
-// 🚀 模板相關功能函數
+// 🚀 模板處理功能
 window.renderTemplateSelect = () => {
   const sel = document.getElementById("tpl-select");
   if(!sel) return;
@@ -584,9 +582,10 @@ window.applyTemplate = () => {
   const tpl = projectTemplates[tplId];
   if (!tpl || !tpl.tasks || tpl.tasks.length === 0) return alert("此模板還是空的，請先點擊編輯模板建立任務！");
   
-  const mode = document.querySelector('input[name="tpl_mode"]:checked').value;
+  const modeRadio = document.querySelector('input[name="tpl_mode"]:checked');
+  const mode = modeRadio ? modeRadio.value : 'seq';
   const container = document.getElementById("task-list-container");
-  container.innerHTML = ""; // 🚀 帶入時自動清除原有列表
+  container.innerHTML = ""; // 帶入時自動清空原本欄位
   
   let currentDate = getTodayStr(); 
   
@@ -622,6 +621,7 @@ window.applyTemplate = () => {
      `;
      container.appendChild(div);
   });
+  checkCascade();
 };
 
 function loadTemplates() {
@@ -762,6 +762,7 @@ function patchGanttVisuals(ganttInst, containerSelector) {
   scrollToTodayMinus2Days(ganttInst, containerSelector);
 }
 
+// 🚀 整合的高速資料載入器，解決競態條件與資料消失的問題
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     document.getElementById("auth-section").style.display = "none";
@@ -799,13 +800,13 @@ onAuthStateChanged(auth, async (user) => {
 
     if (currentUserData.role !== 'staff') { 
       document.getElementById('nav-sub-wrapper').style.display = 'block'; 
-      loadSidebarSubordinates(); 
     } else {
       document.getElementById('nav-sub-wrapper').style.display = 'none';
     }
 
-    loadOrgUsers();
-    loadTemplates(); // 載入模板資料
+    // 單一通道載入人員資料，防範資料消失
+    startUsersListener();
+    loadTemplates(); 
     initWeeklyDateAndLeave(); 
     addTaskRow(); 
     addWeeklyRow(); 
@@ -818,6 +819,226 @@ onAuthStateChanged(auth, async (user) => {
     document.getElementById("app-section").style.display = "none";
   }
 });
+
+// 🚀 高效統一的人員監聽器
+function startUsersListener() {
+  onSnapshot(collection(db, "users"), (snapshot) => {
+    allUsersList = [];
+    snapshot.forEach(docSnap => {
+      allUsersList.push({ uid: docSnap.id, ...docSnap.data() });
+    });
+
+    const rolePriority = { admin: 1, top_manager: 2, manager: 3, assistant_manager: 4, staff: 5 };
+    allUsersList.sort((a, b) => {
+      const deptA = a.dept || "設計部";
+      const deptB = b.dept || "設計部";
+      const deptIdxA = departmentList.indexOf(deptA);
+      const deptIdxB = departmentList.indexOf(deptB);
+
+      if (deptIdxA !== deptIdxB) {
+        return (deptIdxA === -1 ? 99 : deptIdxA) - (deptIdxB === -1 ? 99 : deptIdxB);
+      }
+      return (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99);
+    });
+
+    if (currentUserData.role !== 'staff') { 
+      renderSidebarSubordinates(); 
+    }
+    if (currentUserData.role === 'admin') {
+      renderOrgUsersTable();
+    }
+    
+    // 任何人員變動都強制觸發 KPI 與專案重算，保證不缺漏
+    renderProjects();
+  });
+}
+
+function renderSidebarSubordinates() {
+  const list = document.getElementById("nav-sub-list");
+  if (!list) return;
+
+  list.innerHTML = `<li class="nav-sub-item active" id="sub-li-${auth.currentUser.uid}" onclick="switchViewingUser('${auth.currentUser.uid}', '自己 (個人專案)')">個人專案</li>`;
+
+  const visibleUsers = [];
+  const myUid = auth.currentUser.uid;
+  const myRole = currentUserData.role; 
+  const myDept = currentUserData.dept || "設計部";
+
+  const isSubordinate = (bossUid, targetUid) => {
+    let current = allUsersList.find(u => u.uid === targetUid);
+    let depth = 0;
+    while (current && current.supervisorId && depth < 10) {
+      if (current.supervisorId === bossUid) return true;
+      current = allUsersList.find(u => u.uid === current.supervisorId);
+      depth++;
+    }
+    return false;
+  };
+
+  allUsersList.forEach(u => {
+    if (u.uid === myUid) return;
+
+    const targetRole = u.role; 
+    const targetDept = u.dept || "設計部";
+    let canView = false;
+
+    if (myRole === 'admin' || myRole === 'top_manager') {
+      canView = true;
+    }
+    else if (myRole === 'manager') {
+      if (targetDept === myDept && (targetRole === 'assistant_manager' || targetRole === 'staff')) {
+        canView = true;
+      }
+    }
+    else if (myRole === 'assistant_manager') {
+      if (targetDept === myDept && targetRole === 'staff') {
+        canView = true;
+      }
+    }
+
+    if (canView || isSubordinate(myUid, u.uid)) {
+      visibleUsers.push(u);
+    }
+  });
+
+  const rolePriority = { admin: 1, top_manager: 2, manager: 3, assistant_manager: 4, staff: 5 };
+  
+  departmentList.forEach((dept, dIdx) => {
+    const deptMembers = visibleUsers.filter(u => (u.dept || "設計部") === dept);
+    if (deptMembers.length === 0) return;
+
+    deptMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99));
+
+    const deptGroupId = `dept-group-${dIdx}`;
+    const isViewingMemberInDept = deptMembers.some(m => m.uid === viewingUserId);
+    const isExpanded = isViewingMemberInDept;
+
+    list.innerHTML += `
+      <li class="nav-sub-dept-header ${isExpanded ? 'open' : ''}" onclick="toggleDeptSubList('${deptGroupId}', this)">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span>🏢</span>
+          <span>${dept}</span>
+          <span class="dept-count-badge">${deptMembers.length}</span>
+        </div>
+        <span class="dept-arrow">▶</span>
+      </li>
+    `;
+
+    let membersHtml = `<div class="nav-sub-dept-members" id="${deptGroupId}" style="display:${isExpanded ? 'flex' : 'none'};">`;
+    deptMembers.forEach(u => {
+      const isActive = (viewingUserId === u.uid) ? 'active' : '';
+      membersHtml += `
+        <li class="nav-sub-item ${isActive}" id="sub-li-${u.uid}" onclick="switchViewingUser('${u.uid}', '${u.name}')">
+          ${u.name || '未命名'} 
+          <small style="color:#94a3b8; font-size:11px; margin-left:4px;">(${roleNames[u.role] || '人員'})</small>
+        </li>
+      `;
+    });
+    membersHtml += `</div>`;
+    list.innerHTML += membersHtml;
+  });
+}
+
+window.toggleDeptSubList = (groupId, headerElem) => {
+  const container = document.getElementById(groupId);
+  if (!container) return;
+  const isHidden = container.style.display === 'none';
+  container.style.display = isHidden ? 'flex' : 'none';
+  headerElem.classList.toggle('open', isHidden);
+};
+
+window.switchViewingUser = (uid, name) => {
+  viewingUserId = uid;
+  document.querySelectorAll('.nav-sub-item').forEach(el => el.classList.remove('active'));
+  const targetLi = document.getElementById(`sub-li-${uid}`);
+  if (targetLi) targetLi.classList.add('active');
+
+  const isSelf = viewingUserId === auth.currentUser.uid;
+  document.getElementById('viewing-user-name').innerText = isSelf ? '' : `[ 正在檢視：${name} ]`;
+  document.getElementById('btn-create-wrapper').style.display = isSelf ? 'flex' : 'none';
+  document.getElementById('create-project-section').style.display = 'none';
+  document.getElementById('adhoc-form-panel').style.display = isSelf ? 'block' : 'none';
+  document.getElementById('weekly-form-panel').style.display = isSelf ? 'block' : 'none';
+
+  selectedProjectId = 'SUMMARY'; 
+  
+  isEditMode = false;
+  const editBtn = document.getElementById("btn-toggle-edit-mode");
+  if(editBtn) {
+     editBtn.innerHTML = "✏️ 開啟編輯模式";
+     editBtn.style.background = "transparent";
+  }
+
+  renderProjects(); 
+  renderAdHocEvents(); 
+  renderWeeklyReports();
+
+  const wrapper = document.getElementById('nav-sub-wrapper');
+  const list = document.getElementById('nav-sub-list');
+  if (wrapper.classList.contains('nav-menu-open')) wrapper.classList.remove('nav-menu-open');
+  if (list.classList.contains('mobile-fixed-dropdown')) {
+    wrapper.appendChild(list); 
+    list.classList.remove('mobile-fixed-dropdown'); 
+  }
+};
+
+document.getElementById("btn-login").addEventListener("click", () => { 
+  signInWithEmailAndPassword(auth, document.getElementById("login-email").value.trim(), document.getElementById("login-password").value.trim()).catch(e=>alert(e.message)); 
+});
+document.getElementById("btn-logout").addEventListener("click", () => signOut(auth));
+
+window.setProjectFilter = (status) => {
+  currentFilter = status;
+  document.querySelectorAll('.kpi-card').forEach(el => el.classList.remove('active'));
+  const activeBtn = document.getElementById('filter-' + status);
+  if(activeBtn) activeBtn.classList.add('active');
+  
+  selectedProjectId = 'SUMMARY'; 
+  renderProjects();
+};
+
+window.selectProject = (projId) => { 
+  selectedProjectId = projId; 
+  isEditMode = false;
+  const editBtn = document.getElementById("btn-toggle-edit-mode");
+  if(editBtn) {
+     editBtn.innerHTML = "✏️ 開啟編輯模式";
+     editBtn.style.background = "transparent";
+  }
+  renderProjects(); 
+};
+
+window.getAvailableTasks = (projId) => {
+  const proj = allProjectsData.find(p => p.id === projId);
+  if(!proj || !proj.tasks) return [];
+  return proj.tasks.map((t, i) => ({...t, index: i})).filter(t => {
+    if (!t.isCompleted) return true; 
+    if (t.reportedCompleted === true) return false; 
+    const taskCompletedTime = t.completedAt ? new Date(t.completedAt.replace(/-/g, '/')).getTime() : 0;
+    const alreadyReported = allWeeklyData.some(w => {
+      if(w.ownerId !== auth.currentUser.uid) return false;
+      const reportTime = w.createdAt ? w.createdAt.toDate().getTime() : Date.now();
+      const hasTask = (w.items || []).some(item => item.projectId === proj.id && String(item.taskId) === String(t.index));
+      return hasTask && reportTime > (taskCompletedTime - 60000);
+    });
+    return !alreadyReported;
+  });
+};
+
+function loadProjects() {
+  onSnapshot(query(collection(db, "projects")), (snapshot) => {
+    allProjectsData = []; 
+    snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
+    renderProjects(); 
+    refreshAllWeeklyProjSelects();
+  }); 
+}
+
+function getAdHocDateStr(evt) {
+  if (evt.startDate) return evt.startDate;
+  if (evt.createdAt && evt.createdAt.toDate) return evt.createdAt.toDate().toISOString().split('T')[0];
+  return new Date().toISOString().split('T')[0];
+}
 
 function spansYear(p, y) {
   if(y === 'all') return true;
@@ -1014,6 +1235,9 @@ function renderProjects() {
 
   emptyState.style.display = "none"; 
 
+  // ==========================================
+  // ⭐ 顯示總覽畫面
+  // ==========================================
   if (selectedProjectId === 'SUMMARY') {
     detailView.style.display = "none"; 
     summaryView.style.display = "block";
@@ -1150,6 +1374,9 @@ function renderProjects() {
     return;
   }
 
+  // ==========================================
+  // ⭐ 顯示詳細專案畫面
+  // ==========================================
   summaryView.style.display = "none"; 
   detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
@@ -1184,7 +1411,7 @@ function renderProjects() {
 
   lockBtn.style.display = "none"; 
 
-  // 🚀 永久開放新增：只要有全局權限，或是協作單位，或是建立者，永遠開放新增按鈕！不再受 7 天限制！
+  // 🚀 永久開放新增：只要有全局權限，或是協作單位，或是建立者，永遠開放新增按鈕！
   const canAddTask = hasGlobalEdit || isCollabMember || isProjOwner;
 
   if (canAddTask) {
@@ -1222,7 +1449,7 @@ function renderProjects() {
     const taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
     const isMyTask = (auth.currentUser.uid === taskAssigneeId);
 
-    // 🚀 每一個細項，都有自己獨立的 7 天生命週期判斷
+    // 🚀 每個任務獨立計算自己的 7 天生命週期
     let taskCreatedTime = task.createdAt || (activeProj.createdAt && typeof activeProj.createdAt.toMillis === 'function' ? activeProj.createdAt.toMillis() : Date.now());
     let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
 
@@ -1611,7 +1838,6 @@ function renderAdHocEvents() {
     `; 
     tbody.appendChild(tr);
   });
-  if(selectedProjectId === 'SUMMARY' && document.getElementById("tab-projects").style.display === "block") renderProjects(); 
 }
 
 document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
@@ -2527,28 +2753,14 @@ function loadOrgUsers() {
   onSnapshot(collection(db, "users"), (snapshot) => {
     const tbody = document.getElementById("user-list-tbody"); 
     const supervisorSelect = document.getElementById("new-user-supervisor");
+    if(!tbody || !supervisorSelect) return;
     tbody.innerHTML = ""; 
     supervisorSelect.innerHTML = '<option value="">-- 無 --</option>'; 
-    allUsersList = [];
     
-    snapshot.forEach(docSnap => {
-      const u = docSnap.data(); 
-      allUsersList.push({ uid: docSnap.id, ...u });
-      if (["top_manager", "manager", "assistant_manager"].includes(u.role)) {
-        supervisorSelect.innerHTML += `<option value="${docSnap.id}">${u.name} (${roleNames[u.role] || u.role})</option>`;
+    allUsersList.forEach(user => {
+      if (["top_manager", "manager", "assistant_manager"].includes(user.role)) {
+        supervisorSelect.innerHTML += `<option value="${user.uid}">${user.name} (${roleNames[user.role] || user.role})</option>`;
       }
-    });
-
-    allUsersList.sort((a, b) => {
-      const deptA = a.dept || "設計部";
-      const deptB = b.dept || "設計部";
-      const deptIdxA = departmentList.indexOf(deptA);
-      const deptIdxB = departmentList.indexOf(deptB);
-
-      if (deptIdxA !== deptIdxB) {
-        return (deptIdxA === -1 ? 99 : deptIdxA) - (deptIdxB === -1 ? 99 : deptIdxB);
-      }
-      return (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99);
     });
 
     let currentDeptGroup = "";
