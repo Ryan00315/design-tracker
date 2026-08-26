@@ -69,7 +69,124 @@ const taiwanHolidayMap = {
 };
 
 // ==========================================
-// 🚀 全域事件攔截器 (絕對防當機機制)
+// 🚀 第一防線：全域基礎函式絕對掛載 (防止找不到函式而當機)
+// ==========================================
+window.getTodayStr = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+};
+
+window.getUserDept = (uid) => {
+    if (!uid) return "設計部";
+    if (uid === auth.currentUser?.uid) return currentUserData.dept || "設計部";
+    const u = allUsersList.find(x => x.uid === uid);
+    return u ? (u.dept || "設計部") : "設計部";
+};
+
+window.getWorkingDays = (startDate, endDate) => {
+  let count = 0; 
+  let curDate = new Date(startDate); 
+  let end = new Date(endDate);
+  curDate.setHours(0,0,0,0); 
+  end.setHours(0,0,0,0);
+  while (curDate <= end) {
+    if (curDate.getDay() !== 0 && curDate.getDay() !== 6) count++;
+    curDate.setDate(curDate.getDate() + 1);
+  }
+  return Math.max(1, count);
+};
+
+window.formatDateSafe = (dateObj) => { 
+  const y = dateObj.getFullYear(); 
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0'); 
+  const d = String(dateObj.getDate()).padStart(2, '0'); 
+  return `${y}-${m}-${d}`; 
+};
+
+window.calculateEndDateByDays = (startDateStr, days) => {
+  if (!startDateStr || isNaN(days) || days < 1) return startDateStr;
+  let curDate = new Date(startDateStr);
+  let added = 1;
+  while (added < days) {
+    curDate.setDate(curDate.getDate() + 1);
+    if (curDate.getDay() !== 0 && curDate.getDay() !== 6) {
+      added++;
+    }
+  }
+  return window.formatDateSafe(curDate);
+};
+
+window.getNextWorkingDayStr = (dateStr) => {
+  if (!dateStr) return ''; 
+  let d = new Date(dateStr); 
+  d.setDate(d.getDate() + 1);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+  return d.toISOString().split('T')[0];
+};
+
+window.spansYear = (p, y) => {
+  if(y === 'all') return true;
+  if(!p.tasks || p.tasks.length === 0) {
+      const createdDate = p.createdAt && typeof p.createdAt.toDate === 'function' ? p.createdAt.toDate() : new Date();
+      return createdDate.getFullYear() === y;
+  }
+  let min = "9999-12-31", max = "0000-01-01";
+  p.tasks.forEach(t => { 
+      if (t.start < min) min = t.start; 
+      if (t.end > max) max = t.end; 
+  });
+  const startY = parseInt(min.substring(0,4));
+  const endY = parseInt(max.substring(0,4));
+  return y >= startY && y <= endY;
+};
+
+window.getAdHocDateStr = (evt) => {
+  if (evt.startDate) return evt.startDate;
+  if (evt.createdAt && evt.createdAt.toDate) return evt.createdAt.toDate().toISOString().split('T')[0];
+  return new Date().toISOString().split('T')[0];
+};
+
+window.isWithin7DaysGracePeriod = (proj) => {
+  if (!proj || !proj.createdAt) return false;
+  let createdTime;
+  if (typeof proj.createdAt.toMillis === 'function') {
+    createdTime = proj.createdAt.toMillis();
+  } else if (proj.createdAt.seconds) {
+    createdTime = proj.createdAt.seconds * 1000;
+  } else {
+    createdTime = Date.now(); 
+  }
+  const diffDays = (Date.now() - createdTime) / (1000 * 60 * 60 * 24);
+  return diffDays <= 7;
+};
+
+window.getGraceDaysLeft = (proj) => {
+  if (!proj || !proj.createdAt) return 0;
+  let createdTime;
+  if (typeof proj.createdAt.toMillis === 'function') {
+    createdTime = proj.createdAt.toMillis();
+  } else if (proj.createdAt.seconds) {
+    createdTime = proj.createdAt.seconds * 1000;
+  } else {
+    createdTime = Date.now(); 
+  }
+  const diffDays = (Date.now() - createdTime) / (1000 * 60 * 60 * 24);
+  return Math.max(0, Math.ceil(7 - diffDays));
+};
+
+let renderTimer = null;
+window.triggerRenderProjects = () => {
+  if (renderTimer) clearTimeout(renderTimer);
+  renderTimer = setTimeout(() => {
+      if (auth.currentUser && window.renderProjects) window.renderProjects();
+  }, 150); 
+};
+
+// ==========================================
+// 🚀 第二防線：全域事件攔截器 (按鈕絕對不失效)
 // ==========================================
 document.addEventListener("click", async (e) => {
   const target = e.target;
@@ -130,7 +247,7 @@ document.addEventListener("click", async (e) => {
 });
 
 // ==========================================
-// 🚀 核心 UI 與介面注入
+// 🚀 UI 與介面注入
 // ==========================================
 window.initDynamicUI = () => {
   if (document.getElementById('filter-all')) return; 
@@ -264,11 +381,11 @@ window.injectTemplateModal = () => {
      </div>
    </div>
    `;
-   if (document.body) document.body.insertAdjacentHTML('beforeend', html);
+   document.body.insertAdjacentHTML('beforeend', html);
 };
 
 // ==========================================
-// 🚀 Auth 身份驗證與資料啟動器 (解決資料空白問題的核心)
+// 🚀 資料庫監聽與 Auth 流 (一次補齊全部資料)
 // ==========================================
 onAuthStateChanged(auth, async (user) => {
   if (user) {
@@ -327,7 +444,7 @@ onAuthStateChanged(auth, async (user) => {
     window.addTaskRow(); 
     window.addWeeklyRow(); 
     
-    // 🔥 這是最關鍵的資料通道啟動，確保所有專案/人員讀取正常
+    // 🚀 安全載入資料
     window.setupDataListeners(user.uid);
 
   } else {
@@ -342,12 +459,10 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-// 🚀 單一通道抓取所有資料，絕對不打結
 window.setupDataListeners = function(uid) {
   firebaseUnsubscribers.forEach(unsub => unsub());
   firebaseUnsubscribers = [];
 
-  // 1. 抓取人員清單
   firebaseUnsubscribers.push(onSnapshot(collection(db, "users"), (snapshot) => {
     allUsersList = [];
     snapshot.forEach(docSnap => allUsersList.push({ uid: docSnap.id, ...docSnap.data() }));
@@ -356,7 +471,6 @@ window.setupDataListeners = function(uid) {
     window.triggerRenderProjects();
   }));
 
-  // 2. 抓取專案模板
   firebaseUnsubscribers.push(onSnapshot(doc(db, "settings", "project_templates"), (docSnap) => {
     if (docSnap.exists() && Object.keys(docSnap.data()).length > 0) {
       projectTemplates = { ...projectTemplates, ...docSnap.data() };
@@ -364,7 +478,6 @@ window.setupDataListeners = function(uid) {
     window.renderTemplateSelect();
   }));
 
-  // 3. 抓取主專案
   firebaseUnsubscribers.push(onSnapshot(query(collection(db, "projects")), (snapshot) => {
     allProjectsData = []; 
     snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
@@ -372,7 +485,6 @@ window.setupDataListeners = function(uid) {
     window.refreshAllWeeklyProjSelects();
   }));
 
-  // 4. 抓取插單事件
   firebaseUnsubscribers.push(onSnapshot(query(collection(db, "ad_hoc_events")), (snapshot) => {
     allAdHocData = []; 
     snapshot.forEach(docSnap => allAdHocData.push({ id: docSnap.id, ...docSnap.data() })); 
@@ -380,7 +492,6 @@ window.setupDataListeners = function(uid) {
     window.triggerRenderProjects();
   }));
 
-  // 5. 抓取週報
   firebaseUnsubscribers.push(onSnapshot(query(collection(db, "weekly_reports")), (snapshot) => {
     allWeeklyData = []; 
     snapshot.forEach(docSnap => allWeeklyData.push({ id: docSnap.id, ...docSnap.data() })); 
@@ -388,7 +499,6 @@ window.setupDataListeners = function(uid) {
     window.refreshAllWeeklyProjSelects();
   }));
 
-  // 6. 抓取行事曆
   firebaseUnsubscribers.push(onSnapshot(query(collection(db, "calendar_todos"), where("ownerId", "==", uid)), (snapshot) => {
     myCalendarTodos = [];
     snapshot.forEach(docSnap => myCalendarTodos.push({ id: docSnap.id, ...docSnap.data() }));
@@ -398,7 +508,7 @@ window.setupDataListeners = function(uid) {
 };
 
 // ==========================================
-// 🚀 全域函式掛載區 (防止 HTML 找不到函數而報錯)
+// 🚀 全域視窗函式掛載區 (Global functions)
 // ==========================================
 window.submitLogin = async () => {
   const email = document.getElementById("login-email")?.value.trim();
@@ -492,9 +602,9 @@ window.checkEditModeVisibility = () => {
     if (selectedProjectId !== 'SUMMARY') {
       const p = allProjectsData.find(x => x.id === selectedProjectId);
       if (p) {
-        const ownerDept = window.getUserDept ? window.getUserDept(p.ownerId) : getUserDept(p.ownerId);
+        const ownerDept = window.getUserDept(p.ownerId);
         const isOwnerDept = (currentUserData.dept === ownerDept);
-        const inGrace = window.isWithin7DaysGracePeriod ? window.isWithin7DaysGracePeriod(p) : false;
+        const inGrace = window.isWithin7DaysGracePeriod(p);
 
         if (isOwnerDept && inGrace) {
           shouldShow = true;
@@ -552,48 +662,6 @@ window.toggleSubMenu = () => {
   }
 };
 
-window.getWorkingDays = (startDate, endDate) => {
-  let count = 0; 
-  let curDate = new Date(startDate); 
-  let end = new Date(endDate);
-  curDate.setHours(0,0,0,0); 
-  end.setHours(0,0,0,0);
-  while (curDate <= end) {
-    if (curDate.getDay() !== 0 && curDate.getDay() !== 6) count++;
-    curDate.setDate(curDate.getDate() + 1);
-  }
-  return Math.max(1, count);
-};
-
-window.calculateEndDateByDays = (startDateStr, days) => {
-  if (!startDateStr || isNaN(days) || days < 1) return startDateStr;
-  let curDate = new Date(startDateStr);
-  let added = 1;
-  while (added < days) {
-    curDate.setDate(curDate.getDate() + 1);
-    if (curDate.getDay() !== 0 && curDate.getDay() !== 6) {
-      added++;
-    }
-  }
-  return window.formatDateSafe ? window.formatDateSafe(curDate) : formatDateSafe(curDate);
-};
-
-window.getNextWorkingDayStr = (dateStr) => {
-  if (!dateStr) return ''; 
-  let d = new Date(dateStr); 
-  d.setDate(d.getDate() + 1);
-  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
-  return d.toISOString().split('T')[0];
-};
-
-window.formatDateSafe = (dateObj) => { 
-  const y = dateObj.getFullYear(); 
-  const m = String(dateObj.getMonth() + 1).padStart(2, '0'); 
-  const d = String(dateObj.getDate()).padStart(2, '0'); 
-  return `${y}-${m}-${d}`; 
-};
-
-// 🚀 瀑布流自動推算
 window.cascadeDates = () => {
    const modeRadio = document.querySelector('input[name="tpl_mode"]:checked');
    if (!modeRadio || modeRadio.value !== 'seq') return;
@@ -726,7 +794,7 @@ window.renderTemplateSelect = () => {
 
 window.openTemplateEditModal = () => {
   const tplId = document.getElementById("tpl-select")?.value;
-  if (!tplId) return alert("請先從左側選單中選擇一個模板！");
+  if (!tplId) return alert("請先從下拉選單中選擇一個模板！");
   
   const tpl = projectTemplates[tplId] || projectTemplates[String(tplId)] || { name: `自訂模板 ${tplId}`, tasks: [] };
   document.getElementById("tpl-edit-id").value = tplId;
@@ -790,7 +858,7 @@ window.saveTemplate = async () => {
   try {
     await setDoc(doc(db, "settings", "project_templates"), projectTemplates, { merge: true });
   } catch (e) {
-    console.log("寫入資料庫失敗，已儲存至暫存快取");
+    console.log("儲存至本機快取:", e);
   }
   window.renderTemplateSelect();
   window.closeTemplateEditModal();
@@ -809,7 +877,7 @@ window.applyTemplate = () => {
   if (!container) return;
   container.innerHTML = ""; 
   
-  let currentDate = getTodayStr(); 
+  let currentDate = window.getTodayStr(); 
   
   tpl.tasks.forEach((t, i) => {
      const div = document.createElement('div');
@@ -857,7 +925,7 @@ window.renderProjects = () => {
   
   const yearFilterVal = document.getElementById('project-year-filter')?.value || new Date().getFullYear().toString();
   const selectedYear = yearFilterVal === 'all' ? 'all' : parseInt(yearFilterVal);
-  const todayStr = getTodayStr();
+  const todayStr = window.getTodayStr();
 
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
@@ -878,7 +946,7 @@ window.renderProjects = () => {
 
   allInvolvedProjects.forEach(p => {
     let relevantTasks = [];
-    const ownerDept = window.getUserDept ? window.getUserDept(p.ownerId) : getUserDept(p.ownerId);
+    const ownerDept = window.getUserDept(p.ownerId);
     const isOwnerDept = (targetDept === ownerDept); 
 
     if (isOwnerDept) {
@@ -1026,7 +1094,7 @@ window.renderProjects = () => {
     let sIdx = 0;
 
     activeList.forEach(p => {
-      const ownerDept = window.getUserDept ? window.getUserDept(p.ownerId) : getUserDept(p.ownerId);
+      const ownerDept = window.getUserDept(p.ownerId);
       const isOwnerDept = (targetDept === ownerDept); 
       let relevantTasks = isOwnerDept ? p.tasks : (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
       let tasksForTimeline = relevantTasks.length > 0 ? relevantTasks : (p.tasks || []); 
@@ -1034,8 +1102,8 @@ window.renderProjects = () => {
       let minStart = "9999-12-31"; 
       let maxEnd = "0000-01-01"; 
       if (tasksForTimeline.length === 0) {
-          minStart = getTodayStr();
-          maxEnd = getTodayStr();
+          minStart = window.getTodayStr();
+          maxEnd = window.getTodayStr();
       } else {
           tasksForTimeline.forEach(t => { 
             if (t.start < minStart) minStart = t.start; 
@@ -1152,7 +1220,7 @@ window.renderProjects = () => {
   const activeProj = activeList.find(p => p.id === selectedProjectId);
   if (!activeProj) return; 
 
-  const ownerDept = window.getUserDept ? window.getUserDept(activeProj.ownerId) : getUserDept(activeProj.ownerId);
+  const ownerDept = window.getUserDept(activeProj.ownerId);
   const isProjOwnerDept = (currentUserData.dept === ownerDept); 
   const isProjOwner = (activeProj.ownerId === auth.currentUser.uid);
   
@@ -1535,59 +1603,25 @@ window.renderCalendar = () => {
 
 window.patchGanttVisuals = patchGanttVisuals;
 window.scrollToTodayMinus2Days = scrollToTodayMinus2Days;
-window.spansYear = spansYear;
-window.isWithin7DaysGracePeriod = isWithin7DaysGracePeriod;
-window.getGraceDaysLeft = getGraceDaysLeft;
-window.getAdHocDateStr = getAdHocDateStr;
-window.getUserDept = getUserDept;
+
+window.getAvailableTasks = function(projId) {
+  const proj = allProjectsData.find(p => p.id === projId);
+  if(!proj || !proj.tasks) return [];
+  return proj.tasks.map((t, i) => ({...t, index: i})).filter(t => {
+    if (!t.isCompleted) return true; 
+    if (t.reportedCompleted === true) return false; 
+    const taskCompletedTime = t.completedAt ? new Date(t.completedAt.replace(/-/g, '/')).getTime() : 0;
+    const alreadyReported = allWeeklyData.some(w => {
+      if(w.ownerId !== auth.currentUser.uid) return false;
+      const reportTime = w.createdAt ? w.createdAt.toDate().getTime() : Date.now();
+      const hasTask = (w.items || []).some(item => item.projectId === proj.id && String(item.taskId) === String(t.index));
+      return hasTask && reportTime > (taskCompletedTime - 60000);
+    });
+    return !alreadyReported;
+  });
+};
 
 Object.assign(window, {
-  getAvailableTasks, loadProjects,
-  submitNewProject: async () => {
-    const title = document.getElementById("proj-name")?.value.trim();
-    const color = document.getElementById("proj-color")?.value;
-    if (!title) return alert("請填寫主專案名稱！");
-    const collabCheckboxes = document.querySelectorAll('input[name="collab_dept"]:checked');
-    const collaborators = Array.from(collabCheckboxes).map(cb => cb.value);
-    const taskRows = document.querySelectorAll('.task-row'); 
-    const tasks = [];
-    const todayStr = window.getTodayStr(); 
-    const ts = new Date().toLocaleString('zh-TW', { hour12: false });
-    const myName = currentUserData.name || auth.currentUser?.email.split('@')[0];
-    for (let row of taskRows) {
-      const name = row.querySelector('.task-name')?.value.trim(); 
-      const start = row.querySelector('.task-start')?.value; 
-      const end = row.querySelector('.task-end')?.value;
-      if (!name || !start || !end) return alert("任務細項不可有空白欄位！");
-      if (start > end) return alert(`任務 [${name}] 的起始日不可大於完成日！`);
-      let passedDays = 0; 
-      if (todayStr >= start) passedDays = window.getWorkingDays(start, todayStr);
-      tasks.push({ 
-        name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
-        assigneeId: auth.currentUser.uid, assigneeName: myName, createdAt: Date.now(), 
-        history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '專案建立' }] 
-      });
-    }
-    const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, uid: auth.currentUser.uid };
-    const ownerNameToSave = targetUser.name || currentUserData.name;
-    const docRef = await addDoc(collection(db, "projects"), { 
-      title, color, collaborators, ownerId: viewingUserId, ownerName: ownerNameToSave, tasks: tasks, createdAt: serverTimestamp() 
-    });
-    alert("🎉 新專案已成功建立！您享有 7 天免解鎖自由編輯期。");
-    const pName = document.getElementById("proj-name");
-    if(pName) pName.value = ""; 
-    const tList = document.getElementById("task-list-container");
-    if(tList) tList.innerHTML = ""; 
-    window.addTaskRow(); 
-    const cSec = document.getElementById('create-project-section');
-    if(cSec) cSec.style.display = 'none';
-    currentFilter = 'ongoing';
-    document.querySelectorAll('.kpi-card').forEach(el => el.classList.remove('active'));
-    const fo = document.getElementById('filter-ongoing');
-    if(fo) fo.classList.add('active');
-    selectedProjectId = docRef.id;
-    window.triggerRenderProjects(); 
-  },
   moveActiveProjectTask: async (projId, index, direction) => {
     const proj = allProjectsData.find(p => p.id === projId);
     if (!proj || !proj.tasks) return;
@@ -2106,48 +2140,5 @@ Object.assign(window, {
       if (btnTable) btnTable.classList.add("active");
       if (btnChart) btnChart.classList.remove("active");
     }
-  },
-  initCalendarSelectors: () => {
-    const ySel = document.getElementById("cal-year-select");
-    const mSel = document.getElementById("cal-month-select");
-    if (!ySel || !mSel) return;
-    ySel.innerHTML = "";
-    const currentY = new Date().getFullYear();
-    for (let y = currentY - 5; y <= currentY + 5; y++) { ySel.innerHTML += `<option value="${y}" ${y === calCurrentYear ? 'selected' : ''}>${y} 年</option>`; }
-    mSel.innerHTML = "";
-    for (let m = 0; m < 12; m++) { mSel.innerHTML += `<option value="${m}" ${m === calCurrentMonth ? 'selected' : ''}>${m + 1} 月</option>`; }
-  },
-  onCalSelectChange: () => {
-    calCurrentYear = parseInt(document.getElementById("cal-year-select").value);
-    calCurrentMonth = parseInt(document.getElementById("cal-month-select").value);
-    window.renderCalendar();
-  },
-  changeCalMonth: (delta) => {
-    calCurrentMonth += delta;
-    if (calCurrentMonth > 11) { calCurrentMonth = 0; calCurrentYear++; } 
-    else if (calCurrentMonth < 0) { calCurrentMonth = 11; calCurrentYear--; }
-    window.initCalendarSelectors();
-    window.renderCalendar();
-  },
-  jumpCalToday: () => {
-    const today = new Date();
-    calCurrentYear = today.getFullYear();
-    calCurrentMonth = today.getMonth();
-    window.initCalendarSelectors();
-    window.renderCalendar();
-  },
-  toggleAddTodoInput: () => {
-    const box = document.getElementById("cal-add-todo-box");
-    if(!box) return;
-    const isHidden = box.style.display === "none";
-    box.style.display = isHidden ? "block" : "none";
-    if (isHidden) {
-      const txt = document.getElementById("cal-new-todo-text");
-      if(txt){ txt.value = ""; txt.focus(); }
-    }
-  },
-  closeCalTodoModal: () => {
-    document.getElementById("cal-todo-modal")?.classList.remove("active");
-    activeCalDateStr = null;
   }
 });
