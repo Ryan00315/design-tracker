@@ -69,9 +69,8 @@ const taiwanHolidayMap = {
 };
 
 // ==========================================
-// 🚀 核心函式區 (Hoisted, 絕對不會有 not defined 問題)
+// 🚀 工具函式區
 // ==========================================
-
 function getTodayStr() {
     const d = new Date();
     const y = d.getFullYear();
@@ -91,147 +90,144 @@ let renderTimer = null;
 window.triggerRenderProjects = function() {
   if (renderTimer) clearTimeout(renderTimer);
   renderTimer = setTimeout(() => {
-      if (auth.currentUser) renderProjects();
+      if (auth.currentUser) window.renderProjects();
   }, 150); 
 };
 
+// ==========================================
+// 🚀 UI 介面與按鈕事件綁定
+// ==========================================
 function initDynamicUI() {
-  if (document.getElementById('filter-all')) return; 
-
-  const kpiRow = document.querySelector('.kpi-row');
-  if (kpiRow) {
-    kpiRow.innerHTML = `
-      <div class="kpi-card active" id="filter-ongoing" onclick="setProjectFilter('ongoing')"><div class="kpi-title">未完成</div><div class="kpi-number" id="stat-ongoing">0</div></div>
-      <div class="kpi-card" id="filter-completed" onclick="setProjectFilter('completed')"><div class="kpi-title">完成</div><div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div></div>
-      <div class="kpi-card" id="filter-delayed" onclick="setProjectFilter('delayed')"><div class="kpi-title">Delay</div><div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div></div>
-      <div class="kpi-card" id="filter-collab" onclick="setProjectFilter('collab')"><div class="kpi-title">協作專案</div><div class="kpi-number" id="stat-collab" style="color: var(--primary);">0</div></div>
-      <div class="kpi-card" id="filter-all" onclick="setProjectFilter('all')"><div class="kpi-title">專案總覽</div><div class="kpi-number" id="stat-all" style="color: var(--warning);">0</div></div>
-    `;
-  }
-  
-  const style = document.createElement('style');
-  style.innerHTML = `
-    .kpi-card { padding: 8px 12px !important; min-height: unset !important; cursor: pointer; }
-    .kpi-title { font-size: 11.5px !important; margin-bottom: 2px !important; }
-    .kpi-number { font-size: 18px !important; }
-    .col-sum-name.clickable { cursor: pointer; text-decoration: none; transition: 0.2s; }
-    .col-sum-name.clickable:hover { opacity: 0.7; }
-    .gantt-left-panel { flex: 0 0 55% !important; max-width: 55% !important; }
-    .gantt-right-panel { flex: 0 0 45% !important; max-width: 45% !important; }
-    .col-sum-name, .col-name { flex: 4 !important; } 
-    .col-sum-date, .col-date { flex: 1.2 !important; }
-    .col-sum-prog, .col-prog { flex: 0.8 !important; }
-    .col-owner { flex: 1.2 !important; }
-    .col-act { flex: 0.8 !important; }
-    .mobile-fixed-dropdown {
-        position: fixed !important; top: 60px !important; left: 0 !important; width: 100vw !important;
-        height: calc(100vh - 60px) !important; background: #f1f5f9 !important; z-index: 999999 !important;
-        display: flex !important; flex-direction: column; overflow-y: auto !important; padding: 20px !important;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  if (!document.getElementById('filter-all')) {
+    const kpiRow = document.querySelector('.kpi-row');
+    if (kpiRow) {
+      kpiRow.innerHTML = `
+        <div class="kpi-card active" id="filter-ongoing" onclick="window.setProjectFilter('ongoing')"><div class="kpi-title">未完成</div><div class="kpi-number" id="stat-ongoing">0</div></div>
+        <div class="kpi-card" id="filter-completed" onclick="window.setProjectFilter('completed')"><div class="kpi-title">完成</div><div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div></div>
+        <div class="kpi-card" id="filter-delayed" onclick="window.setProjectFilter('delayed')"><div class="kpi-title">Delay</div><div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div></div>
+        <div class="kpi-card" id="filter-collab" onclick="window.setProjectFilter('collab')"><div class="kpi-title">協作專案</div><div class="kpi-number" id="stat-collab" style="color: var(--primary);">0</div></div>
+        <div class="kpi-card" id="filter-all" onclick="window.setProjectFilter('all')"><div class="kpi-title">專案總覽</div><div class="kpi-number" id="stat-all" style="color: var(--warning);">0</div></div>
+      `;
     }
-    @media (max-width: 768px) {
-      .kpi-row { grid-template-columns: repeat(5, 1fr) !important; gap: 4px !important; }
-      .kpi-title { font-size: 10px !important; }
-      .kpi-card { padding: 6px 4px !important; }
-      .gantt-left-panel { flex: 0 0 100% !important; max-width: 100% !important; }
-      .gantt-right-panel { display: none !important; }
-    }
-  `;
-  document.head.appendChild(style);
-
-  const btnWrapper = document.getElementById('btn-create-wrapper');
-  if (btnWrapper && !document.getElementById('project-year-filter')) {
-    const currentY = new Date().getFullYear();
-    let options = '';
-    for (let y = currentY - 3; y <= currentY + 3; y++) {
-        options += `<option value="${y}" ${y === currentY ? 'selected' : ''}>${y}年</option>`;
-    }
-    options += `<option value="all">所有年份</option>`;
     
-    const sel = document.createElement('select');
-    sel.id = "project-year-filter";
-    sel.className = "input-control";
-    sel.style.width = "100px";
-    sel.style.marginRight = "10px";
-    sel.style.fontWeight = "bold";
-    sel.innerHTML = options;
-    sel.onchange = () => {
-      if (currentFilter === 'ongoing' || currentFilter === 'delayed') {
-         window.setProjectFilter('all');
-      } else {
-         window.triggerRenderProjects();
+    const style = document.createElement('style');
+    style.innerHTML = `
+      .kpi-card { padding: 8px 12px !important; min-height: unset !important; cursor: pointer; }
+      .kpi-title { font-size: 11.5px !important; margin-bottom: 2px !important; }
+      .kpi-number { font-size: 18px !important; }
+      .col-sum-name.clickable { cursor: pointer; text-decoration: none; transition: 0.2s; }
+      .col-sum-name.clickable:hover { opacity: 0.7; }
+      .gantt-left-panel { flex: 0 0 55% !important; max-width: 55% !important; }
+      .gantt-right-panel { flex: 0 0 45% !important; max-width: 45% !important; }
+      .col-sum-name, .col-name { flex: 4 !important; } 
+      .col-sum-date, .col-date { flex: 1.2 !important; }
+      .col-sum-prog, .col-prog { flex: 0.8 !important; }
+      .col-owner { flex: 1.2 !important; }
+      .col-act { flex: 0.8 !important; }
+      .mobile-fixed-dropdown {
+          position: fixed !important; top: 60px !important; left: 0 !important; width: 100vw !important;
+          height: calc(100vh - 60px) !important; background: #f1f5f9 !important; z-index: 999999 !important;
+          display: flex !important; flex-direction: column; overflow-y: auto !important; padding: 20px !important;
+          box-shadow: 0 10px 25px rgba(0,0,0,0.2);
       }
-    };
-    btnWrapper.insertBefore(sel, btnWrapper.firstChild);
+      @media (max-width: 768px) {
+        .kpi-row { grid-template-columns: repeat(5, 1fr) !important; gap: 4px !important; }
+        .kpi-title { font-size: 10px !important; }
+        .kpi-card { padding: 6px 4px !important; }
+        .gantt-left-panel { flex: 0 0 100% !important; max-width: 100% !important; }
+        .gantt-right-panel { display: none !important; }
+      }
+    `;
+    document.head.appendChild(style);
+
+    const btnWrapper = document.getElementById('btn-create-wrapper');
+    if (btnWrapper && !document.getElementById('project-year-filter')) {
+      const currentY = new Date().getFullYear();
+      let options = '';
+      for (let y = currentY - 3; y <= currentY + 3; y++) {
+          options += `<option value="${y}" ${y === currentY ? 'selected' : ''}>${y}年</option>`;
+      }
+      options += `<option value="all">所有年份</option>`;
+      
+      const sel = document.createElement('select');
+      sel.id = "project-year-filter";
+      sel.className = "input-control";
+      sel.style.width = "100px";
+      sel.style.marginRight = "10px";
+      sel.style.fontWeight = "bold";
+      sel.innerHTML = options;
+      sel.onchange = () => {
+        if (currentFilter === 'ongoing' || currentFilter === 'delayed') {
+           window.setProjectFilter('all');
+        } else {
+           window.triggerRenderProjects();
+        }
+      };
+      btnWrapper.insertBefore(sel, btnWrapper.firstChild);
+    }
   }
 
-  injectTemplateUI();
-  injectTemplateModal();
-}
-
-function injectTemplateUI() {
   const taskContainer = document.getElementById("task-list-container");
-  if (!taskContainer || document.getElementById("template-section-wrapper")) return;
-
-  const wrapper = document.createElement("div");
-  wrapper.id = "template-section-wrapper";
-  wrapper.className = "form-group";
-  wrapper.style.marginBottom = "14px";
-  wrapper.innerHTML = `
-    <label class="form-label" style="font-weight:700; color:#8b5cf6; margin-bottom:6px; display:block;">📄 專案模板 (快速帶入排程)</label>
-    <div style="display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
-      <select id="tpl-select" class="input-control" style="width:170px; margin:0; font-size:13px;"></select>
-      <button type="button" class="action-btn" onclick="openTemplateEditModal()" style="padding:6px 12px; font-size:12px; border-color:#8b5cf6; color:#8b5cf6; font-weight:600;">✏️ 編輯模板</button>
-      
-      <div style="display:inline-flex; gap:12px; align-items:center; margin-left:14px; padding-left:14px; border-left:1px solid #cbd5e1;">
-        <label style="font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; margin:0; font-weight:500;">
-          <input type="radio" name="tpl_mode" value="seq" checked onchange="checkCascade()"> 接續時間
-        </label>
-        <label style="font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; margin:0; font-weight:500;">
-          <input type="radio" name="tpl_mode" value="free" onchange="checkCascade()"> 自由時間
-        </label>
-        <button type="button" class="action-btn" style="background:#10b981; color:#fff; border:none; padding:6px 14px; font-weight:bold; border-radius:4px; font-size:12px; margin-left:4px;" onclick="applyTemplate()">帶入</button>
+  if (taskContainer && !document.getElementById("template-section-wrapper")) {
+    const wrapper = document.createElement("div");
+    wrapper.id = "template-section-wrapper";
+    wrapper.className = "form-group";
+    wrapper.style.marginBottom = "14px";
+    wrapper.innerHTML = `
+      <label class="form-label" style="font-weight:700; color:#8b5cf6; margin-bottom:6px; display:block;">📄 專案模板 (快速帶入排程)</label>
+      <div style="display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
+        <select id="tpl-select" class="input-control" style="width:170px; margin:0; font-size:13px;"></select>
+        <button type="button" class="action-btn" onclick="window.openTemplateEditModal()" style="padding:6px 12px; font-size:12px; border-color:#8b5cf6; color:#8b5cf6; font-weight:600;">✏️ 編輯模板</button>
+        
+        <div style="display:inline-flex; gap:12px; align-items:center; margin-left:14px; padding-left:14px; border-left:1px solid #cbd5e1;">
+          <label style="font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; margin:0; font-weight:500;">
+            <input type="radio" name="tpl_mode" value="seq" checked onchange="window.checkCascade()"> 接續時間
+          </label>
+          <label style="font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; margin:0; font-weight:500;">
+            <input type="radio" name="tpl_mode" value="free" onchange="window.checkCascade()"> 自由時間
+          </label>
+          <button type="button" class="action-btn" style="background:#10b981; color:#fff; border:none; padding:6px 14px; font-weight:bold; border-radius:4px; font-size:12px; margin-left:4px;" onclick="window.applyTemplate()">帶入</button>
+        </div>
       </div>
-    </div>
-  `;
-  taskContainer.parentNode.insertBefore(wrapper, taskContainer);
-  window.renderTemplateSelect();
-}
+    `;
+    taskContainer.parentNode.insertBefore(wrapper, taskContainer);
+    window.renderTemplateSelect();
+  }
 
-function injectTemplateModal() {
-   if (document.getElementById('template-edit-modal')) return;
-   const html = `
-   <div class="modal" id="template-edit-modal" style="z-index:9999999;">
-     <div class="modal-box" style="max-width: 600px;">
-       <div class="modal-header">
-         <h3>✏️ 編輯專案模板</h3>
-         <button class="btn-close" onclick="closeTemplateEditModal()">×</button>
-       </div>
-       <div class="modal-body">
-         <input type="hidden" id="tpl-edit-id">
-         <div class="form-group">
-           <label class="form-label">自訂模板名稱</label>
-           <input type="text" id="tpl-edit-name" class="input-control" placeholder="例如：標準開發流程">
+  if (!document.getElementById('template-edit-modal')) {
+     const html = `
+     <div class="modal" id="template-edit-modal" style="z-index:9999999;">
+       <div class="modal-box" style="max-width: 600px;">
+         <div class="modal-header">
+           <h3>✏️ 編輯專案模板</h3>
+           <button class="btn-close" onclick="window.closeTemplateEditModal()">×</button>
          </div>
-         <div class="form-group" style="margin-bottom:0;">
-           <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
-              <span>預設任務細項設定</span>
-              <button type="button" class="action-btn" onclick="addTplTaskRow('', 1)">➕ 新增一列</button>
-           </label>
-           <div id="tpl-task-list-container" style="max-height:350px; overflow-y:auto; border:1px solid #e2e8f0; padding:12px; border-radius:8px; background:#f8fafc;"></div>
+         <div class="modal-body">
+           <input type="hidden" id="tpl-edit-id">
+           <div class="form-group">
+             <label class="form-label">自訂模板名稱</label>
+             <input type="text" id="tpl-edit-name" class="input-control" placeholder="例如：標準開發流程">
+           </div>
+           <div class="form-group" style="margin-bottom:0;">
+             <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
+                <span>預設任務細項設定</span>
+                <button type="button" class="action-btn" onclick="window.addTplTaskRow('', 1)">➕ 新增一列</button>
+             </label>
+             <div id="tpl-task-list-container" style="max-height:350px; overflow-y:auto; border:1px solid #e2e8f0; padding:12px; border-radius:8px; background:#f8fafc;"></div>
+           </div>
          </div>
-       </div>
-       <div class="modal-footer" style="text-align:right;">
-         <button class="action-btn" onclick="closeTemplateEditModal()">取消</button>
-         <button class="action-btn" style="background:var(--primary); color:#fff; border:none;" onclick="saveTemplate()">💾 儲存模板</button>
+         <div class="modal-footer" style="text-align:right;">
+           <button class="action-btn" onclick="window.closeTemplateEditModal()">取消</button>
+           <button class="action-btn" style="background:var(--primary); color:#fff; border:none;" onclick="window.saveTemplate()">💾 儲存模板</button>
+         </div>
        </div>
      </div>
-   </div>
-   `;
-   document.body.insertAdjacentHTML('beforeend', html);
+     `;
+     document.body.insertAdjacentHTML('beforeend', html);
+  }
 }
 
-function bindAllEvents() {
+function bindStaticEvents() {
   document.getElementById("btn-login")?.addEventListener("click", (e) => {
     e.preventDefault();
     const email = document.getElementById("login-email")?.value.trim();
@@ -279,8 +275,6 @@ function bindAllEvents() {
       const taskContainer = document.getElementById("task-list-container");
       if(taskContainer) taskContainer.innerHTML = "";
       window.addTaskRow();
-      
-      injectTemplateUI();
       window.renderTemplateSelect();
     }
   });
@@ -311,14 +305,138 @@ function bindAllEvents() {
   });
 }
 
-// 系統啟動，掛載 UI 與防護
-document.addEventListener("DOMContentLoaded", () => {
-  initDynamicUI();
-  bindAllEvents();
+// ==========================================
+// 🚀 核心身分驗證與啟動區 (重要：負責打開資料水龍頭)
+// ==========================================
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    const authSec = document.getElementById("auth-section");
+    if(authSec) authSec.style.display = "none";
+    const appSec = document.getElementById("app-section");
+    if(appSec) appSec.style.display = "flex";
+    
+    viewingUserId = user.uid;
+
+    try {
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (userDoc.exists()) {
+        currentUserData = userDoc.data();
+        if (!currentUserData.email && user.email) {
+            currentUserData.email = user.email;
+            await updateDoc(doc(db, "users", user.uid), { email: user.email });
+        }
+      } else {
+        currentUserData = { name: user.email ? user.email.split('@')[0] : "User", email: user.email || "", dept: "設計部", role: "admin", canEdit: false };
+        await setDoc(doc(db, "users", user.uid), currentUserData, { merge: true });
+      }
+    } catch (e) { 
+      currentUserData = { name: user.email ? user.email.split('@')[0] : "User", email: user.email || "", dept: "設計部", role: "admin", canEdit: false }; 
+    }
+    
+    const displayName = currentUserData.name || (currentUserData.email ? currentUserData.email.split('@')[0] : "User");
+    const nameEl = document.getElementById("user-display-name");
+    if (nameEl) nameEl.innerText = displayName;
+    
+    const avaEl = document.getElementById("user-avatar");
+    if (avaEl) avaEl.innerText = displayName.charAt(0).toUpperCase();
+    
+    const roleEl = document.getElementById("user-role-badge");
+    if (roleEl) roleEl.innerText = roleNames[currentUserData.role] || (currentUserData.role || "STAFF").toUpperCase();
+
+    const navOrg = document.getElementById("nav-org-manage");
+    const navDiv = document.getElementById("nav-divider-org");
+    if (currentUserData.role === "admin") {
+      if(navOrg) navOrg.style.display = "flex"; 
+      if(navDiv) navDiv.style.display = "block"; 
+    } else {
+      if(navOrg) navOrg.style.display = "none"; 
+      if(navDiv) navDiv.style.display = "none"; 
+    }
+
+    const navSub = document.getElementById('nav-sub-wrapper');
+    if (currentUserData.role !== 'staff') { 
+      if(navSub) navSub.style.display = 'block'; 
+    } else {
+      if(navSub) navSub.style.display = 'none';
+    }
+
+    window.initWeeklyDateAndLeave(); 
+    window.addTaskRow(); 
+    window.addWeeklyRow(); 
+    
+    setupDataListeners(user.uid);
+
+  } else {
+    const authSec = document.getElementById("auth-section");
+    if(authSec) authSec.style.display = "flex"; 
+    const appSec = document.getElementById("app-section");
+    if(appSec) appSec.style.display = "none";
+    
+    if (renderTimer) clearTimeout(renderTimer);
+    firebaseUnsubscribers.forEach(unsub => unsub());
+    firebaseUnsubscribers = [];
+  }
 });
 
+function setupDataListeners(uid) {
+  firebaseUnsubscribers.forEach(unsub => unsub());
+  firebaseUnsubscribers = [];
+
+  firebaseUnsubscribers.push(onSnapshot(collection(db, "users"), (snapshot) => {
+    allUsersList = [];
+    snapshot.forEach(docSnap => allUsersList.push({ uid: docSnap.id, ...docSnap.data() }));
+    if (currentUserData.role !== 'staff') window.renderSidebarSubordinates();
+    if (currentUserData.role === 'admin') window.renderOrgUsersTable();
+    window.triggerRenderProjects();
+  }));
+
+  firebaseUnsubscribers.push(onSnapshot(doc(db, "settings", "project_templates"), (docSnap) => {
+    if (docSnap.exists() && Object.keys(docSnap.data()).length > 0) {
+      projectTemplates = { ...projectTemplates, ...docSnap.data() };
+    }
+    window.renderTemplateSelect();
+  }));
+
+  firebaseUnsubscribers.push(onSnapshot(query(collection(db, "projects")), (snapshot) => {
+    allProjectsData = []; 
+    snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
+    window.triggerRenderProjects(); 
+    window.refreshAllWeeklyProjSelects();
+  }));
+
+  firebaseUnsubscribers.push(onSnapshot(query(collection(db, "ad_hoc_events")), (snapshot) => {
+    allAdHocData = []; 
+    snapshot.forEach(docSnap => allAdHocData.push({ id: docSnap.id, ...docSnap.data() })); 
+    window.renderAdHocEvents(); 
+    window.triggerRenderProjects();
+  }));
+
+  firebaseUnsubscribers.push(onSnapshot(query(collection(db, "weekly_reports")), (snapshot) => {
+    allWeeklyData = []; 
+    snapshot.forEach(docSnap => allWeeklyData.push({ id: docSnap.id, ...docSnap.data() })); 
+    window.renderWeeklyReports(); 
+    window.refreshAllWeeklyProjSelects();
+  }));
+
+  firebaseUnsubscribers.push(onSnapshot(query(collection(db, "calendar_todos"), where("ownerId", "==", uid)), (snapshot) => {
+    myCalendarTodos = [];
+    snapshot.forEach(docSnap => myCalendarTodos.push({ id: docSnap.id, ...docSnap.data() }));
+    window.renderCalendar();
+    if (activeCalDateStr) window.renderCalTodosModal(activeCalDateStr);
+  }));
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  initDynamicUI();
+  bindStaticEvents();
+});
+if (document.readyState === "complete" || document.readyState === "interactive") {
+  initDynamicUI();
+  bindStaticEvents();
+}
+
 // ==========================================
-// 🚀 視窗全域掛載區 (給 HTML onclick 呼叫使用)
+// 🚀 全域視窗函式掛載區 (Global functions)
 // ==========================================
 window.setProjectFilter = function(status) {
   currentFilter = status;
@@ -461,13 +579,6 @@ function getNextWorkingDayStr(dateStr) {
   d.setDate(d.getDate() + 1);
   while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
   return d.toISOString().split('T')[0];
-}
-
-function formatDateSafe(dateObj) { 
-  const y = dateObj.getFullYear(); 
-  const m = String(dateObj.getMonth() + 1).padStart(2, '0'); 
-  const d = String(dateObj.getDate()).padStart(2, '0'); 
-  return `${y}-${m}-${d}`; 
 }
 
 window.cascadeDates = function() {
@@ -666,7 +777,7 @@ window.saveTemplate = async function() {
   try {
     await setDoc(doc(db, "settings", "project_templates"), projectTemplates, { merge: true });
   } catch (e) {
-    console.log("寫入資料庫失敗，已儲存至暫存區");
+    console.log("儲存至本機:", e);
   }
   window.renderTemplateSelect();
   window.closeTemplateEditModal();
@@ -721,61 +832,6 @@ window.applyTemplate = function() {
   });
   window.checkCascade();
 };
-
-window.loadTemplates = function() {
-  onSnapshot(doc(db, "settings", "project_templates"), (docSnap) => {
-    if (docSnap.exists() && Object.keys(docSnap.data()).length > 0) {
-      projectTemplates = { ...projectTemplates, ...docSnap.data() };
-    }
-    window.renderTemplateSelect();
-  }, (err) => {
-    window.renderTemplateSelect();
-  });
-};
-
-function spansYear(p, y) {
-  if (y === 'all') return true;
-  if (!p.tasks || p.tasks.length === 0) {
-      const createdDate = p.createdAt && typeof p.createdAt.toDate === 'function' ? p.createdAt.toDate() : new Date();
-      return createdDate.getFullYear() === y;
-  }
-  let min = "9999-12-31", max = "0000-01-01";
-  p.tasks.forEach(t => { 
-      if (t.start < min) min = t.start; 
-      if (t.end > max) max = t.end; 
-  });
-  const startY = parseInt(min.substring(0,4));
-  const endY = parseInt(max.substring(0,4));
-  return y >= startY && y <= endY;
-}
-
-function isWithin7DaysGracePeriod(proj) {
-  if (!proj || !proj.createdAt) return false;
-  let createdTime;
-  if (typeof proj.createdAt.toMillis === 'function') {
-    createdTime = proj.createdAt.toMillis();
-  } else if (proj.createdAt.seconds) {
-    createdTime = proj.createdAt.seconds * 1000;
-  } else {
-    createdTime = Date.now(); 
-  }
-  const diffDays = (Date.now() - createdTime) / (1000 * 60 * 60 * 24);
-  return diffDays <= 7;
-}
-
-function getGraceDaysLeft(proj) {
-  if (!proj || !proj.createdAt) return 0;
-  let createdTime;
-  if (typeof proj.createdAt.toMillis === 'function') {
-    createdTime = proj.createdAt.toMillis();
-  } else if (proj.createdAt.seconds) {
-    createdTime = proj.createdAt.seconds * 1000;
-  } else {
-    createdTime = Date.now(); 
-  }
-  const diffDays = (Date.now() - createdTime) / (1000 * 60 * 60 * 24);
-  return Math.max(0, Math.ceil(7 - diffDays));
-}
 
 function scrollToTodayMinus2Days(ganttInst, containerSelector) {
   const wrapper = document.querySelector(containerSelector);
@@ -1348,12 +1404,73 @@ window.renderProjects = function() {
           });
           patchGanttVisuals(ganttInstance, '#gantt-chart-container');
           scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container'); 
-        }, 30); 
+        }, 50); 
     }
   } else {
     lastDetailGanttState = "";
     chartContainer.innerHTML = '';
   }
+};
+
+window.submitNewProject = async () => {
+  const title = document.getElementById("proj-name")?.value.trim();
+  const color = document.getElementById("proj-color")?.value;
+  if (!title) return alert("請填寫主專案名稱！");
+
+  const collabCheckboxes = document.querySelectorAll('input[name="collab_dept"]:checked');
+  const collaborators = Array.from(collabCheckboxes).map(cb => cb.value);
+
+  const taskRows = document.querySelectorAll('.task-row'); 
+  const tasks = [];
+  const todayStr = getTodayStr(); 
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+  const myName = currentUserData.name || auth.currentUser?.email.split('@')[0];
+
+  for (let row of taskRows) {
+    const name = row.querySelector('.task-name')?.value.trim(); 
+    const start = row.querySelector('.task-start')?.value; 
+    const end = row.querySelector('.task-end')?.value;
+    if (!name || !start || !end) return alert("任務細項不可有空白欄位！");
+    if (start > end) return alert(`任務 [${name}] 的起始日不可大於完成日！`);
+    let passedDays = 0; 
+    if (todayStr >= start) passedDays = getWorkingDays(start, todayStr);
+    tasks.push({ 
+      name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
+      assigneeId: auth.currentUser.uid,
+      assigneeName: myName,
+      createdAt: Date.now(), 
+      history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '專案建立' }] 
+    });
+  }
+  
+  const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, uid: auth.currentUser.uid };
+  const ownerNameToSave = targetUser.name || currentUserData.name;
+
+  const docRef = await addDoc(collection(db, "projects"), { 
+    title, color, collaborators, ownerId: viewingUserId, ownerName: ownerNameToSave, 
+    tasks: tasks, createdAt: serverTimestamp() 
+  });
+
+  alert("🎉 新專案已成功建立！您享有 7 天免解鎖自由編輯期。");
+
+  const pName = document.getElementById("proj-name");
+  if(pName) pName.value = ""; 
+  
+  const tList = document.getElementById("task-list-container");
+  if(tList) tList.innerHTML = ""; 
+  
+  window.addTaskRow(); 
+  
+  const cSec = document.getElementById('create-project-section');
+  if(cSec) cSec.style.display = 'none';
+  
+  currentFilter = 'ongoing';
+  document.querySelectorAll('.kpi-card').forEach(el => el.classList.remove('active'));
+  const fo = document.getElementById('filter-ongoing');
+  if(fo) fo.classList.add('active');
+  
+  selectedProjectId = docRef.id;
+  window.triggerRenderProjects(); 
 };
 
 window.renderAdHocEvents = () => {
@@ -1389,6 +1506,100 @@ window.renderAdHocEvents = () => {
       <td style="white-space: nowrap; width: 1%;">${actionHtml}${editHtml}${delHtml}</td>
     `; 
     tbody.appendChild(tr);
+  });
+};
+
+window.submitNewAdHoc = async () => {
+  const title = document.getElementById("adhoc-title")?.value.trim(); 
+  const reason = document.getElementById("adhoc-reason")?.value.trim(); 
+  const start = document.getElementById("adhoc-start")?.value;
+  if (!title || !reason || !start) return alert("請填寫完整名稱、開始日期與原因！");
+  
+  const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name };
+  await addDoc(collection(db, "ad_hoc_events"), { 
+    ownerId: viewingUserId, 
+    ownerName: targetUser.name || '', 
+    title, reason, startDate: start, startDateTime: new Date().toLocaleString(), isCompleted: false, createdAt: serverTimestamp() 
+  });
+  
+  const atitle = document.getElementById("adhoc-title");
+  if(atitle) atitle.value = ""; 
+  const areason = document.getElementById("adhoc-reason");
+  if(areason) areason.value = ""; 
+  const astart = document.getElementById("adhoc-start");
+  if(astart) astart.value = ""; 
+  alert("事件紀錄完成！");
+};
+
+window.initWeeklyDateAndLeave = () => {
+  const dateInput = document.getElementById("rep-date");
+  const container = document.getElementById("leave-options-container");
+  if (!dateInput || !container) return;
+
+  const today = new Date();
+  const days = ['日', '一', '二', '三', '四', '五', '六'];
+  const day = today.getDay(); 
+  
+  dateInput.value = `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()} (${days[day]})`; 
+
+  const dStr = String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+  
+  const tmr = new Date(today);
+  tmr.setDate(today.getDate() + 1);
+  const tmrDay = tmr.getDay();
+  const tmrStr = String(tmr.getMonth() + 1).padStart(2, '0') + '-' + String(tmr.getDate()).padStart(2, '0');
+
+  const isTodayHoliday = !!taiwanHolidayMap[dStr];
+  const isTmrHoliday = !!taiwanHolidayMap[tmrStr];
+  const isTmrWeekend = (tmrDay === 0 || tmrDay === 6);
+
+  if (day >= 1 && day <= 4 && !isTodayHoliday && !isTmrHoliday && !isTmrWeekend) {
+    container.style.display = "flex";
+  } else {
+    container.style.display = "none";
+    document.querySelectorAll('input[name="leave_type"]').forEach(r => r.checked = false);
+    const or = document.getElementById('leave-other-reason');
+    if(or) {
+      or.style.display = 'none';
+      or.value = '';
+    }
+  }
+};
+
+window.populateWeeklyProjSelect = (selectElem) => {
+  selectElem.innerHTML = '<option value="">-- 請選擇主專案 --</option>';
+  const myProjs = allProjectsData.filter(p => p.ownerId === viewingUserId);
+  const availableProjs = myProjs.filter(p => window.getAvailableTasks(p.id).length > 0);
+  availableProjs.forEach(p => { selectElem.innerHTML += `<option value="${p.id}">${p.title}</option>`; });
+};
+
+window.updateWeeklyTaskSelect = (selectElem) => {
+  const taskSelect = selectElem.parentElement.querySelector('.weekly-task-select');
+  if(!taskSelect) return;
+  taskSelect.innerHTML = '<option value="">-- 請選擇細項 --</option>';
+  const projId = selectElem.value;
+  if(!projId) return;
+  const availableTasks = window.getAvailableTasks(projId);
+  availableTasks.forEach(t => { taskSelect.innerHTML += `<option value="${t.index}">${t.name}</option>`; });
+};
+
+window.addWeeklyRow = () => {
+  const container = document.getElementById("weekly-items-container");
+  if(!container) return;
+  const div = document.createElement('div'); 
+  div.className = "weekly-item-row"; 
+  div.style.cssText = "display:flex; gap:16px; margin-bottom:12px; align-items:flex-start; border: 1px solid var(--border-light); padding: 14px; border-radius: 8px; background: #fafafa;";
+  div.innerHTML = `<div style="flex:1; display:flex; flex-direction:column; gap:10px; border-right: 1px dashed var(--border); padding-right:16px;"><select class="input-control weekly-proj-select" onchange="window.updateWeeklyTaskSelect(this)" style="background:#fff;"></select><select class="input-control weekly-task-select" style="background:#fff;"><option value="">-- 請先選擇主專案 --</option></select></div><div style="flex:2.5;"><textarea class="input-control weekly-content" rows="3" placeholder="請填寫此任務的進度說明..." style="background:#fff;"></textarea></div><button class="action-btn danger" onclick="this.parentElement.remove()" style="padding: 10px; margin-left: 8px;">X</button>`;
+  container.appendChild(div); 
+  window.populateWeeklyProjSelect(div.querySelector('.weekly-proj-select'));
+};
+
+window.refreshAllWeeklyProjSelects = () => {
+  const selects = document.querySelectorAll('.weekly-proj-select');
+  selects.forEach(sel => { 
+    const currentVal = sel.value; 
+    window.populateWeeklyProjSelect(sel); 
+    sel.value = currentVal; 
   });
 };
 
@@ -1431,6 +1642,140 @@ window.renderWeeklyReports = () => {
     tr.innerHTML = `<td>${index + 1}</td><td><strong>${w.ownerName}</strong></td><td>${fillTimeStr}</td><td>${supText}</td><td>${topText}</td><td><button class="action-btn" style="margin-right:6px;" onclick="window.openWeeklyModal('${w.id}')">瀏覽報告</button>${editHtml}${delHtml}</td>`; 
     tbody.appendChild(tr);
   });
+};
+
+window.submitWeeklyReport = async () => {
+  try {
+    const today = new Date();
+    const days = ['日', '一', '二', '三', '四', '五', '六'];
+    let dateStr = document.getElementById("rep-date")?.value || `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()} (${days[today.getDay()]})`; 
+
+    let leaveType = "";
+    let leaveReason = "";
+    const leaveContainer = document.getElementById("leave-options-container");
+    
+    if (leaveContainer && leaveContainer.style.display === "flex") {
+      const checked = document.querySelector('input[name="leave_type"]:checked');
+      if (!checked) return alert("【注意】星期一至四提交週報，請務必勾選右側的請假或其他原因！");
+      leaveType = checked.value;
+      if (leaveType === "other") {
+        leaveReason = document.getElementById("leave-other-reason")?.value.trim();
+        if (!leaveReason) return alert("請填寫「其他」選項的理由說明！");
+      }
+    }
+
+    const rows = document.querySelectorAll('.weekly-item-row'); 
+    const items = [];
+    let hasIncomplete = false;
+
+    rows.forEach(r => {
+      const pSel = r.querySelector('.weekly-proj-select'); 
+      const tSel = r.querySelector('.weekly-task-select'); 
+      const content = r.querySelector('.weekly-content')?.value.trim();
+      
+      if (pSel?.value || tSel?.value || content) {
+        if (pSel?.value && tSel?.value && content) {
+          items.push({ projectId: pSel.value, projectName: pSel.options[pSel.selectedIndex].text, taskId: tSel.value, taskName: tSel.options[tSel.selectedIndex].text, content: content });
+        } else {
+          hasIncomplete = true;
+        }
+      }
+    });
+
+    if (hasIncomplete) return alert("您有填寫到一半的進度項目，請確認填寫完整 (包含專案、細項與說明)，或將該列的文字清空/刪除！");
+    
+    if (items.length === 0 && !leaveType) {
+      return alert("請完整填寫至少一項任務進度說明！");
+    }
+
+    const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, supervisorId: null };
+    const supervisorId = targetUser.supervisorId || null; 
+    const currentOwnerId = viewingUserId || auth.currentUser?.uid;
+
+    await addDoc(collection(db, "weekly_reports"), { 
+      ownerId: currentOwnerId, 
+      ownerName: targetUser.name || '', 
+      ownerSupervisorId: supervisorId, 
+      reportDate: dateStr, 
+      items: items, 
+      leaveType: leaveType || "", 
+      leaveReason: leaveReason || "",
+      createdAt: serverTimestamp(), 
+      supervisorNoted: false, 
+      topManagerNoted: false 
+    });
+    
+    const projectUpdates = {};
+    for (let item of items) {
+      const p = allProjectsData.find(x => x.id === item.projectId);
+      if (p) {
+        const tIndex = parseInt(item.taskId);
+        if (p.tasks[tIndex] && p.tasks[tIndex].isCompleted && !p.tasks[tIndex].reportedCompleted) {
+          if (!projectUpdates[p.id]) projectUpdates[p.id] = [...p.tasks];
+          projectUpdates[p.id][tIndex].reportedCompleted = true;
+        }
+      }
+    }
+    for (let pId in projectUpdates) await updateDoc(doc(db, "projects", pId), { tasks: projectUpdates[pId] });
+    
+    window.initWeeklyDateAndLeave(); 
+    const wContainer = document.getElementById("weekly-items-container");
+    if(wContainer) wContainer.innerHTML = ""; 
+    window.addWeeklyRow(); 
+    alert("週報已成功送出！在主管未閱讀前，您有 2 天修改寬限期。");
+    
+  } catch (err) {
+    console.error("送出週報錯誤：", err);
+    alert("發生系統錯誤導致無法送出：" + err.message);
+  }
+};
+
+window.submitCreateUser = async () => {
+  const name = document.getElementById("new-user-name")?.value.trim(); 
+  const email = document.getElementById("new-user-email")?.value.trim(); 
+  const pass = document.getElementById("new-user-pass")?.value.trim();
+  const dept = document.getElementById("new-user-dept")?.value;
+  const role = document.getElementById("new-user-role")?.value;
+  const supervisorId = document.getElementById("new-user-supervisor")?.value || null;
+
+  if (!name || !email || !pass || pass.length < 6) return alert("資料填寫不全或密碼太短！");
+  try {
+    const secApp = initializeApp(firebaseConfig, "Secondary"); 
+    const secAuth = getAuth(secApp);
+    const userCred = await createUserWithEmailAndPassword(secAuth, email, pass); 
+    await signOut(secAuth);
+    await setDoc(doc(db, "users", userCred.user.uid), { 
+      name, email, dept, role, supervisorId, canEdit: false, createdAt: serverTimestamp() 
+    });
+    alert(`人員 ${name} 建立成功！`);
+  } catch (err) { 
+    alert("建立失敗: " + err.message); 
+  }
+};
+
+window.submitUpdatePassword = async () => {
+  const newPass = document.getElementById("profile-new-pass")?.value;
+  const confirmPass = document.getElementById("profile-confirm-pass")?.value;
+
+  if (!newPass || newPass.length < 6) return alert("新密碼至少需要 6 個字元！");
+  if (newPass !== confirmPass) return alert("兩次輸入的密碼不一致！");
+
+  if (!confirm("確定要更改您的登入密碼嗎？")) return;
+
+  try {
+    await updatePassword(auth.currentUser, newPass);
+    alert("✅ 密碼更換成功！下次登入請使用新密碼。");
+    const np = document.getElementById("profile-new-pass");
+    if(np) np.value = "";
+    const cp = document.getElementById("profile-confirm-pass");
+    if(cp) cp.value = "";
+  } catch (error) {
+    if (error.code === 'auth/requires-recent-login') {
+      alert("⚠️ 基於安全考量，更換密碼需要您『最近剛登入過』。\n請先點擊右上角登出，重新使用舊密碼登入後，再嘗試修改密碼！");
+    } else {
+      alert("密碼更換失敗：" + error.message);
+    }
+  }
 };
 
 window.renderOrgUsersTable = () => {
@@ -1483,272 +1828,57 @@ window.renderOrgUsersTable = () => {
   if (document.getElementById("org-chart-view-container")) window.renderOrgChart();
 };
 
-window.renderOrgChart = () => {
-  const container = document.getElementById("org-chart-view-container");
-  if (!container) return;
-  container.innerHTML = "";
+Object.assign(window, {
+  renderCalendar: () => {
+    const grid = document.getElementById("calendar-grid");
+    if (!grid) return;
+    grid.innerHTML = "";
+    const firstDayIndex = new Date(calCurrentYear, calCurrentMonth, 1).getDay();
+    const lastDate = new Date(calCurrentYear, calCurrentMonth + 1, 0).getDate();
+    const prevMonthLastDate = new Date(calCurrentYear, calCurrentMonth, 0).getDate();
+    const todayStr = getTodayStr();
 
-  const mainWrapper = document.createElement("div");
-  mainWrapper.className = "org-dept-container";
-
-  const roleTiers = [
-    { key: "manager", label: "👔 部門主管", roles: ["manager", "top_manager", "admin"] },
-    { key: "assistant_manager", label: "💼 副主管", roles: ["assistant_manager"] },
-    { key: "staff", label: "👥 部門人員", roles: ["staff"] }
-  ];
-
-  departmentList.forEach(dept => {
-    const deptUsers = allUsersList.filter(u => (u.dept || "設計部") === dept);
-    if (deptUsers.length === 0) return;
-
-    let tierHtml = "";
-    roleTiers.forEach(tier => {
-      const tierMembers = deptUsers.filter(u => tier.roles.includes(u.role));
-      if (tierMembers.length === 0) return;
-
-      let memberCardsHtml = "";
-      tierMembers.forEach(u => {
-        const supUser = allUsersList.find(x => x.uid === u.supervisorId);
-        const isMgr = tier.key === "manager";
-        const supText = supUser ? `直屬: ${supUser.name}` : "直屬: 無";
-
-        memberCardsHtml += `
-          <div class="org-user-card ${isMgr ? 'is-mgr' : ''}" onclick="window.openEditModal('${u.uid}')" title="點擊編輯 ${u.name || '人員'} 的資訊">
-            <div class="org-card-avatar-sm ${isMgr ? 'mgr' : ''}">${(u.name || 'U').charAt(0).toUpperCase()}</div>
-            <div class="org-card-text">
-              <div class="org-card-user-name">${u.name || '未命名'} <small style="font-weight:normal; color:#64748b;">(${roleNames[u.role] || u.role})</small></div>
-              <div class="org-card-sup-name">${supText}</div>
-            </div>
-          </div>
-        `;
-      });
-
-      tierHtml += `
-        <div class="org-role-tier">
-          <div class="org-role-label">${tier.label}</div>
-          <div class="org-member-cards">${memberCardsHtml}</div>
-        </div>
-      `;
-    });
-
-    const deptBlock = document.createElement("div");
-    deptBlock.className = "org-dept-block";
-    deptBlock.innerHTML = `
-      <div class="org-dept-header">
-        <div class="org-dept-title">
-          <span style="font-size:16px;">🏢</span>
-          <span>${dept}</span>
-        </div>
-        <span style="font-size:12px; font-weight:600; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:12px;">共 ${deptUsers.length} 人</span>
-      </div>
-      <div class="org-hierarchy-grid">
-        ${tierHtml}
-      </div>
-    `;
-    mainWrapper.appendChild(deptBlock);
-  });
-  container.appendChild(mainWrapper);
-};
-
-window.renderCalendar = () => {
-  const grid = document.getElementById("calendar-grid");
-  if (!grid) return;
-  grid.innerHTML = "";
-
-  const firstDayIndex = new Date(calCurrentYear, calCurrentMonth, 1).getDay();
-  const lastDate = new Date(calCurrentYear, calCurrentMonth + 1, 0).getDate();
-  const prevMonthLastDate = new Date(calCurrentYear, calCurrentMonth, 0).getDate();
-
-  const today = new Date();
-  const todayStr = formatDateSafe(today);
-
-  for (let i = firstDayIndex - 1; i >= 0; i--) {
-    const dNum = prevMonthLastDate - i;
-    const prevM = calCurrentMonth === 0 ? 12 : calCurrentMonth;
-    const prevY = calCurrentMonth === 0 ? calCurrentYear - 1 : calCurrentYear;
-    const dStr = `${prevY}-${String(prevM).padStart(2, '0')}-${String(dNum).padStart(2, '0')}`;
-    grid.appendChild(window.createCalCellNode(dNum, dStr, true, todayStr, myCalendarTodos));
-  }
-
-  for (let d = 1; d <= lastDate; d++) {
-    const dStr = `${calCurrentYear}-${String(calCurrentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    grid.appendChild(window.createCalCellNode(d, dStr, false, todayStr, myCalendarTodos));
-  }
-
-  const totalCells = firstDayIndex + lastDate;
-  const remaining = (7 - (totalCells % 7)) % 7;
-  for (let n = 1; n <= remaining; n++) {
-    const nextM = calCurrentMonth === 11 ? 1 : calCurrentMonth + 2;
-    const nextY = calCurrentMonth === 11 ? calCurrentYear + 1 : calCurrentYear;
-    const dStr = `${nextY}-${String(nextM).padStart(2, '0')}-${String(n).padStart(2, '0')}`;
-    grid.appendChild(window.createCalCellNode(n, dStr, true, todayStr, myCalendarTodos));
-  }
-};
-
-window.createCalCellNode = (dayNum, dateStr, isOtherMonth, todayStr, userTodos) => {
-  const cell = document.createElement("div");
-  cell.className = `cal-cell ${isOtherMonth ? 'other-month' : ''} ${dateStr === todayStr ? 'today' : ''}`;
-
-  const monthDayStr = dateStr.substring(5);
-  const dayOfWeek = new Date(dateStr).getDay();
-  const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
-  
-  const holidayName = taiwanHolidayMap[monthDayStr] || null;
-  const isHoliday = !!holidayName;
-
-  if (isHoliday || isWeekend) cell.classList.add("holiday");
-
-  let holidayBadgeHtml = holidayName ? `<span class="cal-holiday-tag" title="${holidayName}">${holidayName}</span>` : '';
-  let html = `<div style="display:flex; align-items:center;"><div class="cal-date-num">${dayNum}</div>${holidayBadgeHtml}</div>`;
-
-  const dayTodos = userTodos.filter(t => t.date === dateStr);
-  if (dayTodos.length > 0) {
-    html += `<div class="cal-todo-preview-list">`;
-    dayTodos.slice(0, 3).forEach(todo => {
-      const isDone = todo.isCompleted ? 'completed' : '';
-      html += `<div class="cal-todo-pill ${isDone}" style="color:${todo.color || '#0f172a'};">${todo.title}</div>`;
-    });
-    if (dayTodos.length > 3) {
-      html += `<div style="font-size:10px; color:var(--text-muted); text-align:right;">+${dayTodos.length - 3} 則...</div>`;
+    for (let i = firstDayIndex - 1; i >= 0; i--) {
+      const dNum = prevMonthLastDate - i;
+      const prevM = calCurrentMonth === 0 ? 12 : calCurrentMonth;
+      const prevY = calCurrentMonth === 0 ? calCurrentYear - 1 : calCurrentYear;
+      const dStr = `${prevY}-${String(prevM).padStart(2, '0')}-${String(dNum).padStart(2, '0')}`;
+      grid.appendChild(window.createCalCellNode(dNum, dStr, true, todayStr, myCalendarTodos));
     }
-    html += `</div>`;
+    for (let d = 1; d <= lastDate; d++) {
+      const dStr = `${calCurrentYear}-${String(calCurrentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      grid.appendChild(window.createCalCellNode(d, dStr, false, todayStr, myCalendarTodos));
+    }
+    const totalCells = firstDayIndex + lastDate;
+    const remaining = (7 - (totalCells % 7)) % 7;
+    for (let n = 1; n <= remaining; n++) {
+      const nextM = calCurrentMonth === 11 ? 1 : calCurrentMonth + 2;
+      const nextY = calCurrentMonth === 11 ? calCurrentYear + 1 : calCurrentYear;
+      const dStr = `${nextY}-${String(nextM).padStart(2, '0')}-${String(n).padStart(2, '0')}`;
+      grid.appendChild(window.createCalCellNode(n, dStr, true, todayStr, myCalendarTodos));
+    }
+  },
+  createCalCellNode: (dayNum, dateStr, isOtherMonth, todayStr, userTodos) => {
+    const cell = document.createElement("div");
+    cell.className = `cal-cell ${isOtherMonth ? 'other-month' : ''} ${dateStr === todayStr ? 'today' : ''}`;
+    const monthDayStr = dateStr.substring(5);
+    const dayOfWeek = new Date(dateStr).getDay();
+    const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+    const holidayName = taiwanHolidayMap[monthDayStr] || null;
+    if (!!holidayName || isWeekend) cell.classList.add("holiday");
+
+    let html = `<div style="display:flex; align-items:center;"><div class="cal-date-num">${dayNum}</div>${holidayName ? `<span class="cal-holiday-tag" title="${holidayName}">${holidayName}</span>` : ''}</div>`;
+    const dayTodos = userTodos.filter(t => t.date === dateStr);
+    if (dayTodos.length > 0) {
+      html += `<div class="cal-todo-preview-list">`;
+      dayTodos.slice(0, 3).forEach(todo => {
+        html += `<div class="cal-todo-pill ${todo.isCompleted ? 'completed' : ''}" style="color:${todo.color || '#0f172a'};">${todo.title}</div>`;
+      });
+      if (dayTodos.length > 3) html += `<div style="font-size:10px; color:var(--text-muted); text-align:right;">+${dayTodos.length - 3} 則...</div>`;
+      html += `</div>`;
+    }
+    cell.innerHTML = html;
+    cell.onclick = () => window.openCalDateModal(dateStr);
+    return cell;
   }
-
-  cell.innerHTML = html;
-  cell.onclick = () => window.openCalDateModal(dateStr);
-  return cell;
-};
-
-window.renderCalTodosModal = (dateStr) => {
-  const myUid = auth.currentUser?.uid;
-  const dayTodos = myCalendarTodos.filter(t => t.date === dateStr && t.ownerId === myUid);
-  const uncompletedList = document.getElementById("cal-uncompleted-list");
-  const completedList = document.getElementById("cal-completed-list");
-  if (!uncompletedList || !completedList) return;
-
-  uncompletedList.innerHTML = "";
-  completedList.innerHTML = "";
-
-  const uncompleted = dayTodos.filter(t => !t.isCompleted);
-  const completed = dayTodos.filter(t => t.isCompleted);
-
-  const uc = document.getElementById("cal-uncompleted-count");
-  if(uc) uc.innerText = uncompleted.length;
-  const cc = document.getElementById("cal-completed-count");
-  if(cc) cc.innerText = completed.length;
-
-  if (uncompleted.length === 0) {
-    uncompletedList.innerHTML = `<div style="font-size:12px; color:var(--text-muted); padding:8px 0;">尚無未完成事項</div>`;
-  } else {
-    uncompleted.forEach(todo => {
-      const div = document.createElement("div"); div.className = "cal-todo-item";
-      div.innerHTML = `<label style="display:flex; align-items:center; gap:8px; cursor:pointer; flex:1;"><input type="checkbox" onchange="window.toggleCalTodoStatus('${todo.id}', true)"><span style="color:${todo.color || '#0f172a'}; font-weight:600;">${todo.title}</span></label><button class="btn-close" style="font-size:18px; color:var(--text-muted);" onclick="window.deleteCalendarTodo('${todo.id}')">×</button>`;
-      uncompletedList.appendChild(div);
-    });
-  }
-
-  if (completed.length === 0) {
-    completedList.innerHTML = `<div style="font-size:12px; color:var(--text-muted); padding:8px 0;">尚無已完成事項</div>`;
-  } else {
-    completed.forEach(todo => {
-      const div = document.createElement("div"); div.className = "cal-todo-item done";
-      div.innerHTML = `<label style="display:flex; align-items:center; gap:8px; cursor:pointer; flex:1;"><input type="checkbox" checked onchange="window.toggleCalTodoStatus('${todo.id}', false)"><span style="color:${todo.color || '#0f172a'};">${todo.title}</span></label><button class="btn-close" style="font-size:18px; color:var(--text-muted);" onclick="window.deleteCalendarTodo('${todo.id}')">×</button>`;
-      completedList.appendChild(div);
-    });
-  }
-  completedList.style.display = showCompletedTodos ? "flex" : "none";
-};
-
-// ============================================================================
-// 模版編輯區與輔助方法
-// ============================================================================
-window.isWeeklyReportEditable = (w) => {
-  if (w.supervisorNoted || w.topManagerNoted) return false;
-  if (!w.createdAt) return true;
-  const createdTime = w.createdAt.toMillis ? w.createdAt.toMillis() : Date.now();
-  const diffDays = (Date.now() - createdTime) / (1000 * 60 * 60 * 24);
-  return diffDays <= 2;
-};
-
-window.refreshAllWeeklyProjSelects = () => {
-  const selects = document.querySelectorAll('.weekly-proj-select');
-  selects.forEach(sel => { 
-    const currentVal = sel.value; 
-    window.populateWeeklyProjSelect(sel); 
-    sel.value = currentVal; 
-  });
-};
-
-window.initCalendarSelectors = () => {
-  const ySel = document.getElementById("cal-year-select");
-  const mSel = document.getElementById("cal-month-select");
-  if (!ySel || !mSel) return;
-
-  ySel.innerHTML = "";
-  const currentY = new Date().getFullYear();
-  for (let y = currentY - 5; y <= currentY + 5; y++) {
-    ySel.innerHTML += `<option value="${y}" ${y === calCurrentYear ? 'selected' : ''}>${y} 年</option>`;
-  }
-
-  mSel.innerHTML = "";
-  for (let m = 0; m < 12; m++) {
-    mSel.innerHTML += `<option value="${m}" ${m === calCurrentMonth ? 'selected' : ''}>${m + 1} 月</option>`;
-  }
-};
-
-window.onCalSelectChange = () => {
-  calCurrentYear = parseInt(document.getElementById("cal-year-select").value);
-  calCurrentMonth = parseInt(document.getElementById("cal-month-select").value);
-  window.renderCalendar();
-};
-
-window.changeCalMonth = (delta) => {
-  calCurrentMonth += delta;
-  if (calCurrentMonth > 11) {
-    calCurrentMonth = 0;
-    calCurrentYear++;
-  } else if (calCurrentMonth < 0) {
-    calCurrentMonth = 11;
-    calCurrentYear--;
-  }
-  window.initCalendarSelectors();
-  window.renderCalendar();
-};
-
-window.jumpCalToday = () => {
-  const today = new Date();
-  calCurrentYear = today.getFullYear();
-  calCurrentMonth = today.getMonth();
-  window.initCalendarSelectors();
-  window.renderCalendar();
-};
-
-window.switchOrgView = (viewType) => {
-  const chartContainer = document.getElementById("org-chart-view-container");
-  const tableContainer = document.getElementById("org-table-view-container");
-  const btnChart = document.getElementById("btn-view-org-chart");
-  const btnTable = document.getElementById("btn-view-org-table");
-
-  if (!chartContainer || !tableContainer) return;
-
-  if (viewType === 'chart') {
-    chartContainer.style.display = "block";
-    tableContainer.style.display = "none";
-    if (btnChart) btnChart.classList.add("active");
-    if (btnTable) btnTable.classList.remove("active");
-    window.renderOrgChart();
-  } else {
-    chartContainer.style.display = "none";
-    tableContainer.style.display = "block";
-    if (btnTable) btnTable.classList.add("active");
-    if (btnChart) btnChart.classList.remove("active");
-  }
-};
-
-window.toggleCompletedTodosView = () => {
-  showCompletedTodos = !showCompletedTodos;
-  const cl = document.getElementById("cal-completed-list");
-  if(cl) cl.style.display = showCompletedTodos ? "flex" : "none";
-  const tc = document.getElementById("cal-toggle-completed-text");
-  if(tc) tc.innerText = showCompletedTodos ? "隱藏 ▲" : "展開 ▼";
-};
+});
