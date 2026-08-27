@@ -119,12 +119,23 @@ function initDynamicUI() {
         box-shadow: 0 10px 25px rgba(0,0,0,0.2);
     }
     
+    /* 字體控制器的樣式 */
+    .hide-on-mobile { display: flex !important; }
+    .font-btn { transition: 0.2s; }
+    .font-btn.active { background: #4f46e5 !important; color: #fff !important; border-color: #4f46e5 !important; }
+
+    @media (min-width: 769px) {
+      body.font-md { zoom: 1.5; }
+      body.font-lg { zoom: 2.0; }
+    }
+    
     @media (max-width: 768px) {
       .kpi-row { grid-template-columns: repeat(5, 1fr) !important; gap: 4px !important; }
       .kpi-title { font-size: 10px !important; }
       .kpi-card { padding: 6px 4px !important; }
       .gantt-left-panel { flex: 0 0 100% !important; max-width: 100% !important; }
       .gantt-right-panel { display: none !important; }
+      .hide-on-mobile { display: none !important; }
     }
   `;
   document.head.appendChild(style);
@@ -158,6 +169,51 @@ function initDynamicUI() {
 }
 initDynamicUI();
 
+// 獨立的字體控制 UI 生成函式
+window.injectFontSizeUI = () => {
+  if (document.getElementById('font-size-control-container')) return;
+  const userNameEl = document.getElementById('user-display-name');
+  if (!userNameEl) return;
+  
+  // 找出放置使用者資訊的最外層容器
+  const userProfileWrapper = userNameEl.closest('div[style*="flex"]') || userNameEl.parentElement;
+
+  const div = document.createElement('div');
+  div.id = 'font-size-control-container';
+  div.className = 'hide-on-mobile';
+  div.style.cssText = "align-items:center; gap:4px; margin-right: 15px; background: #e0e7ff; padding: 4px 8px; border-radius: 6px; border: 1px solid #c7d2fe;";
+  div.innerHTML = `
+    <span style="font-size:12px; font-weight:bold; color:#3730a3; margin-right:4px;">字體</span>
+    <button id="btn-font-sm" class="action-btn font-btn active" style="padding:2px 8px; font-size:12px; border-color:#a5b4fc;" onclick="setGlobalFontSize('sm')">小</button>
+    <button id="btn-font-md" class="action-btn font-btn" style="padding:2px 8px; font-size:12px; border-color:#a5b4fc;" onclick="setGlobalFontSize('md')">中</button>
+    <button id="btn-font-lg" class="action-btn font-btn" style="padding:2px 8px; font-size:12px; border-color:#a5b4fc;" onclick="setGlobalFontSize('lg')">大</button>
+  `;
+  
+  userProfileWrapper.parentNode.insertBefore(div, userProfileWrapper);
+
+  // 載入上次選擇的字體大小
+  const savedSize = localStorage.getItem('desktop-font-size') || 'sm';
+  window.setGlobalFontSize(savedSize);
+};
+
+// 切換全域字體大小 (支援 localStorage 記憶)
+window.setGlobalFontSize = (size) => {
+  document.body.classList.remove('font-md', 'font-lg');
+  document.querySelectorAll('.font-btn').forEach(btn => btn.classList.remove('active'));
+  
+  if (size === 'md') {
+    document.body.classList.add('font-md');
+    document.getElementById('btn-font-md')?.classList.add('active');
+  } else if (size === 'lg') {
+    document.body.classList.add('font-lg');
+    document.getElementById('btn-font-lg')?.classList.add('active');
+  } else {
+    document.getElementById('btn-font-sm')?.classList.add('active');
+    size = 'sm';
+  }
+  localStorage.setItem('desktop-font-size', size);
+};
+
 function initTemplateUI() {
   let container = document.getElementById('template-selector-container');
   const taskContainer = document.getElementById("task-list-container");
@@ -174,6 +230,7 @@ function initTemplateUI() {
     if (!window.hasInitTemplateSnapshot && auth.currentUser) {
       window.hasInitTemplateSnapshot = true;
       try {
+        // 改為依據個人的 uid 讀取獨立的模板資料
         onSnapshot(doc(db, "user_templates", auth.currentUser.uid), (docSnap) => {
           if(docSnap.exists()) {
             projectTemplates = docSnap.data().templates || projectTemplates;
@@ -585,6 +642,9 @@ onAuthStateChanged(auth, async (user) => {
     loadWeeklyReports();
     loadMyCalendarTodos(user.uid);
     initTemplateUI();
+    
+    // 初始化字體大小設定 UI
+    window.injectFontSizeUI();
   } else {
     document.getElementById("auth-section").style.display = "flex"; 
     document.getElementById("app-section").style.display = "none";
@@ -1675,7 +1735,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     tasks: tasks, createdAt: serverTimestamp() 
   });
 
-  alert("🎉 新專案已成功建立！");
+  alert("🎉 新專案已成功建立！開放 7 日自由編輯期。");
 
   document.getElementById("proj-name").value = ""; 
   document.getElementById("task-list-container").innerHTML = ""; 
