@@ -89,9 +89,23 @@ function initDynamicUI() {
   
   const style = document.createElement('style');
   style.innerHTML = `
+    :root {
+      --font-scale: 1;
+    }
+    body.font-md { --font-scale: 1.2; }
+    body.font-lg { --font-scale: 1.5; }
+
+    /* 全域字體縮放覆蓋 */
+    body, input, select, textarea, button, .input-control, td, th {
+      font-size: calc(14px * var(--font-scale, 1));
+    }
+    .gantt .bar-label, .gantt .lower-text, .gantt .upper-text {
+      font-size: calc(12px * var(--font-scale, 1)) !important;
+    }
+    
     .kpi-card { padding: 8px 12px !important; min-height: unset !important; }
-    .kpi-title { font-size: 11.5px !important; margin-bottom: 2px !important; }
-    .kpi-number { font-size: 18px !important; }
+    .kpi-title { font-size: calc(11.5px * var(--font-scale, 1)) !important; margin-bottom: 2px !important; }
+    .kpi-number { font-size: calc(18px * var(--font-scale, 1)) !important; }
     .col-sum-name.clickable { cursor: pointer; text-decoration: none; transition: 0.2s; }
     .col-sum-name.clickable:hover { opacity: 0.7; }
     
@@ -118,18 +132,14 @@ function initDynamicUI() {
         padding: 20px !important;
         box-shadow: 0 10px 25px rgba(0,0,0,0.2);
     }
-
+    
     /* 字體控制器的樣式 */
     .hide-on-mobile { display: flex !important; }
     .font-btn { transition: 0.2s; }
     .font-btn.active { background: #4f46e5 !important; color: #fff !important; border-color: #4f46e5 !important; }
-
-    @media (min-width: 769px) {
-      body.font-md { zoom: 1.2; }
-      body.font-lg { zoom: 1.5; }
-    }
     
     @media (max-width: 768px) {
+      :root { --font-scale: 1 !important; } /* 手機版固定為預設比例 */
       .kpi-row { grid-template-columns: repeat(5, 1fr) !important; gap: 4px !important; }
       .kpi-title { font-size: 10px !important; }
       .kpi-card { padding: 6px 4px !important; }
@@ -169,7 +179,7 @@ function initDynamicUI() {
 }
 initDynamicUI();
 
-// 獨立的字體控制 UI 生成函式 (精準插入到頭像/名字最左側)
+// 獨立的字體控制 UI 生成函式 (加入至頭像最左側)
 window.injectFontSizeUI = () => {
   if (document.getElementById('font-size-control-container')) return;
   
@@ -182,13 +192,13 @@ window.injectFontSizeUI = () => {
   div.className = 'hide-on-mobile';
   div.style.cssText = "display:flex; align-items:center; gap:4px; margin-right: 12px; background: #e0e7ff; padding: 4px 8px; border-radius: 6px; border: 1px solid #c7d2fe; height: 32px;";
   div.innerHTML = `
-    <span style="font-size:12px; font-weight:bold; color:#3730a3; margin-right:4px;">字體</span>
-    <button id="btn-font-sm" class="action-btn font-btn active" style="padding:2px 8px; font-size:12px; border-color:#a5b4fc;" onclick="setGlobalFontSize('sm')">小</button>
-    <button id="btn-font-md" class="action-btn font-btn" style="padding:2px 8px; font-size:12px; border-color:#a5b4fc;" onclick="setGlobalFontSize('md')">中</button>
-    <button id="btn-font-lg" class="action-btn font-btn" style="padding:2px 8px; font-size:12px; border-color:#a5b4fc;" onclick="setGlobalFontSize('lg')">大</button>
+    <span style="font-size:calc(12px * var(--font-scale, 1)); font-weight:bold; color:#3730a3; margin-right:4px;">字體</span>
+    <button id="btn-font-sm" class="action-btn font-btn active" style="padding:2px 8px; font-size:calc(12px * var(--font-scale, 1)); border-color:#a5b4fc;" onclick="setGlobalFontSize('sm')">小</button>
+    <button id="btn-font-md" class="action-btn font-btn" style="padding:2px 8px; font-size:calc(12px * var(--font-scale, 1)); border-color:#a5b4fc;" onclick="setGlobalFontSize('md')">中</button>
+    <button id="btn-font-lg" class="action-btn font-btn" style="padding:2px 8px; font-size:calc(12px * var(--font-scale, 1)); border-color:#a5b4fc;" onclick="setGlobalFontSize('lg')">大</button>
   `;
   
-  // 將控制面板強制排在頭像的最左側
+  // 將控制面板放在最左側
   if (avatarEl && avatarEl.parentNode) {
      avatarEl.parentNode.style.display = 'flex';
      avatarEl.parentNode.style.alignItems = 'center';
@@ -238,6 +248,7 @@ function initTemplateUI() {
     if (!window.hasInitTemplateSnapshot && auth.currentUser) {
       window.hasInitTemplateSnapshot = true;
       try {
+        // 改為依據個人的 uid 讀取獨立的模板資料
         onSnapshot(doc(db, "user_templates", auth.currentUser.uid), (docSnap) => {
           if(docSnap.exists()) {
             projectTemplates = docSnap.data().templates || projectTemplates;
@@ -257,25 +268,25 @@ window.renderTemplateUI = () => {
   const container = document.getElementById("template-selector-container");
   if(!container) return;
   
-  let html = `<div style="font-size:14px; font-weight:bold; margin-bottom:10px; color:#312e81;">⭐ 專案模板快速套用 (帶入會清除下方草稿)</div>`;
+  let html = `<div style="font-size:calc(14px * var(--font-scale, 1)); font-weight:bold; margin-bottom:10px; color:#312e81;">⭐ 專案模板快速套用 (帶入會清除下方草稿)</div>`;
   html += `<div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">`;
   
   projectTemplates.forEach((tpl, i) => {
       html += `
       <div style="display:flex; align-items:center; gap:6px; border:1px solid #c7d2fe; padding:6px 10px; border-radius:6px; background:#fff; cursor:pointer;" onclick="document.getElementById('tpl_${i}').checked = true;">
           <input type="radio" name="selected_template" value="${i}" id="tpl_${i}" style="cursor:pointer; transform:scale(1.1); margin:0;">
-          <label for="tpl_${i}" style="cursor:pointer; margin:0; font-size:13px; font-weight:700; color:#3730a3;">${tpl.name}</label>
-          <button type="button" class="action-btn" style="padding:2px 6px; font-size:11px; background:#f1f5f9; color:#475569; border-color:#cbd5e1; margin-left:2px;" onclick="event.stopPropagation(); openTemplateEditor(${i})">✏️</button>
+          <label for="tpl_${i}" style="cursor:pointer; margin:0; font-size:calc(13px * var(--font-scale, 1)); font-weight:700; color:#3730a3;">${tpl.name}</label>
+          <button type="button" class="action-btn" style="padding:2px 6px; font-size:calc(11px * var(--font-scale, 1)); background:#f1f5f9; color:#475569; border-color:#cbd5e1; margin-left:2px;" onclick="event.stopPropagation(); openTemplateEditor(${i})">✏️</button>
       </div>`;
   });
   
   html += `
       <div style="width:2px; height:24px; background:#94a3b8; margin:0 8px; border-radius:2px;"></div>
       <div style="display:flex; gap:12px; align-items:center; background:#fff; padding:6px 12px; border-radius:6px; border:1px solid #e2e8f0;">
-          <label style="cursor:pointer; font-size:13px; font-weight:bold; color:#0f172a; margin:0; display:flex; align-items:center;">
+          <label style="cursor:pointer; font-size:calc(13px * var(--font-scale, 1)); font-weight:bold; color:#0f172a; margin:0; display:flex; align-items:center;">
               <input type="radio" name="template_mode" value="sequential" checked style="margin-right:4px; margin-bottom:0;"> 接續時間
           </label>
-          <label style="cursor:pointer; font-size:13px; font-weight:bold; color:#0f172a; margin:0; display:flex; align-items:center;">
+          <label style="cursor:pointer; font-size:calc(13px * var(--font-scale, 1)); font-weight:bold; color:#0f172a; margin:0; display:flex; align-items:center;">
               <input type="radio" name="template_mode" value="free" style="margin-right:4px; margin-bottom:0;"> 自由時間
           </label>
           <button type="button" class="action-btn" style="background:#4f46e5; color:#fff; border:none; margin-left:4px; font-weight:bold; padding:4px 12px;" onclick="applySelectedTemplate()">✅ 帶入模板</button>
@@ -289,6 +300,7 @@ window.applySelectedTemplate = () => {
   const checked = document.querySelector('input[name="selected_template"]:checked');
   if(!checked) return alert("請先選擇一個模板！");
   
+  // 🛡️ 加入防呆確認視窗
   if(!confirm("⚠️ 確定要帶入此模板嗎？\n注意：這將會清除您目前在下方輸入的所有草稿細項！")) {
     return;
   }
@@ -740,7 +752,7 @@ function loadSidebarSubordinates() {
         membersHtml += `
           <li class="nav-sub-item ${isActive}" id="sub-li-${u.uid}" onclick="switchViewingUser('${u.uid}', '${u.name}')">
             ${u.name || '未命名'} 
-            <small style="color:#94a3b8; font-size:11px; margin-left:4px;">(${roleNames[u.role] || '人員'})</small>
+            <small style="color:#94a3b8; font-size:calc(11px * var(--font-scale, 1)); margin-left:4px;">(${roleNames[u.role] || '人員'})</small>
           </li>
         `;
       });
@@ -953,6 +965,7 @@ window.selectProject = (projId) => {
   renderProjects(); 
 };
 
+// 👉 新版循序解鎖邏輯：
 window.getAvailableTasks = (projId) => {
   const proj = allProjectsData.find(p => p.id === projId);
   if(!proj || !proj.tasks) return [];
@@ -1279,7 +1292,8 @@ function renderProjects() {
         isDone: isDone, 
         hasDelay: hasDelay, 
         isCollab: hasCollab, 
-        custom_class: isDone ? 'bar-success' : (p.color || 'bar-primary')
+        custom_class: isDone ? 'bar-success' : (p.color || 'bar-primary'),
+        ownerName: p.ownerName || '未知'
       });
     });
 
@@ -1299,7 +1313,8 @@ function renderProjects() {
         isDone: evt.isCompleted, 
         hasDelay: hasDelay,
         isCollab: false, 
-        custom_class: 'bar-danger'
+        custom_class: 'bar-danger',
+        ownerName: evt.ownerName || '未知'
       });
     });
 
@@ -1319,13 +1334,13 @@ function renderProjects() {
           ? `<span style="color:#2563eb; font-weight:700;"><span style="color:#2563eb; margin-right:4px;">👥</span>${item.title}</span>`
           : `<span style="color:#0f172a; font-weight:700;">🗂️ ${item.title}</span>`;
           
-        row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')">${titleDisplay}</div><div class="col-sum-date">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-sum-prog">${statusText}</div>`;
+        row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')">${titleDisplay}</div><div class="col-sum-date">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-sum-prog">${statusText}</div><div class="col-owner" style="font-size:calc(12px * var(--font-scale, 1)); color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="開案者：${item.ownerName}">👤 ${item.ownerName}</div>`;
       } else {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
         if (item.hasDelay && !item.isDone) {
             statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
         }
-        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger);" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date">${item.start.substring(5)}</div><div class="col-sum-prog">${statusText}</div>`;
+        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger);" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date">${item.start.substring(5)}</div><div class="col-sum-prog">${statusText}</div><div class="col-owner" style="font-size:calc(12px * var(--font-scale, 1)); color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="建立者：${item.ownerName}">👤 ${item.ownerName}</div>`;
       }
       sumLeftBody.appendChild(row);
     });
@@ -1365,10 +1380,10 @@ function renderProjects() {
   const inGracePeriod = isWithin7DaysGracePeriod(activeProj);
   
   let canEditMainProj = isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod));
-  let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:10px; border-color:var(--warning); color:var(--warning);">✏️ 編輯主資訊</button>` : '';
+  let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:calc(10px * var(--font-scale, 1)); border-color:var(--warning); color:var(--warning);">✏️ 編輯主資訊</button>` : '';
   
   let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#2563eb; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
-  let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="font-size:11px; margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
+  let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="font-size:calc(11px * var(--font-scale, 1)); margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
 
   let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
   let titleDisplayName = `<span style="color:#2563eb; font-weight:700;">${titlePrefixIcon}${activeProj.title}</span>`;
@@ -1435,8 +1450,8 @@ function renderProjects() {
       <div style="display:inline-flex; align-items:center; gap:2px; margin-left:auto; flex-shrink:0;">
         <button type="button" class="btn-sort" onclick="moveActiveProjectTask('${activeProj.id}', ${index}, -1)" title="上移">↑</button>
         <button type="button" class="btn-sort" onclick="moveActiveProjectTask('${activeProj.id}', ${index}, 1)" title="下移">↓</button>
-        <button class="action-btn" onclick="openGeneralEdit('task', '${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px; border-color:var(--warning); color:var(--warning);" title="編輯細項">✏️</button>
-        <button class="action-btn danger" onclick="deleteActiveProjectTask('${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px;" title="刪除此細項">🗑️</button>
+        <button class="action-btn" onclick="openGeneralEdit('task', '${activeProj.id}', ${index})" style="padding:2px 5px; font-size:calc(10px * var(--font-scale, 1)); border-color:var(--warning); color:var(--warning);" title="編輯細項">✏️</button>
+        <button class="action-btn danger" onclick="deleteActiveProjectTask('${activeProj.id}', ${index})" style="padding:2px 5px; font-size:calc(10px * var(--font-scale, 1));" title="刪除此細項">🗑️</button>
       </div>` : '';
 
     const row = document.createElement("div"); 
@@ -1464,15 +1479,15 @@ function renderProjects() {
             else if (h.remark) remarkHtml = `<span style="color: var(--text-muted); white-space:normal; word-wrap:break-word;">${h.remark}</span>`;
             else remarkHtml = `<span style="color: #cbd5e1;">-</span>`;
             const borderStyle = i === sortedHistory.length - 1 ? "" : "border-bottom:1px dashed var(--border-light);";
-            return `<tr style="${borderStyle}"><td style="padding: 10px 14px 10px 0; vertical-align: top; font-size:12px; border-right: 1px solid var(--border-light);"><span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span><br><div style="margin-top:4px;">歷時 <b>${h.daysPassed}</b> 工作天</div></td><td style="padding: 10px 0 10px 14px; vertical-align: top; font-size:12px;">${remarkHtml}</td></tr>`;
+            return `<tr style="${borderStyle}"><td style="padding: 10px 14px 10px 0; vertical-align: top; font-size:calc(12px * var(--font-scale, 1)); border-right: 1px solid var(--border-light);"><span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span><br><div style="margin-top:4px;">歷時 <b>${h.daysPassed}</b> 工作天</div></td><td style="padding: 10px 0 10px 14px; vertical-align: top; font-size:calc(12px * var(--font-scale, 1));">${remarkHtml}</td></tr>`;
           }).join('') + `</tbody></table></div>`;
       } else {
-        historyHtml = `<div style="padding: 12px 0; color:var(--text-muted); font-size: 12px;">尚無紀錄</div>`;
+        historyHtml = `<div style="padding: 12px 0; color:var(--text-muted); font-size: calc(12px * var(--font-scale, 1));">尚無紀錄</div>`;
       }
 
-      const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="font-size:13px; padding:6px 10px;">已完成</span>` : `<span style="font-size:13px; font-weight:bold;">進度: ${task.progress || 0}%</span>`;
+      const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="font-size:calc(13px * var(--font-scale, 1)); padding:6px 10px;">已完成</span>` : `<span style="font-size:calc(13px * var(--font-scale, 1)); font-weight:bold;">進度: ${task.progress || 0}%</span>`;
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td style="vertical-align: top; font-size: 14px;"><strong>${task.name}</strong></td><td style="vertical-align: top;">${taskAssigneeName}</td><td style="vertical-align: top;">${statusHtml}</td><td style="padding: 0 16px; vertical-align: top;">${historyHtml}</td><td style="padding: 0 16px; vertical-align: top;">${task.delayReason ? `<span class="pill pill-danger">Delay: ${task.delayReason}</span>` : '-'}</td>`;
+      tr.innerHTML = `<td style="vertical-align: top; font-size: calc(14px * var(--font-scale, 1));"><strong>${task.name}</strong></td><td style="vertical-align: top;">${taskAssigneeName}</td><td style="vertical-align: top;">${statusHtml}</td><td style="padding: 0 16px; vertical-align: top;">${historyHtml}</td><td style="padding: 0 16px; vertical-align: top;">${task.delayReason ? `<span class="pill pill-danger">Delay: ${task.delayReason}</span>` : '-'}</td>`;
       listBody.appendChild(tr);
     }
   });
@@ -1889,15 +1904,36 @@ window.populateWeeklyProjSelect = (selectElem) => {
   selectElem.innerHTML += `<option value="SPECIAL_OTHER">📌 其他</option>`;
 };
 
+window.onWeeklyTaskSelectChange = (selectElem) => {
+  const row = selectElem.closest('.weekly-item-row');
+  if (!row) return;
+  const projSelect = row.querySelector('.weekly-proj-select');
+  const contentArea = row.querySelector('.weekly-content');
+  
+  if (projSelect.value === 'SPECIAL_ADHOC') {
+     const eventId = selectElem.value;
+     if (eventId) {
+        const evt = allAdHocData.find(e => e.id === eventId);
+        if (evt) {
+           contentArea.value = evt.reason || '';
+        }
+     } else {
+        contentArea.value = '';
+     }
+  }
+};
+
 window.updateWeeklyTaskSelect = (selectElem) => {
+  const row = selectElem.closest('.weekly-item-row');
   const taskSelect = selectElem.parentElement.querySelector('.weekly-task-select');
+  const contentArea = row ? row.querySelector('.weekly-content') : null;
   const projId = selectElem.value;
   
-  // 若選擇「其他」，直接隱藏細項
   if (projId === 'SPECIAL_OTHER') {
      taskSelect.style.display = 'none'; 
      taskSelect.innerHTML = '<option value="">-- 無需細項 --</option>';
      taskSelect.value = '';
+     if (contentArea) contentArea.value = '';
      return;
   }
   
@@ -1909,6 +1945,7 @@ window.updateWeeklyTaskSelect = (selectElem) => {
      availableAdHocs.forEach(evt => {
         taskSelect.innerHTML += `<option value="${evt.id}">${evt.title}</option>`;
      });
+     if (contentArea) contentArea.value = '';
      return;
   }
   
@@ -1923,7 +1960,7 @@ window.addWeeklyRow = () => {
   const div = document.createElement('div'); 
   div.className = "weekly-item-row"; 
   div.style.cssText = "display:flex; gap:16px; margin-bottom:12px; align-items:flex-start; border: 1px solid var(--border-light); padding: 14px; border-radius: 8px; background: #fafafa;";
-  div.innerHTML = `<div style="flex:1; display:flex; flex-direction:column; gap:10px; border-right: 1px dashed var(--border); padding-right:16px;"><select class="input-control weekly-proj-select" onchange="updateWeeklyTaskSelect(this)" style="background:#fff;"></select><select class="input-control weekly-task-select" style="background:#fff;"><option value="">-- 請先選擇主專案 --</option></select></div><div style="flex:2.5;"><textarea class="input-control weekly-content" rows="3" placeholder="請填寫此任務的進度說明..." style="background:#fff;"></textarea></div><button class="action-btn danger" onclick="this.parentElement.remove()" style="padding: 10px; margin-left: 8px;">X</button>`;
+  div.innerHTML = `<div style="flex:1; display:flex; flex-direction:column; gap:10px; border-right: 1px dashed var(--border); padding-right:16px;"><select class="input-control weekly-proj-select" onchange="updateWeeklyTaskSelect(this)" style="background:#fff;"></select><select class="input-control weekly-task-select" onchange="onWeeklyTaskSelectChange(this)" style="background:#fff;"><option value="">-- 請先選擇主專案 --</option></select></div><div style="flex:2.5;"><textarea class="input-control weekly-content" rows="3" placeholder="請填寫此任務的進度說明..." style="background:#fff;"></textarea></div><button class="action-btn danger" onclick="this.parentElement.remove()" style="padding: 10px; margin-left: 8px;">X</button>`;
   container.appendChild(div); 
   populateWeeklyProjSelect(div.querySelector('.weekly-proj-select'));
 };
@@ -2121,8 +2158,8 @@ window.openWeeklyModal = (id) => {
   if(!report) return;
   
   let leaveTag = '';
-  if (report.leaveType === 'leave') leaveTag = `<span class="pill pill-danger" style="margin-left:12px; font-size:12px;">📌 原因：請假</span>`;
-  else if (report.leaveType === 'other') leaveTag = `<span class="pill pill-warning" style="margin-left:12px; font-size:12px;">📌 原因：${report.leaveReason}</span>`;
+  if (report.leaveType === 'leave') leaveTag = `<span class="pill pill-danger" style="margin-left:12px; font-size:calc(12px * var(--font-scale, 1));">📌 原因：請假</span>`;
+  else if (report.leaveType === 'other') leaveTag = `<span class="pill pill-warning" style="margin-left:12px; font-size:calc(12px * var(--font-scale, 1));">📌 原因：${report.leaveReason}</span>`;
 
   const days = ['日', '一', '二', '三', '四', '五', '六'];
   let fillTimeStr = '-';
@@ -2140,18 +2177,18 @@ window.openWeeklyModal = (id) => {
     fillTimeStr = `${yyyy}/${mm}/${dd} ${ampm}${hours}:${minutes}:${seconds} (${days[d.getDay()]})`;
   }
 
-  let contentHtml = `<div style="margin-bottom:16px;"><div style="font-size:16px; font-weight:bold; margin-bottom:4px;">${report.ownerName} 的工作週報</div><div style="font-size:13px; color:var(--text-muted); display:flex; align-items:center;">填寫時間：${fillTimeStr} ${leaveTag}</div></div>`;
+  let contentHtml = `<div style="margin-bottom:16px;"><div style="font-size:calc(16px * var(--font-scale, 1)); font-weight:bold; margin-bottom:4px;">${report.ownerName} 的工作週報</div><div style="font-size:calc(13px * var(--font-scale, 1)); color:var(--text-muted); display:flex; align-items:center;">填寫時間：${fillTimeStr} ${leaveTag}</div></div>`;
   
   if (report.items && report.items.length > 0) {
     report.items.forEach((item, i) => { 
       let icon = item.projectId === 'SPECIAL_ADHOC' ? '📝' : (item.projectId === 'SPECIAL_OTHER' ? '📌' : '🗂️');
       let taskHtml = item.taskName ? `<div style="word-break: break-all;">📌 ${item.taskName}</div>` : '';
-      contentHtml += `<div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;"><div style="flex:1; font-size:13px; font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px;"><div style="margin-bottom:6px; word-break: break-all;">${icon} ${item.projectName}</div>${taskHtml}</div><div style="flex:2.5; font-size:13px; white-space:pre-wrap; line-height:1.6; padding-left:4px;">${item.content}</div></div>`; 
+      contentHtml += `<div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;"><div style="flex:1; font-size:calc(13px * var(--font-scale, 1)); font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px;"><div style="margin-bottom:6px; word-break: break-all;">${icon} ${item.projectName}</div>${taskHtml}</div><div style="flex:2.5; font-size:calc(13px * var(--font-scale, 1)); white-space:pre-wrap; line-height:1.6; padding-left:4px;">${item.content}</div></div>`; 
     });
   } else if (report.content) {
-    contentHtml += `<div style="padding: 12px; font-size:13px; white-space:pre-wrap; background: #f8fafc; border-radius: 8px; line-height:1.6;">${report.content}</div>`;
+    contentHtml += `<div style="padding: 12px; font-size:calc(13px * var(--font-scale, 1)); white-space:pre-wrap; background: #f8fafc; border-radius: 8px; line-height:1.6;">${report.content}</div>`;
   } else {
-    contentHtml += `<div style="padding: 16px; font-size:13px; color:var(--text-muted); background: #f8fafc; border-radius: 8px; text-align:center;">(本日無填寫專案進度)</div>`;
+    contentHtml += `<div style="padding: 16px; font-size:calc(13px * var(--font-scale, 1)); color:var(--text-muted); background: #f8fafc; border-radius: 8px; text-align:center;">(本日無填寫專案進度)</div>`;
   }
   
   document.getElementById('weekly-detail-content').innerHTML = contentHtml;
@@ -2297,7 +2334,7 @@ function createCalCellNode(dayNum, dateStr, isOtherMonth, todayStr, userTodos) {
       html += `<div class="cal-todo-pill ${isDone}" style="color:${todo.color || '#0f172a'};">${todo.title}</div>`;
     });
     if (dayTodos.length > 3) {
-      html += `<div style="font-size:10px; color:var(--text-muted); text-align:right;">+${dayTodos.length - 3} 則...</div>`;
+      html += `<div style="font-size:calc(10px * var(--font-scale, 1)); color:var(--text-muted); text-align:right;">+${dayTodos.length - 3} 則...</div>`;
     }
     html += `</div>`;
   }
@@ -2374,7 +2411,7 @@ function renderCalTodosModal(dateStr) {
   document.getElementById("cal-completed-count").innerText = completed.length;
 
   if (uncompleted.length === 0) {
-    uncompletedList.innerHTML = `<div style="font-size:12px; color:var(--text-muted); padding:8px 0;">尚無未完成事項</div>`;
+    uncompletedList.innerHTML = `<div style="font-size:calc(12px * var(--font-scale, 1)); color:var(--text-muted); padding:8px 0;">尚無未完成事項</div>`;
   } else {
     uncompleted.forEach(todo => {
       const div = document.createElement("div");
@@ -2384,14 +2421,14 @@ function renderCalTodosModal(dateStr) {
           <input type="checkbox" onchange="toggleCalTodoStatus('${todo.id}', true)">
           <span style="color:${todo.color || '#0f172a'}; font-weight:600;">${todo.title}</span>
         </label>
-        <button class="btn-close" style="font-size:18px; color:var(--text-muted);" onclick="deleteCalendarTodo('${todo.id}')">×</button>
+        <button class="btn-close" style="font-size:calc(18px * var(--font-scale, 1)); color:var(--text-muted);" onclick="deleteCalendarTodo('${todo.id}')">×</button>
       `;
       uncompletedList.appendChild(div);
     });
   }
 
   if (completed.length === 0) {
-    completedList.innerHTML = `<div style="font-size:12px; color:var(--text-muted); padding:8px 0;">尚無已完成事項</div>`;
+    completedList.innerHTML = `<div style="font-size:calc(12px * var(--font-scale, 1)); color:var(--text-muted); padding:8px 0;">尚無已完成事項</div>`;
   } else {
     completed.forEach(todo => {
       const div = document.createElement("div");
@@ -2401,7 +2438,7 @@ function renderCalTodosModal(dateStr) {
           <input type="checkbox" checked onchange="toggleCalTodoStatus('${todo.id}', false)">
           <span style="color:${todo.color || '#0f172a'};">${todo.title}</span>
         </label>
-        <button class="btn-close" style="font-size:18px; color:var(--text-muted);" onclick="deleteCalendarTodo('${todo.id}')">×</button>
+        <button class="btn-close" style="font-size:calc(18px * var(--font-scale, 1)); color:var(--text-muted);" onclick="deleteCalendarTodo('${todo.id}')">×</button>
       `;
       completedList.appendChild(div);
     });
@@ -2507,10 +2544,10 @@ function renderOrgChart() {
     deptBlock.innerHTML = `
       <div class="org-dept-header">
         <div class="org-dept-title">
-          <span style="font-size:16px;">🏢</span>
+          <span style="font-size:calc(16px * var(--font-scale, 1));">🏢</span>
           <span>${dept}</span>
         </div>
-        <span style="font-size:12px; font-weight:600; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:12px;">共 ${deptUsers.length} 人</span>
+        <span style="font-size:calc(12px * var(--font-scale, 1)); font-weight:600; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:12px;">共 ${deptUsers.length} 人</span>
       </div>
       <div class="org-hierarchy-grid">
         ${tierHtml}
@@ -2647,15 +2684,15 @@ window.openGeneralEdit = (type, id, extra) => {
           <div class="form-group" style="padding:12px; background:#f8fafc; border:1px solid var(--border); border-radius:8px; margin-bottom:0;">
             <div class="form-row" style="margin-bottom:8px;">
               <div class="form-group" style="flex:1; margin-bottom:0;">
-                <label class="form-label" style="font-size:12px;">主專案 / 類別</label>
-                <select id="edit-weekly-proj-${idx}" class="input-control" style="font-size:12px; padding:6px 8px;" onchange="onEditWeeklyProjChange(${idx})">${projOptions}</select>
+                <label class="form-label" style="font-size:calc(12px * var(--font-scale, 1));">主專案 / 類別</label>
+                <select id="edit-weekly-proj-${idx}" class="input-control" style="font-size:calc(12px * var(--font-scale, 1)); padding:6px 8px;" onchange="onEditWeeklyProjChange(${idx})">${projOptions}</select>
               </div>
               <div class="form-group" style="flex:1; margin-bottom:0;">
-                <select id="edit-weekly-task-${idx}" class="input-control" style="font-size:12px; padding:6px 8px; margin-top:20px; display:${taskDisplay};">${taskOptions}</select>
+                <select id="edit-weekly-task-${idx}" class="input-control" style="font-size:calc(12px * var(--font-scale, 1)); padding:6px 8px; margin-top:20px; display:${taskDisplay};" onchange="onEditWeeklyTaskChange(${idx})">${taskOptions}</select>
               </div>
             </div>
-            <label class="form-label" style="font-size:12px;">進度說明</label>
-            <textarea id="edit-val-item-${idx}" class="input-control" rows="3" style="font-size:13px;">${item.content}</textarea>
+            <label class="form-label" style="font-size:calc(12px * var(--font-scale, 1));">進度說明</label>
+            <textarea id="edit-val-item-${idx}" class="input-control" rows="3" style="font-size:calc(13px * var(--font-scale, 1));">${item.content}</textarea>
           </div>
         `;
       });
@@ -2678,6 +2715,25 @@ window.openGeneralEdit = (type, id, extra) => {
     }
   }
   modal.classList.add("active");
+};
+
+// 編輯視窗中，當選擇任務下拉選單時，自動帶入事件說明
+window.onEditWeeklyTaskChange = (idx) => {
+  const pSel = document.getElementById(`edit-weekly-proj-${idx}`);
+  const tSel = document.getElementById(`edit-weekly-task-${idx}`);
+  const contentArea = document.getElementById(`edit-val-item-${idx}`);
+  
+  if (pSel && pSel.value === 'SPECIAL_ADHOC') {
+     const eventId = tSel.value;
+     if (eventId) {
+        const evt = allAdHocData.find(e => e.id === eventId);
+        if (evt && contentArea) {
+           contentArea.value = evt.reason || '';
+        }
+     } else if (contentArea) {
+        contentArea.value = '';
+     }
+  }
 };
 
 window.openTemplateEditor = (index) => {
@@ -2743,12 +2799,14 @@ window.createTemplateTaskRow = (name, start, days, end) => {
 window.onEditWeeklyProjChange = (idx) => {
   const pSel = document.getElementById(`edit-weekly-proj-${idx}`);
   const tSel = document.getElementById(`edit-weekly-task-${idx}`);
+  const contentArea = document.getElementById(`edit-val-item-${idx}`);
   if (!pSel || !tSel) return;
   
   if (pSel.value === 'SPECIAL_OTHER') {
      tSel.style.display = 'none';
      tSel.innerHTML = '<option value="">-- 無需細項 --</option>';
      tSel.value = '';
+     if (contentArea) contentArea.value = '';
      return;
   }
   
@@ -2760,6 +2818,7 @@ window.onEditWeeklyProjChange = (idx) => {
      availableAdHocs.forEach(evt => {
         tSel.innerHTML += `<option value="${evt.id}">${evt.title}</option>`;
      });
+     if (contentArea) contentArea.value = '';
      return;
   }
   
@@ -2946,7 +3005,7 @@ function loadOrgUsers() {
         <td style="text-align: center;">
           <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer;">
             <input type="checkbox" onchange="toggleUserEditPermission('${u.uid}', this.checked)" ${u.canEdit ? 'checked' : ''} ${currentUserData.role === 'admin' ? '' : 'disabled'}>
-            <span style="font-size:12px;">開放</span>
+            <span style="font-size:calc(12px * var(--font-scale, 1));">開放</span>
           </label>
         </td>
         <td><strong>${u.name || '未命名'}</strong></td>
