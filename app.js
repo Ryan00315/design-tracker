@@ -171,10 +171,11 @@ function initTemplateUI() {
 
   if (container) {
     renderTemplateUI();
-    if (!window.hasInitTemplateSnapshot) {
+    if (!window.hasInitTemplateSnapshot && auth.currentUser) {
       window.hasInitTemplateSnapshot = true;
       try {
-        onSnapshot(doc(db, "settings", "project_templates"), (docSnap) => {
+        // 改為依據個人的 uid 讀取獨立的模板資料
+        onSnapshot(doc(db, "user_templates", auth.currentUser.uid), (docSnap) => {
           if(docSnap.exists()) {
             projectTemplates = docSnap.data().templates || projectTemplates;
           }
@@ -214,7 +215,7 @@ window.renderTemplateUI = () => {
           <label style="cursor:pointer; font-size:13px; font-weight:bold; color:#0f172a; margin:0; display:flex; align-items:center;">
               <input type="radio" name="template_mode" value="free" style="margin-right:4px; margin-bottom:0;"> 自由時間
           </label>
-          <button type="button" class="action-btn" style="background:#4f46e5; color:#fff; border:none; margin-left:4px; font-weight:bold; padding:4px 12px;" onclick="applySelectedTemplate()">✅ 確認帶入模板</button>
+          <button type="button" class="action-btn" style="background:#4f46e5; color:#fff; border:none; margin-left:4px; font-weight:bold; padding:4px 12px;" onclick="applySelectedTemplate()">✅ 帶入模板</button>
       </div>
   </div>`;
   
@@ -1669,7 +1670,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     tasks: tasks, createdAt: serverTimestamp() 
   });
 
-  alert("🎉 新專案已成功建立！您享有 7 天免解鎖自由編輯期。");
+  alert("🎉 新專案已成功建立！開放 7 日自由編輯期。");
 
   document.getElementById("proj-name").value = ""; 
   document.getElementById("task-list-container").innerHTML = ""; 
@@ -1825,6 +1826,7 @@ window.updateWeeklyTaskSelect = (selectElem) => {
   const taskSelect = selectElem.parentElement.querySelector('.weekly-task-select');
   const projId = selectElem.value;
   
+  // 若選擇「其他」，直接隱藏細項
   if (projId === 'SPECIAL_OTHER') {
      taskSelect.style.display = 'none'; 
      taskSelect.innerHTML = '<option value="">-- 無需細項 --</option>';
@@ -1834,6 +1836,7 @@ window.updateWeeklyTaskSelect = (selectElem) => {
   
   taskSelect.style.display = 'block'; 
   
+  // 若選擇「事件紀錄」，拉取所有符合條件的事件紀錄
   if (projId === 'SPECIAL_ADHOC') {
      taskSelect.innerHTML = '<option value="">-- 請選擇事件紀錄 --</option>';
      const availableAdHocs = window.getAvailableAdHocEvents();
@@ -1842,7 +1845,8 @@ window.updateWeeklyTaskSelect = (selectElem) => {
      });
      return;
   }
-  
+
+  // 其他情況就是一般專案
   taskSelect.innerHTML = '<option value="">-- 請選擇細項 --</option>';
   if(!projId) return;
   const availableTasks = window.getAvailableTasks(projId);
@@ -2553,13 +2557,25 @@ window.openGeneralEdit = (type, id, extra) => {
         let taskOptions = `<option value="">-- 請選擇細項 --</option>`;
         
         let taskDisplay = 'block';
-        if (item.projectId === 'SPECIAL_ADHOC' || item.projectId === 'SPECIAL_OTHER') {
+        if (item.projectId === 'SPECIAL_OTHER') {
           taskOptions = `<option value="">-- 無需細項 --</option>`;
           taskDisplay = 'none';
-        } else if (activeProj && activeProj.tasks) {
-          activeProj.tasks.forEach((t, tIdx) => {
-            taskOptions += `<option value="${tIdx}" ${String(tIdx) === String(item.taskId) ? 'selected' : ''}>${t.name}</option>`;
+        } else if (item.projectId === 'SPECIAL_ADHOC') {
+          const myAdHocs = window.getAvailableAdHocEvents();
+          const currentAdHoc = allAdHocData.find(a => a.id === item.taskId);
+          if (currentAdHoc && !myAdHocs.find(a => a.id === currentAdHoc.id)) {
+             myAdHocs.push(currentAdHoc); 
+          }
+          myAdHocs.forEach(a => {
+            taskOptions += `<option value="${a.id}" ${a.id === item.taskId ? 'selected' : ''}>${a.title}</option>`;
           });
+        } else {
+          // 一般專案細項：編輯狀態顯示當前可選細項
+          if (activeProj && activeProj.tasks) {
+            activeProj.tasks.forEach((t, tIdx) => {
+              taskOptions += `<option value="${tIdx}" ${String(tIdx) === String(item.taskId) ? 'selected' : ''}>${t.name}</option>`;
+            });
+          }
         }
 
         html += `
@@ -2592,8 +2608,8 @@ window.openGeneralEdit = (type, id, extra) => {
       modalBox.style.width = "90vw";
       modalBox.style.maxWidth = "800px";
     } else {
-      modalBox.style.width = "";      // 恢復預設
-      modalBox.style.maxWidth = "";   // 恢復預設
+      modalBox.style.width = "";      
+      modalBox.style.maxWidth = "";   
     }
   }
   modal.classList.add("active");
@@ -2628,8 +2644,6 @@ window.openTemplateEditor = (index) => {
     }
 
     const modal = document.getElementById("general-edit-modal");
-    
-    // 🔥 將彈跳視窗加大一倍，讓細項有充足空間展開
     const modalBox = modal.querySelector('.modal-box');
     if (modalBox) {
         modalBox.style.width = "90vw";
@@ -2696,7 +2710,6 @@ window.onEditWeeklyProjChange = (idx) => {
 window.closeGeneralEditModal = () => {
     const modal = document.getElementById("general-edit-modal");
     modal.classList.remove("active");
-    // 關閉時重置寬度，避免影響其他小視窗
     const modalBox = modal.querySelector('.modal-box');
     if (modalBox) {
         modalBox.style.width = "";
@@ -2768,7 +2781,7 @@ window.saveGeneralEdit = async () => {
       });
       projectTemplates[id].name = newName || `模板${id+1}`;
       projectTemplates[id].tasks = tasks;
-      await setDoc(doc(db, "settings", "project_templates"), { templates: projectTemplates }, { merge: true });
+      await setDoc(doc(db, "user_templates", auth.currentUser.uid), { templates: projectTemplates }, { merge: true });
     }
     closeGeneralEditModal(); 
     alert("✅ 資料修改成功！");
