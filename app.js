@@ -117,11 +117,11 @@ function initDynamicUI() {
 
     /* 單一專案 (細項清單) 的欄位比例配置 */
     .col-name { flex: 2.8 !important; } 
-    .col-expected-date { flex: 0.5 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; }
-    .col-date { flex: 0.5 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; } 
-    .col-prog { flex: 0.5 !important; text-align: center; display: flex; justify-content: center; align-items: center; }
-    .col-act { flex: 0.5 !important; text-align: center; display: flex; justify-content: center; align-items: center; }
-    .col-owner { flex: 0.5 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-expected-date { flex: 0.5 !important; min-width: 55px !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; }
+    .col-date { flex: 0.5 !important; min-width: 45px !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; } 
+    .col-prog { flex: 0.5 !important; min-width: 65px !important; text-align: center; display: flex; justify-content: center; align-items: center; }
+    .col-act { flex: 0.5 !important; min-width: 50px !important; text-align: center; display: flex; justify-content: center; align-items: center; }
+    .col-owner { flex: 0.5 !important; min-width: 50px !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     
     .mobile-fixed-dropdown {
         position: fixed !important;
@@ -1485,7 +1485,7 @@ function renderProjects() {
     // 格式化預計日期 (開始月/日 - 結束月/日)
     const sDate = new Date(task.start.replace(/-/g, '/'));
     const eDate = new Date(task.end.replace(/-/g, '/'));
-    const expectedDateHtml = `<div class="col-expected-date"><span>${sDate.getMonth()+1}/${sDate.getDate()} -</span><span>${eDate.getMonth()+1}/${eDate.getDate()}</span></div>`;
+    const expectedDateHtml = `<div class="col-expected-date"><span>${sDate.getMonth()+1}/${sDate.getDate()}</span><span>~ ${eDate.getMonth()+1}/${eDate.getDate()}</span></div>`;
 
     const row = document.createElement("div"); 
     row.className = "gantt-row";
@@ -1493,7 +1493,7 @@ function renderProjects() {
       <div class="col-name" title="${task.name}"><span style="overflow:hidden; text-overflow:ellipsis;">${task.name}</span>${editHtml}</div>
       ${expectedDateHtml}
       <div class="col-date"><span>${workDays} 天</span></div>
-      <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="width:54px; padding:2px 4px; text-align:center; height:24px; font-weight:bold;"><span style="font-weight:bold; margin-left:2px;">%</span></div>
+      <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold;"><span style="font-weight:bold; margin-left:2px;">%</span></div>
       <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')">${task.isCompleted ? '完成' : '確認'}</button></div>
       <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
     `;
