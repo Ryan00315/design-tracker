@@ -112,11 +112,18 @@ function initDynamicUI() {
     .gantt-left-panel { flex: 0 0 55% !important; max-width: 55% !important; }
     .gantt-right-panel { flex: 0 0 45% !important; max-width: 45% !important; }
     
-    .col-sum-name, .col-name { flex: 4 !important; } 
-    .col-sum-date, .col-date { flex: 1.2 !important; }
-    .col-sum-prog, .col-prog { flex: 0.8 !important; }
-    .col-owner { flex: 1.2 !important; }
+    /* 排版欄位比例微調 */
+    .col-sum-name { flex: 4 !important; } 
+    .col-sum-date { flex: 1.2 !important; }
+    .col-sum-prog { flex: 0.8 !important; }
+    .col-sum-owner { flex: 1.2 !important; text-align: center; justify-content: center; }
+
+    .col-name { flex: 3.5 !important; } 
+    .col-expected-date { flex: 0.9 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; font-size: calc(11px * var(--font-scale, 1)); line-height: 1.2; }
+    .col-date { flex: 0.6 !important; text-align: center; justify-content: center; } /* 縮小天數 */
+    .col-prog { flex: 0.8 !important; }
     .col-act { flex: 0.8 !important; }
+    .col-owner { flex: 0.8 !important; text-align: center; justify-content: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* 縮小負責人 */
     
     .mobile-fixed-dropdown {
         position: fixed !important;
@@ -214,7 +221,7 @@ window.injectFontSizeUI = () => {
   window.setGlobalFontSize(savedSize);
 };
 
-// 切換全域字體大小 (支援 localStorage 記憶，利用 zoom 屬性等比放大所有內容)
+// 切換全域字體大小 (支援 localStorage 記憶，利用 css變數 放大所有內容)
 window.setGlobalFontSize = (size) => {
   document.body.classList.remove('font-md', 'font-lg');
   document.querySelectorAll('.font-btn').forEach(btn => btn.classList.remove('active'));
@@ -965,6 +972,20 @@ window.selectProject = (projId) => {
   renderProjects(); 
 };
 
+// 確保表頭渲染正確
+function fixHeaders() {
+  const sumHeader = document.querySelector('#project-summary-view .gantt-row-header');
+  if (sumHeader && !sumHeader.dataset.fixed) {
+     sumHeader.innerHTML = '<div class="col-sum-name">主專案 / 事件名稱</div><div class="col-sum-date">起訖日期</div><div class="col-sum-prog">總進度</div><div class="col-sum-owner">開案者</div>';
+     sumHeader.dataset.fixed = "true";
+  }
+  const detHeader = document.querySelector('#project-detail-view .gantt-row-header');
+  if (detHeader && !detHeader.dataset.fixed) {
+     detHeader.innerHTML = '<div class="col-name">任務細項排程</div><div class="col-expected-date">預計日期</div><div class="col-date">天數</div><div class="col-prog">進度</div><div class="col-act">操作</div><div class="col-owner">負責人</div>';
+     detHeader.dataset.fixed = "true";
+  }
+}
+
 // 👉 新版循序解鎖邏輯：
 window.getAvailableTasks = (projId) => {
   const proj = allProjectsData.find(p => p.id === projId);
@@ -976,15 +997,18 @@ window.getAvailableTasks = (projId) => {
   for (let i = 0; i < proj.tasks.length; i++) {
     let t = proj.tasks[i];
     
+    // 如果前面的任務都 100% 結案，這個任務就解鎖可以選
     if (allPreviousCompleted) {
        unlockedTasks.push({ ...t, index: i });
     }
     
+    // 如果這個任務還沒 100%，那後面的任務就全部鎖住，不解鎖
     if (!t.isCompleted) {
        allPreviousCompleted = false;
     }
   }
 
+  // 解鎖後，篩選掉那些已經 100% 且寫過週報的任務
   return unlockedTasks.filter(t => {
     if (!t.isCompleted) return true; 
     if (t.reportedCompleted === true) return false; 
@@ -1077,6 +1101,7 @@ function getGraceDaysLeft(proj) {
 }
 
 function renderProjects() {
+  fixHeaders(); // 強制更新表頭 UI 結構
   checkEditModeVisibility();
 
   const isViewingSelf = (viewingUserId === auth.currentUser.uid);
@@ -1334,13 +1359,13 @@ function renderProjects() {
           ? `<span style="color:#2563eb; font-weight:700;"><span style="color:#2563eb; margin-right:4px;">👥</span>${item.title}</span>`
           : `<span style="color:#0f172a; font-weight:700;">🗂️ ${item.title}</span>`;
           
-        row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')">${titleDisplay}</div><div class="col-sum-date">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-sum-prog">${statusText}</div><div class="col-owner" style="font-size:calc(12px * var(--font-scale, 1)); color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="開案者：${item.ownerName}">👤 ${item.ownerName}</div>`;
+        row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')">${titleDisplay}</div><div class="col-sum-date">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       } else {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
         if (item.hasDelay && !item.isDone) {
             statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
         }
-        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger);" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date">${item.start.substring(5)}</div><div class="col-sum-prog">${statusText}</div><div class="col-owner" style="font-size:calc(12px * var(--font-scale, 1)); color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="建立者：${item.ownerName}">👤 ${item.ownerName}</div>`;
+        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger);" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date">${item.start.substring(5)}</div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       }
       sumLeftBody.appendChild(row);
     });
@@ -1454,10 +1479,16 @@ function renderProjects() {
         <button class="action-btn danger" onclick="deleteActiveProjectTask('${activeProj.id}', ${index})" style="padding:2px 5px; font-size:calc(10px * var(--font-scale, 1));" title="刪除此細項">🗑️</button>
       </div>` : '';
 
+    // 格式化預計日期 (月/日)
+    const sDate = new Date(task.start.replace(/-/g, '/'));
+    const eDate = new Date(task.end.replace(/-/g, '/'));
+    const expectedDateHtml = `<div class="col-expected-date">${sDate.getMonth()+1}/${sDate.getDate()} -<br>${eDate.getMonth()+1}/${eDate.getDate()}</div>`;
+
     const row = document.createElement("div"); 
     row.className = "gantt-row";
     row.innerHTML = `
       <div class="col-name" title="${task.name}"><span style="overflow:hidden; text-overflow:ellipsis;">${task.name}</span>${editHtml}</div>
+      ${expectedDateHtml}
       <div class="col-date">${workDays} 天</div>
       <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''}> %</div>
       <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')">${task.isCompleted ? '完成' : '確認'}</button></div>
