@@ -105,18 +105,18 @@ function initDynamicUI() {
     .col-sum-name.clickable { cursor: pointer; text-decoration: none; transition: 0.2s; }
     .col-sum-name.clickable:hover { opacity: 0.7; }
     
-    /* 放大左側清單寬度至 50%，縮小甘特圖至 50% */
-    .gantt-left-panel { flex: 0 0 50% !important; max-width: 50% !important; }
-    .gantt-right-panel { flex: 0 0 50% !important; max-width: 50% !important; }
+    /* 放大左側清單寬度至 60%，由甘特圖寬度縮小至 40% */
+    .gantt-left-panel, .gantt-left-panel-summary { flex: 0 0 60% !important; max-width: 60% !important; }
+    .gantt-right-panel, .gantt-right-panel-summary { flex: 0 0 40% !important; max-width: 40% !important; }
     
-    /* 總覽清單的欄位比例配置 (拉開間距與寬度) */
-    .col-sum-name { flex: 6.0 !important; } /* 主專案名稱大幅加寬 */
-    .col-sum-date { flex: 1.6 !important; text-align: center; display: flex; justify-content: center; align-items: center; } /* 拉大間距 */
-    .col-sum-prog { flex: 1.2 !important; text-align: center; display: flex; justify-content: center; align-items: center; } /* 拉大間距 */
-    .col-sum-owner { flex: 1.4 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* 總覽清單的欄位比例配置 */
+    .col-sum-name { flex: 7.8 !important; } /* 原6.0 放大0.3倍變 7.8 */
+    .col-sum-date { flex: 2.0 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; } /* 寬度拉到 2 */
+    .col-sum-prog { flex: 2.0 !important; text-align: center; display: flex; justify-content: center; align-items: center; } /* 寬度拉到 2 */
+    .col-sum-owner { flex: 2.0 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     /* 細項清單的欄位比例配置 */
-    .col-name { flex: 2.8 !important; } 
+    .col-name { flex: 3.6 !important; } /* 原2.8 放大0.3倍變 3.6 */
     .col-expected-date { flex: 0.9 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; }
     .col-date { flex: 0.5 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; } 
     .col-prog { flex: 0.8 !important; text-align: center; display: flex; justify-content: center; align-items: center; }
@@ -189,8 +189,8 @@ function fixHeaders() {
   const sumHeader = document.querySelector('#project-summary-view .gantt-row-header');
   if (sumHeader) {
      sumHeader.innerHTML = `
-       <div class="col-sum-name" style="font-weight:bold; color:var(--primary);">主專案 / 事件名稱</div>
-       <div class="col-sum-date" style="font-size: 13px; color: #64748b; font-weight: normal;">起訖日期</div>
+       <div class="col-sum-name" style="font-weight:bold; color:var(--primary); display: flex; align-items: center;">主專案 / 事件名稱</div>
+       <div class="col-sum-date" style="font-size: 13px; color: #64748b; font-weight: normal; line-height: 1.2;">起訖<br>日期</div>
        <div class="col-sum-prog" style="font-size: 13px; color: #64748b; font-weight: normal;">總進度</div>
        <div class="col-sum-owner" style="font-size: 13px; color: #64748b; font-weight: normal;">開案者</div>
      `;
@@ -199,9 +199,9 @@ function fixHeaders() {
   const detHeader = document.querySelector('#project-detail-view .gantt-row-header');
   if (detHeader) {
      detHeader.innerHTML = `
-       <div class="col-name" style="font-weight:bold; color:var(--primary);">任務細項排程</div>
-       <div class="col-expected-date" style="font-size: 13px; color: #64748b; font-weight: normal; line-height:1.2;">預計<br>日期</div>
-       <div class="col-date" style="font-size: 13px; color: #64748b; font-weight: normal; line-height:1.2;">預計<br>天數</div>
+       <div class="col-name" style="font-weight:bold; color:var(--primary); display: flex; align-items: center;">任務細項排程</div>
+       <div class="col-expected-date" style="font-size: 13px; color: #64748b; font-weight: normal; line-height: 1.2;">預計<br>日期</div>
+       <div class="col-date" style="font-size: 13px; color: #64748b; font-weight: normal; line-height: 1.2;">預計<br>天數</div>
        <div class="col-prog" style="font-size: 13px; color: #64748b; font-weight: normal;">進度</div>
        <div class="col-act" style="font-size: 13px; color: #64748b; font-weight: normal;">操作</div>
        <div class="col-owner" style="font-size: 13px; color: #64748b; font-weight: normal;">負責人</div>
@@ -1351,7 +1351,7 @@ function renderProjects() {
       const row = document.createElement("div"); 
       row.className = "gantt-row";
       if (item.type === 'project') {
-        let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : item.progress+'%';
+        let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : `<span style="font-weight:bold;">${item.progress}%</span>`;
         if (item.hasDelay && !item.isDone) {
             statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
         }
@@ -1493,7 +1493,7 @@ function renderProjects() {
       <div class="col-name" title="${task.name}"><span style="overflow:hidden; text-overflow:ellipsis;">${task.name}</span>${editHtml}</div>
       ${expectedDateHtml}
       <div class="col-date"><span>${workDays} 天</span></div>
-      <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="width:40px; padding:2px 4px; text-align:center; height:24px;"> %</div>
+      <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="width:54px; padding:2px 4px; text-align:center; height:24px; font-weight:bold;"><span style="font-weight:bold; margin-left:2px;">%</span></div>
       <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')">${task.isCompleted ? '完成' : '確認'}</button></div>
       <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
     `;
