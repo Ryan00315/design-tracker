@@ -105,23 +105,23 @@ function initDynamicUI() {
     .col-sum-name.clickable { cursor: pointer; text-decoration: none; transition: 0.2s; }
     .col-sum-name.clickable:hover { opacity: 0.7; }
     
-    /* 放大左側清單寬度至 60%，由甘特圖寬度縮小至 40% */
-    .gantt-left-panel, .gantt-left-panel-summary { flex: 0 0 60% !important; max-width: 60% !important; }
-    .gantt-right-panel, .gantt-right-panel-summary { flex: 0 0 40% !important; max-width: 40% !important; }
+    /* 調整左右比例：左側清單 40%，右側甘特圖 60% */
+    .gantt-left-panel, .gantt-left-panel-summary { flex: 0 0 40% !important; max-width: 40% !important; }
+    .gantt-right-panel, .gantt-right-panel-summary { flex: 0 0 60% !important; max-width: 60% !important; }
     
     /* 總覽清單的欄位比例配置 */
-    .col-sum-name { flex: 7.8 !important; } /* 原6.0 放大0.3倍變 7.8 */
-    .col-sum-date { flex: 2.0 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; } /* 寬度拉到 2 */
-    .col-sum-prog { flex: 2.0 !important; text-align: center; display: flex; justify-content: center; align-items: center; } /* 寬度拉到 2 */
-    .col-sum-owner { flex: 2.0 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-sum-name { flex: 5.8 !important; } 
+    .col-sum-date { flex: 1.4 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; } 
+    .col-sum-prog { flex: 1.6 !important; text-align: center; display: flex; justify-content: center; align-items: center; } 
+    .col-sum-owner { flex: 1.6 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-    /* 細項清單的欄位比例配置 */
-    .col-name { flex: 3.6 !important; } /* 原2.8 放大0.3倍變 3.6 */
-    .col-expected-date { flex: 0.9 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; }
+    /* 單一專案 (細項清單) 的欄位比例配置 */
+    .col-name { flex: 2.8 !important; } 
+    .col-expected-date { flex: 0.5 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; }
     .col-date { flex: 0.5 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; } 
-    .col-prog { flex: 0.8 !important; text-align: center; display: flex; justify-content: center; align-items: center; }
-    .col-act { flex: 0.7 !important; text-align: center; display: flex; justify-content: center; align-items: center; }
-    .col-owner { flex: 0.8 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-prog { flex: 0.5 !important; text-align: center; display: flex; justify-content: center; align-items: center; }
+    .col-act { flex: 0.5 !important; text-align: center; display: flex; justify-content: center; align-items: center; }
+    .col-owner { flex: 0.5 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     
     .mobile-fixed-dropdown {
         position: fixed !important;
@@ -1360,13 +1360,13 @@ function renderProjects() {
           ? `<span style="color:#2563eb; font-weight:700;"><span style="color:#2563eb; margin-right:4px;">👥</span>${item.title}</span>`
           : `<span style="color:#0f172a; font-weight:700;">🗂️ ${item.title}</span>`;
           
-        row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')">${titleDisplay}</div><div class="col-sum-date">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
+        row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')">${titleDisplay}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span><span>~ ${item.end.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       } else {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
         if (item.hasDelay && !item.isDone) {
             statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
         }
-        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger); font-weight:700;" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date">${item.start.substring(5)}</div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
+        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger); font-weight:700;" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       }
       if(sumLeftBody) sumLeftBody.appendChild(row);
     });
