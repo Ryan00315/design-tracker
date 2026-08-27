@@ -108,17 +108,16 @@ function initDynamicUI() {
     .col-sum-name.clickable { cursor: pointer; text-decoration: none; transition: 0.2s; }
     .col-sum-name.clickable:hover { opacity: 0.7; }
     
-    /* 縮小左側清單，騰出更多空間給右側甘特圖 */
     .gantt-left-panel { flex: 0 0 42% !important; max-width: 42% !important; }
     .gantt-right-panel { flex: 0 0 58% !important; max-width: 58% !important; }
     
     /* 總覽清單的欄位比例配置 */
-    .col-sum-name { flex: 3.5 !important; } 
+    .col-sum-name { flex: 5.6 !important; } /* 將寬度比例從3.5增加約0.6倍到5.6 */
     .col-sum-date { flex: 1.2 !important; text-align: center; display: flex; justify-content: center; align-items: center; }
     .col-sum-prog { flex: 0.8 !important; text-align: center; display: flex; justify-content: center; align-items: center; }
     .col-sum-owner { flex: 0.9 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-    /* 細項清單的欄位比例配置 (高度壓縮右側資訊，保留空間給名稱) */
+    /* 細項清單的欄位比例配置 */
     .col-name { flex: 2.8 !important; } 
     .col-expected-date { flex: 0.8 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; }
     .col-date { flex: 0.5 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; } 
@@ -186,7 +185,6 @@ function initDynamicUI() {
 }
 initDynamicUI();
 
-// 確保標題列一定有正確的內容，並且結構與下方資料列 100% 同步
 function fixHeaders() {
   const sumHeader = document.querySelector('#project-summary-view .gantt-row-header');
   if (sumHeader) {
@@ -688,7 +686,6 @@ onAuthStateChanged(auth, async (user) => {
     loadMyCalendarTodos(user.uid);
     initTemplateUI();
     
-    // 初始化字體大小設定 UI
     window.injectFontSizeUI();
   } else {
     document.getElementById("auth-section").style.display = "flex"; 
@@ -1003,15 +1000,18 @@ window.getAvailableTasks = (projId) => {
   for (let i = 0; i < proj.tasks.length; i++) {
     let t = proj.tasks[i];
     
+    // 如果前面的任務都 100% 結案，這個任務就解鎖可以選
     if (allPreviousCompleted) {
        unlockedTasks.push({ ...t, index: i });
     }
     
+    // 如果這個任務還沒 100%，那後面的任務就全部鎖住，不解鎖
     if (!t.isCompleted) {
        allPreviousCompleted = false;
     }
   }
 
+  // 解鎖後，篩選掉那些已經 100% 且寫過週報的任務
   return unlockedTasks.filter(t => {
     if (!t.isCompleted) return true; 
     if (t.reportedCompleted === true) return false; 
@@ -1104,7 +1104,7 @@ function getGraceDaysLeft(proj) {
 }
 
 function renderProjects() {
-  fixHeaders(); // 強制更新表頭 UI 結構
+  fixHeaders(); 
   checkEditModeVisibility();
 
   const isViewingSelf = (viewingUserId === auth.currentUser.uid);
