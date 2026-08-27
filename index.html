@@ -119,12 +119,15 @@
               <div class="panel-head" style="margin-bottom: 8px;"><span>⭐ 專案與事件總覽排程 (所有專案/事件皆顯示)</span></div>
               <div class="gantt-master-layout">
                 <div class="gantt-left-panel-summary">
+                  
+                  <!-- 🎯 總覽排程 標題列 -->
                   <div class="gantt-row-header" style="display: flex; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 10px;">
                       <div class="col-sum-name" style="font-weight:bold; color:var(--primary);">主專案 / 事件名稱</div>
                       <div class="col-sum-date" style="font-weight:bold; color:var(--primary);">起訖日期</div>
                       <div class="col-sum-prog" style="font-weight:bold; color:var(--primary);">總進度</div>
                       <div class="col-sum-owner" style="font-weight:bold; color:var(--primary);">開案者</div>
                   </div>
+
                   <div class="gantt-body" id="gantt-summary-left-body"></div>
                 </div>
                 <div class="gantt-right-panel-summary locked-gantt" id="gantt-chart-summary-container">
@@ -146,6 +149,8 @@
               </div>
               <div class="gantt-master-layout">
                 <div class="gantt-left-panel">
+
+                  <!-- 🎯 專案細項 標題列 -->
                   <div class="gantt-row-header" style="display: flex; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 10px; align-items: center;">
                       <div class="col-name" style="font-weight:bold; color:var(--primary);">任務細項排程</div>
                       <div class="col-expected-date" style="font-weight:bold; color:var(--primary); line-height:1.2;">預計<br>日期</div>
@@ -154,6 +159,7 @@
                       <div class="col-act" style="font-weight:bold; color:var(--primary);">操作</div>
                       <div class="col-owner" style="font-weight:bold; color:var(--primary);">負責人</div>
                   </div>
+
                   <div class="gantt-body" id="gantt-left-body"></div>
                 </div>
                 <div class="gantt-right-panel locked-gantt" id="gantt-chart-container"><div id="gantt-chart"></div></div>
@@ -348,8 +354,8 @@
                 <tbody id="user-list-tbody"></tbody>
               </table>
             </div>
-          </div> <!-- 🚀 補上這行：關閉 section-panel -->
-      </div> <!-- 🚀 補上這行：關閉 tab-org -->
+          </div> 
+      </div> 
 
         <div id="tab-profile" class="tab-pane" style="display:none;">
           <div class="section-panel" style="max-width: 600px;">
@@ -502,20 +508,17 @@
         navigator.serviceWorker.register('./sw.js').then(reg => {
           console.log('PWA 註冊成功！');
           
-          // 🚀 終極殺招：只要發現後台有新版本的 sw.js，就強制更新並重新整理畫面！
           reg.addEventListener('updatefound', () => {
             const newWorker = reg.installing;
             newWorker.addEventListener('statechange', () => {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                 console.log('發現新版本，準備強制更新！');
-                // 通知新的 Service Worker 立刻接管
                 newWorker.postMessage({ type: 'SKIP_WAITING' });
               }
             });
           });
         }).catch(err => console.log('PWA 註冊失敗：', err));
 
-        // 當 Service Worker 真正切換接管時，自動重新整理網頁，套用新畫面！
         let refreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
           if (!refreshing) {
