@@ -110,9 +110,9 @@ function initDynamicUI() {
     .gantt-right-panel { flex: 0 0 50% !important; max-width: 50% !important; }
     
     /* 總覽清單的欄位比例配置 (拉開間距與寬度) */
-    .col-sum-name { flex: 6.0 !important; } /* 主專案名稱大幅加寬 */
-    .col-sum-date { flex: 1.6 !important; text-align: center; display: flex; justify-content: center; align-items: center; } /* 拉大間距 */
-    .col-sum-prog { flex: 1.2 !important; text-align: center; display: flex; justify-content: center; align-items: center; } /* 拉大間距 */
+    .col-sum-name { flex: 6.0 !important; } 
+    .col-sum-date { flex: 1.6 !important; text-align: center; display: flex; justify-content: center; align-items: center; } 
+    .col-sum-prog { flex: 1.2 !important; text-align: center; display: flex; justify-content: center; align-items: center; } 
     .col-sum-owner { flex: 1.4 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     /* 細項清單的欄位比例配置 */
@@ -144,7 +144,7 @@ function initDynamicUI() {
     .font-btn.active { background: #4f46e5 !important; color: #fff !important; border-color: #4f46e5 !important; }
     
     @media (max-width: 768px) {
-      :root { --font-scale: 1 !important; } /* 手機版固定為預設比例 */
+      :root { --font-scale: 1 !important; } 
       .kpi-row { grid-template-columns: repeat(5, 1fr) !important; gap: 4px !important; }
       .kpi-title { font-size: 10px !important; }
       .kpi-card { padding: 6px 4px !important; }
@@ -184,29 +184,27 @@ function initDynamicUI() {
 }
 initDynamicUI();
 
-// 確保標題列一定有正確的內容，並且結構與下方資料列 100% 同步
+// 🚀 關鍵修正區：拔除所有殘留的 font-weight 跟 color，只保留排版結構
 function fixHeaders() {
   const sumHeader = document.querySelector('#project-summary-view .gantt-row-header');
   if (sumHeader) {
      sumHeader.innerHTML = `
-       <div class="col-sum-name" style="font-weight:bold; color:var(--primary);">主專案 / 事件名稱</div>
-       <div class="col-sum-date" style="font-weight:bold; color:var(--primary);">起訖日期</div>
-       <div class="col-sum-prog" style="font-weight:bold; color:var(--primary);">總進度</div>
-       <div class="col-sum-owner" style="font-weight:bold; color:var(--primary);">開案者</div>
+       <div class="col-sum-name">主專案 / 事件名稱</div>
+       <div class="col-sum-date">起訖日期</div>
+       <div class="col-sum-prog">總進度</div>
+       <div class="col-sum-owner">開案者</div>
      `;
-     sumHeader.style.display = "flex";
   }
   const detHeader = document.querySelector('#project-detail-view .gantt-row-header');
   if (detHeader) {
      detHeader.innerHTML = `
-       <div class="col-name" style="font-weight:bold; color:var(--primary);">任務細項排程</div>
-       <div class="col-expected-date" style="font-weight:bold; color:var(--primary); line-height:1.2;">預計<br>日期</div>
-       <div class="col-date" style="font-weight:bold; color:var(--primary); line-height:1.2;">預計<br>天數</div>
-       <div class="col-prog" style="font-weight:bold; color:var(--primary);">進度</div>
-       <div class="col-act" style="font-weight:bold; color:var(--primary);">操作</div>
-       <div class="col-owner" style="font-weight:bold; color:var(--primary);">負責人</div>
+       <div class="col-name">任務細項排程</div>
+       <div class="col-expected-date">預計<br>日期</div>
+       <div class="col-date">預計<br>天數</div>
+       <div class="col-prog">進度</div>
+       <div class="col-act">操作</div>
+       <div class="col-owner">負責人</div>
      `;
-     detHeader.style.display = "flex";
   }
 }
 
@@ -1351,22 +1349,22 @@ function renderProjects() {
       const row = document.createElement("div"); 
       row.className = "gantt-row";
       if (item.type === 'project') {
-        let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : item.progress+'%';
+        let statusText = item.isDone ? '<span class="pill pill-success">完成</span>' : item.progress+'%';
         if (item.hasDelay && !item.isDone) {
-            statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
+            statusText = '<span class="pill pill-danger">Delay</span>';
         }
 
         let titleDisplay = item.isCollab 
-          ? `<span style="color:#2563eb; font-weight:700;"><span style="color:#2563eb; margin-right:4px;">👥</span>${item.title}</span>`
-          : `<span style="color:#0f172a; font-weight:700;">🗂️ ${item.title}</span>`;
+          ? `<span>👥 ${item.title}</span>`
+          : `<span>🗂️ ${item.title}</span>`;
           
         row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')">${titleDisplay}</div><div class="col-sum-date">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       } else {
-        let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
+        let statusText = item.isDone ? '<span class="pill pill-success">完成</span>' : '處理中';
         if (item.hasDelay && !item.isDone) {
-            statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
+            statusText = '<span class="pill pill-danger">Delay</span>';
         }
-        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger); font-weight:700;" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date">${item.start.substring(5)}</div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
+        row.innerHTML = `<div class="col-sum-name" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date">${item.start.substring(5)}</div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       }
       if(sumLeftBody) sumLeftBody.appendChild(row);
     });
@@ -1411,11 +1409,11 @@ function renderProjects() {
   let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span>${activeProj.collaborators.join(', ')}</span></span>` : '';
   let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
 
-  let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
-  let titleDisplayName = `<span style="color:#2563eb; font-weight:700;">${titlePrefixIcon}${activeProj.title}</span>`;
+  let titlePrefixIcon = hasCollab ? '<span>👥</span>' : '';
+  let titleDisplayName = `<span>${titlePrefixIcon}${activeProj.title}</span>`;
   
   const currentTitleEl = document.getElementById("current-gantt-title");
-  if(currentTitleEl) currentTitleEl.innerHTML = `<span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} ${collabBadge} ${graceBadge} ${editProjBtn}`;
+  if(currentTitleEl) currentTitleEl.innerHTML = `<span>專案：</span>${titleDisplayName} ${collabBadge} ${graceBadge} ${editProjBtn}`;
   
   const btnProjectAddTask = document.getElementById("btn-project-add-task");
   const lockBtn = document.getElementById("btn-toggle-lock");
@@ -1478,8 +1476,8 @@ function renderProjects() {
       <div style="display:inline-flex; align-items:center; gap:2px; margin-left:auto; flex-shrink:0;">
         <button type="button" class="btn-sort" onclick="moveActiveProjectTask('${activeProj.id}', ${index}, -1)" title="上移">↑</button>
         <button type="button" class="btn-sort" onclick="moveActiveProjectTask('${activeProj.id}', ${index}, 1)" title="下移">↓</button>
-        <button class="action-btn" onclick="openGeneralEdit('task', '${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px;" title="編輯細項">✏️</button>
-        <button class="action-btn danger" onclick="deleteActiveProjectTask('${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px;" title="刪除此細項">🗑️</button>
+        <button class="action-btn" onclick="openGeneralEdit('task', '${activeProj.id}', ${index})" style="padding:2px 5px;" title="編輯細項">✏️</button>
+        <button class="action-btn danger" onclick="deleteActiveProjectTask('${activeProj.id}', ${index})" style="padding:2px 5px;" title="刪除此細項">🗑️</button>
       </div>` : '';
 
     // 格式化預計日期 (開始月/日 - 結束月/日)
@@ -1494,7 +1492,7 @@ function renderProjects() {
       ${expectedDateHtml}
       <div class="col-date"><span>${workDays} 天</span></div>
       <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="width:40px; padding:2px 4px; text-align:center; height:24px;"> %</div>
-      <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')">${task.isCompleted ? '完成' : '確認'}</button></div>
+      <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')" style="padding:2px 6px;">${task.isCompleted ? '完成' : '確認'}</button></div>
       <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
     `;
     if(leftBody) leftBody.appendChild(row);
@@ -1507,16 +1505,16 @@ function renderProjects() {
         historyHtml = `<div style="max-height: 160px; overflow-y: auto;">` + 
           `<table style="width:100%; table-layout:fixed; border-collapse:collapse; margin:0; background:transparent;"><colgroup><col style="width:50%;"><col style="width:50%;"></colgroup><tbody>` +
           sortedHistory.map((h, i) => {
-            let note = h.type === 'create' ? '<span style="color:var(--text-muted)">(建立)</span>' : (h.type === 'complete' ? '<span style="color:var(--success)">(結案)</span>' : '');
+            let note = h.type === 'create' ? '<span>(建立)</span>' : (h.type === 'complete' ? '<span>(結案)</span>' : '');
             let remarkHtml = '';
             if (h.type === 'complete' && h.delayReason) remarkHtml = `<span class="pill pill-danger" style="white-space:normal; word-wrap:break-word;">Delay: ${h.delayReason}</span>`;
-            else if (h.remark) remarkHtml = `<span style="color: var(--text-muted); white-space:normal; word-wrap:break-word;">${h.remark}</span>`;
-            else remarkHtml = `<span style="color: #cbd5e1;">-</span>`;
+            else if (h.remark) remarkHtml = `<span style="white-space:normal; word-wrap:break-word;">${h.remark}</span>`;
+            else remarkHtml = `<span>-</span>`;
             const borderStyle = i === sortedHistory.length - 1 ? "" : "border-bottom:1px dashed var(--border-light);";
             return `<tr style="${borderStyle}"><td style="padding: 10px 14px 10px 0; vertical-align: top;"><span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span><br><div style="margin-top:4px;">歷時 <b>${h.daysPassed}</b> 工作天</div></td><td style="padding: 10px 0 10px 14px; vertical-align: top;">${remarkHtml}</td></tr>`;
           }).join('') + `</tbody></table></div>`;
       } else {
-        historyHtml = `<div style="padding: 12px 0; color:var(--text-muted);">尚無紀錄</div>`;
+        historyHtml = `<div style="padding: 12px 0;">尚無紀錄</div>`;
       }
 
       const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="padding:6px 10px;">已完成</span>` : `<span style="font-weight:bold;">進度: ${task.progress || 0}%</span>`;
@@ -2370,7 +2368,7 @@ function createCalCellNode(dayNum, dateStr, isOtherMonth, todayStr, userTodos) {
       html += `<div class="cal-todo-pill ${isDone}" style="color:${todo.color || '#0f172a'};">${todo.title}</div>`;
     });
     if (dayTodos.length > 3) {
-      html += `<div style="color:var(--text-muted); text-align:right;">+${dayTodos.length - 3} 則...</div>`;
+      html += `<div style="font-size:10px; color:var(--text-muted); text-align:right;">+${dayTodos.length - 3} 則...</div>`;
     }
     html += `</div>`;
   }
