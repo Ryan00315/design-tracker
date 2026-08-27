@@ -1774,16 +1774,28 @@ document.querySelectorAll('input[name="leave_type"]').forEach(radio => {
 });
 
 window.populateWeeklyProjSelect = (selectElem) => {
-  selectElem.innerHTML = '<option value="">-- 請選擇主專案 --</option>';
+  selectElem.innerHTML = '<option value="">-- 請選擇主專案/事件/其他 --</option>';
   const myProjs = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const availableProjs = myProjs.filter(p => window.getAvailableTasks(p.id).length > 0);
   availableProjs.forEach(p => { selectElem.innerHTML += `<option value="${p.id}">${p.title}</option>`; });
+  
+  selectElem.innerHTML += `<option value="SPECIAL_ADHOC">📝 事件紀錄</option>`;
+  selectElem.innerHTML += `<option value="SPECIAL_OTHER">📌 其他</option>`;
 };
 
 window.updateWeeklyTaskSelect = (selectElem) => {
   const taskSelect = selectElem.parentElement.querySelector('.weekly-task-select');
-  taskSelect.innerHTML = '<option value="">-- 請選擇細項 --</option>';
   const projId = selectElem.value;
+  
+  if (projId === 'SPECIAL_ADHOC' || projId === 'SPECIAL_OTHER') {
+     taskSelect.style.display = 'none'; 
+     taskSelect.innerHTML = '<option value="">-- 無需細項 --</option>';
+     taskSelect.value = '';
+     return;
+  }
+  
+  taskSelect.style.display = 'block'; 
+  taskSelect.innerHTML = '<option value="">-- 請選擇細項 --</option>';
   if(!projId) return;
   const availableTasks = window.getAvailableTasks(projId);
   availableTasks.forEach(t => { taskSelect.innerHTML += `<option value="${t.index}">${t.name}</option>`; });
@@ -1894,8 +1906,14 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
       const tSel = r.querySelector('.weekly-task-select'); 
       const content = r.querySelector('.weekly-content').value.trim();
       
-      if (pSel.value || tSel.value || content) {
-        if (pSel.value && tSel.value && content) {
+      if (pSel.value || content) {
+        if (pSel.value === 'SPECIAL_ADHOC' || pSel.value === 'SPECIAL_OTHER') {
+          if (content) {
+            items.push({ projectId: pSel.value, projectName: pSel.options[pSel.selectedIndex].text, taskId: "", taskName: "", content: content });
+          } else {
+            hasIncomplete = true;
+          }
+        } else if (pSel.value && tSel.value && content) {
           items.push({ projectId: pSel.value, projectName: pSel.options[pSel.selectedIndex].text, taskId: tSel.value, taskName: tSel.options[tSel.selectedIndex].text, content: content });
         } else {
           hasIncomplete = true;
@@ -1928,6 +1946,7 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
     
     const projectUpdates = {};
     for (let item of items) {
+      if (item.projectId === 'SPECIAL_ADHOC' || item.projectId === 'SPECIAL_OTHER') continue;
       const p = allProjectsData.find(x => x.id === item.projectId);
       if (p) {
         const tIndex = parseInt(item.taskId);
@@ -1989,7 +2008,9 @@ window.openWeeklyModal = (id) => {
   
   if (report.items && report.items.length > 0) {
     report.items.forEach((item, i) => { 
-      contentHtml += `<div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;"><div style="flex:1; font-size:13px; font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px;"><div style="margin-bottom:6px; word-break: break-all;">🗂️ ${item.projectName}</div><div style="word-break: break-all;">📌 ${item.taskName}</div></div><div style="flex:2.5; font-size:13px; white-space:pre-wrap; line-height:1.6; padding-left:4px;">${item.content}</div></div>`; 
+      let taskHtml = item.taskName ? `<div style="word-break: break-all;">📌 ${item.taskName}</div>` : '';
+      let icon = item.projectId === 'SPECIAL_ADHOC' ? '📝' : (item.projectId === 'SPECIAL_OTHER' ? '📌' : '🗂️');
+      contentHtml += `<div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;"><div style="flex:1; font-size:13px; font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px;"><div style="margin-bottom:6px; word-break: break-all;">${icon} ${item.projectName}</div>${taskHtml}</div><div style="flex:2.5; font-size:13px; white-space:pre-wrap; line-height:1.6; padding-left:4px;">${item.content}</div></div>`; 
     });
   } else if (report.content) {
     contentHtml += `<div style="padding: 12px; font-size:13px; white-space:pre-wrap; background: #f8fafc; border-radius: 8px; line-height:1.6;">${report.content}</div>`;
@@ -2452,14 +2473,23 @@ window.openGeneralEdit = (type, id, extra) => {
 
     if (weekly.items && weekly.items.length > 0) {
       weekly.items.forEach((item, idx) => {
-        let projOptions = `<option value="">-- 請選擇專案 --</option>`;
+        let projOptions = `<option value="">-- 請選擇專案/事件/其他 --</option>`;
         userProjects.forEach(p => {
           projOptions += `<option value="${p.id}" ${p.id === item.projectId ? 'selected' : ''}>${p.title}</option>`;
         });
+        
+        // 編輯視窗中也加入兩個特殊類別選項
+        projOptions += `<option value="SPECIAL_ADHOC" ${item.projectId === 'SPECIAL_ADHOC' ? 'selected' : ''}>📝 事件紀錄</option>`;
+        projOptions += `<option value="SPECIAL_OTHER" ${item.projectId === 'SPECIAL_OTHER' ? 'selected' : ''}>📌 其他</option>`;
 
         const activeProj = allProjectsData.find(p => p.id === item.projectId);
         let taskOptions = `<option value="">-- 請選擇細項 --</option>`;
-        if (activeProj && activeProj.tasks) {
+        
+        let taskDisplay = 'block';
+        if (item.projectId === 'SPECIAL_ADHOC' || item.projectId === 'SPECIAL_OTHER') {
+          taskOptions = `<option value="">-- 無需細項 --</option>`;
+          taskDisplay = 'none';
+        } else if (activeProj && activeProj.tasks) {
           activeProj.tasks.forEach((t, tIdx) => {
             taskOptions += `<option value="${tIdx}" ${String(tIdx) === String(item.taskId) ? 'selected' : ''}>${t.name}</option>`;
           });
@@ -2469,12 +2499,11 @@ window.openGeneralEdit = (type, id, extra) => {
           <div class="form-group" style="padding:12px; background:#f8fafc; border:1px solid var(--border); border-radius:8px; margin-bottom:0;">
             <div class="form-row" style="margin-bottom:8px;">
               <div class="form-group" style="flex:1; margin-bottom:0;">
-                <label class="form-label" style="font-size:12px;">主專案</label>
+                <label class="form-label" style="font-size:12px;">主專案 / 類別</label>
                 <select id="edit-weekly-proj-${idx}" class="input-control" style="font-size:12px; padding:6px 8px;" onchange="onEditWeeklyProjChange(${idx})">${projOptions}</select>
               </div>
               <div class="form-group" style="flex:1; margin-bottom:0;">
-                <label class="form-label" style="font-size:12px;">任務細項</label>
-                <select id="edit-weekly-task-${idx}" class="input-control" style="font-size:12px; padding:6px 8px;">${taskOptions}</select>
+                <select id="edit-weekly-task-${idx}" class="input-control" style="font-size:12px; padding:6px 8px; margin-top:20px; display:${taskDisplay};">${taskOptions}</select>
               </div>
             </div>
             <label class="form-label" style="font-size:12px;">進度說明</label>
@@ -2496,8 +2525,8 @@ window.openGeneralEdit = (type, id, extra) => {
       modalBox.style.width = "90vw";
       modalBox.style.maxWidth = "800px";
     } else {
-      modalBox.style.width = "";      // 恢復預設
-      modalBox.style.maxWidth = "";   // 恢復預設
+      modalBox.style.width = "";      
+      modalBox.style.maxWidth = "";   
     }
   }
   modal.classList.add("active");
@@ -2532,8 +2561,6 @@ window.openTemplateEditor = (index) => {
     }
 
     const modal = document.getElementById("general-edit-modal");
-    
-    // 🔥 將彈跳視窗加大一倍，讓細項有充足空間展開
     const modalBox = modal.querySelector('.modal-box');
     if (modalBox) {
         modalBox.style.width = "90vw";
@@ -2569,6 +2596,15 @@ window.onEditWeeklyProjChange = (idx) => {
   const pSel = document.getElementById(`edit-weekly-proj-${idx}`);
   const tSel = document.getElementById(`edit-weekly-task-${idx}`);
   if (!pSel || !tSel) return;
+  
+  if (pSel.value === 'SPECIAL_ADHOC' || pSel.value === 'SPECIAL_OTHER') {
+     tSel.style.display = 'none';
+     tSel.innerHTML = '<option value="">-- 無需細項 --</option>';
+     tSel.value = '';
+     return;
+  }
+  
+  tSel.style.display = 'block';
   tSel.innerHTML = '<option value="">-- 請選擇細項 --</option>';
   const proj = allProjectsData.find(p => p.id === pSel.value);
   if (proj && proj.tasks) {
@@ -2581,7 +2617,6 @@ window.onEditWeeklyProjChange = (idx) => {
 window.closeGeneralEditModal = () => {
     const modal = document.getElementById("general-edit-modal");
     modal.classList.remove("active");
-    // 關閉時重置寬度，避免影響其他小視窗
     const modalBox = modal.querySelector('.modal-box');
     if (modalBox) {
         modalBox.style.width = "";
@@ -2625,8 +2660,9 @@ window.saveGeneralEdit = async () => {
 
           const pId = pSel ? pSel.value : weekly.items[idx].projectId;
           const pName = pSel && pSel.selectedIndex >= 0 ? pSel.options[pSel.selectedIndex].text : weekly.items[idx].projectName;
-          const tId = tSel ? tSel.value : weekly.items[idx].taskId;
-          const tName = tSel && tSel.selectedIndex >= 0 ? tSel.options[tSel.selectedIndex].text : weekly.items[idx].taskName;
+          
+          const tId = (pId === 'SPECIAL_ADHOC' || pId === 'SPECIAL_OTHER') ? "" : (tSel ? tSel.value : weekly.items[idx].taskId);
+          const tName = (pId === 'SPECIAL_ADHOC' || pId === 'SPECIAL_OTHER') ? "" : (tSel && tSel.selectedIndex >= 0 ? tSel.options[tSel.selectedIndex].text : weekly.items[idx].taskName);
 
           newItems.push({
             projectId: pId,
