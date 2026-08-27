@@ -492,11 +492,18 @@
   <div id="pause-request-modal" class="modal-overlay">
     <div class="modal-box" style="max-width: 400px;">
       <div class="modal-header"><span>⏸️ 申請專案暫停</span><button class="btn-close" onclick="closePauseModal()">×</button></div>
+      
+      <div class="form-group">
+        <label class="form-label">暫停起始日期 (預設為今日)：</label>
+        <input type="date" id="pause-start-date" class="input-control" onchange="checkWorkingDay(this)">
+      </div>
+
       <div class="form-group">
         <label class="form-label">請填寫暫停原因 (例如：急件插單、客戶要求)：</label>
         <textarea id="pause-reason-input" class="input-control" rows="3" placeholder="必填..."></textarea>
         <input type="hidden" id="pause-proj-id">
       </div>
+
       <div class="modal-actions">
         <button class="action-btn" onclick="closePauseModal()">取消</button>
         <button class="btn-primary" style="background: var(--danger); border: none;" onclick="submitPauseRequest()">送出申請</button>
