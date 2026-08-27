@@ -95,6 +95,7 @@ function initDynamicUI() {
     body.font-md { --font-scale: 1.2; }
     body.font-lg { --font-scale: 1.5; }
 
+    /* 全域字體縮放覆蓋 */
     body, input, select, textarea, button, .input-control, td, th {
       font-size: calc(14px * var(--font-scale, 1));
     }
@@ -108,14 +109,15 @@ function initDynamicUI() {
     .col-sum-name.clickable { cursor: pointer; text-decoration: none; transition: 0.2s; }
     .col-sum-name.clickable:hover { opacity: 0.7; }
     
-    .gantt-left-panel { flex: 0 0 42% !important; max-width: 42% !important; }
-    .gantt-right-panel { flex: 0 0 58% !important; max-width: 58% !important; }
+    /* 放大左側清單寬度，縮小甘特圖，釋放空間給各欄位 */
+    .gantt-left-panel { flex: 0 0 46% !important; max-width: 46% !important; }
+    .gantt-right-panel { flex: 0 0 54% !important; max-width: 54% !important; }
     
     /* 總覽清單的欄位比例配置 */
-    .col-sum-name { flex: 5.6 !important; } /* 將寬度比例從3.5增加約0.6倍到5.6 */
-    .col-sum-date { flex: 1.2 !important; text-align: center; display: flex; justify-content: center; align-items: center; }
-    .col-sum-prog { flex: 0.8 !important; text-align: center; display: flex; justify-content: center; align-items: center; }
-    .col-sum-owner { flex: 0.9 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-sum-name { flex: 5.8 !important; } /* 加寬0.2 */
+    .col-sum-date { flex: 1.4 !important; text-align: center; display: flex; justify-content: center; align-items: center; } /* 增加比例拉開間距 */
+    .col-sum-prog { flex: 1.0 !important; text-align: center; display: flex; justify-content: center; align-items: center; } /* 增加比例拉開間距 */
+    .col-sum-owner { flex: 1.2 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* 增加比例拉開間距 */
 
     /* 細項清單的欄位比例配置 */
     .col-name { flex: 2.8 !important; } 
@@ -140,12 +142,13 @@ function initDynamicUI() {
         box-shadow: 0 10px 25px rgba(0,0,0,0.2);
     }
     
+    /* 字體控制器的樣式 */
     .hide-on-mobile { display: flex !important; }
     .font-btn { transition: 0.2s; }
     .font-btn.active { background: #4f46e5 !important; color: #fff !important; border-color: #4f46e5 !important; }
     
     @media (max-width: 768px) {
-      :root { --font-scale: 1 !important; } 
+      :root { --font-scale: 1 !important; } /* 手機版固定為預設比例 */
       .kpi-row { grid-template-columns: repeat(5, 1fr) !important; gap: 4px !important; }
       .kpi-title { font-size: 10px !important; }
       .kpi-card { padding: 6px 4px !important; }
@@ -185,6 +188,7 @@ function initDynamicUI() {
 }
 initDynamicUI();
 
+// 確保標題列一定有正確的內容，並且結構與下方資料列 100% 同步
 function fixHeaders() {
   const sumHeader = document.querySelector('#project-summary-view .gantt-row-header');
   if (sumHeader) {
@@ -275,6 +279,7 @@ function initTemplateUI() {
     if (!window.hasInitTemplateSnapshot && auth.currentUser) {
       window.hasInitTemplateSnapshot = true;
       try {
+        // 改為依據個人的 uid 讀取獨立的模板資料
         onSnapshot(doc(db, "user_templates", auth.currentUser.uid), (docSnap) => {
           if(docSnap.exists()) {
             projectTemplates = docSnap.data().templates || projectTemplates;
@@ -326,6 +331,7 @@ window.applySelectedTemplate = () => {
   const checked = document.querySelector('input[name="selected_template"]:checked');
   if(!checked) return alert("請先選擇一個模板！");
   
+  // 🛡️ 加入防呆確認視窗
   if(!confirm("⚠️ 確定要帶入此模板嗎？\n注意：這將會清除您目前在下方輸入的所有草稿細項！")) {
     return;
   }
@@ -686,6 +692,7 @@ onAuthStateChanged(auth, async (user) => {
     loadMyCalendarTodos(user.uid);
     initTemplateUI();
     
+    // 初始化字體大小設定 UI
     window.injectFontSizeUI();
   } else {
     document.getElementById("auth-section").style.display = "flex"; 
@@ -1104,7 +1111,7 @@ function getGraceDaysLeft(proj) {
 }
 
 function renderProjects() {
-  fixHeaders(); 
+  fixHeaders(); // 強制更新表頭 UI 結構
   checkEditModeVisibility();
 
   const isViewingSelf = (viewingUserId === auth.currentUser.uid);
