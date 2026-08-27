@@ -190,9 +190,9 @@ function fixHeaders() {
   if (sumHeader) {
      sumHeader.innerHTML = `
        <div class="col-sum-name" style="font-weight:bold; color:var(--primary);">主專案 / 事件名稱</div>
-       <div class="col-sum-date">起訖日期</div>
-       <div class="col-sum-prog">總進度</div>
-       <div class="col-sum-owner">開案者</div>
+       <div class="col-sum-date" style="font-size: 13px; color: #64748b; font-weight: normal;">起訖日期</div>
+       <div class="col-sum-prog" style="font-size: 13px; color: #64748b; font-weight: normal;">總進度</div>
+       <div class="col-sum-owner" style="font-size: 13px; color: #64748b; font-weight: normal;">開案者</div>
      `;
      sumHeader.style.display = "flex";
   }
@@ -200,11 +200,11 @@ function fixHeaders() {
   if (detHeader) {
      detHeader.innerHTML = `
        <div class="col-name" style="font-weight:bold; color:var(--primary);">任務細項排程</div>
-       <div class="col-expected-date" style="line-height:1.2;">預計<br>日期</div>
-       <div class="col-date" style="line-height:1.2;">預計<br>天數</div>
-       <div class="col-prog">進度</div>
-       <div class="col-act">操作</div>
-       <div class="col-owner">負責人</div>
+       <div class="col-expected-date" style="font-size: 13px; color: #64748b; font-weight: normal; line-height:1.2;">預計<br>日期</div>
+       <div class="col-date" style="font-size: 13px; color: #64748b; font-weight: normal; line-height:1.2;">預計<br>天數</div>
+       <div class="col-prog" style="font-size: 13px; color: #64748b; font-weight: normal;">進度</div>
+       <div class="col-act" style="font-size: 13px; color: #64748b; font-weight: normal;">操作</div>
+       <div class="col-owner" style="font-size: 13px; color: #64748b; font-weight: normal;">負責人</div>
      `;
      detHeader.style.display = "flex";
   }
