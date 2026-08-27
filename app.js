@@ -125,8 +125,8 @@ function initDynamicUI() {
     .font-btn.active { background: #4f46e5 !important; color: #fff !important; border-color: #4f46e5 !important; }
 
     @media (min-width: 769px) {
-      body.font-md { zoom: 1.5; }
-      body.font-lg { zoom: 2.0; }
+      body.font-md { zoom: 1.2; }
+      body.font-lg { zoom: 1.5; }
     }
     
     @media (max-width: 768px) {
@@ -173,15 +173,13 @@ initDynamicUI();
 window.injectFontSizeUI = () => {
   if (document.getElementById('font-size-control-container')) return;
   const userNameEl = document.getElementById('user-display-name');
+  const avatarEl = document.getElementById('user-avatar');
   if (!userNameEl) return;
   
-  // 找出放置使用者資訊的最外層容器
-  const userProfileWrapper = userNameEl.closest('div[style*="flex"]') || userNameEl.parentElement;
-
   const div = document.createElement('div');
   div.id = 'font-size-control-container';
   div.className = 'hide-on-mobile';
-  div.style.cssText = "align-items:center; gap:4px; margin-right: 15px; background: #e0e7ff; padding: 4px 8px; border-radius: 6px; border: 1px solid #c7d2fe;";
+  div.style.cssText = "display:flex; align-items:center; gap:4px; margin-right: 12px; background: #e0e7ff; padding: 4px 8px; border-radius: 6px; border: 1px solid #c7d2fe; height: 32px;";
   div.innerHTML = `
     <span style="font-size:12px; font-weight:bold; color:#3730a3; margin-right:4px;">字體</span>
     <button id="btn-font-sm" class="action-btn font-btn active" style="padding:2px 8px; font-size:12px; border-color:#a5b4fc;" onclick="setGlobalFontSize('sm')">小</button>
@@ -189,7 +187,16 @@ window.injectFontSizeUI = () => {
     <button id="btn-font-lg" class="action-btn font-btn" style="padding:2px 8px; font-size:12px; border-color:#a5b4fc;" onclick="setGlobalFontSize('lg')">大</button>
   `;
   
-  userProfileWrapper.parentNode.insertBefore(div, userProfileWrapper);
+  // 直接放在頭像與名字的最左側 (同一個父容器內)
+  if (avatarEl && avatarEl.parentNode) {
+     avatarEl.parentNode.style.display = 'flex';
+     avatarEl.parentNode.style.alignItems = 'center';
+     avatarEl.parentNode.insertBefore(div, avatarEl);
+  } else {
+     userNameEl.parentNode.style.display = 'flex';
+     userNameEl.parentNode.style.alignItems = 'center';
+     userNameEl.parentNode.insertBefore(div, userNameEl);
+  }
 
   // 載入上次選擇的字體大小
   const savedSize = localStorage.getItem('desktop-font-size') || 'sm';
@@ -230,7 +237,6 @@ function initTemplateUI() {
     if (!window.hasInitTemplateSnapshot && auth.currentUser) {
       window.hasInitTemplateSnapshot = true;
       try {
-        // 改為依據個人的 uid 讀取獨立的模板資料
         onSnapshot(doc(db, "user_templates", auth.currentUser.uid), (docSnap) => {
           if(docSnap.exists()) {
             projectTemplates = docSnap.data().templates || projectTemplates;
