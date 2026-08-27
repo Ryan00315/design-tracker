@@ -95,7 +95,7 @@ function initDynamicUI() {
     body.font-md { --font-scale: 1.2; }
     body.font-lg { --font-scale: 1.5; }
 
-    /* 全域字體縮放覆蓋 */
+    /* 全域字體縮放覆蓋 (拔除不必要強制干擾的樣式) */
     body, input, select, textarea, button, .input-control, td, th {
       font-size: calc(14px * var(--font-scale, 1));
     }
@@ -109,23 +109,23 @@ function initDynamicUI() {
     .col-sum-name.clickable { cursor: pointer; text-decoration: none; transition: 0.2s; }
     .col-sum-name.clickable:hover { opacity: 0.7; }
     
-    /* 放大左側清單寬度，縮小甘特圖，釋放空間給各欄位 */
-    .gantt-left-panel { flex: 0 0 46% !important; max-width: 46% !important; }
-    .gantt-right-panel { flex: 0 0 54% !important; max-width: 54% !important; }
+    /* 放寬左側清單，縮小甘特圖，釋放空間給各欄位 */
+    .gantt-left-panel { flex: 0 0 48% !important; max-width: 48% !important; }
+    .gantt-right-panel { flex: 0 0 52% !important; max-width: 52% !important; }
     
-    /* 總覽清單的欄位比例配置 */
-    .col-sum-name { flex: 5.8 !important; } /* 主專案名稱再加寬 0.2 */
-    .col-sum-date { flex: 1.4 !important; text-align: center; display: flex; justify-content: center; align-items: center; } /* 增加比例拉開間距 */
-    .col-sum-prog { flex: 1.0 !important; text-align: center; display: flex; justify-content: center; align-items: center; } /* 增加比例拉開間距 */
-    .col-sum-owner { flex: 1.2 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* 增加比例拉開間距 */
+    /* 總覽清單的欄位比例配置 (拉開間距與寬度) */
+    .col-sum-name { flex: 5.2 !important; } 
+    .col-sum-date { flex: 1.8 !important; text-align: center; display: flex; justify-content: center; align-items: center; } 
+    .col-sum-prog { flex: 1.2 !important; text-align: center; display: flex; justify-content: center; align-items: center; } 
+    .col-sum-owner { flex: 1.5 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     /* 細項清單的欄位比例配置 */
-    .col-name { flex: 2.8 !important; } 
-    .col-expected-date { flex: 0.8 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-    .col-date { flex: 0.5 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; } 
-    .col-prog { flex: 0.7 !important; text-align: center; display: flex; justify-content: center; align-items: center; }
-    .col-act { flex: 0.6 !important; text-align: center; display: flex; justify-content: center; align-items: center; }
-    .col-owner { flex: 0.7 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-name { flex: 3.0 !important; } 
+    .col-expected-date { flex: 0.8 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.1; }
+    .col-date { flex: 0.5 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.1; } 
+    .col-prog { flex: 0.8 !important; text-align: center; display: flex; justify-content: center; align-items: center; }
+    .col-act { flex: 0.7 !important; text-align: center; display: flex; justify-content: center; align-items: center; }
+    .col-owner { flex: 0.8 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     
     .mobile-fixed-dropdown {
         position: fixed !important;
@@ -142,13 +142,12 @@ function initDynamicUI() {
         box-shadow: 0 10px 25px rgba(0,0,0,0.2);
     }
     
-    /* 字體控制器的樣式 */
     .hide-on-mobile { display: flex !important; }
     .font-btn { transition: 0.2s; }
     .font-btn.active { background: #4f46e5 !important; color: #fff !important; border-color: #4f46e5 !important; }
     
     @media (max-width: 768px) {
-      :root { --font-scale: 1 !important; } /* 手機版固定為預設比例 */
+      :root { --font-scale: 1 !important; } 
       .kpi-row { grid-template-columns: repeat(5, 1fr) !important; gap: 4px !important; }
       .kpi-title { font-size: 10px !important; }
       .kpi-card { padding: 6px 4px !important; }
@@ -188,29 +187,27 @@ function initDynamicUI() {
 }
 initDynamicUI();
 
-// 確保標題列一定有正確的內容，並且結構與下方資料列 100% 同步
+// 完全拔除顏色跟字體的強制覆蓋，只負責塞入欄位文字
 function fixHeaders() {
   const sumHeader = document.querySelector('#project-summary-view .gantt-row-header');
   if (sumHeader) {
      sumHeader.innerHTML = `
-       <div class="col-sum-name" style="font-weight:bold; color:var(--primary);">主專案 / 事件名稱</div>
-       <div class="col-sum-date" style="font-weight:bold; color:var(--primary);">起訖日期</div>
-       <div class="col-sum-prog" style="font-weight:bold; color:var(--primary);">總進度</div>
-       <div class="col-sum-owner" style="font-weight:bold; color:var(--primary);">開案者</div>
+       <div class="col-sum-name">主專案 / 事件名稱</div>
+       <div class="col-sum-date">起訖日期</div>
+       <div class="col-sum-prog">總進度</div>
+       <div class="col-sum-owner">開案者</div>
      `;
-     sumHeader.style.display = "flex";
   }
   const detHeader = document.querySelector('#project-detail-view .gantt-row-header');
   if (detHeader) {
      detHeader.innerHTML = `
-       <div class="col-name" style="font-weight:bold; color:var(--primary);">任務細項排程</div>
-       <div class="col-expected-date" style="font-weight:bold; color:var(--primary); line-height:1.1; font-size:calc(11.5px * var(--font-scale, 1));">預計<br>日期</div>
-       <div class="col-date" style="font-weight:bold; color:var(--primary); line-height:1.1; font-size:calc(11.5px * var(--font-scale, 1));">預計<br>天數</div>
-       <div class="col-prog" style="font-weight:bold; color:var(--primary);">進度</div>
-       <div class="col-act" style="font-weight:bold; color:var(--primary);">操作</div>
-       <div class="col-owner" style="font-weight:bold; color:var(--primary);">負責人</div>
+       <div class="col-name">任務細項排程</div>
+       <div class="col-expected-date">預計<br>日期</div>
+       <div class="col-date">預計<br>天數</div>
+       <div class="col-prog">進度</div>
+       <div class="col-act">操作</div>
+       <div class="col-owner">負責人</div>
      `;
-     detHeader.style.display = "flex";
   }
 }
 
@@ -226,10 +223,10 @@ window.injectFontSizeUI = () => {
   div.className = 'hide-on-mobile';
   div.style.cssText = "display:flex; align-items:center; gap:4px; margin-right: 12px; background: #e0e7ff; padding: 4px 8px; border-radius: 6px; border: 1px solid #c7d2fe; height: 32px;";
   div.innerHTML = `
-    <span style="font-size:calc(12px * var(--font-scale, 1)); font-weight:bold; color:#3730a3; margin-right:4px;">字體</span>
-    <button id="btn-font-sm" class="action-btn font-btn active" style="padding:2px 8px; font-size:calc(12px * var(--font-scale, 1)); border-color:#a5b4fc;" onclick="setGlobalFontSize('sm')">小</button>
-    <button id="btn-font-md" class="action-btn font-btn" style="padding:2px 8px; font-size:calc(12px * var(--font-scale, 1)); border-color:#a5b4fc;" onclick="setGlobalFontSize('md')">中</button>
-    <button id="btn-font-lg" class="action-btn font-btn" style="padding:2px 8px; font-size:calc(12px * var(--font-scale, 1)); border-color:#a5b4fc;" onclick="setGlobalFontSize('lg')">大</button>
+    <span style="font-size:12px; font-weight:bold; color:#3730a3; margin-right:4px;">字體</span>
+    <button id="btn-font-sm" class="action-btn font-btn active" style="padding:2px 8px; font-size:12px; border-color:#a5b4fc;" onclick="setGlobalFontSize('sm')">小</button>
+    <button id="btn-font-md" class="action-btn font-btn" style="padding:2px 8px; font-size:12px; border-color:#a5b4fc;" onclick="setGlobalFontSize('md')">中</button>
+    <button id="btn-font-lg" class="action-btn font-btn" style="padding:2px 8px; font-size:12px; border-color:#a5b4fc;" onclick="setGlobalFontSize('lg')">大</button>
   `;
   
   if (avatarEl && avatarEl.parentNode) {
@@ -690,7 +687,6 @@ onAuthStateChanged(auth, async (user) => {
     loadMyCalendarTodos(user.uid);
     initTemplateUI();
     
-    // 初始化字體大小設定 UI
     window.injectFontSizeUI();
   } else {
     document.getElementById("auth-section").style.display = "flex"; 
@@ -1109,16 +1105,6 @@ function getGraceDaysLeft(proj) {
 }
 
 function renderProjects() {
-  // ✅ 確保程式執行前修正 HTML 的標題結構，不依賴手動修改
-  const sumLeftBody = document.getElementById("gantt-summary-left-body");
-  if(sumLeftBody) sumLeftBody.innerHTML = "";
-  
-  const leftBody = document.getElementById("gantt-left-body");
-  if(leftBody) leftBody.innerHTML = "";
-  
-  const listBody = document.getElementById("project-list-tbody");
-  if(listBody) listBody.innerHTML = "";
-
   fixHeaders(); 
   checkEditModeVisibility();
 
@@ -1229,6 +1215,10 @@ function renderProjects() {
   }
   activeList = Array.from(new Set(activeList)); 
 
+  if (selectedProjectId !== 'SUMMARY') {
+    if (!activeList.find(p => p.id === selectedProjectId)) selectedProjectId = 'SUMMARY';
+  }
+
   const tabsContainer = document.getElementById("project-tabs-container");
   const detailView = document.getElementById("project-detail-view");
   const summaryView = document.getElementById("project-summary-view");
@@ -1240,10 +1230,6 @@ function renderProjects() {
     if(summaryView) summaryView.style.display = "none"; 
     if(emptyState) emptyState.style.display = "block"; 
     return; 
-  }
-
-  if (selectedProjectId !== 'SUMMARY') {
-    if (!activeList.find(p => p.id === selectedProjectId)) selectedProjectId = 'SUMMARY';
   }
 
   if (selectedProjectId !== 'SUMMARY' && tabsContainer) {
@@ -1284,6 +1270,9 @@ function renderProjects() {
     const panelHeadSpan = document.querySelector('#project-summary-view .panel-head span');
     if (panelHeadSpan) panelHeadSpan.innerText = `⭐ 專案與事件總覽排程 (${summaryLabel}清單)`;
 
+    const sumLeftBody = document.getElementById("gantt-summary-left-body");
+    if(sumLeftBody) sumLeftBody.innerHTML = "";
+    
     const ganttTasksSum = [];
     let combinedItems = [];
     let sIdx = 0;
@@ -1365,22 +1354,22 @@ function renderProjects() {
       const row = document.createElement("div"); 
       row.className = "gantt-row";
       if (item.type === 'project') {
-        let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : item.progress+'%';
+        let statusText = item.isDone ? '<span class="pill pill-success">完成</span>' : item.progress+'%';
         if (item.hasDelay && !item.isDone) {
-            statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
+            statusText = '<span class="pill pill-danger">Delay</span>';
         }
 
         let titleDisplay = item.isCollab 
-          ? `<span style="color:#2563eb; font-weight:700;"><span style="color:#2563eb; margin-right:4px;">👥</span>${item.title}</span>`
-          : `<span style="color:#0f172a; font-weight:700;">🗂️ ${item.title}</span>`;
+          ? `<span>👥 ${item.title}</span>`
+          : `<span>🗂️ ${item.title}</span>`;
           
         row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')">${titleDisplay}</div><div class="col-sum-date">${item.start.substring(5)} ~ ${item.end.substring(5)}</div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       } else {
-        let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
+        let statusText = item.isDone ? '<span class="pill pill-success">完成</span>' : '處理中';
         if (item.hasDelay && !item.isDone) {
-            statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
+            statusText = '<span class="pill pill-danger">Delay</span>';
         }
-        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger);" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date">${item.start.substring(5)}</div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
+        row.innerHTML = `<div class="col-sum-name" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date">${item.start.substring(5)}</div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       }
       if(sumLeftBody) sumLeftBody.appendChild(row);
     });
@@ -1420,16 +1409,16 @@ function renderProjects() {
   const inGracePeriod = isWithin7DaysGracePeriod(activeProj);
   
   let canEditMainProj = isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod));
-  let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px; font-size:calc(10px * var(--font-scale, 1)); border-color:var(--warning); color:var(--warning);">✏️ 編輯主資訊</button>` : '';
+  let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px;">✏️ 編輯主資訊</button>` : '';
   
-  let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#2563eb; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
-  let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="font-size:calc(11px * var(--font-scale, 1)); margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
+  let collabBadge = hasCollab ? `<span class="pill" style="margin-left:8px;">👥 協作：<span>${activeProj.collaborators.join(', ')}</span></span>` : '';
+  let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
 
-  let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
-  let titleDisplayName = `<span style="color:#2563eb; font-weight:700;">${titlePrefixIcon}${activeProj.title}</span>`;
+  let titlePrefixIcon = hasCollab ? '<span>👥</span>' : '';
+  let titleDisplayName = `<span>${titlePrefixIcon}${activeProj.title}</span>`;
   
   const currentTitleEl = document.getElementById("current-gantt-title");
-  if(currentTitleEl) currentTitleEl.innerHTML = `<span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} ${collabBadge} ${graceBadge} ${editProjBtn}`;
+  if(currentTitleEl) currentTitleEl.innerHTML = `<span>專案：</span>${titleDisplayName} ${collabBadge} ${graceBadge} ${editProjBtn}`;
   
   const btnProjectAddTask = document.getElementById("btn-project-add-task");
   const lockBtn = document.getElementById("btn-toggle-lock");
@@ -1451,6 +1440,11 @@ function renderProjects() {
   if (delProjBtn) {
     delProjBtn.style.display = (isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod))) ? "inline-block" : "none";
   }
+
+  const leftBody = document.getElementById("gantt-left-body");
+  const listBody = document.getElementById("project-list-tbody");
+  if(leftBody) leftBody.innerHTML = ""; 
+  if(listBody) listBody.innerHTML = "";
 
   const ganttTasks = [];
   (activeProj.tasks || []).forEach((task, index) => {
@@ -1487,8 +1481,8 @@ function renderProjects() {
       <div style="display:inline-flex; align-items:center; gap:2px; margin-left:auto; flex-shrink:0;">
         <button type="button" class="btn-sort" onclick="moveActiveProjectTask('${activeProj.id}', ${index}, -1)" title="上移">↑</button>
         <button type="button" class="btn-sort" onclick="moveActiveProjectTask('${activeProj.id}', ${index}, 1)" title="下移">↓</button>
-        <button class="action-btn" onclick="openGeneralEdit('task', '${activeProj.id}', ${index})" style="padding:2px 5px; font-size:calc(10px * var(--font-scale, 1)); border-color:var(--warning); color:var(--warning);" title="編輯細項">✏️</button>
-        <button class="action-btn danger" onclick="deleteActiveProjectTask('${activeProj.id}', ${index})" style="padding:2px 5px; font-size:calc(10px * var(--font-scale, 1));" title="刪除此細項">🗑️</button>
+        <button class="action-btn" onclick="openGeneralEdit('task', '${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px;" title="編輯細項">✏️</button>
+        <button class="action-btn danger" onclick="deleteActiveProjectTask('${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px;" title="刪除此細項">🗑️</button>
       </div>` : '';
 
     // 格式化預計日期 (開始月/日 - 結束月/日)
@@ -1502,8 +1496,8 @@ function renderProjects() {
       <div class="col-name" title="${task.name}"><span style="overflow:hidden; text-overflow:ellipsis;">${task.name}</span>${editHtml}</div>
       ${expectedDateHtml}
       <div class="col-date"><span>${workDays} 天</span></div>
-      <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="width:40px; padding:2px 4px; text-align:center; height:24px;"> %</div>
-      <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')" style="padding:2px 6px; font-size:calc(11px * var(--font-scale, 1));">${task.isCompleted ? '完成' : '確認'}</button></div>
+      <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''}> %</div>
+      <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')">${task.isCompleted ? '完成' : '確認'}</button></div>
       <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
     `;
     if(leftBody) leftBody.appendChild(row);
@@ -1516,21 +1510,21 @@ function renderProjects() {
         historyHtml = `<div style="max-height: 160px; overflow-y: auto;">` + 
           `<table style="width:100%; table-layout:fixed; border-collapse:collapse; margin:0; background:transparent;"><colgroup><col style="width:50%;"><col style="width:50%;"></colgroup><tbody>` +
           sortedHistory.map((h, i) => {
-            let note = h.type === 'create' ? '<span style="color:var(--text-muted)">(建立)</span>' : (h.type === 'complete' ? '<span style="color:var(--success)">(結案)</span>' : '');
+            let note = h.type === 'create' ? '<span>(建立)</span>' : (h.type === 'complete' ? '<span>(結案)</span>' : '');
             let remarkHtml = '';
             if (h.type === 'complete' && h.delayReason) remarkHtml = `<span class="pill pill-danger" style="white-space:normal; word-wrap:break-word;">Delay: ${h.delayReason}</span>`;
-            else if (h.remark) remarkHtml = `<span style="color: var(--text-muted); white-space:normal; word-wrap:break-word;">${h.remark}</span>`;
-            else remarkHtml = `<span style="color: #cbd5e1;">-</span>`;
+            else if (h.remark) remarkHtml = `<span style="white-space:normal; word-wrap:break-word;">${h.remark}</span>`;
+            else remarkHtml = `<span>-</span>`;
             const borderStyle = i === sortedHistory.length - 1 ? "" : "border-bottom:1px dashed var(--border-light);";
-            return `<tr style="${borderStyle}"><td style="padding: 10px 14px 10px 0; vertical-align: top; font-size:calc(12px * var(--font-scale, 1)); border-right: 1px solid var(--border-light);"><span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span><br><div style="margin-top:4px;">歷時 <b>${h.daysPassed}</b> 工作天</div></td><td style="padding: 10px 0 10px 14px; vertical-align: top; font-size:calc(12px * var(--font-scale, 1));">${remarkHtml}</td></tr>`;
+            return `<tr style="${borderStyle}"><td style="padding: 10px 14px 10px 0; vertical-align: top;"><span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span><br><div style="margin-top:4px;">歷時 <b>${h.daysPassed}</b> 工作天</div></td><td style="padding: 10px 0 10px 14px; vertical-align: top;">${remarkHtml}</td></tr>`;
           }).join('') + `</tbody></table></div>`;
       } else {
-        historyHtml = `<div style="padding: 12px 0; color:var(--text-muted); font-size: calc(12px * var(--font-scale, 1));">尚無紀錄</div>`;
+        historyHtml = `<div style="padding: 12px 0;">尚無紀錄</div>`;
       }
 
-      const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="font-size:calc(13px * var(--font-scale, 1)); padding:6px 10px;">已完成</span>` : `<span style="font-size:calc(13px * var(--font-scale, 1)); font-weight:bold;">進度: ${task.progress || 0}%</span>`;
+      const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="padding:6px 10px;">已完成</span>` : `<span style="font-weight:bold;">進度: ${task.progress || 0}%</span>`;
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td style="vertical-align: top; font-size: calc(14px * var(--font-scale, 1));"><strong>${task.name}</strong></td><td style="vertical-align: top;">${taskAssigneeName}</td><td style="vertical-align: top;">${statusHtml}</td><td style="padding: 0 16px; vertical-align: top;">${historyHtml}</td><td style="padding: 0 16px; vertical-align: top;">${task.delayReason ? `<span class="pill pill-danger">Delay: ${task.delayReason}</span>` : '-'}</td>`;
+      tr.innerHTML = `<td style="vertical-align: top;"><strong>${task.name}</strong></td><td style="vertical-align: top;">${taskAssigneeName}</td><td style="vertical-align: top;">${statusHtml}</td><td style="padding: 0 16px; vertical-align: top;">${historyHtml}</td><td style="padding: 0 16px; vertical-align: top;">${task.delayReason ? `<span class="pill pill-danger">Delay: ${task.delayReason}</span>` : '-'}</td>`;
       listBody.appendChild(tr);
     }
   });
@@ -2203,8 +2197,8 @@ window.openWeeklyModal = (id) => {
   if(!report) return;
   
   let leaveTag = '';
-  if (report.leaveType === 'leave') leaveTag = `<span class="pill pill-danger" style="margin-left:12px; font-size:calc(12px * var(--font-scale, 1));">📌 原因：請假</span>`;
-  else if (report.leaveType === 'other') leaveTag = `<span class="pill pill-warning" style="margin-left:12px; font-size:calc(12px * var(--font-scale, 1));">📌 原因：${report.leaveReason}</span>`;
+  if (report.leaveType === 'leave') leaveTag = `<span class="pill pill-danger" style="margin-left:12px;">📌 原因：請假</span>`;
+  else if (report.leaveType === 'other') leaveTag = `<span class="pill pill-warning" style="margin-left:12px;">📌 原因：${report.leaveReason}</span>`;
 
   const days = ['日', '一', '二', '三', '四', '五', '六'];
   let fillTimeStr = '-';
@@ -2222,18 +2216,18 @@ window.openWeeklyModal = (id) => {
     fillTimeStr = `${yyyy}/${mm}/${dd} ${ampm}${hours}:${minutes}:${seconds} (${days[d.getDay()]})`;
   }
 
-  let contentHtml = `<div style="margin-bottom:16px;"><div style="font-size:calc(16px * var(--font-scale, 1)); font-weight:bold; margin-bottom:4px;">${report.ownerName} 的工作週報</div><div style="font-size:calc(13px * var(--font-scale, 1)); color:var(--text-muted); display:flex; align-items:center;">填寫時間：${fillTimeStr} ${leaveTag}</div></div>`;
+  let contentHtml = `<div style="margin-bottom:16px;"><div style="font-weight:bold; margin-bottom:4px;">${report.ownerName} 的工作週報</div><div style="color:var(--text-muted); display:flex; align-items:center;">填寫時間：${fillTimeStr} ${leaveTag}</div></div>`;
   
   if (report.items && report.items.length > 0) {
     report.items.forEach((item, i) => { 
       let icon = item.projectId === 'SPECIAL_ADHOC' ? '📝' : (item.projectId === 'SPECIAL_OTHER' ? '📌' : '🗂️');
       let taskHtml = item.taskName ? `<div style="word-break: break-all;">📌 ${item.taskName}</div>` : '';
-      contentHtml += `<div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;"><div style="flex:1; font-size:calc(13px * var(--font-scale, 1)); font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px;"><div style="margin-bottom:6px; word-break: break-all;">${icon} ${item.projectName}</div>${taskHtml}</div><div style="flex:2.5; font-size:calc(13px * var(--font-scale, 1)); white-space:pre-wrap; line-height:1.6; padding-left:4px;">${item.content}</div></div>`; 
+      contentHtml += `<div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;"><div style="flex:1; font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px;"><div style="margin-bottom:6px; word-break: break-all;">${icon} ${item.projectName}</div>${taskHtml}</div><div style="flex:2.5; white-space:pre-wrap; line-height:1.6; padding-left:4px;">${item.content}</div></div>`; 
     });
   } else if (report.content) {
-    contentHtml += `<div style="padding: 12px; font-size:calc(13px * var(--font-scale, 1)); white-space:pre-wrap; background: #f8fafc; border-radius: 8px; line-height:1.6;">${report.content}</div>`;
+    contentHtml += `<div style="padding: 12px; white-space:pre-wrap; background: #f8fafc; border-radius: 8px; line-height:1.6;">${report.content}</div>`;
   } else {
-    contentHtml += `<div style="padding: 16px; font-size:calc(13px * var(--font-scale, 1)); color:var(--text-muted); background: #f8fafc; border-radius: 8px; text-align:center;">(本日無填寫專案進度)</div>`;
+    contentHtml += `<div style="padding: 16px; color:var(--text-muted); background: #f8fafc; border-radius: 8px; text-align:center;">(本日無填寫專案進度)</div>`;
   }
   
   document.getElementById('weekly-detail-content').innerHTML = contentHtml;
@@ -2379,7 +2373,7 @@ function createCalCellNode(dayNum, dateStr, isOtherMonth, todayStr, userTodos) {
       html += `<div class="cal-todo-pill ${isDone}" style="color:${todo.color || '#0f172a'};">${todo.title}</div>`;
     });
     if (dayTodos.length > 3) {
-      html += `<div style="font-size:calc(10px * var(--font-scale, 1)); color:var(--text-muted); text-align:right;">+${dayTodos.length - 3} 則...</div>`;
+      html += `<div style="font-size:10px; color:var(--text-muted); text-align:right;">+${dayTodos.length - 3} 則...</div>`;
     }
     html += `</div>`;
   }
@@ -2456,7 +2450,7 @@ function renderCalTodosModal(dateStr) {
   document.getElementById("cal-completed-count").innerText = completed.length;
 
   if (uncompleted.length === 0) {
-    uncompletedList.innerHTML = `<div style="font-size:calc(12px * var(--font-scale, 1)); color:var(--text-muted); padding:8px 0;">尚無未完成事項</div>`;
+    uncompletedList.innerHTML = `<div style="color:var(--text-muted); padding:8px 0;">尚無未完成事項</div>`;
   } else {
     uncompleted.forEach(todo => {
       const div = document.createElement("div");
@@ -2466,14 +2460,14 @@ function renderCalTodosModal(dateStr) {
           <input type="checkbox" onchange="toggleCalTodoStatus('${todo.id}', true)">
           <span style="color:${todo.color || '#0f172a'}; font-weight:600;">${todo.title}</span>
         </label>
-        <button class="btn-close" style="font-size:calc(18px * var(--font-scale, 1)); color:var(--text-muted);" onclick="deleteCalendarTodo('${todo.id}')">×</button>
+        <button class="btn-close" style="color:var(--text-muted);" onclick="deleteCalendarTodo('${todo.id}')">×</button>
       `;
       uncompletedList.appendChild(div);
     });
   }
 
   if (completed.length === 0) {
-    completedList.innerHTML = `<div style="font-size:calc(12px * var(--font-scale, 1)); color:var(--text-muted); padding:8px 0;">尚無已完成事項</div>`;
+    completedList.innerHTML = `<div style="color:var(--text-muted); padding:8px 0;">尚無已完成事項</div>`;
   } else {
     completed.forEach(todo => {
       const div = document.createElement("div");
@@ -2483,7 +2477,7 @@ function renderCalTodosModal(dateStr) {
           <input type="checkbox" checked onchange="toggleCalTodoStatus('${todo.id}', false)">
           <span style="color:${todo.color || '#0f172a'};">${todo.title}</span>
         </label>
-        <button class="btn-close" style="font-size:calc(18px * var(--font-scale, 1)); color:var(--text-muted);" onclick="deleteCalendarTodo('${todo.id}')">×</button>
+        <button class="btn-close" style="color:var(--text-muted);" onclick="deleteCalendarTodo('${todo.id}')">×</button>
       `;
       completedList.appendChild(div);
     });
@@ -2589,10 +2583,10 @@ function renderOrgChart() {
     deptBlock.innerHTML = `
       <div class="org-dept-header">
         <div class="org-dept-title">
-          <span style="font-size:calc(16px * var(--font-scale, 1));">🏢</span>
+          <span>🏢</span>
           <span>${dept}</span>
         </div>
-        <span style="font-size:calc(12px * var(--font-scale, 1)); font-weight:600; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:12px;">共 ${deptUsers.length} 人</span>
+        <span style="font-weight:600; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:12px;">共 ${deptUsers.length} 人</span>
       </div>
       <div class="org-hierarchy-grid">
         ${tierHtml}
@@ -2729,15 +2723,15 @@ window.openGeneralEdit = (type, id, extra) => {
           <div class="form-group" style="padding:12px; background:#f8fafc; border:1px solid var(--border); border-radius:8px; margin-bottom:0;">
             <div class="form-row" style="margin-bottom:8px;">
               <div class="form-group" style="flex:1; margin-bottom:0;">
-                <label class="form-label" style="font-size:calc(12px * var(--font-scale, 1));">主專案 / 類別</label>
-                <select id="edit-weekly-proj-${idx}" class="input-control" style="font-size:calc(12px * var(--font-scale, 1)); padding:6px 8px;" onchange="onEditWeeklyProjChange(${idx})">${projOptions}</select>
+                <label class="form-label">主專案 / 類別</label>
+                <select id="edit-weekly-proj-${idx}" class="input-control" style="padding:6px 8px;" onchange="onEditWeeklyProjChange(${idx})">${projOptions}</select>
               </div>
               <div class="form-group" style="flex:1; margin-bottom:0;">
-                <select id="edit-weekly-task-${idx}" class="input-control" style="font-size:calc(12px * var(--font-scale, 1)); padding:6px 8px; margin-top:20px; display:${taskDisplay};" onchange="onEditWeeklyTaskChange(${idx})">${taskOptions}</select>
+                <select id="edit-weekly-task-${idx}" class="input-control" style="padding:6px 8px; margin-top:20px; display:${taskDisplay};" onchange="onEditWeeklyTaskChange(${idx})">${taskOptions}</select>
               </div>
             </div>
-            <label class="form-label" style="font-size:calc(12px * var(--font-scale, 1));">進度說明</label>
-            <textarea id="edit-val-item-${idx}" class="input-control" rows="3" style="font-size:calc(13px * var(--font-scale, 1));">${item.content}</textarea>
+            <label class="form-label">進度說明</label>
+            <textarea id="edit-val-item-${idx}" class="input-control" rows="3">${item.content}</textarea>
           </div>
         `;
       });
@@ -3050,7 +3044,7 @@ function loadOrgUsers() {
         <td style="text-align: center;">
           <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer;">
             <input type="checkbox" onchange="toggleUserEditPermission('${u.uid}', this.checked)" ${u.canEdit ? 'checked' : ''} ${currentUserData.role === 'admin' ? '' : 'disabled'}>
-            <span style="font-size:calc(12px * var(--font-scale, 1));">開放</span>
+            <span>開放</span>
           </label>
         </td>
         <td><strong>${u.name || '未命名'}</strong></td>
