@@ -3391,10 +3391,17 @@ window.renderApprovals = () => {
     tbody.parentElement.style.display = "table";
     
     // 將申請項目一行一行畫出來
+    // 將申請項目一行一行畫出來
     pendingProjects.forEach(p => {
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td><strong>${p.title}</strong></td>
+        <td>
+          <span style="color: var(--primary); font-weight: bold; cursor: pointer; text-decoration: underline;" 
+                onclick="switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*=\\'tab-projects\\']')); selectProject('${p.id}');" 
+                title="點擊前往查看此專案詳細進度">
+            ${p.title}
+          </span>
+        </td>
         <td><span class="pill" style="background:#eff6ff; color:#1e40af;">${p.pauseRequestedBy || '未知'}</span></td>
         <td>${p.pauseStartDate || '未指定'}</td>
         <td style="word-break: break-all; color: var(--text-muted);">${p.pauseReason || ''}</td>
