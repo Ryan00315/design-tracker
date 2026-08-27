@@ -114,10 +114,10 @@ function initDynamicUI() {
     .gantt-right-panel { flex: 0 0 54% !important; max-width: 54% !important; }
     
     /* 總覽清單的欄位比例配置 */
-    .col-sum-name { flex: 5.8 !important; } /* 加寬0.2 */
-    .col-sum-date { flex: 1.4 !important; text-align: center; display: flex; justify-content: center; align-items: center; } /* 增加比例拉開間距 */
-    .col-sum-prog { flex: 1.0 !important; text-align: center; display: flex; justify-content: center; align-items: center; } /* 增加比例拉開間距 */
-    .col-sum-owner { flex: 1.2 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* 增加比例拉開間距 */
+    .col-sum-name { flex: 5.8 !important; } /* 寬度增加0.2 */
+    .col-sum-date { flex: 1.4 !important; text-align: center; display: flex; justify-content: center; align-items: center; } /* 拉開間距 */
+    .col-sum-prog { flex: 1.0 !important; text-align: center; display: flex; justify-content: center; align-items: center; } /* 拉開間距 */
+    .col-sum-owner { flex: 1.2 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     /* 細項清單的欄位比例配置 */
     .col-name { flex: 2.8 !important; } 
@@ -188,32 +188,7 @@ function initDynamicUI() {
 }
 initDynamicUI();
 
-// 確保標題列一定有正確的內容，並且結構與下方資料列 100% 同步
-function fixHeaders() {
-  const sumHeader = document.querySelector('#project-summary-view .gantt-row-header');
-  if (sumHeader) {
-     sumHeader.innerHTML = `
-       <div class="col-sum-name" style="font-weight:bold; color:var(--primary);">主專案 / 事件名稱</div>
-       <div class="col-sum-date" style="font-weight:bold; color:var(--primary);">起訖日期</div>
-       <div class="col-sum-prog" style="font-weight:bold; color:var(--primary);">總進度</div>
-       <div class="col-sum-owner" style="font-weight:bold; color:var(--primary);">開案者</div>
-     `;
-     sumHeader.style.display = "flex";
-  }
-  const detHeader = document.querySelector('#project-detail-view .gantt-row-header');
-  if (detHeader) {
-     detHeader.innerHTML = `
-       <div class="col-name" style="font-weight:bold; color:var(--primary);">任務細項排程</div>
-       <div class="col-expected-date" style="font-weight:bold; color:var(--primary); line-height:1.1; font-size:calc(11.5px * var(--font-scale, 1));">預計<br>日期</div>
-       <div class="col-date" style="font-weight:bold; color:var(--primary); line-height:1.1; font-size:calc(11.5px * var(--font-scale, 1));">預計<br>天數</div>
-       <div class="col-prog" style="font-weight:bold; color:var(--primary);">進度</div>
-       <div class="col-act" style="font-weight:bold; color:var(--primary);">操作</div>
-       <div class="col-owner" style="font-weight:bold; color:var(--primary);">負責人</div>
-     `;
-     detHeader.style.display = "flex";
-  }
-}
-
+// 獨立的字體控制 UI 生成函式 (加入至頭像最左側)
 window.injectFontSizeUI = () => {
   if (document.getElementById('font-size-control-container')) return;
   
@@ -232,6 +207,7 @@ window.injectFontSizeUI = () => {
     <button id="btn-font-lg" class="action-btn font-btn" style="padding:2px 8px; font-size:calc(12px * var(--font-scale, 1)); border-color:#a5b4fc;" onclick="setGlobalFontSize('lg')">大</button>
   `;
   
+  // 將控制面板放在最左側
   if (avatarEl && avatarEl.parentNode) {
      avatarEl.parentNode.style.display = 'flex';
      avatarEl.parentNode.style.alignItems = 'center';
@@ -242,10 +218,12 @@ window.injectFontSizeUI = () => {
      userNameEl.parentNode.insertBefore(div, userNameEl);
   }
 
+  // 載入上次選擇的字體大小
   const savedSize = localStorage.getItem('desktop-font-size') || 'sm';
   window.setGlobalFontSize(savedSize);
 };
 
+// 切換全域字體大小 (支援 localStorage 記憶)
 window.setGlobalFontSize = (size) => {
   document.body.classList.remove('font-md', 'font-lg');
   document.querySelectorAll('.font-btn').forEach(btn => btn.classList.remove('active'));
@@ -692,7 +670,6 @@ onAuthStateChanged(auth, async (user) => {
     loadMyCalendarTodos(user.uid);
     initTemplateUI();
     
-    // 初始化字體大小設定 UI
     window.injectFontSizeUI();
   } else {
     document.getElementById("auth-section").style.display = "flex"; 
@@ -1111,7 +1088,7 @@ function getGraceDaysLeft(proj) {
 }
 
 function renderProjects() {
-  fixHeaders(); // 強制更新表頭 UI 結構
+  fixHeaders(); 
   checkEditModeVisibility();
 
   const isViewingSelf = (viewingUserId === auth.currentUser.uid);
