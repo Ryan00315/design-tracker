@@ -3231,22 +3231,23 @@ document.getElementById("btn-update-password").addEventListener("click", async (
 window.openPauseModal = (projId) => {
   document.getElementById("pause-proj-id").value = projId;
   document.getElementById("pause-reason-input").value = "";
+  document.getElementById("pause-start-date").value = getTodayStr(); // 自動帶入今天日期
   document.getElementById("pause-request-modal").classList.add("active");
-};
-
-window.closePauseModal = () => {
-  document.getElementById("pause-request-modal").classList.remove("active");
 };
 
 window.submitPauseRequest = async () => {
   const projId = document.getElementById("pause-proj-id").value;
   const reason = document.getElementById("pause-reason-input").value.trim();
+  const startDate = document.getElementById("pause-start-date").value; // 取得指定的起始日
+  
+  if (!startDate) return alert("請選擇暫停起始日期！");
   if (!reason) return alert("請務必填寫暫停原因！");
 
   try {
     await updateDoc(doc(db, "projects", projId), {
       status: "pause_requested",
       pauseReason: reason,
+      pauseStartDate: startDate, // 將自訂的起始日存入資料庫
       pauseRequestedBy: currentUserData.name || "人員"
     });
     closePauseModal();
@@ -3260,13 +3261,18 @@ window.approvePause = async (projId) => {
   if (!confirm("確定要同意暫停此專案嗎？")) return;
   const proj = allProjectsData.find(p => p.id === projId);
   const history = proj.pauseHistory || [];
-  history.push({ start: getTodayStr(), end: null, reason: proj.pauseReason });
+  
+  // 審核同意時，抓取申請時填寫的日期 (如果因為舊資料沒有，則預設為今天)
+  const startDateToUse = proj.pauseStartDate || getTodayStr();
+  
+  history.push({ start: startDateToUse, end: null, reason: proj.pauseReason });
 
   await updateDoc(doc(db, "projects", projId), {
     status: "paused",
-    pauseHistory: history
+    pauseHistory: history,
+    pauseStartDate: "" // 清除暫存的申請日期
   });
-  alert("專案已正式暫停！");
+  alert(`專案已正式暫停！\n(暫停起始日設定為：${startDateToUse})`);
 };
 
 window.rejectPause = async (projId) => {
