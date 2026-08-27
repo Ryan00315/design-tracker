@@ -114,10 +114,10 @@ function initDynamicUI() {
     .gantt-right-panel { flex: 0 0 54% !important; max-width: 54% !important; }
     
     /* 總覽清單的欄位比例配置 */
-    .col-sum-name { flex: 5.8 !important; } /* 寬度增加0.2 */
-    .col-sum-date { flex: 1.4 !important; text-align: center; display: flex; justify-content: center; align-items: center; } /* 拉開間距 */
-    .col-sum-prog { flex: 1.0 !important; text-align: center; display: flex; justify-content: center; align-items: center; } /* 拉開間距 */
-    .col-sum-owner { flex: 1.2 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-sum-name { flex: 5.8 !important; } /* 主專案名稱再加寬 0.2 */
+    .col-sum-date { flex: 1.4 !important; text-align: center; display: flex; justify-content: center; align-items: center; } /* 增加比例拉開間距 */
+    .col-sum-prog { flex: 1.0 !important; text-align: center; display: flex; justify-content: center; align-items: center; } /* 增加比例拉開間距 */
+    .col-sum-owner { flex: 1.2 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* 增加比例拉開間距 */
 
     /* 細項清單的欄位比例配置 */
     .col-name { flex: 2.8 !important; } 
@@ -188,7 +188,32 @@ function initDynamicUI() {
 }
 initDynamicUI();
 
-// 獨立的字體控制 UI 生成函式 (加入至頭像最左側)
+// 確保標題列一定有正確的內容，並且結構與下方資料列 100% 同步
+function fixHeaders() {
+  const sumHeader = document.querySelector('#project-summary-view .gantt-row-header');
+  if (sumHeader) {
+     sumHeader.innerHTML = `
+       <div class="col-sum-name" style="font-weight:bold; color:var(--primary);">主專案 / 事件名稱</div>
+       <div class="col-sum-date" style="font-weight:bold; color:var(--primary);">起訖日期</div>
+       <div class="col-sum-prog" style="font-weight:bold; color:var(--primary);">總進度</div>
+       <div class="col-sum-owner" style="font-weight:bold; color:var(--primary);">開案者</div>
+     `;
+     sumHeader.style.display = "flex";
+  }
+  const detHeader = document.querySelector('#project-detail-view .gantt-row-header');
+  if (detHeader) {
+     detHeader.innerHTML = `
+       <div class="col-name" style="font-weight:bold; color:var(--primary);">任務細項排程</div>
+       <div class="col-expected-date" style="font-weight:bold; color:var(--primary); line-height:1.1; font-size:calc(11.5px * var(--font-scale, 1));">預計<br>日期</div>
+       <div class="col-date" style="font-weight:bold; color:var(--primary); line-height:1.1; font-size:calc(11.5px * var(--font-scale, 1));">預計<br>天數</div>
+       <div class="col-prog" style="font-weight:bold; color:var(--primary);">進度</div>
+       <div class="col-act" style="font-weight:bold; color:var(--primary);">操作</div>
+       <div class="col-owner" style="font-weight:bold; color:var(--primary);">負責人</div>
+     `;
+     detHeader.style.display = "flex";
+  }
+}
+
 window.injectFontSizeUI = () => {
   if (document.getElementById('font-size-control-container')) return;
   
@@ -207,7 +232,6 @@ window.injectFontSizeUI = () => {
     <button id="btn-font-lg" class="action-btn font-btn" style="padding:2px 8px; font-size:calc(12px * var(--font-scale, 1)); border-color:#a5b4fc;" onclick="setGlobalFontSize('lg')">大</button>
   `;
   
-  // 將控制面板放在最左側
   if (avatarEl && avatarEl.parentNode) {
      avatarEl.parentNode.style.display = 'flex';
      avatarEl.parentNode.style.alignItems = 'center';
@@ -218,12 +242,10 @@ window.injectFontSizeUI = () => {
      userNameEl.parentNode.insertBefore(div, userNameEl);
   }
 
-  // 載入上次選擇的字體大小
   const savedSize = localStorage.getItem('desktop-font-size') || 'sm';
   window.setGlobalFontSize(savedSize);
 };
 
-// 切換全域字體大小 (支援 localStorage 記憶)
 window.setGlobalFontSize = (size) => {
   document.body.classList.remove('font-md', 'font-lg');
   document.querySelectorAll('.font-btn').forEach(btn => btn.classList.remove('active'));
@@ -257,7 +279,6 @@ function initTemplateUI() {
     if (!window.hasInitTemplateSnapshot && auth.currentUser) {
       window.hasInitTemplateSnapshot = true;
       try {
-        // 改為依據個人的 uid 讀取獨立的模板資料
         onSnapshot(doc(db, "user_templates", auth.currentUser.uid), (docSnap) => {
           if(docSnap.exists()) {
             projectTemplates = docSnap.data().templates || projectTemplates;
@@ -309,7 +330,6 @@ window.applySelectedTemplate = () => {
   const checked = document.querySelector('input[name="selected_template"]:checked');
   if(!checked) return alert("請先選擇一個模板！");
   
-  // 🛡️ 加入防呆確認視窗
   if(!confirm("⚠️ 確定要帶入此模板嗎？\n注意：這將會清除您目前在下方輸入的所有草稿細項！")) {
     return;
   }
@@ -670,6 +690,7 @@ onAuthStateChanged(auth, async (user) => {
     loadMyCalendarTodos(user.uid);
     initTemplateUI();
     
+    // 初始化字體大小設定 UI
     window.injectFontSizeUI();
   } else {
     document.getElementById("auth-section").style.display = "flex"; 
@@ -1088,6 +1109,16 @@ function getGraceDaysLeft(proj) {
 }
 
 function renderProjects() {
+  // ✅ 確保程式執行前修正 HTML 的標題結構，不依賴手動修改
+  const sumLeftBody = document.getElementById("gantt-summary-left-body");
+  if(sumLeftBody) sumLeftBody.innerHTML = "";
+  
+  const leftBody = document.getElementById("gantt-left-body");
+  if(leftBody) leftBody.innerHTML = "";
+  
+  const listBody = document.getElementById("project-list-tbody");
+  if(listBody) listBody.innerHTML = "";
+
   fixHeaders(); 
   checkEditModeVisibility();
 
@@ -1198,24 +1229,24 @@ function renderProjects() {
   }
   activeList = Array.from(new Set(activeList)); 
 
-  if (selectedProjectId !== 'SUMMARY') {
-    if (!activeList.find(p => p.id === selectedProjectId)) selectedProjectId = 'SUMMARY';
-  }
-
   const tabsContainer = document.getElementById("project-tabs-container");
   const detailView = document.getElementById("project-detail-view");
   const summaryView = document.getElementById("project-summary-view");
   const emptyState = document.getElementById("empty-state");
-  tabsContainer.innerHTML = "";
+  if(tabsContainer) tabsContainer.innerHTML = "";
 
   if (activeList.length === 0 && activeAdHocs.length === 0) { 
-    detailView.style.display = "none"; 
-    summaryView.style.display = "none"; 
-    emptyState.style.display = "block"; 
+    if(detailView) detailView.style.display = "none"; 
+    if(summaryView) summaryView.style.display = "none"; 
+    if(emptyState) emptyState.style.display = "block"; 
     return; 
   }
 
   if (selectedProjectId !== 'SUMMARY') {
+    if (!activeList.find(p => p.id === selectedProjectId)) selectedProjectId = 'SUMMARY';
+  }
+
+  if (selectedProjectId !== 'SUMMARY' && tabsContainer) {
     const summaryBtn = document.createElement("button");
     summaryBtn.className = `proj-tab`;
     summaryBtn.style.border = "2px solid #8b5cf6"; 
@@ -1234,15 +1265,15 @@ function renderProjects() {
     if (hasCollab) btn.innerHTML = `<span>👥 ${p.title}</span>`;
     else btn.innerText = p.title;
     btn.onclick = () => selectProject(p.id); 
-    tabsContainer.appendChild(btn);
+    if(tabsContainer) tabsContainer.appendChild(btn);
   });
 
-  emptyState.style.display = "none"; 
+  if(emptyState) emptyState.style.display = "none"; 
 
   // ⭐ 顯示總覽畫面
   if (selectedProjectId === 'SUMMARY') {
-    detailView.style.display = "none"; 
-    summaryView.style.display = "block";
+    if(detailView) detailView.style.display = "none"; 
+    if(summaryView) summaryView.style.display = "block";
     
     let summaryLabel = "所有專案";
     if (currentFilter === 'ongoing') summaryLabel = "未完成";
@@ -1253,10 +1284,7 @@ function renderProjects() {
     const panelHeadSpan = document.querySelector('#project-summary-view .panel-head span');
     if (panelHeadSpan) panelHeadSpan.innerText = `⭐ 專案與事件總覽排程 (${summaryLabel}清單)`;
 
-    const sumLeftBody = document.getElementById("gantt-summary-left-body");
-    sumLeftBody.innerHTML = "";
     const ganttTasksSum = [];
-    
     let combinedItems = [];
     let sIdx = 0;
 
@@ -1354,7 +1382,7 @@ function renderProjects() {
         }
         row.innerHTML = `<div class="col-sum-name" style="color:var(--danger);" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date">${item.start.substring(5)}</div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       }
-      sumLeftBody.appendChild(row);
+      if(sumLeftBody) sumLeftBody.appendChild(row);
     });
 
     if (ganttTasksSum.length > 0) {
@@ -1379,8 +1407,8 @@ function renderProjects() {
   }
 
   // ⭐ 顯示詳細專案畫面
-  summaryView.style.display = "none"; 
-  detailView.style.display = "block";
+  if(summaryView) summaryView.style.display = "none"; 
+  if(detailView) detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
   if(!activeProj) return; 
 
@@ -1400,31 +1428,29 @@ function renderProjects() {
   let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
   let titleDisplayName = `<span style="color:#2563eb; font-weight:700;">${titlePrefixIcon}${activeProj.title}</span>`;
   
-  document.getElementById("current-gantt-title").innerHTML = `<span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} ${collabBadge} ${graceBadge} ${editProjBtn}`;
+  const currentTitleEl = document.getElementById("current-gantt-title");
+  if(currentTitleEl) currentTitleEl.innerHTML = `<span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} ${collabBadge} ${graceBadge} ${editProjBtn}`;
   
   const btnProjectAddTask = document.getElementById("btn-project-add-task");
   const lockBtn = document.getElementById("btn-toggle-lock");
   const delProjBtn = document.getElementById("btn-delete-project");
 
-  lockBtn.style.display = "none"; 
+  if(lockBtn) lockBtn.style.display = "none"; 
 
-  // 🚀 新增細項按鈕：永久開放！只要有特權、是協作單位，或是專案主，就能永遠顯示！(不受7天限制)
   const canAddTask = hasGlobalEdit || isCollabMember || isProjOwner;
 
-  if (canAddTask) {
-    btnProjectAddTask.style.display = "inline-block";
-    btnProjectAddTask.innerText = hasCollab ? "➕ 協作細項" : "➕ 新增細項";
-  } else {
-    btnProjectAddTask.style.display = "none";
+  if (btnProjectAddTask) {
+    if (canAddTask) {
+      btnProjectAddTask.style.display = "inline-block";
+      btnProjectAddTask.innerText = hasCollab ? "➕ 協作細項" : "➕ 新增細項";
+    } else {
+      btnProjectAddTask.style.display = "none";
+    }
   }
 
-  // 🚀 刪除專案防呆：必須在開啟編輯模式時才顯示
-  delProjBtn.style.display = (isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod))) ? "inline-block" : "none";
-
-  const leftBody = document.getElementById("gantt-left-body");
-  const listBody = document.getElementById("project-list-tbody");
-  leftBody.innerHTML = ""; 
-  if(listBody) listBody.innerHTML = "";
+  if (delProjBtn) {
+    delProjBtn.style.display = (isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod))) ? "inline-block" : "none";
+  }
 
   const ganttTasks = [];
   (activeProj.tasks || []).forEach((task, index) => {
@@ -1447,7 +1473,6 @@ function renderProjects() {
     const taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
     const isMyTask = (auth.currentUser.uid === taskAssigneeId);
 
-    // 🚀 判定「單個細項」是否在7天自由編輯期內 (依照任務自己的建立時間)
     let taskCreatedTime = task.createdAt || (activeProj.createdAt && typeof activeProj.createdAt.toMillis === 'function' ? activeProj.createdAt.toMillis() : Date.now());
     let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
 
@@ -1481,7 +1506,7 @@ function renderProjects() {
       <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')" style="padding:2px 6px; font-size:calc(11px * var(--font-scale, 1));">${task.isCompleted ? '完成' : '確認'}</button></div>
       <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
     `;
-    leftBody.appendChild(row);
+    if(leftBody) leftBody.appendChild(row);
 
     if (listBody) {
       let historyHtml = '';
@@ -1512,21 +1537,23 @@ function renderProjects() {
 
   if (ganttTasks.length > 0) {
     const chartContainer = document.getElementById("gantt-chart-container");
-    chartContainer.className = "gantt-right-panel"; 
-    chartContainer.innerHTML = '<div id="gantt-chart"></div>';
-    setTimeout(() => {
-      if (document.getElementById("tab-projects").style.display === "none") return;
-      ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
-        view_mode: 'Day', 
-        language: 'zh', 
-        header_height: 50, 
-        bar_height: 20, 
-        padding: 18, 
-        readonly: true 
-      });
-      patchGanttVisuals(ganttInstance, '#gantt-chart-container');
-      scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container'); 
-    }, 100); 
+    if(chartContainer) {
+      chartContainer.className = "gantt-right-panel"; 
+      chartContainer.innerHTML = '<div id="gantt-chart"></div>';
+      setTimeout(() => {
+        if (document.getElementById("tab-projects").style.display === "none") return;
+        ganttInstance = new Gantt("#gantt-chart", ganttTasks, { 
+          view_mode: 'Day', 
+          language: 'zh', 
+          header_height: 50, 
+          bar_height: 20, 
+          padding: 18, 
+          readonly: true 
+        });
+        patchGanttVisuals(ganttInstance, '#gantt-chart-container');
+        scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container'); 
+      }, 100); 
+    }
   }
 }
 
