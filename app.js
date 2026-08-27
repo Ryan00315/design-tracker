@@ -563,7 +563,7 @@ function scrollToTodayMinus2Days(ganttInst, containerSelector) {
   });
 }
 
-function patchGanttVisuals(ganttInst, containerSelector) {
+function patchGanttVisuals(ganttInst, containerSelector, currentProjData = null) {
   if (!ganttInst || !ganttInst.dates || ganttInst.dates.length === 0) return;
   const wrapper = document.querySelector(containerSelector);
   if (!wrapper) return;
@@ -590,6 +590,45 @@ function patchGanttVisuals(ganttInst, containerSelector) {
   const scrollElement = wrapper.querySelector('.gantt-container') || wrapper;
   const upperTexts = Array.from(svg.querySelectorAll('.upper-text'));
   const colWidth = (ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
+
+  // ==== 繪製暫停深紅線條 (Step 4) ====
+  if (currentProjData && currentProjData.pauseHistory) {
+    currentProjData.pauseHistory.forEach(pause => {
+      const pStart = pause.start;
+      const pEnd = pause.end || getTodayStr(); // 如果還在暫停中，畫到今天
+
+      ganttInst.tasks.forEach(task => {
+        // 如果任務的時間段與暫停時間段有重疊
+        if (task.start <= new Date(pEnd.replace(/-/g, '/')) && task.end >= new Date(pStart.replace(/-/g, '/'))) {
+          const barWrapper = svg.querySelector(`.bar-wrapper[data-id="${task.id}"]`);
+          if (barWrapper) {
+            const barRect = barWrapper.querySelector('.bar');
+            if (barRect) {
+              const barY = barRect.getAttribute('y');
+              const barHeight = barRect.getAttribute('height');
+
+              let startIndex = ganttInst.dates.findIndex(d => formatDateSafe(d) === pStart);
+              let endIndex = ganttInst.dates.findIndex(d => formatDateSafe(d) === pEnd);
+
+              if (startIndex !== -1 && endIndex !== -1) {
+                const x = startIndex * colWidth;
+                const width = (endIndex - startIndex + 1) * colWidth;
+                // 利用 SVG 動態插入一條紅色實線在任務方塊正中央
+                const redLine = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                redLine.setAttribute('x', x);
+                redLine.setAttribute('y', parseFloat(barY) + parseFloat(barHeight) / 2 - 2); 
+                redLine.setAttribute('width', width);
+                redLine.setAttribute('height', 4); // 4px 粗度的深紅線
+                redLine.setAttribute('fill', '#991b1b'); 
+                redLine.style.pointerEvents = 'none'; // 不影響點擊
+                barWrapper.appendChild(redLine);
+              }
+            }
+          }
+        }
+      });
+    });
+  }
 
   const updateStickyMonthHeader = () => {
     const currentScrollLeft = scrollElement.scrollLeft;
@@ -633,7 +672,6 @@ function patchGanttVisuals(ganttInst, containerSelector) {
   updateStickyMonthHeader();
   scrollToTodayMinus2Days(ganttInst, containerSelector);
 }
-
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     document.getElementById("auth-section").style.display = "none";
@@ -1414,8 +1452,29 @@ function renderProjects() {
   let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
   let titleDisplayName = `<span style="color:#2563eb; font-weight:700;">${titlePrefixIcon}${activeProj.title}</span>`;
   
+  // 新增暫停狀態徽章與按鈕邏輯
+  let statusBadge = "";
+  let pauseBtnHtml = "";
+  const isAdminOrTop = currentUserData.role === 'admin' || currentUserData.role === 'top_manager';
+
+  if (activeProj.status === 'pause_requested') {
+      statusBadge = `<span class="pill pill-warning" style="margin-left:8px;">⏸️ 暫停審核中 (${activeProj.pauseRequestedBy} 申請)</span>`;
+      if (isAdminOrTop) {
+          pauseBtnHtml = `<button class="btn-primary" onclick="approvePause('${activeProj.id}')" style="margin-left:8px; background:var(--danger); border:none; padding:2px 8px;">同意暫停</button><button class="action-btn" onclick="rejectPause('${activeProj.id}')" style="margin-left:4px; padding:2px 8px;">退回</button>`;
+      }
+  } else if (activeProj.status === 'paused') {
+      statusBadge = `<span class="pill pill-danger" style="margin-left:8px;">🛑 專案已暫停</span>`;
+      if (isAdminOrTop) {
+          pauseBtnHtml = `<button class="btn-primary" onclick="resumeProject('${activeProj.id}')" style="margin-left:8px; background:var(--success); border:none; padding:2px 8px;">▶️ 恢復執行</button>`;
+      }
+  } else {
+      if (hasGlobalEdit || isProjOwner || isCollabMember) {
+          pauseBtnHtml = `<button class="action-btn" onclick="openPauseModal('${activeProj.id}')" style="margin-left:8px; border-color:var(--danger); color:var(--danger); padding:2px 8px;">⏸️ 申請暫停</button>`;
+      }
+  }
+  
   const currentTitleEl = document.getElementById("current-gantt-title");
-  if(currentTitleEl) currentTitleEl.innerHTML = `<span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} ${collabBadge} ${graceBadge} ${editProjBtn}`;
+  if(currentTitleEl) currentTitleEl.innerHTML = `<span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} ${collabBadge} ${statusBadge} ${graceBadge} ${editProjBtn} ${pauseBtnHtml}`;
   
   const btnProjectAddTask = document.getElementById("btn-project-add-task");
   const lockBtn = document.getElementById("btn-toggle-lock");
@@ -1468,7 +1527,8 @@ function renderProjects() {
     let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
 
     const canOperateThisTask = (hasGlobalEdit || isMyTask || isProjOwner);
-    const isInputLocked = task.isCompleted || !canOperateThisTask; 
+    const isProjectPaused = activeProj.status === 'paused' || activeProj.status === 'pause_requested';
+    const isInputLocked = task.isCompleted || !canOperateThisTask || isProjectPaused; 
     
     let canEditTask = isEditMode && (
       hasGlobalEdit || ((isProjOwner || isMyTask) && isTaskInGrace)
@@ -3164,3 +3224,94 @@ document.getElementById("btn-update-password").addEventListener("click", async (
     }
   }
 });
+// ==========================================
+// 專案暫停與恢復時程遞延模組
+// ==========================================
+
+window.openPauseModal = (projId) => {
+  document.getElementById("pause-proj-id").value = projId;
+  document.getElementById("pause-reason-input").value = "";
+  document.getElementById("pause-request-modal").classList.add("active");
+};
+
+window.closePauseModal = () => {
+  document.getElementById("pause-request-modal").classList.remove("active");
+};
+
+window.submitPauseRequest = async () => {
+  const projId = document.getElementById("pause-proj-id").value;
+  const reason = document.getElementById("pause-reason-input").value.trim();
+  if (!reason) return alert("請務必填寫暫停原因！");
+
+  try {
+    await updateDoc(doc(db, "projects", projId), {
+      status: "pause_requested",
+      pauseReason: reason,
+      pauseRequestedBy: currentUserData.name || "人員"
+    });
+    closePauseModal();
+    alert("已送出暫停申請，請等待最高主管或管理員審核！");
+  } catch (err) {
+    alert("送出失敗：" + err.message);
+  }
+};
+
+window.approvePause = async (projId) => {
+  if (!confirm("確定要同意暫停此專案嗎？")) return;
+  const proj = allProjectsData.find(p => p.id === projId);
+  const history = proj.pauseHistory || [];
+  history.push({ start: getTodayStr(), end: null, reason: proj.pauseReason });
+
+  await updateDoc(doc(db, "projects", projId), {
+    status: "paused",
+    pauseHistory: history
+  });
+  alert("專案已正式暫停！");
+};
+
+window.rejectPause = async (projId) => {
+  if (!confirm("確定要退回此暫停申請嗎？")) return;
+  await updateDoc(doc(db, "projects", projId), {
+    status: "active",
+    pauseReason: "",
+    pauseRequestedBy: ""
+  });
+};
+
+window.resumeProject = async (projId) => {
+  if (!confirm("確定要恢復執行此專案嗎？\n系統將會自動結算暫停天數，並將尚未完成的任務時程往後遞延！")) return;
+  const proj = allProjectsData.find(p => p.id === projId);
+  if (!proj) return;
+
+  const todayStr = getTodayStr();
+  const history = proj.pauseHistory || [];
+  const lastPause = history[history.length - 1];
+
+  if (lastPause && !lastPause.end) {
+    lastPause.end = todayStr;
+    
+    // 計算暫停了幾個工作天 (起訖日相減)
+    let shiftDays = getWorkingDays(lastPause.start, todayStr);
+    let actualShift = Math.max(0, shiftDays - 1); 
+
+    // 自動遞延尚未完成的任務
+    const updatedTasks = proj.tasks.map(t => {
+      if (t.isCompleted) return t;
+      if (t.start >= lastPause.start) {
+        // 如果任務在暫停後才開始，起訖日都往後延
+        return { ...t, start: calculateEndDateByDays(t.start, actualShift + 1), end: calculateEndDateByDays(t.end, actualShift + 1) };
+      } else if (t.end >= lastPause.start) {
+        // 如果任務跨越了暫停區間，只將結束日往後延 (拉長區間)
+        return { ...t, end: calculateEndDateByDays(t.end, actualShift + 1) };
+      }
+      return t;
+    });
+
+    await updateDoc(doc(db, "projects", projId), {
+      status: 'active',
+      pauseHistory: history,
+      tasks: updatedTasks
+    });
+    alert(`專案已恢復執行！\n本次共暫停 ${actualShift} 個工作天，後續時程已自動為您遞延。`);
+  }
+};
