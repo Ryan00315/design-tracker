@@ -174,7 +174,6 @@ function initTemplateUI() {
     if (!window.hasInitTemplateSnapshot && auth.currentUser) {
       window.hasInitTemplateSnapshot = true;
       try {
-        // 改為依據個人的 uid 讀取獨立的模板資料
         onSnapshot(doc(db, "user_templates", auth.currentUser.uid), (docSnap) => {
           if(docSnap.exists()) {
             projectTemplates = docSnap.data().templates || projectTemplates;
@@ -225,6 +224,12 @@ window.renderTemplateUI = () => {
 window.applySelectedTemplate = () => {
   const checked = document.querySelector('input[name="selected_template"]:checked');
   if(!checked) return alert("請先選擇一個模板！");
+  
+  // 🛡️ 加入防呆確認視窗
+  if(!confirm("⚠️ 確定要帶入此模板嗎？\n注意：這將會清除您目前在下方輸入的所有草稿細項！")) {
+    return;
+  }
+
   const mode = document.querySelector('input[name="template_mode"]:checked').value;
   const tpl = projectTemplates[checked.value];
 
@@ -1670,7 +1675,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     tasks: tasks, createdAt: serverTimestamp() 
   });
 
-  alert("🎉 新專案已成功建立！開放 7 日自由編輯期。");
+  alert("🎉 新專案已成功建立！");
 
   document.getElementById("proj-name").value = ""; 
   document.getElementById("task-list-container").innerHTML = ""; 
@@ -1836,7 +1841,6 @@ window.updateWeeklyTaskSelect = (selectElem) => {
   
   taskSelect.style.display = 'block'; 
   
-  // 若選擇「事件紀錄」，拉取所有符合條件的事件紀錄
   if (projId === 'SPECIAL_ADHOC') {
      taskSelect.innerHTML = '<option value="">-- 請選擇事件紀錄 --</option>';
      const availableAdHocs = window.getAvailableAdHocEvents();
@@ -1845,8 +1849,7 @@ window.updateWeeklyTaskSelect = (selectElem) => {
      });
      return;
   }
-
-  // 其他情況就是一般專案
+  
   taskSelect.innerHTML = '<option value="">-- 請選擇細項 --</option>';
   if(!projId) return;
   const availableTasks = window.getAvailableTasks(projId);
