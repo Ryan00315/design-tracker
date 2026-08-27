@@ -244,10 +244,10 @@ window.applySelectedTemplate = () => {
       let days = mode === 'free' ? 1 : (t.days || 1);
 
       div.innerHTML = `
-          <div class="form-group" style="margin:0; flex:2;"><input type="text" class="input-control task-name" placeholder="細項名稱" value="${t.name}"></div>
-          <div class="form-group" style="margin:0; flex:1.2;"><input type="date" class="input-control task-start" value="" onchange="onTaskStartChange(this, null)"></div>
+          <div class="form-group" style="margin:0; flex:3;"><input type="text" class="input-control task-name" placeholder="細項名稱" value="${t.name}"></div>
+          <div class="form-group" style="margin:0; flex:1.5;"><input type="date" class="input-control task-start" value="" onchange="onTaskStartChange(this, null)"></div>
           <div class="form-group" style="margin:0; width:65px; flex-shrink:0;"><input type="number" min="1" class="input-control task-days" value="${days}" placeholder="天數" title="工作天數" oninput="onTaskDaysChange(this, null, null)"></div>
-          <div class="form-group" style="margin:0; flex:1.2;"><input type="date" class="input-control task-end" value="" onchange="onTaskEndChange(this, null, null)"></div>
+          <div class="form-group" style="margin:0; flex:1.5;"><input type="date" class="input-control task-end" value="" onchange="onTaskEndChange(this, null, null)"></div>
           <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
             <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
             <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
@@ -881,10 +881,30 @@ window.selectProject = (projId) => {
   renderProjects(); 
 };
 
+// 👉 新版循序解鎖邏輯：
 window.getAvailableTasks = (projId) => {
   const proj = allProjectsData.find(p => p.id === projId);
   if(!proj || !proj.tasks) return [];
-  return proj.tasks.map((t, i) => ({...t, index: i})).filter(t => {
+
+  let unlockedTasks = [];
+  let allPreviousCompleted = true;
+
+  for (let i = 0; i < proj.tasks.length; i++) {
+    let t = proj.tasks[i];
+    
+    // 如果前面的任務都 100% 結案，這個任務就解鎖可以選
+    if (allPreviousCompleted) {
+       unlockedTasks.push({ ...t, index: i });
+    }
+    
+    // 如果這個任務還沒 100%，那後面的任務就全部鎖住，不解鎖
+    if (!t.isCompleted) {
+       allPreviousCompleted = false;
+    }
+  }
+
+  // 解鎖後，篩選掉那些已經 100% 且寫過週報的任務
+  return unlockedTasks.filter(t => {
     if (!t.isCompleted) return true; 
     if (t.reportedCompleted === true) return false; 
     const taskCompletedTime = t.completedAt ? new Date(t.completedAt.replace(/-/g, '/')).getTime() : 0;
@@ -895,6 +915,24 @@ window.getAvailableTasks = (projId) => {
       return hasTask && reportTime > (taskCompletedTime - 60000);
     });
     return !alreadyReported;
+  });
+};
+
+window.getAvailableAdHocEvents = () => {
+  const myAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
+  return myAdHocs.filter(evt => {
+    if (!evt.isCompleted) return true;
+    if (evt.reportedCompleted === true) return false; 
+    
+    const evtCompletedTime = evt.completedAt ? new Date(evt.completedAt).getTime() : 0;
+    const alreadyReportedAfterCompletion = allWeeklyData.some(w => {
+      if(w.ownerId !== viewingUserId) return false;
+      const reportTime = w.createdAt ? w.createdAt.toDate().getTime() : Date.now();
+      const hasItem = (w.items || []).some(item => item.projectId === 'SPECIAL_ADHOC' && item.taskId === evt.id);
+      return hasItem && reportTime >= (evtCompletedTime - 60000); 
+    });
+    
+    return !alreadyReportedAfterCompletion;
   });
 };
 
@@ -1787,7 +1825,7 @@ window.updateWeeklyTaskSelect = (selectElem) => {
   const taskSelect = selectElem.parentElement.querySelector('.weekly-task-select');
   const projId = selectElem.value;
   
-  if (projId === 'SPECIAL_ADHOC' || projId === 'SPECIAL_OTHER') {
+  if (projId === 'SPECIAL_OTHER') {
      taskSelect.style.display = 'none'; 
      taskSelect.innerHTML = '<option value="">-- 無需細項 --</option>';
      taskSelect.value = '';
@@ -1795,6 +1833,16 @@ window.updateWeeklyTaskSelect = (selectElem) => {
   }
   
   taskSelect.style.display = 'block'; 
+  
+  if (projId === 'SPECIAL_ADHOC') {
+     taskSelect.innerHTML = '<option value="">-- 請選擇事件紀錄 --</option>';
+     const availableAdHocs = window.getAvailableAdHocEvents();
+     availableAdHocs.forEach(evt => {
+        taskSelect.innerHTML += `<option value="${evt.id}">${evt.title}</option>`;
+     });
+     return;
+  }
+  
   taskSelect.innerHTML = '<option value="">-- 請選擇細項 --</option>';
   if(!projId) return;
   const availableTasks = window.getAvailableTasks(projId);
@@ -1907,9 +1955,15 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
       const content = r.querySelector('.weekly-content').value.trim();
       
       if (pSel.value || content) {
-        if (pSel.value === 'SPECIAL_ADHOC' || pSel.value === 'SPECIAL_OTHER') {
+        if (pSel.value === 'SPECIAL_OTHER') {
           if (content) {
-            items.push({ projectId: pSel.value, projectName: pSel.options[pSel.selectedIndex].text, taskId: "", taskName: "", content: content });
+            items.push({ projectId: pSel.value, projectName: "📌 其他", taskId: "", taskName: "", content: content });
+          } else {
+            hasIncomplete = true;
+          }
+        } else if (pSel.value === 'SPECIAL_ADHOC') {
+          if (tSel.value && content) {
+            items.push({ projectId: pSel.value, projectName: "📝 事件紀錄", taskId: tSel.value, taskName: tSel.options[tSel.selectedIndex].text, content: content });
           } else {
             hasIncomplete = true;
           }
@@ -1945,8 +1999,19 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
     });
     
     const projectUpdates = {};
+    const adhocUpdates = [];
+    
     for (let item of items) {
-      if (item.projectId === 'SPECIAL_ADHOC' || item.projectId === 'SPECIAL_OTHER') continue;
+      if (item.projectId === 'SPECIAL_OTHER') continue;
+      
+      if (item.projectId === 'SPECIAL_ADHOC') {
+        const evt = allAdHocData.find(a => a.id === item.taskId);
+        if (evt && evt.isCompleted && !evt.reportedCompleted) {
+           adhocUpdates.push(item.taskId);
+        }
+        continue;
+      }
+      
       const p = allProjectsData.find(x => x.id === item.projectId);
       if (p) {
         const tIndex = parseInt(item.taskId);
@@ -1956,7 +2021,9 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
         }
       }
     }
+    
     for (let pId in projectUpdates) await updateDoc(doc(db, "projects", pId), { tasks: projectUpdates[pId] });
+    for (let aId of adhocUpdates) await updateDoc(doc(db, "ad_hoc_events", aId), { reportedCompleted: true });
     
     initWeeklyDateAndLeave(); 
     document.getElementById("weekly-items-container").innerHTML = ""; 
@@ -2008,8 +2075,8 @@ window.openWeeklyModal = (id) => {
   
   if (report.items && report.items.length > 0) {
     report.items.forEach((item, i) => { 
-      let taskHtml = item.taskName ? `<div style="word-break: break-all;">📌 ${item.taskName}</div>` : '';
       let icon = item.projectId === 'SPECIAL_ADHOC' ? '📝' : (item.projectId === 'SPECIAL_OTHER' ? '📌' : '🗂️');
+      let taskHtml = item.taskName ? `<div style="word-break: break-all;">📌 ${item.taskName}</div>` : '';
       contentHtml += `<div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;"><div style="flex:1; font-size:13px; font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px;"><div style="margin-bottom:6px; word-break: break-all;">${icon} ${item.projectName}</div>${taskHtml}</div><div style="flex:2.5; font-size:13px; white-space:pre-wrap; line-height:1.6; padding-left:4px;">${item.content}</div></div>`; 
     });
   } else if (report.content) {
@@ -2525,8 +2592,8 @@ window.openGeneralEdit = (type, id, extra) => {
       modalBox.style.width = "90vw";
       modalBox.style.maxWidth = "800px";
     } else {
-      modalBox.style.width = "";      
-      modalBox.style.maxWidth = "";   
+      modalBox.style.width = "";      // 恢復預設
+      modalBox.style.maxWidth = "";   // 恢復預設
     }
   }
   modal.classList.add("active");
@@ -2561,6 +2628,8 @@ window.openTemplateEditor = (index) => {
     }
 
     const modal = document.getElementById("general-edit-modal");
+    
+    // 🔥 將彈跳視窗加大一倍，讓細項有充足空間展開
     const modalBox = modal.querySelector('.modal-box');
     if (modalBox) {
         modalBox.style.width = "90vw";
@@ -2597,7 +2666,7 @@ window.onEditWeeklyProjChange = (idx) => {
   const tSel = document.getElementById(`edit-weekly-task-${idx}`);
   if (!pSel || !tSel) return;
   
-  if (pSel.value === 'SPECIAL_ADHOC' || pSel.value === 'SPECIAL_OTHER') {
+  if (pSel.value === 'SPECIAL_OTHER') {
      tSel.style.display = 'none';
      tSel.innerHTML = '<option value="">-- 無需細項 --</option>';
      tSel.value = '';
@@ -2605,6 +2674,16 @@ window.onEditWeeklyProjChange = (idx) => {
   }
   
   tSel.style.display = 'block';
+  
+  if (pSel.value === 'SPECIAL_ADHOC') {
+     tSel.innerHTML = '<option value="">-- 請選擇事件紀錄 --</option>';
+     const availableAdHocs = window.getAvailableAdHocEvents();
+     availableAdHocs.forEach(evt => {
+        tSel.innerHTML += `<option value="${evt.id}">${evt.title}</option>`;
+     });
+     return;
+  }
+  
   tSel.innerHTML = '<option value="">-- 請選擇細項 --</option>';
   const proj = allProjectsData.find(p => p.id === pSel.value);
   if (proj && proj.tasks) {
@@ -2617,6 +2696,7 @@ window.onEditWeeklyProjChange = (idx) => {
 window.closeGeneralEditModal = () => {
     const modal = document.getElementById("general-edit-modal");
     modal.classList.remove("active");
+    // 關閉時重置寬度，避免影響其他小視窗
     const modalBox = modal.querySelector('.modal-box');
     if (modalBox) {
         modalBox.style.width = "";
@@ -2661,8 +2741,8 @@ window.saveGeneralEdit = async () => {
           const pId = pSel ? pSel.value : weekly.items[idx].projectId;
           const pName = pSel && pSel.selectedIndex >= 0 ? pSel.options[pSel.selectedIndex].text : weekly.items[idx].projectName;
           
-          const tId = (pId === 'SPECIAL_ADHOC' || pId === 'SPECIAL_OTHER') ? "" : (tSel ? tSel.value : weekly.items[idx].taskId);
-          const tName = (pId === 'SPECIAL_ADHOC' || pId === 'SPECIAL_OTHER') ? "" : (tSel && tSel.selectedIndex >= 0 ? tSel.options[tSel.selectedIndex].text : weekly.items[idx].taskName);
+          const tId = (pId === 'SPECIAL_ADHOC' || pId === 'SPECIAL_OTHER') ? (tSel ? tSel.value : "") : (tSel ? tSel.value : weekly.items[idx].taskId);
+          const tName = (pId === 'SPECIAL_ADHOC' || pId === 'SPECIAL_OTHER') ? (tSel && tSel.selectedIndex >= 0 ? tSel.options[tSel.selectedIndex].text : "") : (tSel && tSel.selectedIndex >= 0 ? tSel.options[tSel.selectedIndex].text : weekly.items[idx].taskName);
 
           newItems.push({
             projectId: pId,
