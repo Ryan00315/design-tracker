@@ -3235,10 +3235,14 @@ window.openPauseModal = (projId) => {
   document.getElementById("pause-request-modal").classList.add("active");
 };
 
+window.closePauseModal = () => {
+  document.getElementById("pause-request-modal").classList.remove("active");
+};
+
 window.submitPauseRequest = async () => {
   const projId = document.getElementById("pause-proj-id").value;
   const reason = document.getElementById("pause-reason-input").value.trim();
-  const startDate = document.getElementById("pause-start-date").value; // 取得指定的起始日
+  const startDate = document.getElementById("pause-start-date").value; 
   
   if (!startDate) return alert("請選擇暫停起始日期！");
   if (!reason) return alert("請務必填寫暫停原因！");
@@ -3247,10 +3251,13 @@ window.submitPauseRequest = async () => {
     await updateDoc(doc(db, "projects", projId), {
       status: "pause_requested",
       pauseReason: reason,
-      pauseStartDate: startDate, // 將自訂的起始日存入資料庫
+      pauseStartDate: startDate, 
       pauseRequestedBy: currentUserData.name || "人員"
     });
-    closePauseModal();
+    
+    // 💡 修正處：加上 window. 前綴
+    window.closePauseModal(); 
+    
     alert("已送出暫停申請，請等待最高主管或管理員審核！");
   } catch (err) {
     alert("送出失敗：" + err.message);
@@ -3280,7 +3287,8 @@ window.rejectPause = async (projId) => {
   await updateDoc(doc(db, "projects", projId), {
     status: "active",
     pauseReason: "",
-    pauseRequestedBy: ""
+    pauseRequestedBy: "",
+    pauseStartDate: "" // 退回時也一併清除
   });
 };
 
