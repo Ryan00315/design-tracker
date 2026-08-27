@@ -707,6 +707,16 @@ onAuthStateChanged(auth, async (user) => {
       document.getElementById("nav-divider-org").style.display = "none";
     }
 
+    // 只有高級主管與系統管理員可以看到「待審核通知」
+    const navApp = document.getElementById("nav-approvals");
+    if (navApp) {
+      if (currentUserData.role === "admin" || currentUserData.role === "top_manager") {
+        navApp.style.display = "flex";
+      } else {
+        navApp.style.display = "none";
+      }
+    }
+
     if (currentUserData.role !== 'staff') { 
       document.getElementById('nav-sub-wrapper').style.display = 'block'; 
       loadSidebarSubordinates(); 
@@ -1086,6 +1096,8 @@ function loadProjects() {
     snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
     renderProjects(); 
     refreshAllWeeklyProjSelects();
+    // ▼ 加這行，讓系統自動更新審核中心 ▼
+    if (window.renderApprovals) window.renderApprovals(); 
   }); 
 }
 
@@ -3350,5 +3362,48 @@ window.resumeProject = async (projId) => {
       tasks: updatedTasks
     });
     alert(`專案已恢復執行！\n本次共暫停 ${actualShift} 個工作天，後續時程已自動為您遞延。`);
+  }
+};
+
+window.renderApprovals = () => {
+  const tbody = document.getElementById("approvals-list-tbody");
+  const emptyState = document.getElementById("approvals-empty-state");
+  const badge = document.getElementById("approval-badge");
+  if (!tbody) return;
+  
+  tbody.innerHTML = "";
+
+  // 篩選出所有狀態為「申請暫停中」的專案
+  const pendingProjects = allProjectsData.filter(p => p.status === 'pause_requested');
+
+  // 更新左側選單的紅色數字 Badge
+  if (badge) {
+    badge.innerText = pendingProjects.length;
+    badge.style.display = pendingProjects.length > 0 ? "inline-block" : "none";
+  }
+
+  // 判斷是否顯示空狀態
+  if (pendingProjects.length === 0) {
+    emptyState.style.display = "block";
+    tbody.parentElement.style.display = "none";
+  } else {
+    emptyState.style.display = "none";
+    tbody.parentElement.style.display = "table";
+    
+    // 將申請項目一行一行畫出來
+    pendingProjects.forEach(p => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><strong>${p.title}</strong></td>
+        <td><span class="pill" style="background:#eff6ff; color:#1e40af;">${p.pauseRequestedBy || '未知'}</span></td>
+        <td>${p.pauseStartDate || '未指定'}</td>
+        <td style="word-break: break-all; color: var(--text-muted);">${p.pauseReason || ''}</td>
+        <td style="text-align: center;">
+          <button class="btn-primary" style="background:var(--danger); border:none; padding:4px 10px; font-size:12px;" onclick="approvePause('${p.id}')">同意</button>
+          <button class="action-btn" style="padding:4px 10px; font-size:12px; margin-left:6px;" onclick="rejectPause('${p.id}')">退回</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
   }
 };
