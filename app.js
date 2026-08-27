@@ -109,14 +109,14 @@ function initDynamicUI() {
     .gantt-left-panel { flex: 0 0 50% !important; max-width: 50% !important; }
     .gantt-right-panel { flex: 0 0 50% !important; max-width: 50% !important; }
     
-    /* 總覽清單的欄位比例配置 (拉開間距與寬度) */
-    .col-sum-name { flex: 6.0 !important; } 
+    /* 總覽清單的欄位比例配置 (拉開間距與寬度，並確保垂直置中) */
+    .col-sum-name { flex: 6.0 !important; display: flex; align-items: center; } 
     .col-sum-date { flex: 1.6 !important; text-align: center; display: flex; justify-content: center; align-items: center; } 
     .col-sum-prog { flex: 1.2 !important; text-align: center; display: flex; justify-content: center; align-items: center; } 
     .col-sum-owner { flex: 1.4 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-    /* 細項清單的欄位比例配置 */
-    .col-name { flex: 2.8 !important; } 
+    /* 細項清單的欄位比例配置 (確保垂直置中) */
+    .col-name { flex: 2.8 !important; display: flex; align-items: center; } 
     .col-expected-date { flex: 0.9 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; }
     .col-date { flex: 0.5 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; } 
     .col-prog { flex: 0.8 !important; text-align: center; display: flex; justify-content: center; align-items: center; }
@@ -144,7 +144,7 @@ function initDynamicUI() {
     .font-btn.active { background: #4f46e5 !important; color: #fff !important; border-color: #4f46e5 !important; }
     
     @media (max-width: 768px) {
-      :root { --font-scale: 1 !important; } 
+      :root { --font-scale: 1 !important; } /* 手機版固定為預設比例 */
       .kpi-row { grid-template-columns: repeat(5, 1fr) !important; gap: 4px !important; }
       .kpi-title { font-size: 10px !important; }
       .kpi-card { padding: 6px 4px !important; }
@@ -184,26 +184,26 @@ function initDynamicUI() {
 }
 initDynamicUI();
 
-// 🚀 關鍵修正區：拔除所有殘留的 font-weight 跟 color，只保留排版結構
+// 🚀 關鍵修正：嚴格統一標題列字體大小、顏色與置中樣式
 function fixHeaders() {
   const sumHeader = document.querySelector('#project-summary-view .gantt-row-header');
   if (sumHeader) {
      sumHeader.innerHTML = `
-       <div class="col-sum-name">主專案 / 事件名稱</div>
-       <div class="col-sum-date">起訖日期</div>
-       <div class="col-sum-prog">總進度</div>
-       <div class="col-sum-owner">開案者</div>
+       <div class="col-sum-name" style="font-weight:bold; color:var(--primary); font-size:calc(13px * var(--font-scale, 1)); margin:0;">主專案 / 事件名稱</div>
+       <div class="col-sum-date" style="font-weight:bold; color:var(--primary); font-size:calc(13px * var(--font-scale, 1)); margin:0;">起訖日期</div>
+       <div class="col-sum-prog" style="font-weight:bold; color:var(--primary); font-size:calc(13px * var(--font-scale, 1)); margin:0;">總進度</div>
+       <div class="col-sum-owner" style="font-weight:bold; color:var(--primary); font-size:calc(13px * var(--font-scale, 1)); margin:0;">開案者</div>
      `;
   }
   const detHeader = document.querySelector('#project-detail-view .gantt-row-header');
   if (detHeader) {
      detHeader.innerHTML = `
-       <div class="col-name">任務細項排程</div>
-       <div class="col-expected-date">預計<br>日期</div>
-       <div class="col-date">預計<br>天數</div>
-       <div class="col-prog">進度</div>
-       <div class="col-act">操作</div>
-       <div class="col-owner">負責人</div>
+       <div class="col-name" style="font-weight:bold; color:var(--primary); font-size:calc(13px * var(--font-scale, 1)); margin:0;">任務細項排程</div>
+       <div class="col-expected-date" style="font-weight:bold; color:var(--primary); font-size:calc(13px * var(--font-scale, 1)); margin:0;">預計<br>日期</div>
+       <div class="col-date" style="font-weight:bold; color:var(--primary); font-size:calc(13px * var(--font-scale, 1)); margin:0;">預計<br>天數</div>
+       <div class="col-prog" style="font-weight:bold; color:var(--primary); font-size:calc(13px * var(--font-scale, 1)); margin:0;">進度</div>
+       <div class="col-act" style="font-weight:bold; color:var(--primary); font-size:calc(13px * var(--font-scale, 1)); margin:0;">操作</div>
+       <div class="col-owner" style="font-weight:bold; color:var(--primary); font-size:calc(13px * var(--font-scale, 1)); margin:0;">負責人</div>
      `;
   }
 }
@@ -2368,7 +2368,7 @@ function createCalCellNode(dayNum, dateStr, isOtherMonth, todayStr, userTodos) {
       html += `<div class="cal-todo-pill ${isDone}" style="color:${todo.color || '#0f172a'};">${todo.title}</div>`;
     });
     if (dayTodos.length > 3) {
-      html += `<div style="font-size:10px; color:var(--text-muted); text-align:right;">+${dayTodos.length - 3} 則...</div>`;
+      html += `<div style="font-size:calc(10px * var(--font-scale, 1)); color:var(--text-muted); text-align:right;">+${dayTodos.length - 3} 則...</div>`;
     }
     html += `</div>`;
   }
@@ -2445,7 +2445,7 @@ function renderCalTodosModal(dateStr) {
   document.getElementById("cal-completed-count").innerText = completed.length;
 
   if (uncompleted.length === 0) {
-    uncompletedList.innerHTML = `<div style="color:var(--text-muted); padding:8px 0;">尚無未完成事項</div>`;
+    uncompletedList.innerHTML = `<div style="font-size:calc(12px * var(--font-scale, 1)); color:var(--text-muted); padding:8px 0;">尚無未完成事項</div>`;
   } else {
     uncompleted.forEach(todo => {
       const div = document.createElement("div");
@@ -2455,14 +2455,14 @@ function renderCalTodosModal(dateStr) {
           <input type="checkbox" onchange="toggleCalTodoStatus('${todo.id}', true)">
           <span style="color:${todo.color || '#0f172a'}; font-weight:600;">${todo.title}</span>
         </label>
-        <button class="btn-close" style="color:var(--text-muted);" onclick="deleteCalendarTodo('${todo.id}')">×</button>
+        <button class="btn-close" style="font-size:calc(18px * var(--font-scale, 1)); color:var(--text-muted);" onclick="deleteCalendarTodo('${todo.id}')">×</button>
       `;
       uncompletedList.appendChild(div);
     });
   }
 
   if (completed.length === 0) {
-    completedList.innerHTML = `<div style="color:var(--text-muted); padding:8px 0;">尚無已完成事項</div>`;
+    completedList.innerHTML = `<div style="font-size:calc(12px * var(--font-scale, 1)); color:var(--text-muted); padding:8px 0;">尚無已完成事項</div>`;
   } else {
     completed.forEach(todo => {
       const div = document.createElement("div");
@@ -2472,7 +2472,7 @@ function renderCalTodosModal(dateStr) {
           <input type="checkbox" checked onchange="toggleCalTodoStatus('${todo.id}', false)">
           <span style="color:${todo.color || '#0f172a'};">${todo.title}</span>
         </label>
-        <button class="btn-close" style="color:var(--text-muted);" onclick="deleteCalendarTodo('${todo.id}')">×</button>
+        <button class="btn-close" style="font-size:calc(18px * var(--font-scale, 1)); color:var(--text-muted);" onclick="deleteCalendarTodo('${todo.id}')">×</button>
       `;
       completedList.appendChild(div);
     });
@@ -2578,10 +2578,10 @@ function renderOrgChart() {
     deptBlock.innerHTML = `
       <div class="org-dept-header">
         <div class="org-dept-title">
-          <span>🏢</span>
+          <span style="font-size:calc(16px * var(--font-scale, 1));">🏢</span>
           <span>${dept}</span>
         </div>
-        <span style="font-weight:600; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:12px;">共 ${deptUsers.length} 人</span>
+        <span style="font-size:calc(12px * var(--font-scale, 1)); font-weight:600; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:12px;">共 ${deptUsers.length} 人</span>
       </div>
       <div class="org-hierarchy-grid">
         ${tierHtml}
@@ -2718,15 +2718,15 @@ window.openGeneralEdit = (type, id, extra) => {
           <div class="form-group" style="padding:12px; background:#f8fafc; border:1px solid var(--border); border-radius:8px; margin-bottom:0;">
             <div class="form-row" style="margin-bottom:8px;">
               <div class="form-group" style="flex:1; margin-bottom:0;">
-                <label class="form-label">主專案 / 類別</label>
-                <select id="edit-weekly-proj-${idx}" class="input-control" style="padding:6px 8px;" onchange="onEditWeeklyProjChange(${idx})">${projOptions}</select>
+                <label class="form-label" style="font-size:calc(12px * var(--font-scale, 1));">主專案 / 類別</label>
+                <select id="edit-weekly-proj-${idx}" class="input-control" style="font-size:calc(12px * var(--font-scale, 1)); padding:6px 8px;" onchange="onEditWeeklyProjChange(${idx})">${projOptions}</select>
               </div>
               <div class="form-group" style="flex:1; margin-bottom:0;">
-                <select id="edit-weekly-task-${idx}" class="input-control" style="padding:6px 8px; margin-top:20px; display:${taskDisplay};" onchange="onEditWeeklyTaskChange(${idx})">${taskOptions}</select>
+                <select id="edit-weekly-task-${idx}" class="input-control" style="font-size:calc(12px * var(--font-scale, 1)); padding:6px 8px; margin-top:20px; display:${taskDisplay};" onchange="onEditWeeklyTaskChange(${idx})">${taskOptions}</select>
               </div>
             </div>
-            <label class="form-label">進度說明</label>
-            <textarea id="edit-val-item-${idx}" class="input-control" rows="3">${item.content}</textarea>
+            <label class="form-label" style="font-size:calc(12px * var(--font-scale, 1));">進度說明</label>
+            <textarea id="edit-val-item-${idx}" class="input-control" rows="3" style="font-size:calc(13px * var(--font-scale, 1));">${item.content}</textarea>
           </div>
         `;
       });
