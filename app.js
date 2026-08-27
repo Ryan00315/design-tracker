@@ -1278,13 +1278,28 @@ function renderProjects() {
     tabsContainer.appendChild(summaryBtn);
   }
 
-  activeList.forEach(p => {
+ activeList.forEach(p => {
     const hasCollab = (p.collaborators && p.collaborators.length > 0);
+    const isPendingPause = (p.status === 'pause_requested');
+    const isPaused = (p.status === 'paused');
+    
     const btn = document.createElement("button"); 
     btn.className = `proj-tab ${hasCollab ? 'is-collab' : ''} ${p.id === selectedProjectId ? 'active' : ''}`;
     btn.title = p.title;
-    if (hasCollab) btn.innerHTML = `<span>👥 ${p.title}</span>`;
-    else btn.innerText = p.title;
+    
+    let tabText = p.title;
+    if (hasCollab) tabText = `👥 ` + tabText;
+    if (isPendingPause) tabText += ` 🔔`; // 申請暫停時加上鈴鐺
+    if (isPaused) tabText += ` 🛑`; // 已暫停時加上停止符號
+    
+    btn.innerHTML = `<span>${tabText}</span>`;
+    
+    // 如果正在申請暫停，把整個頁籤的框線變成醒目的黃色
+    if (isPendingPause) {
+        btn.style.border = "2px solid var(--warning)";
+        btn.style.backgroundColor = "#fffbeb";
+    }
+    
     btn.onclick = () => selectProject(p.id); 
     if(tabsContainer) tabsContainer.appendChild(btn);
   });
@@ -1355,7 +1370,8 @@ function renderProjects() {
         progress: avgProg, 
         isDone: isDone, 
         hasDelay: hasDelay, 
-        isCollab: hasCollab, 
+        isCollab: hasCollab,
+        status: p.status, // <--- 新增這行把狀態帶進去
         custom_class: isDone ? 'bar-success' : (p.color || 'bar-primary'),
         ownerName: p.ownerName || '未知'
       });
@@ -1397,6 +1413,13 @@ function renderProjects() {
         let titleDisplay = item.isCollab 
           ? `<span style="color:#2563eb; font-weight:700;"><span style="color:#2563eb; margin-right:4px;">👥</span>${item.title}</span>`
           : `<span style="color:#0f172a; font-weight:700;">🗂️ ${item.title}</span>`;
+          
+        // 依照狀態加上對應的醒目標籤
+        if (item.status === 'pause_requested') {
+            titleDisplay += ` <span style="background: var(--warning); color: #000; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px;">🔔 待審核暫停</span>`;
+        } else if (item.status === 'paused') {
+            titleDisplay += ` <span style="background: var(--danger); color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px;">🛑 已暫停</span>`;
+        }
           
         row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')">${titleDisplay}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span><span>~ ${item.end.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       } else {
