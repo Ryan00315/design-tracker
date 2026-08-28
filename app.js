@@ -3392,20 +3392,34 @@ window.approvePause = async (projId) => {
   if (!confirm("確定要同意暫停此專案嗎？")) return;
   const proj = allProjectsData.find(p => p.id === projId);
   const history = proj.pauseHistory || [];
-  const logs = proj.auditLogs || []; // 取得審核軌跡
+  const logs = proj.auditLogs || []; 
   
   const startDateToUse = proj.pauseStartDate || getTodayStr();
-  history.push({ start: startDateToUse, end: null, reason: proj.pauseReason, requestedAt: proj.pauseRequestedAt });
+  const reqBy = proj.pauseRequestedBy || "未記錄";
+  const reqAt = proj.pauseRequestedAt || "未記錄";
+  const reason = proj.pauseReason || "未記錄";
+
+  history.push({ start: startDateToUse, end: null, reason: reason, requestedAt: reqAt });
   
-  // 寫入主管同意的操作紀錄
-  logs.push({ action: '✅ 同意暫停', manager: currentUserData.name, time: getNowTimeStr() });
+  // ▼ 將申請人的原始資料一併打包進歷史紀錄
+  logs.push({ 
+      action: '✅ 同意暫停', 
+      manager: currentUserData.name, 
+      time: getNowTimeStr(),
+      reqBy: reqBy,
+      reqAt: reqAt,
+      reqStart: startDateToUse,
+      reqReason: reason
+  });
 
   await updateDoc(doc(db, "projects", projId), {
     status: "paused",
     pauseHistory: history,
     auditLogs: logs,
     pauseStartDate: "", 
-    pauseRequestedAt: ""
+    pauseRequestedAt: "",
+    pauseRequestedBy: "",
+    pauseReason: ""
   });
 };
 
@@ -3414,8 +3428,21 @@ window.rejectPause = async (projId) => {
   const proj = allProjectsData.find(p => p.id === projId);
   const logs = proj.auditLogs || [];
   
-  // 寫入主管退回的操作紀錄
-  logs.push({ action: '❌ 退回申請', manager: currentUserData.name, time: getNowTimeStr() });
+  const reqBy = proj.pauseRequestedBy || "未記錄";
+  const reqAt = proj.pauseRequestedAt || "未記錄";
+  const startDateToUse = proj.pauseStartDate || getTodayStr();
+  const reason = proj.pauseReason || "未記錄";
+
+  // ▼ 退回時也將申請人的原始資料打包進歷史紀錄
+  logs.push({ 
+      action: '❌ 退回申請', 
+      manager: currentUserData.name, 
+      time: getNowTimeStr(),
+      reqBy: reqBy,
+      reqAt: reqAt,
+      reqStart: startDateToUse,
+      reqReason: reason
+  });
 
   await updateDoc(doc(db, "projects", projId), {
     status: "active",
@@ -3442,10 +3469,15 @@ window.resumeProject = async (projId) => {
     let shiftDays = getWorkingDays(lastPause.start, todayStr);
     let actualShift = Math.max(0, shiftDays - 1); 
     
-    lastPause.days = actualShift; // 將結算出來的暫停天數寫入紀錄
+    lastPause.days = actualShift;
 
-    // 寫入主管恢復執行的操作紀錄
-    logs.push({ action: `▶️ 恢復執行 (遞延 ${actualShift} 天)`, manager: currentUserData.name, time: getNowTimeStr() });
+    // 恢復執行屬於系統操作，無原始申請人，給予橫槓顯示
+    logs.push({ 
+        action: `▶️ 恢復執行 (遞延 ${actualShift} 天)`, 
+        manager: currentUserData.name, 
+        time: getNowTimeStr(),
+        reqBy: '-', reqAt: '-', reqStart: '-', reqReason: '專案重新啟動'
+    });
 
     const updatedTasks = proj.tasks.map(t => {
       if (t.isCompleted) return t;
@@ -3472,7 +3504,6 @@ window.renderApprovals = () => {
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  // 1. 繪製待審核清單
   const pendingProjects = allProjectsData.filter(p => p.status === 'pause_requested');
   if (badge) {
     badge.innerText = pendingProjects.length;
@@ -3503,7 +3534,6 @@ window.renderApprovals = () => {
     });
   }
 
-  // 2. 繪製主管歷史操作紀錄
   if (historyTbody) {
     historyTbody.innerHTML = "";
     let allLogs = [];
@@ -3512,17 +3542,24 @@ window.renderApprovals = () => {
             p.auditLogs.forEach(log => allLogs.push({ title: p.title, ...log }));
         }
     });
-    // 依時間由新到舊排序
     allLogs.sort((a, b) => new Date(b.time.replace(/-/g, '/')) - new Date(a.time.replace(/-/g, '/')));
     
     allLogs.forEach(log => {
       let actionStyle = log.action.includes('同意') ? 'color:var(--danger);font-weight:bold;' : log.action.includes('恢復') ? 'color:var(--success);font-weight:bold;' : 'color:var(--text-muted);';
+      
+      // 繪製包含申請資訊的完整歷史紀錄
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td><span style="font-size:12px; color:#475569;">${log.time}</span></td>
         <td><strong>${log.title}</strong></td>
         <td><span style="${actionStyle}">${log.action}</span></td>
         <td><span class="pill" style="background:#f1f5f9; color:#334155;">${log.manager}</span></td>
+        <td>
+          <span class="pill" style="background:#eff6ff; color:#1e40af; margin-bottom:4px; display:inline-block;">${log.reqBy || '-'}</span><br>
+          <span style="font-size:11px; color:#94a3b8;">${log.reqAt || '-'}</span>
+        </td>
+        <td><strong style="color:var(--danger); font-size:12px;">${log.reqStart || '-'}</strong></td>
+        <td style="word-break:break-all; color:var(--text-muted); font-size:12px;">${log.reqReason || '-'}</td>
       `;
       historyTbody.appendChild(tr);
     });
