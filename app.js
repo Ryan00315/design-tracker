@@ -2768,7 +2768,7 @@ function renderOrgChart() {
   const mainWrapper = document.createElement("div");
   mainWrapper.className = "org-dept-container";
 
-  // ⭐ 將 top_manager 獨立出專屬階層
+  // ⭐ 嚴格拆分階層，確保「最高級主管」在「高級主管」之上
   const roleTiers = [
     { key: "top_manager", label: "👑 最高級主管 / 管理員", roles: ["top_manager", "admin"] },
     { key: "senior_manager", label: "👔 高級主管", roles: ["senior_manager"] },
@@ -2776,8 +2776,6 @@ function renderOrgChart() {
     { key: "assistant_manager", label: "💼 副主管", roles: ["assistant_manager"] },
     { key: "staff", label: "👥 部門人員", roles: ["staff"] }
   ];
-
-  // ...其餘保持不變
 
   departmentList.forEach(dept => {
     const deptUsers = allUsersList.filter(u => (u.dept || "設計部") === dept);
@@ -2791,7 +2789,9 @@ function renderOrgChart() {
       let memberCardsHtml = "";
       tierMembers.forEach(u => {
         const supUser = allUsersList.find(x => x.uid === u.supervisorId);
-        const isMgr = tier.key === "manager";
+        
+        // ⭐ 修正：讓最高級主管、高級主管、一般主管都能吃到專屬的卡片樣式
+        const isMgr = ["top_manager", "senior_manager", "manager"].includes(tier.key);
         const supText = supUser ? `直屬: ${supUser.name}` : "直屬: 無";
 
         memberCardsHtml += `
@@ -2833,6 +2833,7 @@ function renderOrgChart() {
 
   container.appendChild(mainWrapper);
 }
+
 let currentEditData = {};
 
 window.openGeneralEdit = (type, id, extra) => {
