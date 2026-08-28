@@ -1696,6 +1696,35 @@ function renderProjects() {
       }, 100); 
     }
   }
+
+  // === 渲染專案下方的暫停/恢復紀錄 ===
+  const pauseRecordsContainer = document.getElementById("project-pause-records");
+  if (pauseRecordsContainer) {
+      if (activeProj.pauseHistory && activeProj.pauseHistory.length > 0) {
+          pauseRecordsContainer.style.display = "block";
+          let histHtml = `<div class="panel-head"><span>🛑 專案暫停/恢復紀錄</span></div>
+                          <div class="table-responsive"><table style="width:100%;">
+                          <thead>
+                              <tr><th style="width:20%">暫停起始日</th><th style="width:20%">恢復日期</th><th style="width:15%">暫停天數</th><th style="width:45%">暫停原因</th></tr>
+                          </thead><tbody>`;
+          // 將紀錄反轉，新的排在最上面
+          let reversedHistory = [...activeProj.pauseHistory].reverse();
+          reversedHistory.forEach(h => {
+              let endStr = h.end ? h.end : '<span class="pill pill-danger" style="margin:0; padding:4px 8px;">🛑 暫停中</span>';
+              let daysStr = h.days !== undefined ? `<strong style="color:var(--danger)">${h.days} 天</strong>` : '-';
+              histHtml += `<tr>
+                              <td>${h.start}</td>
+                              <td>${endStr}</td>
+                              <td>${daysStr}</td>
+                              <td style="color:var(--text-muted); word-break:break-all;">${h.reason || ''}</td>
+                           </tr>`;
+          });
+          histHtml += `</tbody></table></div>`;
+          pauseRecordsContainer.innerHTML = histHtml;
+      } else {
+          pauseRecordsContainer.style.display = "none";
+      }
+  }
 }
 
 window.moveActiveProjectTask = async (projId, index, direction) => {
@@ -3318,10 +3347,16 @@ document.getElementById("btn-update-password").addEventListener("click", async (
 // 專案暫停與恢復時程遞延模組
 // ==========================================
 
+// 取得當下精確時間的輔助函式
+function getNowTimeStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 window.openPauseModal = (projId) => {
   document.getElementById("pause-proj-id").value = projId;
   document.getElementById("pause-reason-input").value = "";
-  document.getElementById("pause-start-date").value = getTodayStr(); // 自動帶入今天日期
+  document.getElementById("pause-start-date").value = getTodayStr(); 
   document.getElementById("pause-request-modal").classList.add("active");
 };
 
@@ -3342,12 +3377,11 @@ window.submitPauseRequest = async () => {
       status: "pause_requested",
       pauseReason: reason,
       pauseStartDate: startDate, 
-      pauseRequestedBy: currentUserData.name || "人員"
+      pauseRequestedBy: currentUserData.name || "人員",
+      pauseRequestedAt: getNowTimeStr() // 記錄精確的申請時間
     });
     
-    // 💡 修正處：加上 window. 前綴
     window.closePauseModal(); 
-    
     alert("已送出暫停申請，請等待最高主管或管理員審核！");
   } catch (err) {
     alert("送出失敗：" + err.message);
@@ -3358,27 +3392,38 @@ window.approvePause = async (projId) => {
   if (!confirm("確定要同意暫停此專案嗎？")) return;
   const proj = allProjectsData.find(p => p.id === projId);
   const history = proj.pauseHistory || [];
+  const logs = proj.auditLogs || []; // 取得審核軌跡
   
-  // 審核同意時，抓取申請時填寫的日期 (如果因為舊資料沒有，則預設為今天)
   const startDateToUse = proj.pauseStartDate || getTodayStr();
+  history.push({ start: startDateToUse, end: null, reason: proj.pauseReason, requestedAt: proj.pauseRequestedAt });
   
-  history.push({ start: startDateToUse, end: null, reason: proj.pauseReason });
+  // 寫入主管同意的操作紀錄
+  logs.push({ action: '✅ 同意暫停', manager: currentUserData.name, time: getNowTimeStr() });
 
   await updateDoc(doc(db, "projects", projId), {
     status: "paused",
     pauseHistory: history,
-    pauseStartDate: "" // 清除暫存的申請日期
+    auditLogs: logs,
+    pauseStartDate: "", 
+    pauseRequestedAt: ""
   });
-  alert(`專案已正式暫停！\n(暫停起始日設定為：${startDateToUse})`);
 };
 
 window.rejectPause = async (projId) => {
   if (!confirm("確定要退回此暫停申請嗎？")) return;
+  const proj = allProjectsData.find(p => p.id === projId);
+  const logs = proj.auditLogs || [];
+  
+  // 寫入主管退回的操作紀錄
+  logs.push({ action: '❌ 退回申請', manager: currentUserData.name, time: getNowTimeStr() });
+
   await updateDoc(doc(db, "projects", projId), {
     status: "active",
     pauseReason: "",
     pauseRequestedBy: "",
-    pauseStartDate: "" // 退回時也一併清除
+    pauseStartDate: "", 
+    pauseRequestedAt: "",
+    auditLogs: logs
   });
 };
 
@@ -3389,34 +3434,32 @@ window.resumeProject = async (projId) => {
 
   const todayStr = getTodayStr();
   const history = proj.pauseHistory || [];
+  const logs = proj.auditLogs || [];
   const lastPause = history[history.length - 1];
 
   if (lastPause && !lastPause.end) {
     lastPause.end = todayStr;
-    
-    // 計算暫停了幾個工作天 (起訖日相減)
     let shiftDays = getWorkingDays(lastPause.start, todayStr);
     let actualShift = Math.max(0, shiftDays - 1); 
+    
+    lastPause.days = actualShift; // 將結算出來的暫停天數寫入紀錄
 
-    // 自動遞延尚未完成的任務
+    // 寫入主管恢復執行的操作紀錄
+    logs.push({ action: `▶️ 恢復執行 (遞延 ${actualShift} 天)`, manager: currentUserData.name, time: getNowTimeStr() });
+
     const updatedTasks = proj.tasks.map(t => {
       if (t.isCompleted) return t;
-      if (t.start >= lastPause.start) {
-        // 如果任務在暫停後才開始，起訖日都往後延
-        return { ...t, start: calculateEndDateByDays(t.start, actualShift + 1), end: calculateEndDateByDays(t.end, actualShift + 1) };
-      } else if (t.end >= lastPause.start) {
-        // 如果任務跨越了暫停區間，只將結束日往後延 (拉長區間)
-        return { ...t, end: calculateEndDateByDays(t.end, actualShift + 1) };
-      }
+      if (t.start >= lastPause.start) return { ...t, start: calculateEndDateByDays(t.start, actualShift + 1), end: calculateEndDateByDays(t.end, actualShift + 1) };
+      if (t.end >= lastPause.start) return { ...t, end: calculateEndDateByDays(t.end, actualShift + 1) };
       return t;
     });
 
     await updateDoc(doc(db, "projects", projId), {
       status: 'active',
       pauseHistory: history,
+      auditLogs: logs,
       tasks: updatedTasks
     });
-    alert(`專案已恢復執行！\n本次共暫停 ${actualShift} 個工作天，後續時程已自動為您遞延。`);
   }
 };
 
@@ -3424,20 +3467,18 @@ window.renderApprovals = () => {
   const tbody = document.getElementById("approvals-list-tbody");
   const emptyState = document.getElementById("approvals-empty-state");
   const badge = document.getElementById("approval-badge");
-  if (!tbody) return;
+  const historyTbody = document.getElementById("approval-history-tbody");
   
+  if (!tbody) return;
   tbody.innerHTML = "";
 
-  // 篩選出所有狀態為「申請暫停中」的專案
+  // 1. 繪製待審核清單
   const pendingProjects = allProjectsData.filter(p => p.status === 'pause_requested');
-
-  // 更新左側選單的紅色數字 Badge
   if (badge) {
     badge.innerText = pendingProjects.length;
     badge.style.display = pendingProjects.length > 0 ? "inline-block" : "none";
   }
 
-  // 判斷是否顯示空狀態
   if (pendingProjects.length === 0) {
     emptyState.style.display = "block";
     tbody.parentElement.style.display = "none";
@@ -3445,19 +3486,13 @@ window.renderApprovals = () => {
     emptyState.style.display = "none";
     tbody.parentElement.style.display = "table";
     
-    // 將申請項目一行一行畫出來
     pendingProjects.forEach(p => {
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>
-          <span style="color: var(--primary); font-weight: bold; cursor: pointer; text-decoration: underline;" 
-                onclick="switchViewingUser('${p.ownerId}', '${p.ownerName || '人員'}'); switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*=\\'tab-projects\\']')); setTimeout(() => selectProject('${p.id}'), 150);" 
-                title="點擊前往查看此專案詳細進度">
-            ${p.title}
-          </span>
-        </td>
+        <td><span style="color:var(--primary); font-weight:bold; cursor:pointer; text-decoration:underline;" onclick="switchViewingUser('${p.ownerId}', '${p.ownerName || '人員'}'); switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*=\\'tab-projects\\']')); setTimeout(() => selectProject('${p.id}'), 150);">${p.title}</span></td>
         <td><span class="pill" style="background:#eff6ff; color:#1e40af;">${p.pauseRequestedBy || '未知'}</span></td>
-        <td>${p.pauseStartDate || '未指定'}</td>
+        <td><span style="font-size:12px; color:var(--text-muted);">${p.pauseRequestedAt || '未記錄'}</span></td>
+        <td><strong style="color:var(--danger);">${p.pauseStartDate || '未指定'}</strong></td>
         <td style="word-break: break-all; color: var(--text-muted);">${p.pauseReason || ''}</td>
         <td style="text-align: center;">
           <button class="btn-primary" style="background:var(--danger); border:none; padding:4px 10px; font-size:12px;" onclick="approvePause('${p.id}')">同意</button>
@@ -3465,6 +3500,31 @@ window.renderApprovals = () => {
         </td>
       `;
       tbody.appendChild(tr);
+    });
+  }
+
+  // 2. 繪製主管歷史操作紀錄
+  if (historyTbody) {
+    historyTbody.innerHTML = "";
+    let allLogs = [];
+    allProjectsData.forEach(p => {
+        if (p.auditLogs) {
+            p.auditLogs.forEach(log => allLogs.push({ title: p.title, ...log }));
+        }
+    });
+    // 依時間由新到舊排序
+    allLogs.sort((a, b) => new Date(b.time.replace(/-/g, '/')) - new Date(a.time.replace(/-/g, '/')));
+    
+    allLogs.forEach(log => {
+      let actionStyle = log.action.includes('同意') ? 'color:var(--danger);font-weight:bold;' : log.action.includes('恢復') ? 'color:var(--success);font-weight:bold;' : 'color:var(--text-muted);';
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><span style="font-size:12px; color:#475569;">${log.time}</span></td>
+        <td><strong>${log.title}</strong></td>
+        <td><span style="${actionStyle}">${log.action}</span></td>
+        <td><span class="pill" style="background:#f1f5f9; color:#334155;">${log.manager}</span></td>
+      `;
+      historyTbody.appendChild(tr);
     });
   }
 };
