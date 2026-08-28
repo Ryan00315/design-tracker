@@ -563,7 +563,7 @@ function scrollToTodayMinus2Days(ganttInst, containerSelector) {
   });
 }
 
-function patchGanttVisuals(ganttInst, containerSelector, currentProjData = null) {
+function patchGanttVisuals(ganttInst, containerSelector) {
   if (!ganttInst || !ganttInst.dates || ganttInst.dates.length === 0) return;
   const wrapper = document.querySelector(containerSelector);
   if (!wrapper) return;
@@ -590,72 +590,6 @@ function patchGanttVisuals(ganttInst, containerSelector, currentProjData = null)
   const scrollElement = wrapper.querySelector('.gantt-container') || wrapper;
   const upperTexts = Array.from(svg.querySelectorAll('.upper-text'));
   const colWidth = (ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
-
-  // ==== 繪製暫停深紅線條 (絕對精準版 - 修正座標偏移) ====
-  if (currentProjData && currentProjData.pauseHistory) {
-    currentProjData.pauseHistory.forEach(pause => {
-      const pStart = pause.start; 
-      const pEnd = pause.end || getTodayStr(); // 如果還在暫停，就畫到今天
-      
-      let pStartDate = new Date(pStart.replace(/-/g, '/'));
-      pStartDate.setHours(0, 0, 0, 0);
-      let pEndDate = new Date(pEnd.replace(/-/g, '/'));
-      pEndDate.setHours(23, 59, 59, 999); 
-
-      // 走訪畫面上的所有任務 SVG 群組
-      const barWrappers = svg.querySelectorAll('.bar-wrapper');
-      barWrappers.forEach(barWrapper => {
-        const taskId = barWrapper.getAttribute('data-id'); 
-        if (!taskId || !taskId.startsWith('t_')) return;
-        
-        // 抓取原始資料計算實際日期
-        const taskIndex = parseInt(taskId.replace('t_', ''));
-        const rawTask = currentProjData.tasks[taskIndex];
-        if (!rawTask) return;
-
-        let tStartDate = new Date(rawTask.start.replace(/-/g, '/'));
-        tStartDate.setHours(0, 0, 0, 0);
-        let tEndDate = new Date(rawTask.end.replace(/-/g, '/'));
-        tEndDate.setHours(23, 59, 59, 999);
-
-        // 判斷任務時程是否與暫停區間有重疊
-        if (pStartDate <= tEndDate && pEndDate >= tStartDate) {
-          const barRect = barWrapper.querySelector('.bar');
-          if (barRect) {
-            // ▼ 關鍵修正：抓取方塊的絕對起點 X 座標 ▼
-            const barX = parseFloat(barRect.getAttribute('x') || 0); 
-            const barY = parseFloat(barRect.getAttribute('y') || 0);
-            const barWidth = parseFloat(barRect.getAttribute('width') || 0);
-            const barHeight = parseFloat(barRect.getAttribute('height') || 0);
-
-            let totalTaskDuration = tEndDate.getTime() - tStartDate.getTime();
-            let effectiveStart = pStartDate > tStartDate ? pStartDate : tStartDate;
-            let effectiveEnd = pEndDate < tEndDate ? pEndDate : tEndDate;
-
-            let diffStartMs = effectiveStart.getTime() - tStartDate.getTime();
-            let durationMs = effectiveEnd.getTime() - effectiveStart.getTime();
-
-            // ▼ 關鍵修正：將算出的位移比例，加上原本的 barX ▼
-            let finalX = barX + (diffStartMs / totalTaskDuration) * barWidth;
-            let finalWidth = (durationMs / totalTaskDuration) * barWidth;
-            
-            if (finalWidth < 4) finalWidth = 4;
-
-            // 繪製紅線
-            const redLine = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-            redLine.setAttribute('x', finalX);
-            redLine.setAttribute('y', barY + barHeight / 2 - 3); // 垂直置中
-            redLine.setAttribute('width', finalWidth);
-            redLine.setAttribute('height', 6); 
-            redLine.setAttribute('fill', '#dc2626'); 
-            redLine.setAttribute('rx', '3'); 
-            redLine.style.pointerEvents = 'none'; 
-            barWrapper.appendChild(redLine);
-          }
-        }
-      });
-    });
-  }
 
   const updateStickyMonthHeader = () => {
     const currentScrollLeft = scrollElement.scrollLeft;
@@ -699,6 +633,7 @@ function patchGanttVisuals(ganttInst, containerSelector, currentProjData = null)
   updateStickyMonthHeader();
   scrollToTodayMinus2Days(ganttInst, containerSelector);
 }
+
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     document.getElementById("auth-section").style.display = "none";
@@ -1178,6 +1113,29 @@ function getGraceDaysLeft(proj) {
   return Math.max(0, Math.ceil(7 - diffDays));
 }
 
+// 輔助函式：動態計算暫停所導致的時程延遲
+function getDynamicallyShiftedTasks(proj, todayStr) {
+    let displayTasks = JSON.parse(JSON.stringify(proj.tasks || []));
+    if (proj.status === 'paused' && proj.pauseHistory && proj.pauseHistory.length > 0) {
+        const lastPause = proj.pauseHistory[proj.pauseHistory.length - 1];
+        if (!lastPause.end) {
+            let shift = getWorkingDays(lastPause.start, todayStr);
+            let currentShiftDays = Math.max(0, shift - 1);
+            if (currentShiftDays > 0) {
+                displayTasks = displayTasks.map(t => {
+                    if (t.isCompleted) return t;
+                    // 如果任務在暫停之後，起訖日一起往後延
+                    if (t.start >= lastPause.start) return { ...t, start: calculateEndDateByDays(t.start, currentShiftDays + 1), end: calculateEndDateByDays(t.end, currentShiftDays + 1) };
+                    // 如果任務橫跨暫停日，只延遲結束日 (方塊被拉長)
+                    if (t.end >= lastPause.start) return { ...t, end: calculateEndDateByDays(t.end, currentShiftDays + 1) };
+                    return t;
+                });
+            }
+        }
+    }
+    return displayTasks;
+}
+
 function renderProjects() {
   fixHeaders(); 
   checkEditModeVisibility();
@@ -1201,9 +1159,13 @@ function renderProjects() {
   });
 
   const allInvolvedProjectsMap = new Map();
-  userProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
-  collabProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
-  const allInvolvedProjects = Array.from(allInvolvedProjectsMap.values());
+          userProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
+          collabProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
+          
+          // 核心魔法：將所有專案的 tasks 替換成「動態計算延遲後」的結果，讓畫面自動延長！
+          const allInvolvedProjects = Array.from(allInvolvedProjectsMap.values()).map(p => {
+              return { ...p, tasks: getDynamicallyShiftedTasks(p, todayStr) };
+          });
 
   let countOngoing = 0, countCompleted = 0, countDelayed = 0, countAllInYear = 0;
   let projectsOngoing = [], projectsCompleted = [], projectsDelayed = [], projectsAll = [];
