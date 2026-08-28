@@ -870,18 +870,29 @@ window.switchViewingUser = (uid, name) => {
        editBtn.style.background = "transparent";
     }
 
-    // ⭐ 如果目前不在「專案進度」頁籤（例如在組織架構、行事曆等），切換人員時自動帶回專案進度
-    const currentActiveTab = document.querySelector('.tab-pane[style*="display: block"], .tab-pane:not([style*="display: none"])');
-    // 簡單判斷：若當前分頁不是專案、事件或週報，就自動切回專案進度
-    const activeTabId = currentActiveTab ? currentActiveTab.id : 'tab-projects';
+    // ⭐ 檢查目前顯示中的分頁 ID
+    const activePane = Array.from(document.querySelectorAll('.tab-pane')).find(el => el.style.display === 'block');
+    const activeTabId = activePane ? activePane.id : 'tab-projects';
+
+    // ⭐ 如果目前不在「專案進度 (tab-projects)」、「事件紀錄 (tab-adhoc)」、「週報填寫 (tab-weekly)」其中之一，才強行切回專案進度
     if (activeTabId !== 'tab-projects' && activeTabId !== 'tab-adhoc' && activeTabId !== 'tab-weekly') {
-        const projectNavEl = document.querySelector('li[onclick*="tab-projects"]') || document.querySelector('.nav-item');
-        window.switchNav('tab-projects', '專案進度', projectNavEl);
-    } else {
-        renderProjects(); 
-        renderAdHocEvents(); 
-        renderWeeklyReports();
+        document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        
+        const projPane = document.getElementById('tab-projects');
+        if (projPane) projPane.style.display = 'block';
+        
+        const projectNavElem = document.querySelector('li[onclick*="tab-projects"]') || document.querySelector('.nav-item');
+        if (projectNavElem) projectNavElem.classList.add('active');
+        
+        const titleEl = document.getElementById('current-title');
+        if (titleEl) titleEl.innerText = '專案進度';
     }
+
+    // 重新載入當前頁面或強行切換後的資料
+    renderProjects(); 
+    renderAdHocEvents(); 
+    renderWeeklyReports();
 
     const wrapper = document.getElementById('nav-sub-wrapper');
     const list = document.getElementById('nav-sub-list');
