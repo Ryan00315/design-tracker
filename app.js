@@ -1630,7 +1630,23 @@ function renderProjects() {
 
     const canOperateThisTask = (hasGlobalEdit || isMyTask || isProjOwner);
     const isProjectPaused = activeProj.status === 'paused' || activeProj.status === 'pause_requested';
-    const isInputLocked = task.isCompleted || !canOperateThisTask || isProjectPaused; 
+    // 計算該任務上次更新或建立的時間距離現在是否在 2 天內 (48小時)
+    let lastUpdateMs = task.createdAt || Date.now();
+    if (task.history && task.history.length > 0) {
+        // 抓取最後一次歷史紀錄的時間 (若有)
+        const lastHist = task.history[task.history.length - 1];
+        if (lastHist && lastHist.timestamp) {
+            let parsedTime = new Date(lastHist.timestamp.replace(/-/g, '/')).getTime();
+            if (!isNaN(parsedTime)) lastUpdateMs = parsedTime;
+        }
+    }
+    const isWithin2Days = (Date.now() - lastUpdateMs) <= (2 * 24 * 60 * 60 * 1000);
+
+    // 進度條與確認按鈕：只要專案暫停或無權限就鎖定 (維持原本規則)
+    const isInputLocked = !canOperateThisTask || isProjectPaused; 
+    
+    // ⭐ 備註 / Delay 原因獨立判斷：超過 2 天就強制唯讀鎖定
+    const isDelayReasonLocked = isInputLocked || !isWithin2Days; 
     
     let canEditTask = isEditMode && (
       hasGlobalEdit || ((isProjOwner || isMyTask) && isTaskInGrace)
