@@ -3373,6 +3373,7 @@ window.submitPauseRequest = async () => {
   if (!reason) return alert("請務必填寫暫停原因！");
 
   try {
+    // 確保這裡有確實帶入 pauseRequestedAt 欄位
     await updateDoc(doc(db, "projects", projId), {
       status: "pause_requested",
       pauseReason: reason,
