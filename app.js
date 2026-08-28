@@ -631,11 +631,13 @@ function patchGanttVisuals(ganttInst, containerSelector, currentProjData = null)
 
             const redLine = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
             redLine.setAttribute('x', startX);
-            redLine.setAttribute('y', barY + barHeight / 2 - 3); // 垂直置中
+            // 垂直置中：因為高度變成 12，所以這裡偏移量要改成減 6 (12的一半)
+            redLine.setAttribute('y', barY + barHeight / 2 - 6); 
             redLine.setAttribute('width', lineWidth);
-            redLine.setAttribute('height', 6); 
+            // 將 height 從 6 改成 12，數字越大線條就越粗
+            redLine.setAttribute('height', 10); 
             redLine.setAttribute('fill', '#dc2626'); 
-            redLine.setAttribute('rx', '3'); 
+            redLine.setAttribute('rx', '4'); // 稍微增加圓角讓粗線條更圓潤
             redLine.style.pointerEvents = 'none'; 
             barWrapper.appendChild(redLine);
           }
