@@ -1206,15 +1206,44 @@ function renderProjects() {
   let projectsOngoing = [], projectsCompleted = [], projectsDelayed = [], projectsAll = [];
 
   allInvolvedProjects.forEach(p => {
-    const ownerDept = getUserDept(p.ownerId);
-    const isOwnerDept = (targetDept === ownerDept || p.ownerId === viewingUserId); 
-
     let relevantTasks = [];
-    if (isOwnerDept) {
+    
+    // ⭐ 嚴格修正：只有「該專案的真正建立者 (ownerId)」才能擁有整張專案的全部任務
+    // 其餘任何人（包含同部門的其他同事、其他協作部門人員），都必須要有具體被指派 (assigneeId) 任務才算數！
+    const isRealOwner = (p.ownerId === viewingUserId);
+
+    if (isRealOwner) {
       relevantTasks = p.tasks || [];
     } else {
       relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
     }
+
+    // 若該帳號在專案中半個細項也沒有，直接跳過，不讓它進主清單
+    if (relevantTasks.length === 0) {
+      return; 
+    }
+
+    let isAllDone = relevantTasks.every(t => t.isCompleted);
+    let hasDelay = relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
+    const inYear = spansYear(p, selectedYear);
+
+    if (isRealOwner) {
+       if (!isAllDone) { countOngoing++; projectsOngoing.push(p); }
+       if (hasDelay) { countDelayed++; projectsDelayed.push(p); }
+    } else {
+       if (!isAllDone) { countOngoing++; projectsOngoing.push(p); }
+       if (hasDelay) { countDelayed++; projectsDelayed.push(p); }
+    }
+
+    if (isAllDone && inYear) {
+       countCompleted++;
+       projectsCompleted.push(p);
+    }
+    if (inYear) {
+       countAllInYear++;
+       projectsAll.push(p);
+    }
+  });
 
     // ⭐ 嚴格過濾：若該協作專案內沒有任何屬於該帳號的任務細項，直接略過，不計入未完成/完成等主清單
     if (relevantTasks.length === 0) {
