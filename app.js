@@ -1428,18 +1428,20 @@ function renderProjects() {
             statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
         }
 
-        let titleDisplay = item.isCollab 
-          ? `<span style="color:#2563eb; font-weight:700;"><span style="color:#2563eb; margin-right:4px;">👥</span>${item.title}</span>`
-          : `<span style="color:#0f172a; font-weight:700;">🗂️ ${item.title}</span>`;
-          
-        // 依照狀態加上對應的半透明醒目標籤
+        // 依照狀態產生半透明醒目標籤 (設定 margin-right 並移到名稱前方)
+        let badgeHtml = "";
         if (item.status === 'pause_requested') {
-            titleDisplay += ` <span style="background: rgba(245, 158, 11, 0.15); color: #b45309; border: 1px solid rgba(245, 158, 11, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px;">🔔 待審核暫停</span>`;
+            badgeHtml = `<span style="background: rgba(245, 158, 11, 0.15); color: #b45309; border: 1px solid rgba(245, 158, 11, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 6px; flex-shrink: 0; white-space: nowrap;">🔔 待審核暫停</span>`;
         } else if (item.status === 'paused') {
-            titleDisplay += ` <span style="background: rgba(239, 68, 68, 0.15); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px;">🛑 已暫停</span>`;
+            badgeHtml = `<span style="background: rgba(239, 68, 68, 0.15); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 6px; flex-shrink: 0; white-space: nowrap;">🛑 暫停</span>`;
         }
+
+        // 將 badgeHtml 放在字串最前面，並設定文字超過寬度時自動加上省略號 (...)
+        let titleDisplay = item.isCollab 
+          ? `${badgeHtml}<span style="color:#2563eb; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><span style="color:#2563eb; margin-right:4px;">👥</span>${item.title}</span>`
+          : `${badgeHtml}<span style="color:#0f172a; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🗂️ ${item.title}</span>`;
           
-        row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')">${titleDisplay}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span><span>~ ${item.end.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
+        row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')" style="display:flex; align-items:center; overflow:hidden;">${titleDisplay}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span><span>~ ${item.end.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       } else {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
         if (item.hasDelay && !item.isDone) {
@@ -3397,13 +3399,12 @@ window.renderApprovals = () => {
     tbody.parentElement.style.display = "table";
     
     // 將申請項目一行一行畫出來
-    // 將申請項目一行一行畫出來
     pendingProjects.forEach(p => {
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>
           <span style="color: var(--primary); font-weight: bold; cursor: pointer; text-decoration: underline;" 
-                onclick="switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*=\\'tab-projects\\']')); selectProject('${p.id}');" 
+                onclick="switchViewingUser('${p.ownerId}', '${p.ownerName || '人員'}'); switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*=\\'tab-projects\\']')); setTimeout(() => selectProject('${p.id}'), 150);" 
                 title="點擊前往查看此專案詳細進度">
             ${p.title}
           </span>
