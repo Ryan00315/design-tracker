@@ -1551,11 +1551,23 @@ function renderProjects() {
           // 將 btn-primary 換成 action-btn 並鎖定寬度
           pauseBtnHtml = `<button class="action-btn" onclick="approvePause('${activeProj.id}')" style="margin-left:8px; background:var(--danger); color:#fff; border:none; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">同意暫停</button><button class="action-btn" onclick="rejectPause('${activeProj.id}')" style="margin-left:4px; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">退回</button>`;
       }
+  } else if (activeProj.status === 'pause_requested') {
+      statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏸️ 暫停審核中 (${activeProj.pauseRequestedBy} 申請)</span>`;
+      if (isAdminOrTop) {
+          pauseBtnHtml = `<button class="action-btn" onclick="approvePause('${activeProj.id}')" style="margin-left:8px; background:var(--danger); color:#fff; border:none; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">同意暫停</button><button class="action-btn" onclick="rejectPause('${activeProj.id}')" style="margin-left:4px; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">退回</button>`;
+      }
+  } else if (activeProj.status === 'resume_requested') {
+      statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏳ 恢復審核中 (${activeProj.resumeRequestedBy} 申請)</span>`;
+      if (isAdminOrTop) {
+          pauseBtnHtml = `<button class="action-btn" onclick="approvePause('${activeProj.id}')" style="margin-left:8px; background:var(--success); color:#fff; border:none; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">同意恢復</button><button class="action-btn" onclick="rejectPause('${activeProj.id}')" style="margin-left:4px; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">退回</button>`;
+      }
   } else if (activeProj.status === 'paused') {
       statusBadge = `<span class="pill pill-danger" style="margin-left:8px; white-space:nowrap;">🛑 專案已暫停</span>`;
       if (isAdminOrTop) {
-          // 將 btn-primary 換成 action-btn 並鎖定寬度
           pauseBtnHtml = `<button class="action-btn" onclick="resumeProject('${activeProj.id}')" style="margin-left:8px; background:var(--success); color:#fff; border:none; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">▶️ 恢復執行</button>`;
+      } else if (hasGlobalEdit || isProjOwner || isCollabMember) {
+          // ⭐ 一般成員或擁有者可以點擊「申請恢復」
+          pauseBtnHtml = `<button class="action-btn" onclick="openResumeModal('${activeProj.id}')" style="margin-left:8px; border-color:var(--success); color:var(--success); padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">▶️ 申請恢復</button>`;
       }
   } else {
       if (hasGlobalEdit || isProjOwner || isCollabMember) {
@@ -3356,7 +3368,10 @@ function getNowTimeStr() {
 window.openPauseModal = (projId) => {
   document.getElementById("pause-proj-id").value = projId;
   document.getElementById("pause-reason-input").value = "";
-  document.getElementById("pause-start-date").value = getTodayStr(); 
+  const todayStr = getTodayStr();
+  const dateInput = document.getElementById("pause-start-date");
+  dateInput.value = todayStr;
+  dateInput.min = todayStr; // ⭐ 限制只能選今天（含）以後
   document.getElementById("pause-request-modal").classList.add("active");
 };
 
@@ -3390,71 +3405,86 @@ window.submitPauseRequest = async () => {
 };
 
 window.approvePause = async (projId) => {
-  if (!confirm("確定要同意暫停此專案嗎？")) return;
+  if (!confirm("確定要執行此同意審核嗎？")) return;
   const proj = allProjectsData.find(p => p.id === projId);
   const history = proj.pauseHistory || [];
   const logs = proj.auditLogs || []; 
-  
-  const startDateToUse = proj.pauseStartDate || getTodayStr();
-  const reqBy = proj.pauseRequestedBy || "未記錄";
-  const reqAt = proj.pauseRequestedAt || "未記錄";
-  const reason = proj.pauseReason || "未記錄";
 
-  history.push({ start: startDateToUse, end: null, reason: reason, requestedAt: reqAt });
-  
-  // ▼ 將申請人的原始資料一併打包進歷史紀錄
-  logs.push({ 
-      action: '✅ 同意暫停', 
-      manager: currentUserData.name, 
-      time: getNowTimeStr(),
-      reqBy: reqBy,
-      reqAt: reqAt,
-      reqStart: startDateToUse,
-      reqReason: reason
-  });
+  if (proj.status === 'pause_requested') {
+      const startDateToUse = proj.pauseStartDate || getTodayStr();
+      const reqBy = proj.pauseRequestedBy || "未記錄";
+      const reqAt = proj.pauseRequestedAt || "未記錄";
+      const reason = proj.pauseReason || "未記錄";
 
-  await updateDoc(doc(db, "projects", projId), {
-    status: "paused",
-    pauseHistory: history,
-    auditLogs: logs,
-    pauseStartDate: "", 
-    pauseRequestedAt: "",
-    pauseRequestedBy: "",
-    pauseReason: ""
-  });
+      history.push({ start: startDateToUse, end: null, reason: reason, requestedAt: reqAt });
+      
+      logs.push({ 
+          action: '✅ 同意暫停', 
+          manager: currentUserData.name, 
+          time: getNowTimeStr(),
+          reqBy: reqBy, reqAt: reqAt, reqStart: startDateToUse, reqReason: reason
+      });
+
+      await updateDoc(doc(db, "projects", projId), {
+        status: "paused",
+        pauseHistory: history,
+        auditLogs: logs,
+        pauseStartDate: "", pauseRequestedAt: "", pauseRequestedBy: "", pauseReason: ""
+      });
+  } 
+  else if (proj.status === 'resume_requested') {
+      // ⭐ 同意恢復執行的結算邏輯
+      const lastPause = history[history.length - 1];
+      const resumeDate = proj.resumeRequestedDate || getTodayStr();
+
+      if (lastPause && !lastPause.end) {
+        lastPause.end = resumeDate;
+        let shiftDays = getWorkingDays(lastPause.start, resumeDate);
+        let actualShift = Math.max(0, shiftDays - 1); 
+        lastPause.days = actualShift;
+
+        logs.push({ 
+            action: `▶️ 同意恢復執行 (遞延 ${actualShift} 天)`, 
+            manager: currentUserData.name, 
+            time: getNowTimeStr(),
+            reqBy: proj.resumeRequestedBy || '-', reqAt: proj.resumeRequestedAt || '-', reqStart: resumeDate, reqReason: '專案申請恢復執行'
+        });
+
+        const updatedTasks = proj.tasks.map(t => {
+          if (t.isCompleted) return t;
+          if (t.start >= lastPause.start) return { ...t, start: calculateEndDateByDays(t.start, actualShift + 1), end: calculateEndDateByDays(t.end, actualShift + 1) };
+          if (t.end >= lastPause.start) return { ...t, end: calculateEndDateByDays(t.end, actualShift + 1) };
+          return t;
+        });
+
+        await updateDoc(doc(db, "projects", projId), {
+          status: 'active',
+          pauseHistory: history,
+          auditLogs: logs,
+          tasks: updatedTasks,
+          resumeRequestedDate: "", resumeRequestedBy: "", resumeRequestedAt: ""
+        });
+      }
+  }
 };
 
 window.rejectPause = async (projId) => {
-  if (!confirm("確定要退回此暫停申請嗎？")) return;
+  if (!confirm("確定要退回此申請嗎？")) return;
   const proj = allProjectsData.find(p => p.id === projId);
   const logs = proj.auditLogs || [];
   
-  const reqBy = proj.pauseRequestedBy || "未記錄";
-  const reqAt = proj.pauseRequestedAt || "未記錄";
-  const startDateToUse = proj.pauseStartDate || getTodayStr();
-  const reason = proj.pauseReason || "未記錄";
-
-  // ▼ 退回時也將申請人的原始資料打包進歷史紀錄
-  logs.push({ 
-      action: '❌ 退回申請', 
-      manager: currentUserData.name, 
-      time: getNowTimeStr(),
-      reqBy: reqBy,
-      reqAt: reqAt,
-      reqStart: startDateToUse,
-      reqReason: reason
-  });
-
-  await updateDoc(doc(db, "projects", projId), {
-    status: "active",
-    pauseReason: "",
-    pauseRequestedBy: "",
-    pauseStartDate: "", 
-    pauseRequestedAt: "",
-    auditLogs: logs
-  });
+  if (proj.status === 'pause_requested') {
+      logs.push({ action: '❌ 退回暫停申請', manager: currentUserData.name, time: getNowTimeStr(), reqBy: proj.pauseRequestedBy, reqAt: proj.pauseRequestedAt, reqStart: proj.pauseStartDate, reqReason: proj.pauseReason });
+      await updateDoc(doc(db, "projects", projId), {
+        status: "active", pauseReason: "", pauseRequestedBy: "", pauseStartDate: "", pauseRequestedAt: "", auditLogs: logs
+      });
+  } else if (proj.status === 'resume_requested') {
+      logs.push({ action: '❌ 退回恢復申請', manager: currentUserData.name, time: getNowTimeStr(), reqBy: proj.resumeRequestedBy, reqAt: proj.resumeRequestedAt, reqStart: proj.resumeRequestedDate, reqReason: '恢復執行申請' });
+      await updateDoc(doc(db, "projects", projId), {
+        status: "paused", resumeRequestedDate: "", resumeRequestedBy: "", resumeRequestedAt: "", auditLogs: logs
+      });
+  }
 };
-
 window.resumeProject = async (projId) => {
   if (!confirm("確定要恢復執行此專案嗎？\n系統將會自動結算暫停天數，並將尚未完成的任務時程往後遞延！")) return;
   const proj = allProjectsData.find(p => p.id === projId);
@@ -3505,7 +3535,8 @@ window.renderApprovals = () => {
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  const pendingProjects = allProjectsData.filter(p => p.status === 'pause_requested');
+  // ⭐ 同時捕捉暫停與恢復的申請單
+  const pendingProjects = allProjectsData.filter(p => p.status === 'pause_requested' || p.status === 'resume_requested');
   if (badge) {
     badge.innerText = pendingProjects.length;
     badge.style.display = pendingProjects.length > 0 ? "inline-block" : "none";
@@ -3519,13 +3550,20 @@ window.renderApprovals = () => {
     tbody.parentElement.style.display = "table";
     
     pendingProjects.forEach(p => {
+      let isResume = (p.status === 'resume_requested');
+      let reqTitle = isResume ? '<span style="color:var(--success); font-weight:bold;">[申請恢復]</span> ' + p.title : p.title;
+      let reqDate = isResume ? (p.resumeRequestedDate || '-') : (p.pauseStartDate || '-');
+      let reqReason = isResume ? '預計恢復執行' : (p.pauseReason || '');
+      let reqBy = isResume ? p.resumeRequestedBy : p.pauseRequestedBy;
+      let reqAt = isResume ? p.resumeRequestedAt : p.pauseRequestedAt;
+
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td><span style="color:var(--primary); font-weight:bold; cursor:pointer; text-decoration:none;" onclick="switchViewingUser('${p.ownerId}', '${p.ownerName || '人員'}'); switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*=\\'tab-projects\\']')); setTimeout(() => selectProject('${p.id}'), 150);">${p.title}</span></td>
-        <td><span class="pill" style="background:#eff6ff; color:#1e40af;">${p.pauseRequestedBy || '未知'}</span></td>
-        <td><span style="font-size:12px; color:var(--text-muted);">${p.pauseRequestedAt || '未記錄'}</span></td>
-        <td><strong style="color:var(--danger);">${p.pauseStartDate || '未指定'}</strong></td>
-        <td style="word-break: break-all; color: var(--text-muted);">${p.pauseReason || ''}</td>
+        <td><span style="color:var(--primary); font-weight:bold; cursor:pointer; text-decoration:none;" onclick="switchViewingUser('${p.ownerId}', '${p.ownerName || '人員'}'); switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*=\\'tab-projects\\']')); setTimeout(() => selectProject('${p.id}'), 150);">${reqTitle}</span></td>
+        <td><span class="pill" style="background:#eff6ff; color:#1e40af;">${reqBy || '未知'}</span></td>
+        <td><span style="font-size:12px; color:var(--text-muted);">${reqAt || '未記錄'}</span></td>
+        <td><strong style="color:var(--danger);">${reqDate}</strong></td>
+        <td style="word-break: break-all; color: var(--text-muted);">${reqReason}</td>
         <td style="text-align: center;">
           <button class="btn-primary" style="background:var(--danger); border:none; padding:4px 10px; font-size:12px;" onclick="approvePause('${p.id}')">同意</button>
           <button class="action-btn" style="padding:4px 10px; font-size:12px; margin-left:6px;" onclick="rejectPause('${p.id}')">退回</button>
@@ -3601,3 +3639,39 @@ window.deleteAuditLog = async (projId, logTime, logAction) => {
     alert("刪除失敗：" + err.message);
   }
 };
+
+window.openResumeModal = (projId) => {
+  document.getElementById("resume-proj-id").value = projId;
+  const todayStr = getTodayStr();
+  const dateInput = document.getElementById("resume-date-input");
+  dateInput.value = todayStr;
+  dateInput.min = todayStr; // ⭐ 限制只能選今天（含）以後
+  document.getElementById("resume-request-modal").classList.add("active");
+};
+
+window.closeResumeModal = () => {
+  document.getElementById("resume-request-modal").classList.remove("active");
+};
+
+window.submitResumeRequest = async () => {
+  const projId = document.getElementById("resume-proj-id").value;
+  const resumeDate = document.getElementById("resume-date-input").value;
+  
+  if (!resumeDate) return alert("請選擇預計恢復日期！");
+
+  try {
+    await updateDoc(doc(db, "projects", projId), {
+      status: "resume_requested",
+      resumeRequestedDate: resumeDate,
+      resumeRequestedBy: currentUserData.name || "人員",
+      resumeRequestedAt: getNowTimeStr()
+    });
+    
+    window.closeResumeModal(); 
+    alert("已送出恢復執行申請，請等待最高主管或管理員審核！");
+  } catch (err) {
+    alert("送出失敗：" + err.message);
+  }
+};
+
+
