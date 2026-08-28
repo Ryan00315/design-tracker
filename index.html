@@ -570,6 +570,24 @@
     </div>
   </div>
 
+  <!-- 專案恢復執行申請彈窗 -->
+  <div id="resume-request-modal" class="modal-overlay">
+    <div class="modal-box" style="max-width: 400px;">
+      <div class="modal-header"><span>▶️ 申請專案恢復執行</span><button class="btn-close" onclick="closeResumeModal()">×</button></div>
+      
+      <div class="form-group">
+        <label class="form-label">預計恢復日期 (預設為今日)：</label>
+        <input type="date" id="resume-date-input" class="input-control" onchange="checkWorkingDay(this)">
+        <input type="hidden" id="resume-proj-id">
+      </div>
+
+      <div class="modal-actions">
+        <button class="action-btn" onclick="closeResumeModal()">取消</button>
+        <button class="btn-primary" style="background: var(--success); border: none;" onclick="submitResumeRequest()">送出恢復申請</button>
+      </div>
+    </div>
+  </div>
+
   <div id="general-edit-modal" class="modal-overlay">
     <div class="modal-box" style="max-width: 600px;">
       <div class="modal-header"><span id="general-edit-title">編輯資料</span><button class="btn-close" onclick="closeGeneralEditModal()">×</button></div>
