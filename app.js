@@ -2768,13 +2768,16 @@ function renderOrgChart() {
   const mainWrapper = document.createElement("div");
   mainWrapper.className = "org-dept-container";
 
+  // ⭐ 將 top_manager 獨立出專屬階層
   const roleTiers = [
-  { key: "top_manager", label: "👑 最高級主管 / 管理員", roles: ["top_manager", "admin"] },
-  { key: "senior_manager", label: "👔 高級主管", roles: ["senior_manager"] },
-  { key: "manager", label: "👔 主管", roles: ["manager"] },
-  { key: "assistant_manager", label: "💼 副主管", roles: ["assistant_manager"] },
-  { key: "staff", label: "👥 部門人員", roles: ["staff"] }
-];
+    { key: "top_manager", label: "👑 最高級主管 / 管理員", roles: ["top_manager", "admin"] },
+    { key: "senior_manager", label: "👔 高級主管", roles: ["senior_manager"] },
+    { key: "manager", label: "👔 主管", roles: ["manager"] },
+    { key: "assistant_manager", label: "💼 副主管", roles: ["assistant_manager"] },
+    { key: "staff", label: "👥 部門人員", roles: ["staff"] }
+  ];
+
+  // ...其餘保持不變
 
   departmentList.forEach(dept => {
     const deptUsers = allUsersList.filter(u => (u.dept || "設計部") === dept);
@@ -3341,6 +3344,7 @@ window.openEditModal = (uid) => {
   supSelect.innerHTML = '<option value="">-- 無 --</option>';
   allUsersList.forEach(user => { 
     if (user.uid !== uid && ["top_manager", "senior_manager", "manager", "assistant_manager"].includes(user.role)) {
+      // ⭐ 加上職稱後綴顯示
       supSelect.innerHTML += `<option value="${user.uid}">${user.name} (${roleNames[user.role] || user.role})</option>`;
     }
   });
