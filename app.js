@@ -3554,7 +3554,10 @@ window.renderApprovals = () => {
     allLogs.forEach(log => {
       let actionStyle = log.action.includes('同意') ? 'color:var(--danger);font-weight:bold;' : log.action.includes('恢復') ? 'color:var(--success);font-weight:bold;' : 'color:var(--text-muted);';
       
-      // 繪製包含申請資訊的完整歷史紀錄 (並加上專案跳轉連結)
+      // 加入專屬的刪除按鈕
+      let delBtnHtml = `<button class="action-btn danger" style="padding: 2px 6px; font-size: 11px;" onclick="deleteAuditLog('${log.projId}', '${log.time}', '${log.action}')">刪除</button>`;
+
+      // 繪製包含申請資訊的完整歷史紀錄 (並加上專案跳轉連結與刪除按鈕)
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td><span style="font-size:12px; color:#475569;">${log.time}</span></td>
@@ -3573,8 +3576,32 @@ window.renderApprovals = () => {
         </td>
         <td><strong style="color:var(--danger); font-size:12px;">${log.reqStart || '-'}</strong></td>
         <td style="word-break:break-all; color:var(--text-muted); font-size:12px;">${log.reqReason || '-'}</td>
+        <td style="text-align: center;">${delBtnHtml}</td>
       `;
       historyTbody.appendChild(tr);
     });
+  }
+}; // <--- 這裡是原本 renderApprovals 的結尾
+
+// ▼▼▼ 在 renderApprovals 結尾的下方，貼上這個全新的刪除函式 ▼▼▼
+window.deleteAuditLog = async (projId, logTime, logAction) => {
+  if (currentUserData.role !== 'admin' && currentUserData.role !== 'top_manager') {
+    return alert("權限不足：只有系統管理員或高級主管可以刪除歷史紀錄！");
+  }
+  
+  if (!confirm("⚠️ 確定要刪除這筆歷史操作紀錄嗎？刪除後將無法復原。")) return;
+
+  const proj = allProjectsData.find(p => p.id === projId);
+  if (!proj || !proj.auditLogs) return;
+
+  // 過濾掉時間與動作完全吻合的那一筆紀錄
+  const newLogs = proj.auditLogs.filter(log => !(log.time === logTime && log.action === logAction));
+
+  try {
+    // 更新回 Firebase 資料庫
+    await updateDoc(doc(db, "projects", projId), { auditLogs: newLogs });
+    // (畫面會因為 onSnapshot 自動重新渲染，不需手動重整)
+  } catch (err) {
+    alert("刪除失敗：" + err.message);
   }
 };
