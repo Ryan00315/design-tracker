@@ -2769,10 +2769,12 @@ function renderOrgChart() {
   mainWrapper.className = "org-dept-container";
 
   const roleTiers = [
-    { key: "manager", label: "👔 主管階級", roles: ["manager", "senior_manager", "top_manager", "admin"] },
-    { key: "assistant_manager", label: "💼 副主管", roles: ["assistant_manager"] },
-    { key: "staff", label: "👥 部門人員", roles: ["staff"] }
-  ];
+  { key: "top_manager", label: "👑 最高級主管 / 管理員", roles: ["top_manager", "admin"] },
+  { key: "senior_manager", label: "👔 高級主管", roles: ["senior_manager"] },
+  { key: "manager", label: "👔 主管", roles: ["manager"] },
+  { key: "assistant_manager", label: "💼 副主管", roles: ["assistant_manager"] },
+  { key: "staff", label: "👥 部門人員", roles: ["staff"] }
+];
 
   departmentList.forEach(dept => {
     const deptUsers = allUsersList.filter(u => (u.dept || "設計部") === dept);
