@@ -1689,7 +1689,7 @@ function renderProjects() {
           padding: 18, 
           readonly: true 
         });
-        patchGanttVisuals(ganttInstance, '#gantt-chart-container');
+        patchGanttVisuals(ganttInstance, '#gantt-chart-container', activeProj);
         scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container'); 
       }, 100); 
     }
