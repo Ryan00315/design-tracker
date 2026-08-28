@@ -3539,7 +3539,14 @@ window.renderApprovals = () => {
     let allLogs = [];
     allProjectsData.forEach(p => {
         if (p.auditLogs) {
-            p.auditLogs.forEach(log => allLogs.push({ title: p.title, ...log }));
+            // ▼ 將專案 ID 與負責人資訊一併打包，為了讓底下可以跳轉
+            p.auditLogs.forEach(log => allLogs.push({ 
+                projId: p.id, 
+                ownerId: p.ownerId, 
+                ownerName: p.ownerName || '人員', 
+                title: p.title, 
+                ...log 
+            }));
         }
     });
     allLogs.sort((a, b) => new Date(b.time.replace(/-/g, '/')) - new Date(a.time.replace(/-/g, '/')));
@@ -3547,11 +3554,17 @@ window.renderApprovals = () => {
     allLogs.forEach(log => {
       let actionStyle = log.action.includes('同意') ? 'color:var(--danger);font-weight:bold;' : log.action.includes('恢復') ? 'color:var(--success);font-weight:bold;' : 'color:var(--text-muted);';
       
-      // 繪製包含申請資訊的完整歷史紀錄
+      // 繪製包含申請資訊的完整歷史紀錄 (並加上專案跳轉連結)
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td><span style="font-size:12px; color:#475569;">${log.time}</span></td>
-        <td><strong>${log.title}</strong></td>
+        <td>
+          <span style="color:var(--primary); font-weight:bold; cursor:pointer; text-decoration:underline;" 
+                onclick="switchViewingUser('${log.ownerId}', '${log.ownerName}'); switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*=\\'tab-projects\\']')); setTimeout(() => selectProject('${log.projId}'), 150);" 
+                title="點擊前往查看此專案">
+            ${log.title}
+          </span>
+        </td>
         <td><span style="${actionStyle}">${log.action}</span></td>
         <td><span class="pill" style="background:#f1f5f9; color:#334155;">${log.manager}</span></td>
         <td>
