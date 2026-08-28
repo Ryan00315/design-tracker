@@ -2828,7 +2828,6 @@ function renderOrgChart() {
 
   container.appendChild(mainWrapper);
 }
-
 let currentEditData = {};
 
 window.openGeneralEdit = (type, id, extra) => {
@@ -3224,7 +3223,7 @@ window.rescueUserProjects = async (uid, userName) => {
 };
 
 function loadOrgUsers() {
-  const rolePriority = { admin: 1, top_manager: 2, manager: 3, assistant_manager: 4, staff: 5 };
+  const rolePriority = { admin: 1, top_manager: 2, senior_manager: 3, manager: 4, assistant_manager: 5, staff: 6 };
 
   onSnapshot(collection(db, "users"), (snapshot) => {
     const tbody = document.getElementById("user-list-tbody"); 
@@ -3236,6 +3235,7 @@ function loadOrgUsers() {
     snapshot.forEach(docSnap => {
       const u = docSnap.data(); 
       allUsersList.push({ uid: docSnap.id, ...u });
+      // ⭐ 這裡的長官選單順序與職級對應已完整對齊
       if (["top_manager", "senior_manager", "manager", "assistant_manager"].includes(u.role)) {
         supervisorSelect.innerHTML += `<option value="${docSnap.id}">${u.name} (${roleNames[u.role] || u.role})</option>`;
       }
