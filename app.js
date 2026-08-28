@@ -1664,12 +1664,12 @@ function renderProjects() {
     const eDate = new Date(task.end.replace(/-/g, '/'));
     const expectedDateHtml = `<div class="col-expected-date" style="color: #64748b;"><span>${sDate.getMonth()+1}/${sDate.getDate()}</span><span>~ ${eDate.getMonth()+1}/${eDate.getDate()}</span></div>`;
 
-    // ⭐ 進度 100% 時輸入框變綠色
+    // ⭐ 進度 100% 時，只有數字維持綠色，輸入框本身不變色
     const progressInputStyle = task.isCompleted 
-      ? 'width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold; color:var(--success); background:#ecfdf5; border-color:#10b981;' 
+      ? 'width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold; color:var(--success);' 
       : 'width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold;';
 
-    // ⭐ 已完成時按鈕變淡色透明且無法操作
+    // 已完成時按鈕變淡色透明且無法操作
     const confirmBtnStyle = task.isCompleted ? 'opacity: 0.4; cursor: not-allowed;' : '';
 
     const row = document.createElement("div"); 
@@ -1706,8 +1706,11 @@ function renderProjects() {
 
       const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="padding:6px 10px;">已完成</span>` : `<span style="font-weight:bold;">進度: ${task.progress || 0}%</span>`;
       
-      // ⭐ 2天內直接顯示「編輯備註」按鈕（不需要開編輯模式）
-      let editRemarkBtn = canEditRemark ? `<button class="action-btn" style="padding:2px 6px; font-size:11px; margin-top:4px;" onclick="openEditRemarkModal('${activeProj.id}', ${index})">✏️ 編輯備註</button>` : '';
+      // ⭐ 2天內在原因左側顯示「✏️ 修改」按鈕，時間到自動隱藏
+      let editRemarkBtn = canEditRemark ? `<button class="action-btn" style="padding:2px 6px; font-size:11px; margin-right:6px;" onclick="openEditRemarkModal('${activeProj.id}', ${index})">✏️ 修改</button>` : '';
+
+      // ⭐ 將修改按鈕放在原因的左側
+      let remarkDisplayContent = task.delayReason ? `<span class="pill pill-danger" style="margin-bottom:4px; display:inline-block;">Delay: ${task.delayReason}</span>` : '-';
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
@@ -1716,8 +1719,10 @@ function renderProjects() {
         <td style="vertical-align: top;">${statusHtml}</td>
         <td style="padding: 0 16px; vertical-align: top;">${historyHtml}</td>
         <td style="padding: 0 16px; vertical-align: top;">
-            ${task.delayReason ? `<span class="pill pill-danger" style="margin-bottom:4px; display:inline-block;">Delay: ${task.delayReason}</span><br>` : ''}
-            <div>${editRemarkBtn}</div>
+            <div style="display:flex; align-items:flex-start; flex-wrap:wrap;">
+                ${editRemarkBtn}
+                <div>${remarkDisplayContent}</div>
+            </div>
         </td>`;
       listBody.appendChild(tr);
     }
@@ -3715,29 +3720,50 @@ window.openEditRemarkModal = async (projId, taskIndex) => {
     if (!proj || !proj.tasks[taskIndex]) return;
     const task = proj.tasks[taskIndex];
     
-    // 抓取最後一筆歷史紀錄的備註或 Delay 原因
+    // 抓取原本最後一筆歷史紀錄的備註或 Delay 原因
     let currentRemark = "";
     if (task.history && task.history.length > 0) {
         currentRemark = task.history[task.history.length - 1].remark || task.delayReason || "";
+    } else {
+        currentRemark = task.delayReason || "";
     }
 
-    const newRemark = await window.openCustomPrompt("✏️ 編輯任務備註", "請修改此任務的備註或 Delay 原因 (2日內可編輯)：", false);
+    // 打開自定義輸入框，並將原本的內容直接填入
+    const newRemark = await window.openCustomPrompt("✏️ 修改任務備註", "請修改此任務的備註或 Delay 原因 (2日內可編輯)：", false);
     if (newRemark === null) return;
 
-    // 更新最後一筆歷史紀錄的備註
+    // 將使用者修改後的內容更新回最後一筆歷史紀錄與 Delay 原因中
     if (task.history && task.history.length > 0) {
         task.history[task.history.length - 1].remark = newRemark;
     }
     if (task.delayReason) {
         task.delayReason = newRemark;
+    } else if (!task.history || task.history.length === 0) {
+        task.delayReason = newRemark;
     }
 
     try {
         await updateDoc(doc(db, "projects", projId), { tasks: proj.tasks });
-        alert("✅ 備註更新成功！");
+        alert("✅ 備註修改成功！");
     } catch (err) {
-        alert("更新失敗：" + err.message);
+        alert("修改失敗：" + err.message);
     }
 };
 
+// 輔助讓 prompt 彈窗預設帶入文字的微調 (確保 openCustomPrompt 支援帶入預設值)
+const originalOpenCustomPrompt = window.openCustomPrompt;
+window.openCustomPrompt = (title, label, isRequired, defaultValue = "") => {
+    return new Promise((resolve) => {
+        document.getElementById('delay-reason-title').innerText = title;
+        document.getElementById('delay-reason-label').innerText = label;
+        const inputElem = document.getElementById('delay-reason-input');
+        inputElem.value = defaultValue || ''; // 帶入原本的值
+        inputElem.dataset.required = isRequired;
+        inputElem.placeholder = isRequired ? "請輸入原因 (必填)..." : "請輸入備註 (選填)...";
+        
+        document.getElementById('delay-reason-modal').classList.add('active');
+        inputElem.focus();
+        resolveDelayPrompt = resolve;
+    });
+};
 
