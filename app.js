@@ -1630,10 +1630,13 @@ function renderProjects() {
 
     const canOperateThisTask = (hasGlobalEdit || isMyTask || isProjOwner);
     const isProjectPaused = activeProj.status === 'paused' || activeProj.status === 'pause_requested';
-    // 計算該任務上次更新或建立的時間距離現在是否在 2 天內 (48小時)
+    
+    // ⭐ 恢復原本的規則：一旦完成、或是專案暫停/無權限，進度輸入與確認按鈕就鎖定
+    const isInputLocked = task.isCompleted || !canOperateThisTask || isProjectPaused; 
+
+    // ⭐ 計算該任務上次更新或建立的時間距離現在是否在 2 天內 (48小時)，供備註編輯使用
     let lastUpdateMs = task.createdAt || Date.now();
     if (task.history && task.history.length > 0) {
-        // 抓取最後一次歷史紀錄的時間 (若有)
         const lastHist = task.history[task.history.length - 1];
         if (lastHist && lastHist.timestamp) {
             let parsedTime = new Date(lastHist.timestamp.replace(/-/g, '/')).getTime();
@@ -1641,13 +1644,10 @@ function renderProjects() {
         }
     }
     const isWithin2Days = (Date.now() - lastUpdateMs) <= (2 * 24 * 60 * 60 * 1000);
+    
+    // 只要是任務負責人或擁有者，且在 2 天內，不需要開啟編輯模式就能直接按按鈕修改備註
+    const canEditRemark = canOperateThisTask && isWithin2Days;
 
-    // 進度條與確認按鈕：只要專案暫停或無權限就鎖定 (維持原本規則)
-    const isInputLocked = !canOperateThisTask || isProjectPaused; 
-    
-    // ⭐ 備註 / Delay 原因獨立判斷：超過 2 天就強制唯讀鎖定
-    const isDelayReasonLocked = isInputLocked || !isWithin2Days; 
-    
     let canEditTask = isEditMode && (
       hasGlobalEdit || ((isProjOwner || isMyTask) && isTaskInGrace)
     );
@@ -1660,10 +1660,17 @@ function renderProjects() {
         <button class="action-btn danger" onclick="deleteActiveProjectTask('${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px;" title="刪除此細項">🗑️</button>
       </div>` : '';
 
-    // 格式化預計日期 (開始月/日 - 結束月/日)
     const sDate = new Date(task.start.replace(/-/g, '/'));
     const eDate = new Date(task.end.replace(/-/g, '/'));
     const expectedDateHtml = `<div class="col-expected-date" style="color: #64748b;"><span>${sDate.getMonth()+1}/${sDate.getDate()}</span><span>~ ${eDate.getMonth()+1}/${eDate.getDate()}</span></div>`;
+
+    // ⭐ 進度 100% 時輸入框變綠色
+    const progressInputStyle = task.isCompleted 
+      ? 'width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold; color:var(--success); background:#ecfdf5; border-color:#10b981;' 
+      : 'width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold;';
+
+    // ⭐ 已完成時按鈕變淡色透明且無法操作
+    const confirmBtnStyle = task.isCompleted ? 'opacity: 0.4; cursor: not-allowed;' : '';
 
     const row = document.createElement("div"); 
     row.className = "gantt-row";
@@ -1671,8 +1678,8 @@ function renderProjects() {
       <div class="col-name" title="${task.name}"><span style="overflow:hidden; text-overflow:ellipsis;">${task.name}</span>${editHtml}</div>
       ${expectedDateHtml}
       <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
-      <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold;"><span style="font-weight:bold; margin-left:2px;">%</span></div>
-      <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')">${task.isCompleted ? '完成' : '確認'}</button></div>
+      <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="${progressInputStyle}"><span style="font-weight:bold; margin-left:2px;">%</span></div>
+      <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} style="${confirmBtnStyle}" onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')">${task.isCompleted ? '完成' : '確認'}</button></div>
       <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
     `;
     if(leftBody) leftBody.appendChild(row);
@@ -1685,21 +1692,33 @@ function renderProjects() {
         historyHtml = `<div style="max-height: 160px; overflow-y: auto;">` + 
           `<table style="width:100%; table-layout:fixed; border-collapse:collapse; margin:0; background:transparent;"><colgroup><col style="width:50%;"><col style="width:50%;"></colgroup><tbody>` +
           sortedHistory.map((h, i) => {
-            let note = h.type === 'create' ? '<span style="color:var(--text-muted)">(建立)</span>' : (h.type === 'complete' ? '<span style="color:var(--success)">(結案)</span>' : '');
-            let remarkHtml = '';
-            if (h.type === 'complete' && h.delayReason) remarkHtml = `<span class="pill pill-danger" style="white-space:normal; word-wrap:break-word;">Delay: ${h.delayReason}</span>`;
-            else if (h.remark) remarkHtml = `<span style="color: var(--text-muted); white-space:normal; word-wrap:break-word;">${h.remark}</span>`;
-            else remarkHtml = `<span style="color: #cbd5e1;">-</span>`;
-            const borderStyle = i === sortedHistory.length - 1 ? "" : "border-bottom:1px dashed var(--border-light);";
-            return `<tr style="${borderStyle}"><td style="padding: 10px 14px 10px 0; vertical-align: top;"><span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span><br><div style="margin-top:4px;">歷時 <b>${h.daysPassed}</b> 工作天</div></td><td style="padding: 10px 0 10px 14px; vertical-align: top;">${remarkHtml}</td></tr>`;
+             let note = h.type === 'create' ? '<span style="color:var(--text-muted)">(建立)</span>' : (h.type === 'complete' ? '<span style="color:var(--success)">(結案)</span>' : '');
+             let remarkHtml = '';
+             if (h.type === 'complete' && h.delayReason) remarkHtml = `<span class="pill pill-danger" style="white-space:normal; word-wrap:break-word;">Delay: ${h.delayReason}</span>`;
+             else if (h.remark) remarkHtml = `<span style="color: var(--text-muted); white-space:normal; word-wrap:break-word;">${h.remark}</span>`;
+             else remarkHtml = `<span style="color: #cbd5e1;">-</span>`;
+             const borderStyle = i === sortedHistory.length - 1 ? "" : "border-bottom:1px dashed var(--border-light);";
+             return `<tr style="${borderStyle}"><td style="padding: 10px 14px 10px 0; vertical-align: top;"><span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span><br><div style="margin-top:4px;">歷時 <b>${h.daysPassed}</b> 工作天</div></td><td style="padding: 10px 0 10px 14px; vertical-align: top;">${remarkHtml}</td></tr>`;
           }).join('') + `</tbody></table></div>`;
       } else {
         historyHtml = `<div style="padding: 12px 0; color:var(--text-muted);">尚無紀錄</div>`;
       }
 
       const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="padding:6px 10px;">已完成</span>` : `<span style="font-weight:bold;">進度: ${task.progress || 0}%</span>`;
+      
+      // ⭐ 2天內直接顯示「編輯備註」按鈕（不需要開編輯模式）
+      let editRemarkBtn = canEditRemark ? `<button class="action-btn" style="padding:2px 6px; font-size:11px; margin-top:4px;" onclick="openEditRemarkModal('${activeProj.id}', ${index})">✏️ 編輯備註</button>` : '';
+
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td style="vertical-align: top;"><strong>${task.name}</strong></td><td style="vertical-align: top;">${taskAssigneeName}</td><td style="vertical-align: top;">${statusHtml}</td><td style="padding: 0 16px; vertical-align: top;">${historyHtml}</td><td style="padding: 0 16px; vertical-align: top;">${task.delayReason ? `<span class="pill pill-danger">Delay: ${task.delayReason}</span>` : '-'}</td>`;
+      tr.innerHTML = `
+        <td style="vertical-align: top;"><strong>${task.name}</strong></td>
+        <td style="vertical-align: top;">${taskAssigneeName}</td>
+        <td style="vertical-align: top;">${statusHtml}</td>
+        <td style="padding: 0 16px; vertical-align: top;">${historyHtml}</td>
+        <td style="padding: 0 16px; vertical-align: top;">
+            ${task.delayReason ? `<span class="pill pill-danger" style="margin-bottom:4px; display:inline-block;">Delay: ${task.delayReason}</span><br>` : ''}
+            <div>${editRemarkBtn}</div>
+        </td>`;
       listBody.appendChild(tr);
     }
   });
@@ -3688,6 +3707,37 @@ window.submitResumeRequest = async () => {
   } catch (err) {
     alert("送出失敗：" + err.message);
   }
+};
+
+let currentRemarkEdit = null;
+window.openEditRemarkModal = async (projId, taskIndex) => {
+    const proj = allProjectsData.find(p => p.id === projId);
+    if (!proj || !proj.tasks[taskIndex]) return;
+    const task = proj.tasks[taskIndex];
+    
+    // 抓取最後一筆歷史紀錄的備註或 Delay 原因
+    let currentRemark = "";
+    if (task.history && task.history.length > 0) {
+        currentRemark = task.history[task.history.length - 1].remark || task.delayReason || "";
+    }
+
+    const newRemark = await window.openCustomPrompt("✏️ 編輯任務備註", "請修改此任務的備註或 Delay 原因 (2日內可編輯)：", false);
+    if (newRemark === null) return;
+
+    // 更新最後一筆歷史紀錄的備註
+    if (task.history && task.history.length > 0) {
+        task.history[task.history.length - 1].remark = newRemark;
+    }
+    if (task.delayReason) {
+        task.delayReason = newRemark;
+    }
+
+    try {
+        await updateDoc(doc(db, "projects", projId), { tasks: proj.tasks });
+        alert("✅ 備註更新成功！");
+    } catch (err) {
+        alert("更新失敗：" + err.message);
+    }
 };
 
 
