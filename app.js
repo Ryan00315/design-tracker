@@ -1911,18 +1911,29 @@ window.submitAddProjectTask = async () => {
 };
 
 let resolveDelayPrompt = null;
-window.openCustomPrompt = (title, label, isRequired) => {
-  return new Promise((resolve) => {
-    document.getElementById('delay-reason-title').innerText = title;
-    document.getElementById('delay-reason-label').innerText = label;
-    document.getElementById('delay-reason-input').value = '';
-    document.getElementById('delay-reason-input').dataset.required = isRequired;
-    document.getElementById('delay-reason-input').placeholder = isRequired ? "請輸入原因 (必填)..." : "請輸入備註 (選填)...";
-    
-    document.getElementById('delay-reason-modal').classList.add('active');
-    document.getElementById('delay-reason-input').focus();
-    resolveDelayPrompt = resolve;
-  });
+window.openCustomPrompt = (title, label, isRequired, defaultValue = "") => {
+    return new Promise((resolve) => {
+        document.getElementById('delay-reason-title').innerText = title;
+        document.getElementById('delay-reason-label').innerText = label;
+        
+        const inputElem = document.getElementById('delay-reason-input');
+        
+        // ⭐ 強制賦值：確保 defaultValue 有確實帶入，並印出來讓你用 F12 驗證
+        console.log("彈窗即將填入的預設值：", defaultValue);
+        inputElem.value = defaultValue !== undefined && defaultValue !== null ? String(defaultValue) : "";
+        
+        inputElem.dataset.required = isRequired;
+        inputElem.placeholder = isRequired ? "請輸入原因 (必填)..." : "請輸入備註 (選填)...";
+        
+        document.getElementById('delay-reason-modal').classList.add('active');
+        
+        // 用 setTimeout 確保畫面渲染完成後游標聚焦並選取文字
+        setTimeout(() => {
+            inputElem.focus();
+        }, 50);
+        
+        resolveDelayPrompt = resolve;
+    });
 };
 
 window.closeDelayModal = () => {
