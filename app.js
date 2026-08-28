@@ -3341,7 +3341,7 @@ window.openEditModal = (uid) => {
   supSelect.innerHTML = '<option value="">-- 無 --</option>';
   allUsersList.forEach(user => { 
     if (user.uid !== uid && ["top_manager", "senior_manager", "manager", "assistant_manager"].includes(user.role)) {
-      supSelect.innerHTML += `<option value="${user.uid}">${user.name}</option>`;
+      supSelect.innerHTML += `<option value="${user.uid}">${user.name} (${roleNames[user.role] || user.role})</option>`;
     }
   });
   supSelect.value = u.supervisorId || ''; 
