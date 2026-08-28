@@ -1703,7 +1703,7 @@ function renderProjects() {
 
              // ⭐ 只有在 2天內 且「有實際輸入內容」時，才顯示修改按鈕
              let canEditThisHist = canOperateThisTask && isHistWithin2Days && hasContent;
-             let rowEditBtn = canEditThisHist ? `<button class="action-btn" style="padding:1px 4px; font-size:10px; margin-left:6px;" onclick="openEditRemarkModal('${activeProj.id}', ${index}, ${i})">✏️ 修改</button>` : '';
+             let rowEditBtn = canEditThisHist ? `<button class="action-btn" style="padding:1px 4px; font-size:10px; margin-left:6px;" onclick="openEditRemarkModal('${activeProj.id}', ${index}, '${h.timestamp}')">✏️ 修改</button>` : '';
 
              let contentText = '';
              if (h.type === 'complete' && h.delayReason) {
@@ -3733,15 +3733,23 @@ window.submitResumeRequest = async () => {
 };
 
 let currentRemarkEdit = null;
-window.openEditRemarkModal = async (projId, taskIndex, histIndex) => {
+window.openEditRemarkModal = async (projId, taskIndex, targetTimestamp) => {
     const proj = allProjectsData.find(p => p.id === projId);
     if (!proj || !proj.tasks[taskIndex]) return;
     const task = proj.tasks[taskIndex];
     
-    if (!task.history || !task.history[histIndex]) return;
-    const targetHist = task.history[histIndex];
+    if (!task.history || task.history.length === 0) return;
 
-    // ⭐ 確實優先抓取 delayReason，其次才抓 remark
+    // ⭐ 透過 timestamp 尋找目標，百分之百精準定位，絕不會改到舊的或錯的備註！
+    const targetHist = task.history.find(h => h.timestamp === targetTimestamp);
+    if (!targetHist) {
+        alert("找不到此筆歷史紀錄！");
+        return;
+    }
+
+    console.log("成功精準鎖定目標紀錄：", targetHist);
+
+    // 抓取原本的文字
     let currentRemark = targetHist.delayReason || targetHist.remark || "";
 
     const newRemark = await window.openCustomPrompt(
@@ -3753,15 +3761,14 @@ window.openEditRemarkModal = async (projId, taskIndex, histIndex) => {
     
     if (newRemark === null) return;
 
-    // ⭐ 根據原本是哪種資料型態，精準寫回對應欄位
-    if (targetHist.delayReason !== undefined && targetHist.delayReason !== null) {
+    // 更新該筆目標紀錄
+    targetHist.remark = newRemark;
+    if (targetHist.delayReason !== undefined && targetHist.delayReason !== null && targetHist.delayReason !== "") {
         targetHist.delayReason = newRemark;
     }
-    if (targetHist.remark !== undefined) {
-        targetHist.remark = newRemark;
-    }
     
-    if (histIndex === task.history.length - 1 && task.delayReason) {
+    // 如果剛好修改的是最後一筆，順便同步主結構
+    if (task.history[task.history.length - 1].timestamp === targetTimestamp && task.delayReason) {
         task.delayReason = newRemark;
     }
 
