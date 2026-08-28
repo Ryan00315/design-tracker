@@ -1306,10 +1306,16 @@ function renderProjects() {
     
     btn.innerHTML = `<span>${tabText}</span>`;
     
-    // 如果正在申請暫停，把整個頁籤的框線變成醒目的黃色
+    // 如果正在申請暫停，把整個頁籤的框線變成醒目的黃色，並強制字體為深色
     if (isPendingPause) {
         btn.style.border = "2px solid var(--warning)";
         btn.style.backgroundColor = "#fffbeb";
+        btn.style.color = "#b45309"; // 深橘棕色
+    } else if (isPaused) {
+        // 針對已暫停的專案給予淺紅底色與深紅字體
+        btn.style.border = "2px solid var(--danger)";
+        btn.style.backgroundColor = "#fef2f2";
+        btn.style.color = "#b91c1c"; // 深紅色
     }
     
     btn.onclick = () => selectProject(p.id); 
@@ -1426,11 +1432,11 @@ function renderProjects() {
           ? `<span style="color:#2563eb; font-weight:700;"><span style="color:#2563eb; margin-right:4px;">👥</span>${item.title}</span>`
           : `<span style="color:#0f172a; font-weight:700;">🗂️ ${item.title}</span>`;
           
-        // 依照狀態加上對應的醒目標籤
+        // 依照狀態加上對應的半透明醒目標籤
         if (item.status === 'pause_requested') {
-            titleDisplay += ` <span style="background: var(--warning); color: #000; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px;">🔔 待審核暫停</span>`;
+            titleDisplay += ` <span style="background: rgba(245, 158, 11, 0.15); color: #b45309; border: 1px solid rgba(245, 158, 11, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px;">🔔 待審核暫停</span>`;
         } else if (item.status === 'paused') {
-            titleDisplay += ` <span style="background: var(--danger); color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px;">🛑 已暫停</span>`;
+            titleDisplay += ` <span style="background: rgba(239, 68, 68, 0.15); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px;">🛑 已暫停</span>`;
         }
           
         row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')">${titleDisplay}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span><span>~ ${item.end.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
