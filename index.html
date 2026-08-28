@@ -124,7 +124,6 @@
               <div class="gantt-master-layout">
                 <div class="gantt-left-panel-summary">
                   
-                  <!-- 🎯 乾淨的總覽排程標題列 -->
                   <div class="gantt-row-header" style="display: flex; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 10px;">
                       <div class="col-sum-name">主專案 / 事件名稱</div>
                       <div class="col-sum-date">起訖日期</div>
@@ -154,7 +153,6 @@
               <div class="gantt-master-layout">
                 <div class="gantt-left-panel">
 
-                  <!-- 🎯 乾淨的專案細項標題列 -->
                   <div class="gantt-row-header" style="display: flex; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 10px; align-items: center;">
                       <div class="col-name">任務細項排程</div>
                       <div class="col-expected-date">預計<br>日期</div>
@@ -179,7 +177,7 @@
                       <th style="width: 18%;">任務名稱</th>
                       <th style="width: 10%; padding-left: 4px; padding-right: 4px;">負責人</th>
                       <th style="width: 12%; padding-left: 4px; padding-right: 4px;">狀態 / 進度</th>
-                      <th style="width: 60%; padding-left: 4px;">歷史更新紀錄：     備註 / Delay 原因說明</th>
+                      <th style="width: 60%; padding-left: 4px;">歷史更新紀錄：    備註 / Delay 原因說明</th>
                     </tr>
                   </thead>
                   <tbody id="project-list-tbody"></tbody>
@@ -187,7 +185,6 @@
               </div>
             </div>
             
-            <!-- ▼ 專案暫停/恢復歷史紀錄 (動態顯示) ▼ -->
             <div id="project-pause-records" class="section-panel" style="display:none; margin-top:20px;"></div>
             
           </div>
@@ -325,7 +322,6 @@
                 </select>
               </div>
               <div class="form-group" style="flex:1;"><label class="form-label">組織階層職稱</label>
-                <!-- 新增/編輯人員的職級下拉選單請修改成這樣 -->
                 <select id="new-user-role" class="input-control">
                     <option value="admin">系統管理員</option>
                     <option value="top_manager">最高級主管</option>
@@ -611,7 +607,6 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.js"></script>
   <script type="module" src="app.js"></script>
-</body>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -639,4 +634,5 @@
       });
     }
   </script>
+</body>
 </html>
