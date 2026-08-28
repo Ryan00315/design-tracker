@@ -24,7 +24,7 @@ const auth = getAuth(app);
 setPersistence(auth, browserLocalPersistence).catch((error) => console.log("Persistence Error:", error));
 const db = getFirestore(app);
 
-const roleNames = { admin: "系統管理員", top_manager: "高級主管", manager: "主管", assistant_manager: "副主管", staff: "人員" };
+const roleNames = { admin: "系統管理員", top_manager: "最高級主管", senior_manager: "高級主管", manager: "主管", assistant_manager: "副主管", staff: "人員" };
 const departmentList = ["總經理室", "企劃部", "業務部", "設計部", "品檢部", "採購部", "廠部"];
 
 let currentUserData = { role: "staff", name: "", dept: "設計部", canEdit: false };
@@ -712,6 +712,7 @@ onAuthStateChanged(auth, async (user) => {
       document.getElementById("nav-divider-org").style.display = "none";
     }
 
+    // ⭐ 只有最高級主管與系統管理員可以看到「待審核通知」，高級主管看不到
     const navApp = document.getElementById("nav-approvals");
     if (navApp) {
       if (currentUserData.role === "admin" || currentUserData.role === "top_manager") {
@@ -720,7 +721,7 @@ onAuthStateChanged(auth, async (user) => {
         navApp.style.display = "none";
       }
     }
-
+    
     if (currentUserData.role !== 'staff') { 
       document.getElementById('nav-sub-wrapper').style.display = 'block'; 
       loadSidebarSubordinates(); 
@@ -746,7 +747,7 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 function loadSidebarSubordinates() {
-  const rolePriority = { admin: 1, top_manager: 2, manager: 3, assistant_manager: 4, staff: 5 };
+  const rolePriority = { admin: 1, top_manager: 2, senior_manager: 3, manager: 4, assistant_manager: 5, staff: 6 };
 
   onSnapshot(collection(db, "users"), (snapshot) => {
     const list = document.getElementById("nav-sub-list");
@@ -782,7 +783,8 @@ function loadSidebarSubordinates() {
       const targetDept = u.dept || "設計部";
       let canView = false;
 
-      if (myRole === 'admin' || myRole === 'top_manager') {
+      // ⭐ 系統管理員、最高級主管、高級主管可以檢視所有人
+      if (myRole === 'admin' || myRole === 'top_manager' || myRole === 'senior_manager') {
         canView = true;
       }
       else if (myRole === 'manager') {
@@ -2767,7 +2769,7 @@ function renderOrgChart() {
   mainWrapper.className = "org-dept-container";
 
   const roleTiers = [
-    { key: "manager", label: "👔 部門主管", roles: ["manager", "top_manager", "admin"] },
+    { key: "manager", label: "👔 主管階級", roles: ["manager", "senior_manager", "top_manager", "admin"] },
     { key: "assistant_manager", label: "💼 副主管", roles: ["assistant_manager"] },
     { key: "staff", label: "👥 部門人員", roles: ["staff"] }
   ];
@@ -3234,7 +3236,7 @@ function loadOrgUsers() {
     snapshot.forEach(docSnap => {
       const u = docSnap.data(); 
       allUsersList.push({ uid: docSnap.id, ...u });
-      if (["top_manager", "manager", "assistant_manager"].includes(u.role)) {
+      if (["top_manager", "senior_manager", "manager", "assistant_manager"].includes(u.role)) {
         supervisorSelect.innerHTML += `<option value="${docSnap.id}">${u.name} (${roleNames[u.role] || u.role})</option>`;
       }
     });
