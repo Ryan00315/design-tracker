@@ -849,40 +849,48 @@ window.toggleDeptSubList = (groupId, headerElem) => {
 };
 
 window.switchViewingUser = (uid, name) => {
-  viewingUserId = uid;
-  document.querySelectorAll('.nav-sub-item').forEach(el => el.classList.remove('active'));
-  const targetLi = document.getElementById(`sub-li-${uid}`);
-  if (targetLi) targetLi.classList.add('active');
+    viewingUserId = uid;
+    document.querySelectorAll('.nav-sub-item').forEach(el => el.classList.remove('active'));
+    const targetLi = document.getElementById(`sub-li-${uid}`);
+    if (targetLi) targetLi.classList.add('active');
 
-  const isSelf = viewingUserId === auth.currentUser.uid;
-  document.getElementById('viewing-user-name').innerText = isSelf ? '' : `[ 正在檢視：${name} ]`;
-  document.getElementById('btn-create-wrapper').style.display = isSelf ? 'flex' : 'none';
-  document.getElementById('create-project-section').style.display = 'none';
-  document.getElementById('adhoc-form-panel').style.display = isSelf ? 'block' : 'none';
-  document.getElementById('weekly-form-panel').style.display = isSelf ? 'block' : 'none';
+    const isSelf = viewingUserId === auth.currentUser.uid;
+    document.getElementById('viewing-user-name').innerText = isSelf ? '' : `[ 正在檢視：${name} ]`;
+    document.getElementById('btn-create-wrapper').style.display = isSelf ? 'flex' : 'none';
+    document.getElementById('create-project-section').style.display = 'none';
+    document.getElementById('adhoc-form-panel').style.display = isSelf ? 'block' : 'none';
+    document.getElementById('weekly-form-panel').style.display = isSelf ? 'block' : 'none';
 
-  selectedProjectId = 'SUMMARY'; 
-  
-  isEditMode = false;
-  const editBtn = document.getElementById("btn-toggle-edit-mode");
-  if(editBtn) {
-     editBtn.innerHTML = "✏️ 開啟編輯模式";
-     editBtn.style.background = "transparent";
-  }
+    selectedProjectId = 'SUMMARY'; 
+    
+    isEditMode = false;
+    const editBtn = document.getElementById("btn-toggle-edit-mode");
+    if(editBtn) {
+       editBtn.innerHTML = "✏️ 開啟編輯模式";
+       editBtn.style.background = "transparent";
+    }
 
-  renderProjects(); 
-  renderAdHocEvents(); 
-  renderWeeklyReports();
+    // ⭐ 如果目前不在「專案進度」頁籤（例如在組織架構、行事曆等），切換人員時自動帶回專案進度
+    const currentActiveTab = document.querySelector('.tab-pane[style*="display: block"], .tab-pane:not([style*="display: none"])');
+    // 簡單判斷：若當前分頁不是專案、事件或週報，就自動切回專案進度
+    const activeTabId = currentActiveTab ? currentActiveTab.id : 'tab-projects';
+    if (activeTabId !== 'tab-projects' && activeTabId !== 'tab-adhoc' && activeTabId !== 'tab-weekly') {
+        const projectNavEl = document.querySelector('li[onclick*="tab-projects"]') || document.querySelector('.nav-item');
+        window.switchNav('tab-projects', '專案進度', projectNavEl);
+    } else {
+        renderProjects(); 
+        renderAdHocEvents(); 
+        renderWeeklyReports();
+    }
 
-  const wrapper = document.getElementById('nav-sub-wrapper');
-  const list = document.getElementById('nav-sub-list');
-  if (wrapper.classList.contains('nav-menu-open')) wrapper.classList.remove('nav-menu-open');
-  if (list.classList.contains('mobile-fixed-dropdown')) {
-    wrapper.appendChild(list); 
-    list.classList.remove('mobile-fixed-dropdown'); 
-  }
+    const wrapper = document.getElementById('nav-sub-wrapper');
+    const list = document.getElementById('nav-sub-list');
+    if (wrapper.classList.contains('nav-menu-open')) wrapper.classList.remove('nav-menu-open');
+    if (list.classList.contains('mobile-fixed-dropdown')) {
+      wrapper.appendChild(list); 
+      list.classList.remove('mobile-fixed-dropdown'); 
+    }
 };
-
 document.getElementById("btn-login").addEventListener("click", () => { 
   signInWithEmailAndPassword(auth, document.getElementById("login-email").value.trim(), document.getElementById("login-password").value.trim()).catch(e=>alert(e.message)); 
 });
