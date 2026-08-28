@@ -3720,26 +3720,34 @@ window.openEditRemarkModal = async (projId, taskIndex) => {
     if (!proj || !proj.tasks[taskIndex]) return;
     const task = proj.tasks[taskIndex];
     
-    // 抓取原本最後一筆歷史紀錄的備註或 Delay 原因
+    // 1. 精準抓取原本 Delay 原因或最後一筆歷史紀錄的備註
     let currentRemark = "";
-    if (task.history && task.history.length > 0) {
-        currentRemark = task.history[task.history.length - 1].remark || task.delayReason || "";
-    } else {
-        currentRemark = task.delayReason || "";
+    if (task.delayReason) {
+        currentRemark = task.delayReason;
+    } else if (task.history && task.history.length > 0) {
+        // 從最新的歷史紀錄往前找，看哪一筆有填寫 remark
+        for (let i = task.history.length - 1; i >= 0; i--) {
+            if (task.history[i].remark && task.history[i].remark !== '專案建立' && task.history[i].remark !== '追加任務細項') {
+                currentRemark = task.history[i].remark;
+                break;
+            }
+        }
     }
 
-    // 打開自定義輸入框，並將原本的內容直接填入
-    const newRemark = await window.openCustomPrompt("✏️ 修改任務備註", "請修改此任務的備註或 Delay 原因 (2日內可編輯)：", false);
+    // 2. ⭐ 這裡把抓到的 currentRemark 作為第四個參數傳進去，彈窗就會自動帶入原本打的原因了！
+    const newRemark = await window.openCustomPrompt("✏️ 修改任務備註", "請修改此任務的備註或 Delay 原因 (2日內可編輯)：", false, currentRemark);
     if (newRemark === null) return;
 
-    // 將使用者修改後的內容更新回最後一筆歷史紀錄與 Delay 原因中
-    if (task.history && task.history.length > 0) {
-        task.history[task.history.length - 1].remark = newRemark;
-    }
+    // 3. 將修改後的內容寫回資料結構
     if (task.delayReason) {
         task.delayReason = newRemark;
-    } else if (!task.history || task.history.length === 0) {
-        task.delayReason = newRemark;
+    }
+    if (task.history && task.history.length > 0) {
+        // 更新最新一筆有 remark 的紀錄，如果沒有就更新最後一筆
+        let targetHist = task.history.slice().reverse().find(h => h.remark) || task.history[task.history.length - 1];
+        if (targetHist) {
+            targetHist.remark = newRemark;
+        }
     }
 
     try {
@@ -3749,21 +3757,3 @@ window.openEditRemarkModal = async (projId, taskIndex) => {
         alert("修改失敗：" + err.message);
     }
 };
-
-// 輔助讓 prompt 彈窗預設帶入文字的微調 (確保 openCustomPrompt 支援帶入預設值)
-const originalOpenCustomPrompt = window.openCustomPrompt;
-window.openCustomPrompt = (title, label, isRequired, defaultValue = "") => {
-    return new Promise((resolve) => {
-        document.getElementById('delay-reason-title').innerText = title;
-        document.getElementById('delay-reason-label').innerText = label;
-        const inputElem = document.getElementById('delay-reason-input');
-        inputElem.value = defaultValue || ''; // 帶入原本的值
-        inputElem.dataset.required = isRequired;
-        inputElem.placeholder = isRequired ? "請輸入原因 (必填)..." : "請輸入備註 (選填)...";
-        
-        document.getElementById('delay-reason-modal').classList.add('active');
-        inputElem.focus();
-        resolveDelayPrompt = resolve;
-    });
-};
-
