@@ -325,8 +325,14 @@
                 </select>
               </div>
               <div class="form-group" style="flex:1;"><label class="form-label">組織階層職稱</label>
+                <!-- 新增/編輯人員的職級下拉選單請修改成這樣 -->
                 <select id="new-user-role" class="input-control">
-                  <option value="staff">人員 (Staff)</option><option value="assistant_manager">副主管 (Assistant Manager)</option><option value="manager">主管 (Manager)</option><option value="top_manager">高級主管 (Top Manager)</option><option value="admin">系統管理員 (Admin)</option>
+                    <option value="admin">系統管理員</option>
+                    <option value="top_manager" selected>最高級主管</option>
+                    <option value="senior_manager">高級主管</option>
+                    <option value="manager">主管</option>
+                    <option value="assistant_manager">副主管</option>
+                    <option value="staff">人員</option>
                 </select>
               </div>
               <div class="form-group" style="flex:1;"><label class="form-label">直屬主管</label><select id="new-user-supervisor" class="input-control"><option value="">-- 無 --</option></select></div>
