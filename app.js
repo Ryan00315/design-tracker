@@ -1706,11 +1706,8 @@ function renderProjects() {
 
       const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="padding:6px 10px;">已完成</span>` : `<span style="font-weight:bold;">進度: ${task.progress || 0}%</span>`;
       
-      // ⭐ 2天內在原因左側顯示「✏️ 修改」按鈕，時間到自動隱藏
-      let editRemarkBtn = canEditRemark ? `<button class="action-btn" style="padding:2px 6px; font-size:11px; margin-right:6px;" onclick="openEditRemarkModal('${activeProj.id}', ${index})">✏️ 修改</button>` : '';
-
-      // ⭐ 將修改按鈕放在原因的左側
-      let remarkDisplayContent = task.delayReason ? `<span class="pill pill-danger" style="margin-bottom:4px; display:inline-block;">Delay: ${task.delayReason}</span>` : '-';
+      // ⭐ 2天內在右側顯示「✏️ 修改」按鈕，時間到自動隱藏
+      let editRemarkBtn = canEditRemark ? `<button class="action-btn" style="padding:2px 6px; font-size:11px;" onclick="openEditRemarkModal('${activeProj.id}', ${index})">✏️ 修改</button>` : '-';
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
@@ -1718,11 +1715,8 @@ function renderProjects() {
         <td style="vertical-align: top;">${taskAssigneeName}</td>
         <td style="vertical-align: top;">${statusHtml}</td>
         <td style="padding: 0 16px; vertical-align: top;">${historyHtml}</td>
-        <td style="padding: 0 16px; vertical-align: top;">
-            <div style="display:flex; align-items:flex-start; flex-wrap:wrap;">
-                ${editRemarkBtn}
-                <div>${remarkDisplayContent}</div>
-            </div>
+        <td style="padding: 0 16px; vertical-align: top; text-align: center;">
+            <div>${editRemarkBtn}</div>
         </td>`;
       listBody.appendChild(tr);
     }
@@ -3720,34 +3714,18 @@ window.openEditRemarkModal = async (projId, taskIndex) => {
     if (!proj || !proj.tasks[taskIndex]) return;
     const task = proj.tasks[taskIndex];
     
-    // 1. 精準抓取原本 Delay 原因或最後一筆歷史紀錄的備註
+    // 抓取最後一筆歷史紀錄的備註作為預設值
     let currentRemark = "";
-    if (task.delayReason) {
-        currentRemark = task.delayReason;
-    } else if (task.history && task.history.length > 0) {
-        // 從最新的歷史紀錄往前找，看哪一筆有填寫 remark
-        for (let i = task.history.length - 1; i >= 0; i--) {
-            if (task.history[i].remark && task.history[i].remark !== '專案建立' && task.history[i].remark !== '追加任務細項') {
-                currentRemark = task.history[i].remark;
-                break;
-            }
-        }
+    if (task.history && task.history.length > 0) {
+        currentRemark = task.history[task.history.length - 1].remark || "";
     }
 
-    // 2. ⭐ 這裡把抓到的 currentRemark 作為第四個參數傳進去，彈窗就會自動帶入原本打的原因了！
-    const newRemark = await window.openCustomPrompt("✏️ 修改任務備註", "請修改此任務的備註或 Delay 原因 (2日內可編輯)：", false, currentRemark);
+    const newRemark = await window.openCustomPrompt("✏️ 修改任務備註", "請修改此任務的最新備註 (2日內可編輯)：", false, currentRemark);
     if (newRemark === null) return;
 
-    // 3. 將修改後的內容寫回資料結構
-    if (task.delayReason) {
-        task.delayReason = newRemark;
-    }
+    // 直接更新最後一筆歷史紀錄的備註
     if (task.history && task.history.length > 0) {
-        // 更新最新一筆有 remark 的紀錄，如果沒有就更新最後一筆
-        let targetHist = task.history.slice().reverse().find(h => h.remark) || task.history[task.history.length - 1];
-        if (targetHist) {
-            targetHist.remark = newRemark;
-        }
+        task.history[task.history.length - 1].remark = newRemark;
     }
 
     try {
