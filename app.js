@@ -1206,35 +1206,34 @@ function renderProjects() {
   let projectsOngoing = [], projectsCompleted = [], projectsDelayed = [], projectsAll = [];
 
   allInvolvedProjects.forEach(p => {
-    let relevantTasks = [];
     const ownerDept = getUserDept(p.ownerId);
-    const isOwnerDept = (targetDept === ownerDept); 
+    const isOwnerDept = (targetDept === ownerDept || p.ownerId === viewingUserId); 
 
+    let relevantTasks = [];
     if (isOwnerDept) {
       relevantTasks = p.tasks || [];
     } else {
       relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
     }
 
-    let isAllDone = false;
-    let hasDelay = false;
-
-    if (relevantTasks.length > 0) {
-      isAllDone = relevantTasks.every(t => t.isCompleted);
-      hasDelay = relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
+    // ⭐ 嚴格過濾：若該協作專案內沒有任何屬於該帳號的任務細項，直接略過，不計入未完成/完成等主清單
+    if (relevantTasks.length === 0) {
+      return; 
     }
 
+    let isAllDone = relevantTasks.every(t => t.isCompleted);
+    let hasDelay = relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
     const inYear = spansYear(p, selectedYear);
 
     if (isOwnerDept) {
-       if (relevantTasks.length === 0 || !isAllDone) { countOngoing++; projectsOngoing.push(p); }
+       if (!isAllDone) { countOngoing++; projectsOngoing.push(p); }
        if (hasDelay) { countDelayed++; projectsDelayed.push(p); }
     } else {
-       if (relevantTasks.length > 0 && !isAllDone) { countOngoing++; projectsOngoing.push(p); }
-       if (relevantTasks.length > 0 && hasDelay) { countDelayed++; projectsDelayed.push(p); }
+       if (!isAllDone) { countOngoing++; projectsOngoing.push(p); }
+       if (hasDelay) { countDelayed++; projectsDelayed.push(p); }
     }
 
-    if (isAllDone && inYear && relevantTasks.length > 0) {
+    if (isAllDone && inYear) {
        countCompleted++;
        projectsCompleted.push(p);
     }
@@ -1507,7 +1506,7 @@ function renderProjects() {
   let canEditMainProj = isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod));
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px;">✏️ 編輯主資訊</button>` : '';
   
-  // ⭐ 協作部門名稱維持好看的藍色字體
+  // ⭐ 協作部門名稱維持好看的深橙色字體
   let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#ea580c; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
   let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
 
@@ -1536,7 +1535,6 @@ function renderProjects() {
           pauseBtnHtml = `<button class="action-btn" onclick="openResumeModal('${activeProj.id}')" style="margin-left:8px; border-color:var(--success); color:var(--success); padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">▶️ 申請恢復</button>`;
       }
   } else {
-      // ⭐ 嚴格限制：只有「系統管理員」或「專案建立者」才能看到並申請暫停
       if (hasGlobalEdit || isProjOwner) {
           pauseBtnHtml = `<button class="action-btn" onclick="openPauseModal('${activeProj.id}')" style="margin-left:8px; border-color:var(--danger); color:var(--danger); padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">⏸️ 申請暫停</button>`;
       }
