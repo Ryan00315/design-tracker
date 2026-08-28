@@ -1688,37 +1688,41 @@ function renderProjects() {
       let historyHtml = '';
       const historyList = task.history || [];
       if (historyList.length > 0) {
+        // 依照時間新到舊排序
         const sortedHistory = [...historyList].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         
-        // ⭐ 我們把「歷史更新紀錄」與「對應的修改按鈕與備註」在同一行左右對應展開！
-        historyHtml = `<div style="max-height: 180px; overflow-y: auto; overflow-x: hidden; padding-right: 4px;">` + 
-          `<table style="width:100%; table-layout:fixed; border-collapse:collapse; margin:0; background:transparent;"><colgroup><col style="width:50%;"><col style="width:50%;"></colgroup><tbody>` +
+        // ⭐ 我們直接在歷史紀錄的每一條裡面內嵌修改按鈕與備註
+        historyHtml = `<div style="max-height: 180px; overflow-y: auto; padding-right: 4px;">` + 
+          `<table style="width:100%; table-layout:fixed; border-collapse:collapse; margin:0; background:transparent;"><colgroup><col style="width:55%;"><col style="width:45%;"></colgroup><tbody>` +
           sortedHistory.map((h, i) => {
              // 計算該筆歷史紀錄的時間是否在 2 天內 (48小時)
              let histTimeMs = new Date(h.timestamp.replace(/-/g, '/')).getTime();
              let isHistWithin2Days = !isNaN(histTimeMs) && (Date.now() - histTimeMs) <= (2 * 24 * 60 * 60 * 1000);
              let canEditThisHist = canOperateThisTask && isHistWithin2Days;
 
-             // 每一筆專屬的修改按鈕 (2天後自動隱藏)
-             let rowEditBtn = canEditThisHist ? `<button class="action-btn" style="padding:2px 6px; font-size:11px; margin-bottom:4px;" onclick="openEditRemarkModal('${activeProj.id}', ${index}, ${i})">✏️ 修改</button>` : '';
+             // 該筆歷史紀錄專屬的修改按鈕 (2天後自動隱藏)
+             let rowEditBtn = canEditThisHist ? `<button class="action-btn" style="padding:1px 4px; font-size:10px; margin-left:6px;" onclick="openEditRemarkModal('${activeProj.id}', ${index}, ${i})">✏️ 修改</button>` : '';
 
-             let remarkHtml = '';
+             let contentText = '';
              if (h.type === 'complete' && h.delayReason) {
-                 remarkHtml = `<div>${rowEditBtn}</div><span class="pill pill-danger" style="white-space:normal; word-wrap:break-word;">Delay: ${h.delayReason}</span>`;
+                 contentText = `<span class="pill pill-danger">Delay: ${h.delayReason}</span>`;
              } else if (h.remark && h.remark !== '專案建立' && h.remark !== '追加任務細項') {
-                 remarkHtml = `<div>${rowEditBtn}</div><span style="color: var(--text-muted); white-space:normal; word-wrap:break-word;">${h.remark}</span>`;
+                 contentText = `<span style="color: var(--text-muted);">${h.remark}</span>`;
              } else {
-                 remarkHtml = `<div>${rowEditBtn}</div><span style="color: #cbd5e1;">-</span>`;
+                 contentText = `<span style="color: #cbd5e1;">${h.remark || '-'}</span>`;
              }
 
              const borderStyle = i === sortedHistory.length - 1 ? "" : "border-bottom:1px dashed var(--border-light);";
              return `<tr style="${borderStyle}">
-                       <td style="padding: 10px 10px 10px 0; vertical-align: top;">
-                         <span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span><br>
-                         <div style="margin-top:4px;">歷時 <b>${h.daysPassed}</b> 工作天</div>
+                       <td style="padding: 8px 10px 8px 0; vertical-align: top;">
+                         <span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span>
+                         <div style="margin-top:2px; font-size:11px; color:#64748b;">歷時 <b>${h.daysPassed}</b> 工作天</div>
                        </td>
-                       <td style="padding: 10px 0 10px 10px; vertical-align: top;">
-                         ${remarkHtml}
+                       <td style="padding: 8px 0 8px 10px; vertical-align: top; word-break: break-all;">
+                         <div style="display:flex; align-items:center; flex-wrap:wrap; margin-bottom:2px;">
+                           <span>${contentText}</span>
+                           ${rowEditBtn}
+                         </div>
                        </td>
                      </tr>`;
           }).join('') + `</tbody></table></div>`;
@@ -1728,12 +1732,13 @@ function renderProjects() {
 
       const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="padding:6px 10px;">已完成</span>` : `<span style="font-weight:bold;">進度: ${task.progress || 0}%</span>`;
 
+      // ⭐ 表格瘦身成 4 欄，把原本多餘的右側備註欄合併掉，畫面變超乾淨！
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td style="vertical-align: top;"><strong>${task.name}</strong></td>
         <td style="vertical-align: top;">${taskAssigneeName}</td>
         <td style="vertical-align: top;">${statusHtml}</td>
-        <td colspan="2" style="padding: 0 16px; vertical-align: top;">
+        <td style="padding: 0 16px; vertical-align: top;">
             ${historyHtml}
         </td>`;
       listBody.appendChild(tr);
