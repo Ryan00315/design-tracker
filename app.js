@@ -591,55 +591,64 @@ function patchGanttVisuals(ganttInst, containerSelector, currentProjData = null)
   const upperTexts = Array.from(svg.querySelectorAll('.upper-text'));
   const colWidth = (ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
 
-  // ==== 繪製暫停深紅線條 (修正版：完美對齊與覆蓋) ====
+  // ==== 繪製暫停深紅線條 (絕對精準版) ====
   if (currentProjData && currentProjData.pauseHistory) {
     currentProjData.pauseHistory.forEach(pause => {
-      const pStart = pause.start;
-      const pEnd = pause.end || getTodayStr(); // 如果還在暫停中，畫到今天
+      const pStart = pause.start; // 例如 "2026-08-27"
+      const pEnd = pause.end || getTodayStr(); // 如果還在暫停，就畫到今天
       
       let pStartDate = new Date(pStart.replace(/-/g, '/'));
       pStartDate.setHours(0, 0, 0, 0);
-      
       let pEndDate = new Date(pEnd.replace(/-/g, '/'));
-      pEndDate.setHours(23, 59, 59, 999); // 暫停區段畫到該日期的最後一刻
+      pEndDate.setHours(23, 59, 59, 999); // 畫到該日的最後一毫秒
 
-      ganttInst.tasks.forEach(task => {
-        let tStart = new Date(task._start);
-        let tEnd = new Date(task._end);
+      // 直接走訪畫面上的所有任務 SVG 群組
+      const barWrappers = svg.querySelectorAll('.bar-wrapper');
+      barWrappers.forEach(barWrapper => {
+        const taskId = barWrapper.getAttribute('data-id'); // 例如 "t_0"
+        if (!taskId || !taskId.startsWith('t_')) return;
+        
+        // 繞過甘特圖，直接從我們的原始資料抓精準日期
+        const taskIndex = parseInt(taskId.replace('t_', ''));
+        const rawTask = currentProjData.tasks[taskIndex];
+        if (!rawTask) return;
 
-        // 判斷該任務的時程是否與暫停區間有重疊
-        if (pStartDate <= tEnd && pEndDate >= tStart) {
-          const barWrapper = svg.querySelector(`.bar-wrapper[data-id="${task.id}"]`);
-          if (barWrapper) {
-            const barRect = barWrapper.querySelector('.bar');
-            if (barRect) {
-              const barY = parseFloat(barRect.getAttribute('y') || 0);
-              const barWidth = parseFloat(barRect.getAttribute('width'));
-              const barHeight = parseFloat(barRect.getAttribute('height'));
+        let tStartDate = new Date(rawTask.start.replace(/-/g, '/'));
+        tStartDate.setHours(0, 0, 0, 0);
+        let tEndDate = new Date(rawTask.end.replace(/-/g, '/'));
+        tEndDate.setHours(23, 59, 59, 999);
 
-              // 使用時間比例來精確計算 X 軸與紅線寬度 (避免座標雙重偏移)
-              let totalTaskDuration = tEnd.getTime() - tStart.getTime();
-              
-              let effectiveStart = pStartDate > tStart ? pStartDate : tStart;
-              let effectiveEnd = pEndDate < tEnd ? pEndDate : tEnd;
+        // 判斷任務的時程是否與暫停區間有重疊
+        if (pStartDate <= tEndDate && pEndDate >= tStartDate) {
+          const barRect = barWrapper.querySelector('.bar');
+          if (barRect) {
+            const barY = parseFloat(barRect.getAttribute('y') || 0);
+            const barWidth = parseFloat(barRect.getAttribute('width'));
+            const barHeight = parseFloat(barRect.getAttribute('height'));
 
-              let diffStartMs = effectiveStart.getTime() - tStart.getTime();
-              let durationMs = effectiveEnd.getTime() - effectiveStart.getTime();
+            let totalTaskDuration = tEndDate.getTime() - tStartDate.getTime();
+            let effectiveStart = pStartDate > tStartDate ? pStartDate : tStartDate;
+            let effectiveEnd = pEndDate < tEndDate ? pEndDate : tEndDate;
 
-              let finalX = (diffStartMs / totalTaskDuration) * barWidth;
-              let finalWidth = (durationMs / totalTaskDuration) * barWidth;
+            let diffStartMs = effectiveStart.getTime() - tStartDate.getTime();
+            let durationMs = effectiveEnd.getTime() - effectiveStart.getTime();
 
-              // 繪製紅線並附加於 bar 容器內部
-              const redLine = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-              redLine.setAttribute('x', finalX);
-              redLine.setAttribute('y', barY + barHeight / 2 - 3); // 置中，設定高度 6px 所以偏移 3px
-              redLine.setAttribute('width', finalWidth);
-              redLine.setAttribute('height', 6); 
-              redLine.setAttribute('fill', '#dc2626'); // 亮紅色，明顯警告
-              redLine.setAttribute('rx', '3'); // 圓角
-              redLine.style.pointerEvents = 'none'; // 滑鼠點擊穿透
-              barWrapper.appendChild(redLine);
-            }
+            let finalX = (diffStartMs / totalTaskDuration) * barWidth;
+            let finalWidth = (durationMs / totalTaskDuration) * barWidth;
+            
+            // 避免因為同日暫停導致毫秒差太小看不見，保底給予至少 4px 的寬度
+            if (finalWidth < 4) finalWidth = 4;
+
+            // 繪製紅線並附加於方塊正中央
+            const redLine = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            redLine.setAttribute('x', finalX);
+            redLine.setAttribute('y', barY + barHeight / 2 - 3); // 垂直置中
+            redLine.setAttribute('width', finalWidth);
+            redLine.setAttribute('height', 6); 
+            redLine.setAttribute('fill', '#dc2626'); 
+            redLine.setAttribute('rx', '3'); // 圓角
+            redLine.style.pointerEvents = 'none'; // 滑鼠穿透，不影響點擊
+            barWrapper.appendChild(redLine);
           }
         }
       });
