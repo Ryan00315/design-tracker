@@ -1245,33 +1245,6 @@ function renderProjects() {
     }
   });
 
-    // ⭐ 嚴格過濾：若該協作專案內沒有任何屬於該帳號的任務細項，直接略過，不計入未完成/完成等主清單
-    if (relevantTasks.length === 0) {
-      return; 
-    }
-
-    let isAllDone = relevantTasks.every(t => t.isCompleted);
-    let hasDelay = relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
-    const inYear = spansYear(p, selectedYear);
-
-    if (isOwnerDept) {
-       if (!isAllDone) { countOngoing++; projectsOngoing.push(p); }
-       if (hasDelay) { countDelayed++; projectsDelayed.push(p); }
-    } else {
-       if (!isAllDone) { countOngoing++; projectsOngoing.push(p); }
-       if (hasDelay) { countDelayed++; projectsDelayed.push(p); }
-    }
-
-    if (isAllDone && inYear) {
-       countCompleted++;
-       projectsCompleted.push(p);
-    }
-    if (inYear) {
-       countAllInYear++;
-       projectsAll.push(p);
-    }
-  });
-
   let adHocsOngoing = userAdHocs.filter(e => !e.isCompleted);
   let adHocsDelayed = userAdHocs.filter(e => !e.isCompleted && e.startDate < todayStr);
   let adHocsCompleted = userAdHocs.filter(e => e.isCompleted && (selectedYear === 'all' || parseInt(getAdHocDateStr(e).substring(0,4)) === selectedYear));
@@ -1535,7 +1508,6 @@ function renderProjects() {
   let canEditMainProj = isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod));
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px;">✏️ 編輯主資訊</button>` : '';
   
-  // ⭐ 協作部門名稱維持好看的深橙色字體
   let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#ea580c; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
   let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
 
