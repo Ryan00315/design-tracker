@@ -3321,7 +3321,7 @@ window.openEditModal = (uid) => {
   document.getElementById("edit-user-name").value = u.name || ''; 
   document.getElementById("edit-user-dept").value = u.dept || '設計部';
   
-  // ⭐ 強制動態渲染編輯彈窗的職級選項，確保最高級主管絕對不會漏掉，且順序正確
+  // ⭐ 強制覆蓋並確保順序與中文字幕100%正確：系統管理員 > 最高級主管 > 高級主管 > 主管 > 副主管 > 人員
   const roleSelect = document.getElementById("edit-user-role");
   if (roleSelect) {
       roleSelect.innerHTML = `
