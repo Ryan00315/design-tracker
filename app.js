@@ -1690,18 +1690,16 @@ function renderProjects() {
       if (historyList.length > 0) {
         const sortedHistory = [...historyList].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         
-        // ⭐ 調整欄位寬度：左側時間佔 35%，右側備註佔 65%，讓兩者靠得很近
+        // ⭐ 將左側時間欄位壓縮至 22%，右側備註佔 78%，讓兩者極度靠近（空白少 2/3）
         historyHtml = `<div style="max-height: 180px; overflow-y: auto; padding-right: 2px;">` + 
-          `<table style="width:100%; table-layout:fixed; border-collapse:collapse; margin:0; background:transparent;"><colgroup><col style="width:35%;"><col style="width:65%;"></colgroup><tbody>` +
+          `<table style="width:100%; table-layout:fixed; border-collapse:collapse; margin:0; background:transparent;"><colgroup><col style="width:22%;"><col style="width:78%;"></colgroup><tbody>` +
           sortedHistory.map((h, i) => {
              let histTimeMs = new Date(h.timestamp.replace(/-/g, '/')).getTime();
              let isHistWithin2Days = !isNaN(histTimeMs) && (Date.now() - histTimeMs) <= (2 * 24 * 60 * 60 * 1000);
              
-             // ⭐ 檢查這筆紀錄是否有實質內容（有 delayReason，或者有 remark 且不是系統預設字眼）
              let hasContent = (h.delayReason && h.delayReason.trim() !== "") || 
                               (h.remark && h.remark.trim() !== "" && h.remark !== '專案建立' && h.remark !== '追加任務細項');
 
-             // ⭐ 只有在 2天內 且「有實際輸入內容」時，才顯示修改按鈕
              let canEditThisHist = canOperateThisTask && isHistWithin2Days && hasContent;
              let rowEditBtn = canEditThisHist ? `<button class="action-btn" style="padding:1px 4px; font-size:10px; margin-left:6px;" onclick="openEditRemarkModal('${activeProj.id}', ${index}, '${h.timestamp}')">✏️ 修改</button>` : '';
 
@@ -1716,9 +1714,9 @@ function renderProjects() {
 
              const borderStyle = i === sortedHistory.length - 1 ? "" : "border-bottom:1px dashed var(--border-light);";
              return `<tr style="${borderStyle}">
-                       <td style="padding: 6px 4px 6px 0; vertical-align: top;">
-                         <span style="color:var(--primary); font-weight:600; font-size:11.5px; white-space:nowrap;">[ ${h.timestamp} ]</span>
-                         <div style="margin-top:1px; font-size:11px; color:#64748b;">歷時 <b>${h.daysPassed}</b> 工作天</div>
+                       <td style="padding: 6px 2px 6px 0; vertical-align: top;">
+                         <span style="color:var(--primary); font-weight:600; font-size:11px; white-space:nowrap;">[ ${h.timestamp} ]</span>
+                         <div style="margin-top:1px; font-size:10.5px; color:#64748b; white-space:nowrap;">歷時 <b>${h.daysPassed}</b> 工作天</div>
                        </td>
                        <td style="padding: 6px 0 6px 4px; vertical-align: top; word-break: break-all;">
                          <div style="display:flex; align-items:center; flex-wrap:wrap; margin-bottom:2px;">
@@ -1729,17 +1727,18 @@ function renderProjects() {
                      </tr>`;
           }).join('') + `</tbody></table></div>`;
       } else {
-        historyHtml = `<div style="padding: 8px 0; color:var(--text-muted);">尚無紀錄</div>`;
+        historyHtml = `<div style="padding: 6px 0; color:var(--text-muted);">尚無紀錄</div>`;
       }
 
       const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="padding:4px 8px;">已完成</span>` : `<span style="font-weight:bold;">進度: ${task.progress || 0}%</span>`;
 
+      // ⭐ 壓縮整列儲存格的左右 Padding，讓「負責人」與「進度」跟著整體往左靠
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td style="vertical-align: top; padding: 10px 8px;"><strong>${task.name}</strong></td>
-        <td style="vertical-align: top; padding: 10px 8px; width: 110px;">${taskAssigneeName}</td>
-        <td style="vertical-align: top; padding: 10px 8px; width: 110px;">${statusHtml}</td>
-        <td style="padding: 6px 8px; vertical-align: top;">
+        <td style="vertical-align: top; padding: 8px 4px;"><strong>${task.name}</strong></td>
+        <td style="vertical-align: top; padding: 8px 4px; width: 90px;">${taskAssigneeName}</td>
+        <td style="vertical-align: top; padding: 8px 4px; width: 100px;">${statusHtml}</td>
+        <td style="padding: 6px 4px; vertical-align: top;">
             ${historyHtml}
         </td>`;
       listBody.appendChild(tr);
