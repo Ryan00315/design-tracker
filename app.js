@@ -1689,34 +1689,52 @@ function renderProjects() {
       const historyList = task.history || [];
       if (historyList.length > 0) {
         const sortedHistory = [...historyList].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        historyHtml = `<div style="max-height: 160px; overflow-y: auto;">` + 
+        
+        // ⭐ 我們把「歷史更新紀錄」與「對應的修改按鈕與備註」在同一行左右對應展開！
+        historyHtml = `<div style="max-height: 180px; overflow-y: auto; overflow-x: hidden; padding-right: 4px;">` + 
           `<table style="width:100%; table-layout:fixed; border-collapse:collapse; margin:0; background:transparent;"><colgroup><col style="width:50%;"><col style="width:50%;"></colgroup><tbody>` +
           sortedHistory.map((h, i) => {
-             let note = h.type === 'create' ? '<span style="color:var(--text-muted)">(建立)</span>' : (h.type === 'complete' ? '<span style="color:var(--success)">(結案)</span>' : '');
+             // 計算該筆歷史紀錄的時間是否在 2 天內 (48小時)
+             let histTimeMs = new Date(h.timestamp.replace(/-/g, '/')).getTime();
+             let isHistWithin2Days = !isNaN(histTimeMs) && (Date.now() - histTimeMs) <= (2 * 24 * 60 * 60 * 1000);
+             let canEditThisHist = canOperateThisTask && isHistWithin2Days;
+
+             // 每一筆專屬的修改按鈕 (2天後自動隱藏)
+             let rowEditBtn = canEditThisHist ? `<button class="action-btn" style="padding:2px 6px; font-size:11px; margin-bottom:4px;" onclick="openEditRemarkModal('${activeProj.id}', ${index}, ${i})">✏️ 修改</button>` : '';
+
              let remarkHtml = '';
-             if (h.type === 'complete' && h.delayReason) remarkHtml = `<span class="pill pill-danger" style="white-space:normal; word-wrap:break-word;">Delay: ${h.delayReason}</span>`;
-             else if (h.remark) remarkHtml = `<span style="color: var(--text-muted); white-space:normal; word-wrap:break-word;">${h.remark}</span>`;
-             else remarkHtml = `<span style="color: #cbd5e1;">-</span>`;
+             if (h.type === 'complete' && h.delayReason) {
+                 remarkHtml = `<div>${rowEditBtn}</div><span class="pill pill-danger" style="white-space:normal; word-wrap:break-word;">Delay: ${h.delayReason}</span>`;
+             } else if (h.remark && h.remark !== '專案建立' && h.remark !== '追加任務細項') {
+                 remarkHtml = `<div>${rowEditBtn}</div><span style="color: var(--text-muted); white-space:normal; word-wrap:break-word;">${h.remark}</span>`;
+             } else {
+                 remarkHtml = `<div>${rowEditBtn}</div><span style="color: #cbd5e1;">-</span>`;
+             }
+
              const borderStyle = i === sortedHistory.length - 1 ? "" : "border-bottom:1px dashed var(--border-light);";
-             return `<tr style="${borderStyle}"><td style="padding: 10px 14px 10px 0; vertical-align: top;"><span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span><br><div style="margin-top:4px;">歷時 <b>${h.daysPassed}</b> 工作天</div></td><td style="padding: 10px 0 10px 14px; vertical-align: top;">${remarkHtml}</td></tr>`;
+             return `<tr style="${borderStyle}">
+                       <td style="padding: 10px 10px 10px 0; vertical-align: top;">
+                         <span style="color:var(--primary); font-weight:600;">[ ${h.timestamp} ]</span><br>
+                         <div style="margin-top:4px;">歷時 <b>${h.daysPassed}</b> 工作天</div>
+                       </td>
+                       <td style="padding: 10px 0 10px 10px; vertical-align: top;">
+                         ${remarkHtml}
+                       </td>
+                     </tr>`;
           }).join('') + `</tbody></table></div>`;
       } else {
         historyHtml = `<div style="padding: 12px 0; color:var(--text-muted);">尚無紀錄</div>`;
       }
 
       const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="padding:6px 10px;">已完成</span>` : `<span style="font-weight:bold;">進度: ${task.progress || 0}%</span>`;
-      
-      // ⭐ 2天內在右側顯示「✏️ 修改」按鈕，時間到自動隱藏
-      let editRemarkBtn = canEditRemark ? `<button class="action-btn" style="padding:2px 6px; font-size:11px;" onclick="openEditRemarkModal('${activeProj.id}', ${index})">✏️ 修改</button>` : '-';
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td style="vertical-align: top;"><strong>${task.name}</strong></td>
         <td style="vertical-align: top;">${taskAssigneeName}</td>
         <td style="vertical-align: top;">${statusHtml}</td>
-        <td style="padding: 0 16px; vertical-align: top;">${historyHtml}</td>
-        <td style="padding: 0 16px; vertical-align: top; text-align: center;">
-            <div>${editRemarkBtn}</div>
+        <td colspan="2" style="padding: 0 16px; vertical-align: top;">
+            ${historyHtml}
         </td>`;
       listBody.appendChild(tr);
     }
@@ -3709,28 +3727,33 @@ window.submitResumeRequest = async () => {
 };
 
 let currentRemarkEdit = null;
-window.openEditRemarkModal = async (projId, taskIndex) => {
+window.openEditRemarkModal = async (projId, taskIndex, histIndex) => {
     const proj = allProjectsData.find(p => p.id === projId);
     if (!proj || !proj.tasks[taskIndex]) return;
     const task = proj.tasks[taskIndex];
     
-    // 抓取最後一筆歷史紀錄的備註作為預設值
-    let currentRemark = "";
-    if (task.history && task.history.length > 0) {
-        currentRemark = task.history[task.history.length - 1].remark || "";
-    }
+    if (!task.history || !task.history[histIndex]) return;
+    const targetHist = task.history[histIndex];
 
-    const newRemark = await window.openCustomPrompt("✏️ 修改任務備註", "請修改此任務的最新備註 (2日內可編輯)：", false, currentRemark);
+    // ⭐ 精準抓取被點擊的那一筆歷史紀錄原本的備註或 Delay 原因
+    let currentRemark = targetHist.remark || targetHist.delayReason || "";
+
+    const newRemark = await window.openCustomPrompt("✏️ 修改任務備註", "請修改此筆紀錄的備註或 Delay 原因 (2日內可編輯)：", false, currentRemark);
     if (newRemark === null) return;
 
-    // 直接更新最後一筆歷史紀錄的備註
-    if (task.history && task.history.length > 0) {
-        task.history[task.history.length - 1].remark = newRemark;
+    // ⭐ 更新對應的那一筆歷史紀錄
+    targetHist.remark = newRemark;
+    if (targetHist.delayReason !== undefined) {
+        targetHist.delayReason = newRemark;
+    }
+    // 如果剛好是最後一筆，順便同步到 task.delayReason 確保一致
+    if (histIndex === task.history.length - 1 && task.delayReason) {
+        task.delayReason = newRemark;
     }
 
     try {
         await updateDoc(doc(db, "projects", projId), { tasks: proj.tasks });
-        alert("✅ 備註修改成功！");
+        alert("✅ 該筆紀錄修改成功！");
     } catch (err) {
         alert("修改失敗：" + err.message);
     }
