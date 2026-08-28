@@ -479,3 +479,17 @@ tr:hover td { background: #fafafa; }
     font-weight: 700;
   }
 }
+
+/* 修正任務細項表頭：垂直置中與消除多餘空白 */
+.table-responsive table th {
+    vertical-align: middle !important; 
+    padding: 8px 10px !important;      
+    height: auto !important;           
+    line-height: 1.3 !important;       
+}
+
+/* 確保第一欄（任務細項排程）的文字也能完美置中 */
+.table-responsive table th:first-child {
+    display: table-cell !important;
+    vertical-align: middle !important;
+}
