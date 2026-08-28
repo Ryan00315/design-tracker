@@ -1493,7 +1493,8 @@ function renderProjects() {
   let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
 
   let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
-  let titleDisplayName = `<span style="color:#2563eb; font-weight:700;">${titlePrefixIcon}${activeProj.title}</span>`;
+  // 加上 word-break: break-all; 強制超長字串換行，避免撐爆版面
+  let titleDisplayName = `<span style="color:#2563eb; font-weight:700; word-break: break-all;">${titlePrefixIcon}${activeProj.title}</span>`;
   
   // 新增暫停狀態徽章與按鈕邏輯
   let statusBadge = "";
@@ -1501,23 +1502,25 @@ function renderProjects() {
   const isAdminOrTop = currentUserData.role === 'admin' || currentUserData.role === 'top_manager';
 
   if (activeProj.status === 'pause_requested') {
-      statusBadge = `<span class="pill pill-warning" style="margin-left:8px;">⏸️ 暫停審核中 (${activeProj.pauseRequestedBy} 申請)</span>`;
+      statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏸️ 暫停審核中 (${activeProj.pauseRequestedBy} 申請)</span>`;
       if (isAdminOrTop) {
-          pauseBtnHtml = `<button class="btn-primary" onclick="approvePause('${activeProj.id}')" style="margin-left:8px; background:var(--danger); border:none; padding:2px 8px;">同意暫停</button><button class="action-btn" onclick="rejectPause('${activeProj.id}')" style="margin-left:4px; padding:2px 8px;">退回</button>`;
+          // 將 btn-primary 換成 action-btn 並鎖定寬度
+          pauseBtnHtml = `<button class="action-btn" onclick="approvePause('${activeProj.id}')" style="margin-left:8px; background:var(--danger); color:#fff; border:none; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">同意暫停</button><button class="action-btn" onclick="rejectPause('${activeProj.id}')" style="margin-left:4px; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">退回</button>`;
       }
   } else if (activeProj.status === 'paused') {
-      statusBadge = `<span class="pill pill-danger" style="margin-left:8px;">🛑 專案已暫停</span>`;
+      statusBadge = `<span class="pill pill-danger" style="margin-left:8px; white-space:nowrap;">🛑 專案已暫停</span>`;
       if (isAdminOrTop) {
-          pauseBtnHtml = `<button class="btn-primary" onclick="resumeProject('${activeProj.id}')" style="margin-left:8px; background:var(--success); border:none; padding:2px 8px;">▶️ 恢復執行</button>`;
+          // 將 btn-primary 換成 action-btn 並鎖定寬度
+          pauseBtnHtml = `<button class="action-btn" onclick="resumeProject('${activeProj.id}')" style="margin-left:8px; background:var(--success); color:#fff; border:none; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">▶️ 恢復執行</button>`;
       }
   } else {
       if (hasGlobalEdit || isProjOwner || isCollabMember) {
-          pauseBtnHtml = `<button class="action-btn" onclick="openPauseModal('${activeProj.id}')" style="margin-left:8px; border-color:var(--danger); color:var(--danger); padding:2px 8px;">⏸️ 申請暫停</button>`;
+          pauseBtnHtml = `<button class="action-btn" onclick="openPauseModal('${activeProj.id}')" style="margin-left:8px; border-color:var(--danger); color:var(--danger); padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">⏸️ 申請暫停</button>`;
       }
   }
   
   const currentTitleEl = document.getElementById("current-gantt-title");
-  if(currentTitleEl) currentTitleEl.innerHTML = `<span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} ${collabBadge} ${statusBadge} ${graceBadge} ${editProjBtn} ${pauseBtnHtml}`;
+  if(currentTitleEl) currentTitleEl.innerHTML = `<span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} <span style="display:inline-flex; flex-wrap:wrap; align-items:center; gap:4px; margin-top:2px;">${collabBadge} ${statusBadge} ${graceBadge} ${pauseBtnHtml} ${editProjBtn}</span>`;
   
   const btnProjectAddTask = document.getElementById("btn-project-add-task");
   const lockBtn = document.getElementById("btn-toggle-lock");
