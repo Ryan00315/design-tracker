@@ -3326,18 +3326,6 @@ window.openEditModal = (uid) => {
   document.getElementById("edit-user-name").value = u.name || ''; 
   document.getElementById("edit-user-dept").value = u.dept || '設計部';
   
-  // ⭐ 強制覆蓋並確保順序與中文字幕100%正確：系統管理員 > 最高級主管 > 高級主管 > 主管 > 副主管 > 人員
-  const roleSelect = document.getElementById("edit-user-role");
-  if (roleSelect) {
-      roleSelect.innerHTML = `
-          <option value="admin">系統管理員</option>
-          <option value="top_manager">最高級主管</option>
-          <option value="senior_manager">高級主管</option>
-          <option value="manager">主管</option>
-          <option value="assistant_manager">副主管</option>
-          <option value="staff">人員</option>
-      `;
-  }
   document.getElementById("edit-user-role").value = u.role || 'staff';
   
   const supSelect = document.getElementById("edit-user-supervisor"); 
