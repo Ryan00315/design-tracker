@@ -3321,7 +3321,7 @@ window.openEditModal = (uid) => {
   document.getElementById("edit-user-name").value = u.name || ''; 
   document.getElementById("edit-user-dept").value = u.dept || '設計部';
   
-  // ⭐ 確保編輯彈窗的職級下拉選單完整包含所有選項（包含最高級主管）
+  // ⭐ 強制動態渲染編輯彈窗的職級選項，確保最高級主管絕對不會漏掉，且順序正確
   const roleSelect = document.getElementById("edit-user-role");
   if (roleSelect) {
       roleSelect.innerHTML = `
@@ -3345,6 +3345,7 @@ window.openEditModal = (uid) => {
   supSelect.value = u.supervisorId || ''; 
   document.getElementById("edit-user-modal").classList.add("active");
 };
+
 window.closeEditModal = () => document.getElementById("edit-user-modal").classList.remove("active");
 
 window.submitEditUser = async () => {
