@@ -591,24 +591,24 @@ function patchGanttVisuals(ganttInst, containerSelector, currentProjData = null)
   const upperTexts = Array.from(svg.querySelectorAll('.upper-text'));
   const colWidth = (ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
 
-  // ==== 繪製暫停深紅線條 (絕對精準版) ====
+  // ==== 繪製暫停深紅線條 (絕對精準版 - 修正座標偏移) ====
   if (currentProjData && currentProjData.pauseHistory) {
     currentProjData.pauseHistory.forEach(pause => {
-      const pStart = pause.start; // 例如 "2026-08-27"
+      const pStart = pause.start; 
       const pEnd = pause.end || getTodayStr(); // 如果還在暫停，就畫到今天
       
       let pStartDate = new Date(pStart.replace(/-/g, '/'));
       pStartDate.setHours(0, 0, 0, 0);
       let pEndDate = new Date(pEnd.replace(/-/g, '/'));
-      pEndDate.setHours(23, 59, 59, 999); // 畫到該日的最後一毫秒
+      pEndDate.setHours(23, 59, 59, 999); 
 
-      // 直接走訪畫面上的所有任務 SVG 群組
+      // 走訪畫面上的所有任務 SVG 群組
       const barWrappers = svg.querySelectorAll('.bar-wrapper');
       barWrappers.forEach(barWrapper => {
-        const taskId = barWrapper.getAttribute('data-id'); // 例如 "t_0"
+        const taskId = barWrapper.getAttribute('data-id'); 
         if (!taskId || !taskId.startsWith('t_')) return;
         
-        // 繞過甘特圖，直接從我們的原始資料抓精準日期
+        // 抓取原始資料計算實際日期
         const taskIndex = parseInt(taskId.replace('t_', ''));
         const rawTask = currentProjData.tasks[taskIndex];
         if (!rawTask) return;
@@ -618,13 +618,15 @@ function patchGanttVisuals(ganttInst, containerSelector, currentProjData = null)
         let tEndDate = new Date(rawTask.end.replace(/-/g, '/'));
         tEndDate.setHours(23, 59, 59, 999);
 
-        // 判斷任務的時程是否與暫停區間有重疊
+        // 判斷任務時程是否與暫停區間有重疊
         if (pStartDate <= tEndDate && pEndDate >= tStartDate) {
           const barRect = barWrapper.querySelector('.bar');
           if (barRect) {
+            // ▼ 關鍵修正：抓取方塊的絕對起點 X 座標 ▼
+            const barX = parseFloat(barRect.getAttribute('x') || 0); 
             const barY = parseFloat(barRect.getAttribute('y') || 0);
-            const barWidth = parseFloat(barRect.getAttribute('width'));
-            const barHeight = parseFloat(barRect.getAttribute('height'));
+            const barWidth = parseFloat(barRect.getAttribute('width') || 0);
+            const barHeight = parseFloat(barRect.getAttribute('height') || 0);
 
             let totalTaskDuration = tEndDate.getTime() - tStartDate.getTime();
             let effectiveStart = pStartDate > tStartDate ? pStartDate : tStartDate;
@@ -633,21 +635,21 @@ function patchGanttVisuals(ganttInst, containerSelector, currentProjData = null)
             let diffStartMs = effectiveStart.getTime() - tStartDate.getTime();
             let durationMs = effectiveEnd.getTime() - effectiveStart.getTime();
 
-            let finalX = (diffStartMs / totalTaskDuration) * barWidth;
+            // ▼ 關鍵修正：將算出的位移比例，加上原本的 barX ▼
+            let finalX = barX + (diffStartMs / totalTaskDuration) * barWidth;
             let finalWidth = (durationMs / totalTaskDuration) * barWidth;
             
-            // 避免因為同日暫停導致毫秒差太小看不見，保底給予至少 4px 的寬度
             if (finalWidth < 4) finalWidth = 4;
 
-            // 繪製紅線並附加於方塊正中央
+            // 繪製紅線
             const redLine = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
             redLine.setAttribute('x', finalX);
             redLine.setAttribute('y', barY + barHeight / 2 - 3); // 垂直置中
             redLine.setAttribute('width', finalWidth);
             redLine.setAttribute('height', 6); 
             redLine.setAttribute('fill', '#dc2626'); 
-            redLine.setAttribute('rx', '3'); // 圓角
-            redLine.style.pointerEvents = 'none'; // 滑鼠穿透，不影響點擊
+            redLine.setAttribute('rx', '3'); 
+            redLine.style.pointerEvents = 'none'; 
             barWrapper.appendChild(redLine);
           }
         }
