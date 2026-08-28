@@ -1696,8 +1696,13 @@ function renderProjects() {
           sortedHistory.map((h, i) => {
              let histTimeMs = new Date(h.timestamp.replace(/-/g, '/')).getTime();
              let isHistWithin2Days = !isNaN(histTimeMs) && (Date.now() - histTimeMs) <= (2 * 24 * 60 * 60 * 1000);
-             let canEditThisHist = canOperateThisTask && isHistWithin2Days;
+             
+             // ⭐ 檢查這筆紀錄是否有實質內容（有 delayReason，或者有 remark 且不是系統預設字眼）
+             let hasContent = (h.delayReason && h.delayReason.trim() !== "") || 
+                              (h.remark && h.remark.trim() !== "" && h.remark !== '專案建立' && h.remark !== '追加任務細項');
 
+             // ⭐ 只有在 2天內 且「有實際輸入內容」時，才顯示修改按鈕
+             let canEditThisHist = canOperateThisTask && isHistWithin2Days && hasContent;
              let rowEditBtn = canEditThisHist ? `<button class="action-btn" style="padding:1px 4px; font-size:10px; margin-left:6px;" onclick="openEditRemarkModal('${activeProj.id}', ${index}, ${i})">✏️ 修改</button>` : '';
 
              let contentText = '';
@@ -3736,13 +3741,9 @@ window.openEditRemarkModal = async (projId, taskIndex, histIndex) => {
     if (!task.history || !task.history[histIndex]) return;
     const targetHist = task.history[histIndex];
 
-    // ⭐ 確保用最嚴謹的順序抓取原本的文字 (優先抓 remark，若無則抓 delayReason)
-    let currentRemark = targetHist.remark || targetHist.delayReason || "";
-    if (currentRemark === '專案建立' || currentRemark === '追加任務細項') {
-        currentRemark = ""; // 系統自動生成的預設字眼不帶入
-    }
+    // ⭐ 確實優先抓取 delayReason，其次才抓 remark
+    let currentRemark = targetHist.delayReason || targetHist.remark || "";
 
-    // ⭐ 套用新的精簡標題與提示文字
     const newRemark = await window.openCustomPrompt(
         "✏️ 修改原因", 
         "修改紀錄的備註 / Delay 內容：", 
@@ -3752,10 +3753,12 @@ window.openEditRemarkModal = async (projId, taskIndex, histIndex) => {
     
     if (newRemark === null) return;
 
-    // ⭐ 只更新說明內容，絕對不碰 timestamp 與 daysPassed
-    targetHist.remark = newRemark;
+    // ⭐ 根據原本是哪種資料型態，精準寫回對應欄位
     if (targetHist.delayReason !== undefined && targetHist.delayReason !== null) {
         targetHist.delayReason = newRemark;
+    }
+    if (targetHist.remark !== undefined) {
+        targetHist.remark = newRemark;
     }
     
     if (histIndex === task.history.length - 1 && task.delayReason) {
