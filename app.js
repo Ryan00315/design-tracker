@@ -93,7 +93,6 @@ function initDynamicUI() {
       --font-scale: 1;
     }
     
-    /* 這裡使用 zoom 並且只鎖定 tab-pane 內容區塊，完美放大所有字體與排版，絕不影響外部的網頁瀏覽器框架與側邊欄 */
     .tab-pane { zoom: var(--font-scale, 1); }
 
     body.font-md { --font-scale: 1.2; }
@@ -105,22 +104,19 @@ function initDynamicUI() {
     .col-sum-name.clickable { cursor: pointer; text-decoration: none; transition: 0.2s; }
     .col-sum-name.clickable:hover { opacity: 0.7; }
     
-    /* 調整左右比例：左側清單 40%，右側甘特圖 60% */
     .gantt-left-panel, .gantt-left-panel-summary { flex: 0 0 40% !important; max-width: 40% !important; }
     .gantt-right-panel, .gantt-right-panel-summary { flex: 0 0 60% !important; max-width: 60% !important; }
     
-    /* 總覽清單的欄位比例配置 */
     .col-sum-name { flex: 5.8 !important; } 
     .col-sum-date { flex: 1.4 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; } 
     .col-sum-prog { flex: 1.6 !important; text-align: center; display: flex; justify-content: center; align-items: center; } 
     .col-sum-owner { flex: 1.6 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-    /* 單一專案 (細項清單) 的欄位比例配置 */
-    .col-name { flex: 2.8 !important; } 
+    .col-name { flex: 1.8 !important; } 
     .col-expected-date { flex: 0.5 !important; min-width: 55px !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; }
-    .col-date { flex: 0.5 !important; min-width: 45px !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; } 
-    .col-prog { flex: 0.5 !important; min-width: 65px !important; text-align: center; display: flex; justify-content: center; align-items: center; }
-    .col-act { flex: 0.5 !important; min-width: 50px !important; text-align: center; display: flex; justify-content: center; align-items: center; }
+    .col-date { flex: 0.4 !important; min-width: 40px !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; } 
+    .col-prog { flex: 0.4 !important; min-width: 55px !important; text-align: center; display: flex; justify-content: center; align-items: center; }
+    .col-act { flex: 0.4 !important; min-width: 45px !important; text-align: center; display: flex; justify-content: center; align-items: center; }
     .col-owner { flex: 0.5 !important; min-width: 50px !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     
     .mobile-fixed-dropdown {
@@ -138,13 +134,12 @@ function initDynamicUI() {
         box-shadow: 0 10px 25px rgba(0,0,0,0.2);
     }
     
-    /* 字體控制器的樣式 */
     .hide-on-mobile { display: flex !important; }
     .font-btn { transition: 0.2s; }
     .font-btn.active { background: #4f46e5 !important; color: #fff !important; border-color: #4f46e5 !important; }
     
     @media (max-width: 768px) {
-      :root { --font-scale: 1 !important; } /* 手機版固定為預設比例 */
+      :root { --font-scale: 1 !important; }
       .kpi-row { grid-template-columns: repeat(5, 1fr) !important; gap: 4px !important; }
       .kpi-title { font-size: 10px !important; }
       .kpi-card { padding: 6px 4px !important; }
@@ -184,7 +179,6 @@ function initDynamicUI() {
 }
 initDynamicUI();
 
-// 確保標題列一定有正確的內容，並且結構與下方資料列 100% 同步
 function fixHeaders() {
   const sumHeader = document.querySelector('#project-summary-view .gantt-row-header');
   if (sumHeader) {
@@ -591,11 +585,9 @@ function patchGanttVisuals(ganttInst, containerSelector, currentProjData = null)
   const upperTexts = Array.from(svg.querySelectorAll('.upper-text'));
   const colWidth = (ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
 
-  // ==== 繪製暫停深紅線條 (畫布網格精準版) ====
   if (currentProjData && currentProjData.pauseHistory) {
-    const firstDateMs = ganttInst.dates[0].getTime(); // 甘特圖最左側的第一天
+    const firstDateMs = ganttInst.dates[0].getTime();
 
-    // 將日期轉換為畫布上的絕對 X 座標
     function getDateX(dateString, isEnd = false) {
         let d = new Date(dateString.replace(/-/g, '/'));
         if (isEnd) d.setHours(23, 59, 59, 999);
@@ -605,24 +597,22 @@ function patchGanttVisuals(ganttInst, containerSelector, currentProjData = null)
 
     currentProjData.pauseHistory.forEach(pause => {
       const pStart = pause.start; 
-      const pEnd = pause.end || getTodayStr(); // 如果還在暫停，就畫到今天
+      const pEnd = pause.end || getTodayStr();
 
       let startX = getDateX(pStart, false);
       let endX = getDateX(pEnd, true);
       let lineWidth = endX - startX;
-      if (lineWidth < 4) lineWidth = 4; // 保底寬度
+      if (lineWidth < 4) lineWidth = 4;
 
       const barWrappers = svg.querySelectorAll('.bar-wrapper');
       barWrappers.forEach(barWrapper => {
         const taskId = barWrapper.getAttribute('data-id'); 
         if (!taskId || !taskId.startsWith('t_')) return;
         
-        // 抓取原本的任務資料
         const taskIndex = parseInt(taskId.replace('t_', ''));
         const rawTask = currentProjData.tasks[taskIndex]; 
         if (!rawTask) return;
 
-        // 只有「在暫停開始前就已經啟動，且尚未結束」的任務，才會被畫上紅線
         if (rawTask.start <= pStart && rawTask.end >= pStart) {
           const barRect = barWrapper.querySelector('.bar');
           if (barRect) {
@@ -631,13 +621,11 @@ function patchGanttVisuals(ganttInst, containerSelector, currentProjData = null)
 
             const redLine = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
             redLine.setAttribute('x', startX);
-            // 垂直置中：因為高度變成 12，所以這裡偏移量要改成減 6 (12的一半)
             redLine.setAttribute('y', barY + barHeight / 2 - 6); 
             redLine.setAttribute('width', lineWidth);
-            // 將 height 從 6 改成 12，數字越大線條就越粗
             redLine.setAttribute('height', 10); 
             redLine.setAttribute('fill', '#dc2626'); 
-            redLine.setAttribute('rx', '4'); // 稍微增加圓角讓粗線條更圓潤
+            redLine.setAttribute('rx', '4');
             redLine.style.pointerEvents = 'none'; 
             barWrapper.appendChild(redLine);
           }
@@ -724,7 +712,6 @@ onAuthStateChanged(auth, async (user) => {
       document.getElementById("nav-divider-org").style.display = "none";
     }
 
-    // 只有高級主管與系統管理員可以看到「待審核通知」
     const navApp = document.getElementById("nav-approvals");
     if (navApp) {
       if (currentUserData.role === "admin" || currentUserData.role === "top_manager") {
@@ -751,7 +738,6 @@ onAuthStateChanged(auth, async (user) => {
     loadMyCalendarTodos(user.uid);
     initTemplateUI();
     
-    // 初始化字體大小設定 UI
     window.injectFontSizeUI();
   } else {
     document.getElementById("auth-section").style.display = "flex"; 
@@ -1055,7 +1041,6 @@ window.selectProject = (projId) => {
   renderProjects(); 
 };
 
-// 👉 新版循序解鎖邏輯：
 window.getAvailableTasks = (projId) => {
   const proj = allProjectsData.find(p => p.id === projId);
   if(!proj || !proj.tasks) return [];
@@ -1113,7 +1098,6 @@ function loadProjects() {
     snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
     renderProjects(); 
     refreshAllWeeklyProjSelects();
-    // ▼ 加這行，讓系統自動更新審核中心 ▼
     if (window.renderApprovals) window.renderApprovals(); 
   }); 
 }
@@ -1168,7 +1152,6 @@ function getGraceDaysLeft(proj) {
   return Math.max(0, Math.ceil(7 - diffDays));
 }
 
-// 輔助函式：動態計算暫停所導致的時程延遲
 function getDynamicallyShiftedTasks(proj, todayStr) {
     let displayTasks = JSON.parse(JSON.stringify(proj.tasks || []));
     if (proj.status === 'paused' && proj.pauseHistory && proj.pauseHistory.length > 0) {
@@ -1179,9 +1162,7 @@ function getDynamicallyShiftedTasks(proj, todayStr) {
             if (currentShiftDays > 0) {
                 displayTasks = displayTasks.map(t => {
                     if (t.isCompleted) return t;
-                    // 如果任務在暫停之後，起訖日一起往後延
                     if (t.start >= lastPause.start) return { ...t, start: calculateEndDateByDays(t.start, currentShiftDays + 1), end: calculateEndDateByDays(t.end, currentShiftDays + 1) };
-                    // 如果任務橫跨暫停日，只延遲結束日 (方塊被拉長)
                     if (t.end >= lastPause.start) return { ...t, end: calculateEndDateByDays(t.end, currentShiftDays + 1) };
                     return t;
                 });
@@ -1214,13 +1195,12 @@ function renderProjects() {
   });
 
   const allInvolvedProjectsMap = new Map();
-          userProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
-          collabProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
-          
-          // 核心魔法：將所有專案的 tasks 替換成「動態計算延遲後」的結果，讓畫面自動延長！
-          const allInvolvedProjects = Array.from(allInvolvedProjectsMap.values()).map(p => {
-              return { ...p, tasks: getDynamicallyShiftedTasks(p, todayStr) };
-          });
+        userProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
+        collabProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
+        
+        const allInvolvedProjects = Array.from(allInvolvedProjectsMap.values()).map(p => {
+            return { ...p, tasks: getDynamicallyShiftedTasks(p, todayStr) };
+        });
 
   let countOngoing = 0, countCompleted = 0, countDelayed = 0, countAllInYear = 0;
   let projectsOngoing = [], projectsCompleted = [], projectsDelayed = [], projectsAll = [];
@@ -1345,21 +1325,19 @@ function renderProjects() {
     
     let tabText = p.title;
     if (hasCollab) tabText = `👥 ` + tabText;
-    if (isPendingPause) tabText += ` 🔔`; // 申請暫停時加上鈴鐺
-    if (isPaused) tabText += ` 🛑`; // 已暫停時加上停止符號
+    if (isPendingPause) tabText += ` 🔔`;
+    if (isPaused) tabText += ` 🛑`;
     
     btn.innerHTML = `<span>${tabText}</span>`;
     
-    // 如果正在申請暫停，把整個頁籤的框線變成醒目的黃色，並強制字體為深色
     if (isPendingPause) {
         btn.style.border = "2px solid var(--warning)";
         btn.style.backgroundColor = "#fffbeb";
-        btn.style.color = "#b45309"; // 深橘棕色
+        btn.style.color = "#b45309";
     } else if (isPaused) {
-        // 針對已暫停的專案給予淺紅底色與深紅字體
         btn.style.border = "2px solid var(--danger)";
         btn.style.backgroundColor = "#fef2f2";
-        btn.style.color = "#b91c1c"; // 深紅色
+        btn.style.color = "#b91c1c";
     }
     
     btn.onclick = () => selectProject(p.id); 
@@ -1368,7 +1346,6 @@ function renderProjects() {
 
   if(emptyState) emptyState.style.display = "none"; 
 
-  // ⭐ 顯示總覽畫面
   if (selectedProjectId === 'SUMMARY') {
     if(detailView) detailView.style.display = "none"; 
     if(summaryView) summaryView.style.display = "block";
@@ -1433,7 +1410,7 @@ function renderProjects() {
         isDone: isDone, 
         hasDelay: hasDelay, 
         isCollab: hasCollab,
-        status: p.status, // <--- 新增這行把狀態帶進去
+        status: p.status,
         custom_class: isDone ? 'bar-success' : (p.color || 'bar-primary'),
         ownerName: p.ownerName || '未知'
       });
@@ -1472,7 +1449,6 @@ function renderProjects() {
             statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
         }
 
-        // 依照狀態產生半透明醒目標籤 (設定 margin-right 並移到名稱前方)
         let badgeHtml = "";
         if (item.status === 'pause_requested') {
             badgeHtml = `<span style="background: rgba(245, 158, 11, 0.15); color: #b45309; border: 1px solid rgba(245, 158, 11, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 6px; flex-shrink: 0; white-space: nowrap;">🔔 待審核暫停</span>`;
@@ -1480,7 +1456,6 @@ function renderProjects() {
             badgeHtml = `<span style="background: rgba(239, 68, 68, 0.15); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 6px; flex-shrink: 0; white-space: nowrap;">🛑 暫停</span>`;
         }
 
-        // 將 badgeHtml 放在字串最前面，並設定文字超過寬度時自動加上省略號 (...)
         let titleDisplay = item.isCollab 
           ? `${badgeHtml}<span style="color:#2563eb; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><span style="color:#2563eb; margin-right:4px;">👥</span>${item.title}</span>`
           : `${badgeHtml}<span style="color:#0f172a; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🗂️ ${item.title}</span>`;
@@ -1517,7 +1492,6 @@ function renderProjects() {
     return;
   }
 
-  // ⭐ 顯示詳細專案畫面
   if(summaryView) summaryView.style.display = "none"; 
   if(detailView) detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
@@ -1533,42 +1507,13 @@ function renderProjects() {
   let canEditMainProj = isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod));
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px;">✏️ 編輯主資訊</button>` : '';
   
+  // ⭐ 協作部門名稱維持好看的藍色字體
   let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#2563eb; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
   let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
 
   let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
-  // 加上 word-break: break-all; 強制超長字串換行，避免撐爆版面
   let titleDisplayName = `<span style="color:#2563eb; font-weight:700; word-break: break-all;">${titlePrefixIcon}${activeProj.title}</span>`;
   
-  // 新增暫停狀態徽章與按鈕邏輯
-  let statusBadge = "";
-  let pauseBtnHtml = "";
-  const isAdminOrTop = currentUserData.role === 'admin' || currentUserData.role === 'top_manager';
-
-  if (activeProj.status === 'pause_requested') {
-      statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏸️ 暫停審核中 (${activeProj.pauseRequestedBy} 申請)</span>`;
-      if (isAdminOrTop) {
-          // 將 btn-primary 換成 action-btn 並鎖定寬度
-          pauseBtnHtml = `<button class="action-btn" onclick="approvePause('${activeProj.id}')" style="margin-left:8px; background:var(--danger); color:#fff; border:none; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">同意暫停</button><button class="action-btn" onclick="rejectPause('${activeProj.id}')" style="margin-left:4px; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">退回</button>`;
-      }
-  } else if (activeProj.status === 'pause_requested') {
-      statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏸️ 暫停審核中 (${activeProj.pauseRequestedBy} 申請)</span>`;
-      if (isAdminOrTop) {
-          pauseBtnHtml = `<button class="action-btn" onclick="approvePause('${activeProj.id}')" style="margin-left:8px; background:var(--danger); color:#fff; border:none; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">同意暫停</button><button class="action-btn" onclick="rejectPause('${activeProj.id}')" style="margin-left:4px; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">退回</button>`;
-      }
-  } else if (activeProj.status === 'resume_requested') {
-      statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏳ 恢復審核中 (${activeProj.resumeRequestedBy} 申請)</span>`;
-      if (isAdminOrTop) {
-          pauseBtnHtml = `<button class="action-btn" onclick="approvePause('${activeProj.id}')" style="margin-left:8px; background:var(--success); color:#fff; border:none; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">同意恢復</button><button class="action-btn" onclick="rejectPause('${activeProj.id}')" style="margin-left:4px; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">退回</button>`;
-      }
-  } else if (activeProj.status === 'paused') {
-      statusBadge = `<span class="pill pill-danger" style="margin-left:8px; white-space:nowrap;">🛑 專案已暫停</span>`;
-      if (isAdminOrTop) {
-          pauseBtnHtml = `<button class="action-btn" onclick="resumeProject('${activeProj.id}')" style="margin-left:8px; background:var(--success); color:#fff; border:none; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">▶️ 恢復執行</button>`;
-      } else if (hasGlobalEdit || isProjOwner || isCollabMember) {
-          // ⭐ 一般成員或擁有者可以點擊「申請恢復」
-          pauseBtnHtml = `<button class="action-btn" onclick="openResumeModal('${activeProj.id}')" style="margin-left:8px; border-color:var(--success); color:var(--success); padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">▶️ 申請恢復</button>`;
-      }
   let statusBadge = "";
   let pauseBtnHtml = "";
   const isAdminOrTop = currentUserData.role === 'admin' || currentUserData.role === 'top_manager';
@@ -1653,10 +1598,8 @@ function renderProjects() {
     const canOperateThisTask = (hasGlobalEdit || isMyTask || isProjOwner);
     const isProjectPaused = activeProj.status === 'paused' || activeProj.status === 'pause_requested';
     
-    // ⭐ 恢復原本的規則：一旦完成、或是專案暫停/無權限，進度輸入與確認按鈕就鎖定
     const isInputLocked = task.isCompleted || !canOperateThisTask || isProjectPaused; 
 
-    // ⭐ 計算該任務上次更新或建立的時間距離現在是否在 2 天內 (48小時)，供備註編輯使用
     let lastUpdateMs = task.createdAt || Date.now();
     if (task.history && task.history.length > 0) {
         const lastHist = task.history[task.history.length - 1];
@@ -1667,7 +1610,6 @@ function renderProjects() {
     }
     const isWithin2Days = (Date.now() - lastUpdateMs) <= (2 * 24 * 60 * 60 * 1000);
     
-    // 只要是任務負責人或擁有者，且在 2 天內，不需要開啟編輯模式就能直接按按鈕修改備註
     const canEditRemark = canOperateThisTask && isWithin2Days;
 
     let canEditTask = isEditMode && (
@@ -1686,12 +1628,10 @@ function renderProjects() {
     const eDate = new Date(task.end.replace(/-/g, '/'));
     const expectedDateHtml = `<div class="col-expected-date" style="color: #64748b;"><span>${sDate.getMonth()+1}/${sDate.getDate()}</span><span>~ ${eDate.getMonth()+1}/${eDate.getDate()}</span></div>`;
 
-    // ⭐ 進度 100% 時，只有數字維持綠色，輸入框本身不變色
     const progressInputStyle = task.isCompleted 
       ? 'width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold; color:var(--success);' 
       : 'width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold;';
 
-    // 已完成時按鈕變淡色透明且無法操作
     const confirmBtnStyle = task.isCompleted ? 'opacity: 0.4; cursor: not-allowed;' : '';
 
     const row = document.createElement("div"); 
@@ -1712,7 +1652,6 @@ function renderProjects() {
       if (historyList.length > 0) {
         const sortedHistory = [...historyList].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         
-        // ⭐ 將左側時間欄位壓縮至 22%，右側備註佔 78%，讓兩者極度靠近（空白少 2/3）
         historyHtml = `<div style="max-height: 180px; overflow-y: auto; padding-right: 2px;">` + 
           `<table style="width:100%; table-layout:fixed; border-collapse:collapse; margin:0; background:transparent;"><colgroup><col style="width:22%;"><col style="width:78%;"></colgroup><tbody>` +
           sortedHistory.map((h, i) => {
@@ -1754,7 +1693,6 @@ function renderProjects() {
 
       const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="padding:4px 8px;">已完成</span>` : `<span style="font-weight:bold;">進度: ${task.progress || 0}%</span>`;
 
-      // ⭐ 壓縮整列儲存格的左右 Padding，讓「負責人」與「進度」跟著整體往左靠
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td style="vertical-align: top; padding: 8px 4px;"><strong>${task.name}</strong></td>
@@ -1788,26 +1726,24 @@ function renderProjects() {
     }
   }
 
-  // === 渲染專案下方的暫停/恢復紀錄 ===
   const pauseRecordsContainer = document.getElementById("project-pause-records");
   if (pauseRecordsContainer) {
       if (activeProj.pauseHistory && activeProj.pauseHistory.length > 0) {
           pauseRecordsContainer.style.display = "block";
           let histHtml = `<div class="panel-head"><span>🛑 專案暫停/恢復紀錄</span></div>
-                          <div class="table-responsive"><table style="width:100%;">
-                          <thead>
-                              <tr><th style="width:20%">暫停起始日</th><th style="width:20%">恢復日期</th><th style="width:15%">暫停天數</th><th style="width:45%">暫停原因</th></tr>
-                          </thead><tbody>`;
-          // 將紀錄反轉，新的排在最上面
+                         <div class="table-responsive"><table style="width:100%;">
+                         <thead>
+                             <tr><th style="width:20%">暫停起始日</th><th style="width:20%">恢復日期</th><th style="width:15%">暫停天數</th><th style="width:45%">暫停原因</th></tr>
+                         </thead><tbody>`;
           let reversedHistory = [...activeProj.pauseHistory].reverse();
           reversedHistory.forEach(h => {
               let endStr = h.end ? h.end : '<span class="pill pill-danger" style="margin:0; padding:4px 8px;">🛑 暫停中</span>';
               let daysStr = h.days !== undefined ? `<strong style="color:var(--danger)">${h.days} 天</strong>` : '-';
               histHtml += `<tr>
-                              <td>${h.start}</td>
-                              <td>${endStr}</td>
-                              <td>${daysStr}</td>
-                              <td style="color:var(--text-muted); word-break:break-all;">${h.reason || ''}</td>
+                            <td>${h.start}</td>
+                            <td>${endStr}</td>
+                            <td>${daysStr}</td>
+                            <td style="color:var(--text-muted); word-break:break-all;">${h.reason || ''}</td>
                            </tr>`;
           });
           histHtml += `</tbody></table></div>`;
@@ -1938,9 +1874,6 @@ window.openCustomPrompt = (title, label, isRequired, defaultValue = "") => {
         document.getElementById('delay-reason-label').innerText = label;
         
         const inputElem = document.getElementById('delay-reason-input');
-        
-        // ⭐ 強制賦值：確保 defaultValue 有確實帶入，並印出來讓你用 F12 驗證
-        console.log("彈窗即將填入的預設值：", defaultValue);
         inputElem.value = defaultValue !== undefined && defaultValue !== null ? String(defaultValue) : "";
         
         inputElem.dataset.required = isRequired;
@@ -1948,7 +1881,6 @@ window.openCustomPrompt = (title, label, isRequired, defaultValue = "") => {
         
         document.getElementById('delay-reason-modal').classList.add('active');
         
-        // 用 setTimeout 確保畫面渲染完成後游標聚焦並選取文字
         setTimeout(() => {
             inputElem.focus();
         }, 50);
@@ -2968,7 +2900,6 @@ window.openGeneralEdit = (type, id, extra) => {
           projOptions += `<option value="${p.id}" ${p.id === item.projectId ? 'selected' : ''}>${p.title}</option>`;
         });
         
-        // 編輯視窗中也加入兩個特殊類別選項
         projOptions += `<option value="SPECIAL_ADHOC" ${item.projectId === 'SPECIAL_ADHOC' ? 'selected' : ''}>📝 事件紀錄</option>`;
         projOptions += `<option value="SPECIAL_OTHER" ${item.projectId === 'SPECIAL_OTHER' ? 'selected' : ''}>📌 其他</option>`;
 
@@ -2989,7 +2920,6 @@ window.openGeneralEdit = (type, id, extra) => {
             taskOptions += `<option value="${a.id}" ${a.id === item.taskId ? 'selected' : ''}>${a.title}</option>`;
           });
         } else {
-          // 一般專案細項：編輯狀態顯示當前可選細項
           if (activeProj && activeProj.tasks) {
             activeProj.tasks.forEach((t, tIdx) => {
               taskOptions += `<option value="${tIdx}" ${String(tIdx) === String(item.taskId) ? 'selected' : ''}>${t.name}</option>`;
@@ -3027,14 +2957,13 @@ window.openGeneralEdit = (type, id, extra) => {
       modalBox.style.width = "90vw";
       modalBox.style.maxWidth = "800px";
     } else {
-      modalBox.style.width = "";      
+      modalBox.style.width = "";     
       modalBox.style.maxWidth = "";   
     }
   }
   modal.classList.add("active");
 };
 
-// 編輯視窗中，當選擇任務下拉選單時，自動帶入事件說明
 window.onEditWeeklyTaskChange = (idx) => {
   const pSel = document.getElementById(`edit-weekly-proj-${idx}`);
   const tSel = document.getElementById(`edit-weekly-task-${idx}`);
@@ -3335,7 +3264,7 @@ function loadOrgUsers() {
           <button class="action-btn" onclick="resetUserPassword('${u.email}')" style="margin-right:4px;">重設密碼</button>
           <button class="action-btn" onclick="rescueUserProjects('${u.uid}', '${u.name}')" style="margin-right:4px; border-color:#f59e0b; color:#f59e0b;" title="找回建立錯ID的資料">找回資料</button>
           ${u.uid !== auth.currentUser.uid ? `<button class="action-btn danger" onclick="deleteUserDoc('${u.uid}', '${u.name}')">刪除</button>` : ''}
-        </td>`;
+        `;
       tbody.appendChild(tr);
     });
 
@@ -3445,11 +3374,7 @@ document.getElementById("btn-update-password").addEventListener("click", async (
     }
   }
 });
-// ==========================================
-// 專案暫停與恢復時程遞延模組
-// ==========================================
 
-// 取得當下精確時間的輔助函式
 function getNowTimeStr() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -3461,7 +3386,7 @@ window.openPauseModal = (projId) => {
   const todayStr = getTodayStr();
   const dateInput = document.getElementById("pause-start-date");
   dateInput.value = todayStr;
-  dateInput.min = todayStr; // ⭐ 限制只能選今天（含）以後
+  dateInput.min = todayStr;
   document.getElementById("pause-request-modal").classList.add("active");
 };
 
@@ -3478,13 +3403,12 @@ window.submitPauseRequest = async () => {
   if (!reason) return alert("請務必填寫暫停原因！");
 
   try {
-    // 確保這裡有確實帶入 pauseRequestedAt 欄位
     await updateDoc(doc(db, "projects", projId), {
       status: "pause_requested",
       pauseReason: reason,
       pauseStartDate: startDate, 
       pauseRequestedBy: currentUserData.name || "人員",
-      pauseRequestedAt: getNowTimeStr() // 記錄精確的申請時間
+      pauseRequestedAt: getNowTimeStr()
     });
     
     window.closePauseModal(); 
@@ -3523,7 +3447,6 @@ window.approvePause = async (projId) => {
       });
   } 
   else if (proj.status === 'resume_requested') {
-      // ⭐ 同意恢復執行的結算邏輯
       const lastPause = history[history.length - 1];
       const resumeDate = proj.resumeRequestedDate || getTodayStr();
 
@@ -3575,6 +3498,7 @@ window.rejectPause = async (projId) => {
       });
   }
 };
+
 window.resumeProject = async (projId) => {
   if (!confirm("確定要恢復執行此專案嗎？\n系統將會自動結算暫停天數，並將尚未完成的任務時程往後遞延！")) return;
   const proj = allProjectsData.find(p => p.id === projId);
@@ -3592,7 +3516,6 @@ window.resumeProject = async (projId) => {
     
     lastPause.days = actualShift;
 
-    // 恢復執行屬於系統操作，無原始申請人，給予橫槓顯示
     logs.push({ 
         action: `▶️ 恢復執行 (遞延 ${actualShift} 天)`, 
         manager: currentUserData.name, 
@@ -3625,7 +3548,6 @@ window.renderApprovals = () => {
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  // ⭐ 同時捕捉暫停與恢復的申請單
   const pendingProjects = allProjectsData.filter(p => p.status === 'pause_requested' || p.status === 'resume_requested');
   if (badge) {
     badge.innerText = pendingProjects.length;
@@ -3707,7 +3629,7 @@ window.renderApprovals = () => {
     });
   }
 };
-// ▼▼▼ 在 renderApprovals 結尾的下方，貼上這個全新的刪除函式 ▼▼▼
+
 window.deleteAuditLog = async (projId, logTime, logAction) => {
   if (currentUserData.role !== 'admin' && currentUserData.role !== 'top_manager') {
     return alert("權限不足：只有系統管理員或高級主管可以刪除歷史紀錄！");
@@ -3718,13 +3640,10 @@ window.deleteAuditLog = async (projId, logTime, logAction) => {
   const proj = allProjectsData.find(p => p.id === projId);
   if (!proj || !proj.auditLogs) return;
 
-  // 過濾掉時間與動作完全吻合的那一筆紀錄
   const newLogs = proj.auditLogs.filter(log => !(log.time === logTime && log.action === logAction));
 
   try {
-    // 更新回 Firebase 資料庫
     await updateDoc(doc(db, "projects", projId), { auditLogs: newLogs });
-    // (畫面會因為 onSnapshot 自動重新渲染，不需手動重整)
   } catch (err) {
     alert("刪除失敗：" + err.message);
   }
@@ -3735,7 +3654,7 @@ window.openResumeModal = (projId) => {
   const todayStr = getTodayStr();
   const dateInput = document.getElementById("resume-date-input");
   dateInput.value = todayStr;
-  dateInput.min = todayStr; // ⭐ 限制只能選今天（含）以後
+  dateInput.min = todayStr;
   document.getElementById("resume-request-modal").classList.add("active");
 };
 
@@ -3764,7 +3683,6 @@ window.submitResumeRequest = async () => {
   }
 };
 
-let currentRemarkEdit = null;
 window.openEditRemarkModal = async (projId, taskIndex, targetTimestamp) => {
     const proj = allProjectsData.find(p => p.id === projId);
     if (!proj || !proj.tasks[taskIndex]) return;
@@ -3772,16 +3690,12 @@ window.openEditRemarkModal = async (projId, taskIndex, targetTimestamp) => {
     
     if (!task.history || task.history.length === 0) return;
 
-    // ⭐ 透過 timestamp 尋找目標，百分之百精準定位，絕不會改到舊的或錯的備註！
     const targetHist = task.history.find(h => h.timestamp === targetTimestamp);
     if (!targetHist) {
         alert("找不到此筆歷史紀錄！");
         return;
     }
 
-    console.log("成功精準鎖定目標紀錄：", targetHist);
-
-    // 抓取原本的文字
     let currentRemark = targetHist.delayReason || targetHist.remark || "";
 
     const newRemark = await window.openCustomPrompt(
@@ -3793,13 +3707,11 @@ window.openEditRemarkModal = async (projId, taskIndex, targetTimestamp) => {
     
     if (newRemark === null) return;
 
-    // 更新該筆目標紀錄
     targetHist.remark = newRemark;
     if (targetHist.delayReason !== undefined && targetHist.delayReason !== null && targetHist.delayReason !== "") {
         targetHist.delayReason = newRemark;
     }
     
-    // 如果剛好修改的是最後一筆，順便同步主結構
     if (task.history[task.history.length - 1].timestamp === targetTimestamp && task.delayReason) {
         task.delayReason = newRemark;
     }
