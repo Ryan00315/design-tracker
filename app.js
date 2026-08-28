@@ -563,7 +563,7 @@ function scrollToTodayMinus2Days(ganttInst, containerSelector) {
   });
 }
 
-function patchGanttVisuals(ganttInst, containerSelector) {
+function patchGanttVisuals(ganttInst, containerSelector, currentProjData = null) {
   if (!ganttInst || !ganttInst.dates || ganttInst.dates.length === 0) return;
   const wrapper = document.querySelector(containerSelector);
   if (!wrapper) return;
@@ -590,6 +590,59 @@ function patchGanttVisuals(ganttInst, containerSelector) {
   const scrollElement = wrapper.querySelector('.gantt-container') || wrapper;
   const upperTexts = Array.from(svg.querySelectorAll('.upper-text'));
   const colWidth = (ganttInst.options && ganttInst.options.column_width) ? ganttInst.options.column_width : 38;
+
+  // ==== 繪製暫停深紅線條 (畫布網格精準版) ====
+  if (currentProjData && currentProjData.pauseHistory) {
+    const firstDateMs = ganttInst.dates[0].getTime(); // 甘特圖最左側的第一天
+
+    // 將日期轉換為畫布上的絕對 X 座標
+    function getDateX(dateString, isEnd = false) {
+        let d = new Date(dateString.replace(/-/g, '/'));
+        if (isEnd) d.setHours(23, 59, 59, 999);
+        else d.setHours(0, 0, 0, 0);
+        return ((d.getTime() - firstDateMs) / (1000 * 60 * 60 * 24)) * colWidth;
+    }
+
+    currentProjData.pauseHistory.forEach(pause => {
+      const pStart = pause.start; 
+      const pEnd = pause.end || getTodayStr(); // 如果還在暫停，就畫到今天
+
+      let startX = getDateX(pStart, false);
+      let endX = getDateX(pEnd, true);
+      let lineWidth = endX - startX;
+      if (lineWidth < 4) lineWidth = 4; // 保底寬度
+
+      const barWrappers = svg.querySelectorAll('.bar-wrapper');
+      barWrappers.forEach(barWrapper => {
+        const taskId = barWrapper.getAttribute('data-id'); 
+        if (!taskId || !taskId.startsWith('t_')) return;
+        
+        // 抓取原本的任務資料
+        const taskIndex = parseInt(taskId.replace('t_', ''));
+        const rawTask = currentProjData.tasks[taskIndex]; 
+        if (!rawTask) return;
+
+        // 只有「在暫停開始前就已經啟動，且尚未結束」的任務，才會被畫上紅線
+        if (rawTask.start <= pStart && rawTask.end >= pStart) {
+          const barRect = barWrapper.querySelector('.bar');
+          if (barRect) {
+            const barY = parseFloat(barRect.getAttribute('y') || 0);
+            const barHeight = parseFloat(barRect.getAttribute('height') || 0);
+
+            const redLine = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            redLine.setAttribute('x', startX);
+            redLine.setAttribute('y', barY + barHeight / 2 - 3); // 垂直置中
+            redLine.setAttribute('width', lineWidth);
+            redLine.setAttribute('height', 6); 
+            redLine.setAttribute('fill', '#dc2626'); 
+            redLine.setAttribute('rx', '3'); 
+            redLine.style.pointerEvents = 'none'; 
+            barWrapper.appendChild(redLine);
+          }
+        }
+      });
+    });
+  }
 
   const updateStickyMonthHeader = () => {
     const currentScrollLeft = scrollElement.scrollLeft;
