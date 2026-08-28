@@ -3320,19 +3320,31 @@ window.openEditModal = (uid) => {
   document.getElementById("edit-user-uid").value = u.uid; 
   document.getElementById("edit-user-name").value = u.name || ''; 
   document.getElementById("edit-user-dept").value = u.dept || '設計部';
+  
+  // ⭐ 確保編輯彈窗的職級下拉選單完整包含所有選項（包含最高級主管）
+  const roleSelect = document.getElementById("edit-user-role");
+  if (roleSelect) {
+      roleSelect.innerHTML = `
+          <option value="admin">系統管理員</option>
+          <option value="top_manager">最高級主管</option>
+          <option value="senior_manager">高級主管</option>
+          <option value="manager">主管</option>
+          <option value="assistant_manager">副主管</option>
+          <option value="staff">人員</option>
+      `;
+  }
   document.getElementById("edit-user-role").value = u.role || 'staff';
   
   const supSelect = document.getElementById("edit-user-supervisor"); 
   supSelect.innerHTML = '<option value="">-- 無 --</option>';
   allUsersList.forEach(user => { 
-    if (user.uid !== uid && ["top_manager", "manager", "assistant_manager"].includes(user.role)) {
+    if (user.uid !== uid && ["top_manager", "senior_manager", "manager", "assistant_manager"].includes(user.role)) {
       supSelect.innerHTML += `<option value="${user.uid}">${user.name}</option>`;
     }
   });
   supSelect.value = u.supervisorId || ''; 
   document.getElementById("edit-user-modal").classList.add("active");
 };
-
 window.closeEditModal = () => document.getElementById("edit-user-modal").classList.remove("active");
 
 window.submitEditUser = async () => {
