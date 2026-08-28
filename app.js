@@ -3521,7 +3521,7 @@ window.renderApprovals = () => {
     pendingProjects.forEach(p => {
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td><span style="color:var(--primary); font-weight:bold; cursor:pointer; text-decoration:underline;" onclick="switchViewingUser('${p.ownerId}', '${p.ownerName || '人員'}'); switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*=\\'tab-projects\\']')); setTimeout(() => selectProject('${p.id}'), 150);">${p.title}</span></td>
+        <td><span style="color:var(--primary); font-weight:bold; cursor:pointer; text-decoration:none;" onclick="switchViewingUser('${p.ownerId}', '${p.ownerName || '人員'}'); switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*=\\'tab-projects\\']')); setTimeout(() => selectProject('${p.id}'), 150);">${p.title}</span></td>
         <td><span class="pill" style="background:#eff6ff; color:#1e40af;">${p.pauseRequestedBy || '未知'}</span></td>
         <td><span style="font-size:12px; color:var(--text-muted);">${p.pauseRequestedAt || '未記錄'}</span></td>
         <td><strong style="color:var(--danger);">${p.pauseStartDate || '未指定'}</strong></td>
@@ -3540,7 +3540,6 @@ window.renderApprovals = () => {
     let allLogs = [];
     allProjectsData.forEach(p => {
         if (p.auditLogs) {
-            // ▼ 將專案 ID 與負責人資訊一併打包，為了讓底下可以跳轉
             p.auditLogs.forEach(log => allLogs.push({ 
                 projId: p.id, 
                 ownerId: p.ownerId, 
@@ -3554,16 +3553,13 @@ window.renderApprovals = () => {
     
     allLogs.forEach(log => {
       let actionStyle = log.action.includes('同意') ? 'color:var(--danger);font-weight:bold;' : log.action.includes('恢復') ? 'color:var(--success);font-weight:bold;' : 'color:var(--text-muted);';
-      
-      // 加入專屬的刪除按鈕
       let delBtnHtml = `<button class="action-btn danger" style="padding: 2px 6px; font-size: 11px;" onclick="deleteAuditLog('${log.projId}', '${log.time}', '${log.action}')">刪除</button>`;
 
-      // 繪製包含申請資訊的完整歷史紀錄 (並加上專案跳轉連結與刪除按鈕)
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td><span style="font-size:12px; color:#475569;">${log.time}</span></td>
         <td>
-          <span style="color:var(--primary); font-weight:bold; cursor:pointer; text-decoration:underline;" 
+          <span style="color:var(--primary); font-weight:bold; cursor:pointer; text-decoration:none;" 
                 onclick="switchViewingUser('${log.ownerId}', '${log.ownerName}'); switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*=\\'tab-projects\\']')); setTimeout(() => selectProject('${log.projId}'), 150);" 
                 title="點擊前往查看此專案">
             ${log.title}
@@ -3582,8 +3578,7 @@ window.renderApprovals = () => {
       historyTbody.appendChild(tr);
     });
   }
-}; // <--- 這裡是原本 renderApprovals 的結尾
-
+};
 // ▼▼▼ 在 renderApprovals 結尾的下方，貼上這個全新的刪除函式 ▼▼▼
 window.deleteAuditLog = async (projId, logTime, logAction) => {
   if (currentUserData.role !== 'admin' && currentUserData.role !== 'top_manager') {
