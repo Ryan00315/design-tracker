@@ -1066,31 +1066,27 @@ window.getAvailableTasks = (projId) => {
   const proj = allProjectsData.find(p => p.id === projId);
   if(!proj || !proj.tasks) return [];
 
-  let unlockedTasks = [];
-  let allPreviousCompleted = true;
+  // 直接篩選所有任務，不再強制要求上一項必須完成才能回報
+  return proj.tasks.map((t, index) => ({ ...t, index })).filter(t => {
+    // 1. 確保只能選到「派給自己」的細項 (如果是開案者且未指派也算自己的)
+    const isMyTask = (t.assigneeId === viewingUserId) || (!t.assigneeId && proj.ownerId === viewingUserId);
+    if (!isMyTask) return false;
 
-  for (let i = 0; i < proj.tasks.length; i++) {
-    let t = proj.tasks[i];
+    // 2. 如果任務還沒完成，都可以回報
+    if (!t.isCompleted) return true;
     
-    if (allPreviousCompleted) {
-       unlockedTasks.push({ ...t, index: i });
-    }
+    // 3. 如果已經在週報結案過(被打勾)，就不要再顯示
+    if (t.reportedCompleted === true) return false;
     
-    if (!t.isCompleted) {
-       allPreviousCompleted = false;
-    }
-  }
-
-  return unlockedTasks.filter(t => {
-    if (!t.isCompleted) return true; 
-    if (t.reportedCompleted === true) return false; 
+    // 4. 防呆：避免已完成但尚未打勾 reportedCompleted 的細項重複出現
     const taskCompletedTime = t.completedAt ? new Date(t.completedAt.replace(/-/g, '/')).getTime() : 0;
     const alreadyReported = allWeeklyData.some(w => {
-      if(w.ownerId !== auth.currentUser.uid) return false;
-      const reportTime = w.createdAt ? w.createdAt.toDate().getTime() : Date.now();
+      if(w.ownerId !== viewingUserId) return false;
+      const reportTime = w.createdAt && typeof w.createdAt.toDate === 'function' ? w.createdAt.toDate().getTime() : Date.now();
       const hasTask = (w.items || []).some(item => item.projectId === proj.id && String(item.taskId) === String(t.index));
       return hasTask && reportTime > (taskCompletedTime - 60000);
     });
+    
     return !alreadyReported;
   });
 };
@@ -2165,9 +2161,15 @@ document.querySelectorAll('input[name="leave_type"]').forEach(radio => {
 
 window.populateWeeklyProjSelect = (selectElem) => {
   selectElem.innerHTML = '<option value="">-- 請選擇主專案/事件/其他 --</option>';
-  const myProjs = allProjectsData.filter(p => p.ownerId === viewingUserId);
-  const availableProjs = myProjs.filter(p => window.getAvailableTasks(p.id).length > 0);
-  availableProjs.forEach(p => { selectElem.innerHTML += `<option value="${p.id}">${p.title}</option>`; });
+  
+  // 只要該專案裡面有「我可以回報的細項」，就將它列入下拉選單 (包含他人建立的協作專案)
+  const availableProjs = allProjectsData.filter(p => window.getAvailableTasks(p.id).length > 0);
+  
+  availableProjs.forEach(p => { 
+    // 若是協作專案，加上 👥 符號以利辨識
+    const prefix = p.ownerId !== viewingUserId ? '👥 ' : '';
+    selectElem.innerHTML += `<option value="${p.id}">${prefix}${p.title}</option>`; 
+  });
   
   selectElem.innerHTML += `<option value="SPECIAL_ADHOC">📝 事件紀錄</option>`;
   selectElem.innerHTML += `<option value="SPECIAL_OTHER">📌 其他</option>`;
@@ -2916,7 +2918,12 @@ window.openGeneralEdit = (type, id, extra) => {
     document.getElementById("general-edit-title").innerText = "編輯週報內容";
     
     let html = `<div style="display:flex; flex-direction:column; gap:12px; max-height:400px; overflow-y:auto;">`;
-    const userProjects = allProjectsData.filter(p => p.ownerId === weekly.ownerId);
+    // 改為同時抓取自己建立的，以及自己有被指派細項的協作專案
+    const userProjects = allProjectsData.filter(p => {
+        if (p.ownerId === weekly.ownerId) return true;
+        if (p.tasks && p.tasks.some(t => t.assigneeId === weekly.ownerId)) return true;
+        return false;
+    });
 
     if (weekly.items && weekly.items.length > 0) {
       weekly.items.forEach((item, idx) => {
