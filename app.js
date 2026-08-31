@@ -143,8 +143,10 @@ function initDynamicUI() {
       .kpi-row { grid-template-columns: repeat(5, 1fr) !important; gap: 4px !important; }
       .kpi-title { font-size: 10px !important; }
       .kpi-card { padding: 6px 4px !important; }
-      .gantt-left-panel { flex: 0 0 100% !important; max-width: 100% !important; }
-      .gantt-right-panel { display: none !important; }
+      /* ⭐ 這裡補上了 , .gantt-left-panel-summary 讓總覽左側在手機上展開為 100% */
+      .gantt-left-panel, .gantt-left-panel-summary { flex: 0 0 100% !important; max-width: 100% !important; }
+      /* ⭐ 這裡補上了 , .gantt-right-panel-summary 讓總覽甘特圖在手機上隱藏防跑版 */
+      .gantt-right-panel, .gantt-right-panel-summary { display: none !important; }
       .hide-on-mobile { display: none !important; }
     }
   `;
