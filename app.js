@@ -418,24 +418,27 @@ function checkEditModeVisibility() {
     shouldShow = true;
   } else {
     if (selectedProjectId !== 'SUMMARY') {
-      const p = allProjectsData.find(x => x.id === selectedProjectId);
-      if (p) {
-        const isProjOwner = (p.ownerId === auth.currentUser?.uid);
-        const inGrace = isWithin7DaysGracePeriod(p);
+          const p = allProjectsData.find(x => x.id === selectedProjectId);
+          if (p) {
+            const isProjOwner = (p.ownerId === auth.currentUser?.uid);
+            const inGrace = isWithin7DaysGracePeriod(p);
 
-        if (isProjOwner && inGrace) {
-          shouldShow = true;
-        }
+            if (isProjOwner && inGrace) {
+              shouldShow = true;
+            }
 
-        const isCollab = p.collaborators && p.collaborators.includes(currentUserData.dept);
-        if (isCollab) {
-          const hasTaskInGrace = (p.tasks || []).some(t => {
-             if (t.assigneeId !== auth.currentUser?.uid) return false;
-             let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
-             return ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
-          });
-          if (hasTaskInGrace) shouldShow = true;
-        }
+            // ▼ 將原本的 isCollab 判斷整段替換為以下邏輯
+            // 讓只要有「屬於自己的細項 (包含剛新增的)」在 7 天寬限期內，都能保持編輯模式開啟
+            const hasTaskInGrace = (p.tasks || []).some(t => {
+               const isMyTask = (t.assigneeId === auth.currentUser?.uid) || isProjOwner;
+               if (!isMyTask) return false;
+               let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
+               return ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+            });
+            
+            if (hasTaskInGrace) {
+               shouldShow = true;
+            }
       }
     }
   }
@@ -1822,17 +1825,18 @@ window.deleteActiveProjectTask = async (projId, index) => {
   const tasks = [...proj.tasks];
   tasks.splice(index, 1);
 
-  if (tasks.length === 0) {
-    if (!confirm("⚠️ 該專案已無任何細項，是否要直接刪除整個專案？")) {
+ if (tasks.length === 0) {
+    if (confirm("⚠️ 刪除此細項後，專案將沒有任何任務。\n是否要連同「整個主專案」一起刪除？\n(按【確定】刪除專案，按【取消】則保留空專案)")) {
+      await deleteDoc(doc(db, "projects", projId));
+      selectedProjectId = 'SUMMARY';
+      alert("專案已刪除！");
+      renderProjects();
       return;
     }
-    await deleteDoc(doc(db, "projects", projId));
-    selectedProjectId = 'SUMMARY';
-    alert("專案已刪除！");
-  } else {
-    await updateDoc(doc(db, "projects", projId), { tasks });
-    alert("已刪除該任務細項！");
   }
+  
+  await updateDoc(doc(db, "projects", projId), { tasks });
+  alert("已刪除該任務細項！");
 };
 
 window.openAddProjectTaskModal = () => {
