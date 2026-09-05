@@ -2104,16 +2104,16 @@ function renderAdHocEvents() {
   filtered.forEach(evt => {
     let isOwner = (evt.ownerId === auth.currentUser.uid);
     
-    // ⭐ 7 天寬限期判定 (純邏輯不顯示文字)
+    // 計算是否在 7 天寬限期內
     let createdTime = evt.createdAt && typeof evt.createdAt.toMillis === 'function' ? evt.createdAt.toMillis() : Date.now();
     let inGracePeriod = ((Date.now() - createdTime) / (1000 * 60 * 60 * 24)) <= 7;
     
+    // ⭐ 拔除 isEditMode 的依賴，只要有權限或在 7 天內，就直接顯示操作按鈕
     let canEditEvent = isGlobalEditor || (isOwner && inGracePeriod);
-    let showEditUI = isEditMode && canEditEvent;
     
-    let editHtml = showEditUI ? `<button class="action-btn" style="margin-left:4px; border-color:var(--warning); color:var(--warning);" onclick="openGeneralEdit('adhoc', '${evt.id}')">✏️</button>` : '';
+    let editHtml = canEditEvent ? `<button class="action-btn" style="margin-left:4px; border-color:var(--warning); color:var(--warning);" onclick="openGeneralEdit('adhoc', '${evt.id}')">✏️</button>` : '';
     let actionHtml = !evt.isCompleted && isOwner ? `<button class="action-btn" onclick="completeAdHoc('${evt.id}')">完成</button>` : '';
-    let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || showEditUI) ? `<button class="action-btn danger" style="margin-left:4px;" onclick="deleteAdHoc('${evt.id}')">刪除</button>` : '';
+    let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || canEditEvent) ? `<button class="action-btn danger" style="margin-left:4px;" onclick="deleteAdHoc('${evt.id}')">刪除</button>` : '';
 
     const tr = document.createElement("tr"); 
     tr.innerHTML = `
