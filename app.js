@@ -439,6 +439,16 @@ function checkEditModeVisibility() {
             if (hasTaskInGrace) {
                shouldShow = true;
             }
+
+            // ▼ 新增：檢查是否有「事件紀錄」在 7 天寬限期內，讓編輯模式按鈕出現
+        const hasAdhocInGrace = allAdHocData.some(e => {
+           if (e.ownerId !== auth.currentUser?.uid) return false;
+           let eCreatedTime = e.createdAt && typeof e.createdAt.toMillis === 'function' ? e.createdAt.toMillis() : Date.now();
+           return ((Date.now() - eCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+        });
+        if (hasAdhocInGrace) {
+           shouldShow = true;
+        }
       }
     }
   }
@@ -2089,15 +2099,21 @@ function renderAdHocEvents() {
     return tB - tA;
   });
 
-  const isAuthorizedEditor = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
+  const isGlobalEditor = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
 
   filtered.forEach(evt => {
     let isOwner = (evt.ownerId === auth.currentUser.uid);
-    let canEditUI = isEditMode && isAuthorizedEditor && isOwner;
     
-    let editHtml = canEditUI ? `<button class="action-btn" style="margin-left:4px; border-color:var(--warning); color:var(--warning);" onclick="openGeneralEdit('adhoc', '${evt.id}')">✏️</button>` : '';
+    // ⭐ 7 天寬限期判定 (純邏輯不顯示文字)
+    let createdTime = evt.createdAt && typeof evt.createdAt.toMillis === 'function' ? evt.createdAt.toMillis() : Date.now();
+    let inGracePeriod = ((Date.now() - createdTime) / (1000 * 60 * 60 * 24)) <= 7;
+    
+    let canEditEvent = isGlobalEditor || (isOwner && inGracePeriod);
+    let showEditUI = isEditMode && canEditEvent;
+    
+    let editHtml = showEditUI ? `<button class="action-btn" style="margin-left:4px; border-color:var(--warning); color:var(--warning);" onclick="openGeneralEdit('adhoc', '${evt.id}')">✏️</button>` : '';
     let actionHtml = !evt.isCompleted && isOwner ? `<button class="action-btn" onclick="completeAdHoc('${evt.id}')">完成</button>` : '';
-    let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || canEditUI) ? `<button class="action-btn danger" style="margin-left:4px;" onclick="deleteAdHoc('${evt.id}')">刪除</button>` : '';
+    let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || showEditUI) ? `<button class="action-btn danger" style="margin-left:4px;" onclick="deleteAdHoc('${evt.id}')">刪除</button>` : '';
 
     const tr = document.createElement("tr"); 
     tr.innerHTML = `
@@ -2135,7 +2151,18 @@ window.completeAdHoc = async (id) => {
 };
 
 window.deleteAdHoc = async (id) => { 
-  if (currentUserData.role !== 'admin') return alert("權限不足！");
+  const evt = allAdHocData.find(e => e.id === id);
+  if (!evt) return;
+
+  let createdTime = evt.createdAt && typeof evt.createdAt.toMillis === 'function' ? evt.createdAt.toMillis() : Date.now();
+  let inGracePeriod = ((Date.now() - createdTime) / (1000 * 60 * 60 * 24)) <= 7;
+  let isOwner = (evt.ownerId === auth.currentUser.uid);
+  let isGlobalEditor = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || currentUserData.canEdit);
+
+  if (!isGlobalEditor && !(isOwner && inGracePeriod)) {
+    return alert("權限不足！事件已超過 7 天寬限期，無法刪除！");
+  }
+
   if(confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "ad_hoc_events", id)); 
 };
 
@@ -2891,7 +2918,16 @@ window.openGeneralEdit = (type, id, extra) => {
       isAuthorized = true;
     }
   } else if (type === 'adhoc') {
-    if (currentUserData.role === 'admin' || currentUserData.canEdit) isAuthorized = true;
+    const a = allAdHocData.find(x => x.id === id);
+    if (a) {
+      let createdTime = a.createdAt && typeof a.createdAt.toMillis === 'function' ? a.createdAt.toMillis() : Date.now();
+      let inGracePeriod = ((Date.now() - createdTime) / (1000 * 60 * 60 * 24)) <= 7;
+      let isOwner = (a.ownerId === auth.currentUser.uid);
+
+      if (currentUserData.role === 'admin' || currentUserData.canEdit || (isOwner && inGracePeriod)) {
+        isAuthorized = true;
+      }
+    }
   }
 
   if (!isAuthorized) {
