@@ -412,46 +412,8 @@ function checkEditModeVisibility() {
   const btn = document.getElementById("btn-toggle-edit-mode");
   if (!btn) return;
 
-  let shouldShow = false;
-
-  if (currentUserData.role === 'admin' || currentUserData.canEdit) {
-    shouldShow = true;
-  } else {
-    if (selectedProjectId !== 'SUMMARY') {
-          const p = allProjectsData.find(x => x.id === selectedProjectId);
-          if (p) {
-            const isProjOwner = (p.ownerId === auth.currentUser?.uid);
-            const inGrace = isWithin7DaysGracePeriod(p);
-
-            if (isProjOwner && inGrace) {
-              shouldShow = true;
-            }
-
-            // ▼ 將原本的 isCollab 判斷整段替換為以下邏輯
-            // 讓只要有「屬於自己的細項 (包含剛新增的)」在 7 天寬限期內，都能保持編輯模式開啟
-            const hasTaskInGrace = (p.tasks || []).some(t => {
-               const isMyTask = (t.assigneeId === auth.currentUser?.uid) || isProjOwner;
-               if (!isMyTask) return false;
-               let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
-               return ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
-            });
-            
-            if (hasTaskInGrace) {
-               shouldShow = true;
-            }
-
-            // ▼ 新增：檢查是否有「事件紀錄」在 7 天寬限期內，讓編輯模式按鈕出現
-        const hasAdhocInGrace = allAdHocData.some(e => {
-           if (e.ownerId !== auth.currentUser?.uid) return false;
-           let eCreatedTime = e.createdAt && typeof e.createdAt.toMillis === 'function' ? e.createdAt.toMillis() : Date.now();
-           return ((Date.now() - eCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
-        });
-        if (hasAdhocInGrace) {
-           shouldShow = true;
-        }
-      }
-    }
-  }
+  // ⭐ 只有「系統管理員」或被勾選「開放」編輯權限的帳號，才會出現這個按鈕
+  let shouldShow = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
 
   if (!shouldShow && isEditMode) {
     isEditMode = false;
@@ -1555,7 +1517,8 @@ function renderProjects() {
   const hasGlobalEdit = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
   const inGracePeriod = isWithin7DaysGracePeriod(activeProj);
   
-  let canEditMainProj = isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod));
+  // ⭐ 只要是 7 天內的專案擁有者，或者管理員開啟了編輯模式，就顯示主專案編輯按鈕
+  let canEditMainProj = (hasGlobalEdit && isEditMode) || (isProjOwner && inGracePeriod);
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px;">✏️ 編輯主資訊</button>` : '';
   
   let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#ea580c; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
@@ -1612,7 +1575,8 @@ function renderProjects() {
   }
 
   if (delProjBtn) {
-    delProjBtn.style.display = (isEditMode && (hasGlobalEdit || (isProjOwner && inGracePeriod))) ? "inline-block" : "none";
+    // ⭐ 套用同一套邏輯，不用再驗證 isEditMode
+    delProjBtn.style.display = canEditMainProj ? "inline-block" : "none";
   }
 
   const leftBody = document.getElementById("gantt-left-body");
@@ -1661,9 +1625,8 @@ function renderProjects() {
     
     const canEditRemark = canOperateThisTask && isWithin2Days;
 
-    let canEditTask = isEditMode && (
-      hasGlobalEdit || ((isProjOwner || isMyTask) && isTaskInGrace)
-    );
+    // ⭐ 只要是 7 天內自己的任務，或者管理員開啟了編輯模式，就顯示細項的編輯/刪除按鈕
+    let canEditTask = (hasGlobalEdit && isEditMode) || ((isProjOwner || isMyTask) && isTaskInGrace);
     
     let editHtml = canEditTask ? `
       <div style="display:inline-flex; align-items:center; gap:2px; margin-left:auto; flex-shrink:0;">
