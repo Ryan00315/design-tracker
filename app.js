@@ -4276,6 +4276,9 @@ window.syncSubTasksDate = (startInput) => {
 // ==========================================
 // 🌟 專案指派通知系統 (UI生成與邏輯)
 // ==========================================
+// ==========================================
+// 🌟 專案指派通知系統 (UI生成與邏輯)
+// ==========================================
 window.initNotificationsUI = () => {
     const navUl = document.querySelector(".sidebar-menu") || document.querySelector("ul");
     if (navUl && !document.getElementById("nav-notifications")) {
@@ -4285,7 +4288,7 @@ window.initNotificationsUI = () => {
         li.innerHTML = `<span style="margin-right:6px;">🔔</span> 系統通知 <span class="badge" id="notif-badge" style="display:none; background:var(--danger); color:white; border-radius:10px; padding:2px 6px; font-size:10px; margin-left:auto;">0</span>`;
         li.onclick = () => window.switchNav('tab-notifications', '系統通知', li);
         
-        // 🌟 改為放在週報填寫下方
+        // 放在週報填寫下方
         const weeklyNav = document.querySelector('li[onclick*="tab-weekly"]');
         if (weeklyNav && weeklyNav.nextSibling) {
             weeklyNav.parentNode.insertBefore(li, weeklyNav.nextSibling);
@@ -4294,13 +4297,15 @@ window.initNotificationsUI = () => {
         }
     }
 
-    const mainContent = document.querySelector(".main-content") || document.getElementById("app-section");
+    // 🌟 修正點：精準抓取「專案進度」分頁所在的父容器，確保排版與其他頁面完全一致
+    const existingTab = document.getElementById("tab-projects");
+    const mainContent = existingTab ? existingTab.parentElement : (document.querySelector(".main-content") || document.getElementById("app-section"));
+    
     if (mainContent && !document.getElementById("tab-notifications")) {
         const tab = document.createElement("div");
         tab.className = "tab-pane";
         tab.id = "tab-notifications";
         tab.style.display = "none";
-        // 🌟 美化排版 (加入 padding、圓角、格線與現代感表格)
         tab.innerHTML = `
             <div class="panel" style="border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); overflow: hidden;">
                 <div class="panel-head" style="background: #f8fafc; padding: 15px 20px; border-bottom: 1px solid #e2e8f0; display:flex; align-items:center;">
@@ -4325,7 +4330,6 @@ window.initNotificationsUI = () => {
         mainContent.appendChild(tab);
     }
 };
-// (已移除原有的 setTimeout，由上方 onAuthStateChanged 同步觸發)
 
 window.renderNotifications = () => {
     const tbody = document.getElementById("notif-list-tbody");
