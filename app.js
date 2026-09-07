@@ -4131,8 +4131,6 @@ window.addSubProjectRow = (defaultName = "", defaultAssignee = "", subTasks = []
          let sDays = mode === 'free' ? 1 : (st.days || 1);
          window.addPreFilledInnerSubTask(tasksContainer, st.name, "", sDays, "", st.isApproval);
       });
-  } else {
-      addInnerSubTask(div.querySelector('button[onclick="addInnerSubTask(this)"]'));
   }
 };
 
@@ -4203,8 +4201,6 @@ window.addTemplateSubProjectRow = (defaultName = "", defaultAssignee = "", subTa
         subTasks.forEach(st => {
            window.addPreFilledInnerSubTask(tasksContainer, st.name, st.start, st.days, st.end, st.isApproval);
         });
-    } else {
-        addInnerSubTask(div.querySelector('button[onclick="addInnerSubTask(this)"]'));
     }
 };
 
@@ -4301,7 +4297,6 @@ window.openAddSubProjectModal = () => {
     `;
     
     container.appendChild(div);
-    addInnerSubTask(div.querySelector('button[onclick="addInnerSubTask(this)"]'));
     document.getElementById("project-subproject-modal").classList.add("active");
 };
 
