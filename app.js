@@ -1432,8 +1432,17 @@ function renderProjects() {
       }
   }
   
+  // 🌟 只要是 7 天內擁有者，或者 (管理員 + 開啟編輯模式)，就直接生成刪除按鈕 HTML
+  let canDeleteProj = (isProjOwner && inGracePeriod) || (hasGlobalEdit && isEditMode);
+  let inlineDelBtn = canDeleteProj ? `<button class="action-btn danger" onclick="deleteCurrentProject()" style="padding:2px 8px; font-size:12px; margin-left:4px; font-weight:bold;">🗑️ 刪除專案</button>` : '';
+
   const currentTitleEl = document.getElementById("current-gantt-title");
-  if(currentTitleEl) currentTitleEl.innerHTML = `<span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} <span style="display:inline-flex; flex-wrap:wrap; align-items:center; gap:4px; margin-top:2px;">${collabBadge} ${statusBadge} ${graceBadge} ${pauseBtnHtml} ${editProjBtn}</span>`;
+  if(currentTitleEl) currentTitleEl.innerHTML = `
+      <span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} 
+      <span style="display:inline-flex; flex-wrap:wrap; align-items:center; gap:4px; margin-top:2px;">
+          ${collabBadge} ${statusBadge} ${graceBadge} ${pauseBtnHtml} ${editProjBtn} ${inlineDelBtn}
+      </span>
+  `;
   
   const btnProjectAddTask = document.getElementById("btn-project-add-task");
   const btnProjectAddSubProject = document.getElementById("btn-project-add-subproject");
