@@ -1560,7 +1560,9 @@ function renderProjects() {
               <div class="col-expected-date" style="color: #64748b; font-size:12px;"><span>${sMonth}/${sDay}</span><span>~ ${eMonth}/${eDay}</span></div>
               <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
               <div class="col-prog"><span style="font-weight:bold;">${item.progress}%</span></div>
-              <div class="col-act"><span style="font-size:12px; color:var(--text-muted);">-</span></div>
+              <div class="col-act">
+                  <button class="action-btn" onclick="event.stopPropagation(); openEditSubProjectModal('${activeProj.id}', '${item.parentSubProject}')" style="padding:2px 6px; font-size:11px;" title="編輯子專案名稱與負責人">✏️</button>
+              </div>
               <div class="col-owner" title="${item.assigneeName}">${item.assigneeName}</div>
           `;
           if(leftBody) leftBody.appendChild(row);
@@ -3309,6 +3311,40 @@ window.saveGeneralEdit = async () => {
 
       if(title) await updateDoc(doc(db, "projects", id), { title, collaborators });
       else return alert("專案名稱不可為空！");
+    } else if (type === 'subproject_edit') {
+      const newName = document.getElementById("edit-subproj-name").value.trim();
+      const newAssigneeId = document.getElementById("edit-subproj-assignee").value;
+      const assigneeSelect = document.getElementById("edit-subproj-assignee");
+      const newAssigneeName = newAssigneeId ? assigneeSelect.options[assigneeSelect.selectedIndex].text.split(' ')[0] : currentUserData.name;
+
+      if (!newName) return alert("子專案名稱不可空白！");
+
+      const proj = allProjectsData.find(p => p.id === currentEditData.projId);
+      if (!proj) return alert("找不到專案！");
+
+      const tasks = [...proj.tasks];
+      const oldName = currentEditData.oldSubProjName;
+      const isPending = (newAssigneeId !== proj.ownerId && newAssigneeId !== auth.currentUser.uid);
+
+      tasks.forEach(t => {
+          if (t.isSubProjectTask && t.parentSubProject === oldName) {
+              t.parentSubProject = newName;
+              // 取代名稱中的 [舊子專案名] 為 [新子專案名]
+              t.name = t.name.replace(`[${oldName}]`, `[${newName}]`);
+              if (newAssigneeId) {
+                  t.assigneeId = newAssigneeId;
+                  t.assigneeName = newAssigneeName;
+                  t.isPendingAcceptance = isPending; // 若換人需重新審核
+              }
+          }
+      });
+
+      await updateDoc(doc(db, "projects", proj.id), { tasks });
+      closeGeneralEditModal();
+      alert("✅ 子專案資訊修改成功！");
+      renderProjects();
+      return;
+    }
     } else if (type === 'task') {
       const proj = allProjectsData.find(p => p.id === id); 
       const tasks = [...proj.tasks];
@@ -4339,25 +4375,41 @@ window.renderNotifications = () => {
     let pendingCount = 0;
     const myUid = auth.currentUser.uid;
     
+    // 🌟 透過 Map 將同專案、同子專案的待同意細項歸納在一起
+    const groupMap = new Map();
+
     allProjectsData.forEach(p => {
-        (p.tasks || []).forEach((t, index) => {
-            if (t.assigneeId === myUid && t.isPendingAcceptance === true) {
-                pendingCount++;
-                const tr = document.createElement("tr");
-                tr.style.borderBottom = "1px solid #f1f5f9"; // 增加分隔線
-                tr.innerHTML = `
-                    <td style="padding: 12px 8px; font-weight:bold; color:var(--primary);">${p.title}</td>
-                    <td style="padding: 12px 8px;">${t.name}</td>
-                    <td style="padding: 12px 8px;"><span class="pill" style="background:#eff6ff; color:#1e40af;">${t.assignedByName || '未知'}</span></td>
-                    <td style="padding: 12px 8px;"><span style="font-size:12px; color:var(--text-muted);">${t.assignedAt || '-'}</span></td>
-                    <td style="padding: 12px 8px; text-align:center;">
-                        <button class="action-btn" style="background:#10b981; color:#fff; border:none; margin-right:4px; padding:4px 10px;" onclick="acceptAssignment('${p.id}', ${index})">✅ 同意</button>
-                        <button class="action-btn danger" style="padding:4px 10px;" onclick="rejectAssignment('${p.id}', ${index})">❌ 拒絕</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
+        (p.tasks || []).forEach(t => {
+            if (t.assigneeId === myUid && t.isPendingAcceptance === true && t.isSubProjectTask) {
+                const key = `${p.id}_${t.parentSubProject}`;
+                if (!groupMap.has(key)) {
+                    groupMap.set(key, {
+                        projId: p.id,
+                        projTitle: p.title,
+                        subProjName: t.parentSubProject,
+                        assignedByName: t.assignedByName || '未知',
+                        assignedAt: t.assignedAt || '-'
+                    });
+                }
             }
         });
+    });
+    
+    groupMap.forEach(group => {
+        pendingCount++;
+        const tr = document.createElement("tr");
+        tr.style.borderBottom = "1px solid #f1f5f9";
+        tr.innerHTML = `
+            <td style="padding: 12px 8px; font-weight:bold; color:var(--primary);">${group.projTitle}</td>
+            <td style="padding: 12px 8px;">📦 ${group.subProjName}</td>
+            <td style="padding: 12px 8px;"><span class="pill" style="background:#eff6ff; color:#1e40af;">${group.assignedByName}</span></td>
+            <td style="padding: 12px 8px;"><span style="font-size:12px; color:var(--text-muted);">${group.assignedAt}</span></td>
+            <td style="padding: 12px 8px; text-align:center;">
+                <button class="action-btn" style="background:#10b981; color:#fff; border:none; margin-right:4px; padding:4px 10px;" onclick="acceptSubProjectAssignment('${group.projId}', '${group.subProjName}')">✅ 同意</button>
+                <button class="action-btn danger" style="padding:4px 10px;" onclick="rejectSubProjectAssignment('${group.projId}', '${group.subProjName}')">❌ 拒絕</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
     });
     
     if (pendingCount === 0) {
@@ -4369,42 +4421,56 @@ window.renderNotifications = () => {
     }
 };
 
-window.acceptAssignment = async (projId, taskIndex) => {
+// 🌟 同意整個子專案的所有細項
+window.acceptSubProjectAssignment = async (projId, subProjName) => {
     const p = allProjectsData.find(x => x.id === projId);
     if(!p) return;
     const tasks = [...p.tasks];
-    tasks[taskIndex].isPendingAcceptance = false;
-    tasks[taskIndex].history.push({
-        timestamp: new Date().toLocaleString('zh-TW', { hour12: false }),
-        progress: tasks[taskIndex].progress, type: 'update', daysPassed: 0, delayReason: '',
-        remark: '✅ 已同意指派'
+    
+    tasks.forEach(t => {
+        if (t.isSubProjectTask && t.parentSubProject === subProjName && t.isPendingAcceptance) {
+            t.isPendingAcceptance = false;
+            if (!t.history) t.history = [];
+            t.history.push({
+                timestamp: new Date().toLocaleString('zh-TW', { hour12: false }),
+                progress: t.progress, type: 'update', daysPassed: 0, delayReason: '',
+                remark: '✅ 已同意指派'
+            });
+        }
     });
+
     await updateDoc(doc(db, "projects", projId), { tasks });
-    alert("已同意指派！任務已納入您的專案進度清單。");
+    alert(`已同意子專案 [${subProjName}]！所有相關細項已納入您的清單。`);
 };
 
-window.rejectAssignment = async (projId, taskIndex) => {
-    const reason = prompt("請輸入拒絕原因 (將退回給發配人)：", "");
+// 🌟 拒絕整個子專案的所有細項
+window.rejectSubProjectAssignment = async (projId, subProjName) => {
+    const reason = prompt(`請輸入拒絕子專案 [${subProjName}] 的原因：`, "");
     if (reason === null) return; 
     const p = allProjectsData.find(x => x.id === projId);
     if(!p) return;
     const tasks = [...p.tasks];
     
-    const assignerId = tasks[taskIndex].assignedByUid || p.ownerId;
-    const assignerName = tasks[taskIndex].assignedByName || p.ownerName;
-    
-    tasks[taskIndex].isPendingAcceptance = false; 
-    tasks[taskIndex].assigneeId = assignerId;
-    tasks[taskIndex].assigneeName = assignerName;
-    
-    tasks[taskIndex].history.push({
-        timestamp: new Date().toLocaleString('zh-TW', { hour12: false }),
-        progress: tasks[taskIndex].progress, type: 'update', daysPassed: 0, delayReason: '',
-        remark: `❌ 退回指派 (原因: ${reason || '無'})`
+    tasks.forEach(t => {
+        if (t.isSubProjectTask && t.parentSubProject === subProjName && t.isPendingAcceptance) {
+            const assignerId = t.assignedByUid || p.ownerId;
+            const assignerName = t.assignedByName || p.ownerName;
+            
+            t.isPendingAcceptance = false; 
+            t.assigneeId = assignerId;
+            t.assigneeName = assignerName;
+            
+            if (!t.history) t.history = [];
+            t.history.push({
+                timestamp: new Date().toLocaleString('zh-TW', { hour12: false }),
+                progress: t.progress, type: 'update', daysPassed: 0, delayReason: '',
+                remark: `❌ 退回指派 (原因: ${reason || '無'})`
+            });
+        }
     });
     
     await updateDoc(doc(db, "projects", projId), { tasks });
-    alert("已拒絕指派，任務已退回給開案者！");
+    alert(`已拒絕，子專案 [${subProjName}] 的細項已全數退回給開案者！`);
 };
 
 function loadProjects() {
@@ -4417,3 +4483,42 @@ function loadProjects() {
     if (window.renderNotifications) window.renderNotifications(); 
   }); 
 }
+
+// 🌟 開啟編輯子專案彈窗
+window.openEditSubProjectModal = (projId, subProjName) => {
+    const proj = allProjectsData.find(p => p.id === projId);
+    if (!proj) return;
+    
+    // 找出該子專案目前的負責人
+    const sampleTask = (proj.tasks || []).find(t => t.isSubProjectTask && t.parentSubProject === subProjName);
+    const currentAssigneeId = sampleTask ? sampleTask.assigneeId : "";
+
+    let assigneeOptions = '<option value="">-- 指派給 (選填) --</option>';
+    let purchasingUsers = allUsersList.filter(u => u.dept === '採購部');
+    purchasingUsers.forEach(u => {
+        const selected = (u.uid === currentAssigneeId) ? "selected" : "";
+        assigneeOptions += `<option value="${u.uid}" ${selected}>${u.name} (採購部)</option>`;
+    });
+
+    currentEditData = { type: 'subproject_edit', projId, oldSubProjName: subProjName };
+
+    document.getElementById("general-edit-title").innerText = `編輯子專案：${subProjName}`;
+    const form = document.getElementById("general-edit-form");
+    form.innerHTML = `
+        <div class="form-group">
+            <label class="form-label">子專案名稱</label>
+            <input type="text" id="edit-subproj-name" class="input-control" value="${subProjName}">
+        </div>
+        <div class="form-group">
+            <label class="form-label">指派人員 (採購部)</label>
+            <select id="edit-subproj-assignee" class="input-control">
+                ${assigneeOptions}
+            </select>
+        </div>
+    `;
+
+    document.getElementById("general-edit-modal").classList.add("active");
+};
+
+// 🌟 覆寫或擴充原本的 saveGeneralEdit 結尾，使其支援子專案編輯儲存
+// (請在 saveGeneralEdit 函式的 try 區塊內，加入以下 else if 判斷)
