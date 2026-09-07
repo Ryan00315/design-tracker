@@ -1560,8 +1560,7 @@ function renderProjects() {
   const btnProjectAddTask = document.getElementById("btn-project-add-task");
   const btnProjectAddSubProject = document.getElementById("btn-project-add-subproject");
   
-  // 新增這兩行：定義 canAddTask 權限與取得刪除按鈕
-  let canAddTask = (hasGlobalEdit && isEditMode) || (isProjOwner && inGracePeriod);
+  let canAddTask = hasGlobalEdit || isProjOwner;
   const delProjBtn = document.getElementById("btn-project-del"); 
 
   if (btnProjectAddTask) {
