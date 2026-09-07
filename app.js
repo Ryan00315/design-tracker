@@ -3048,9 +3048,12 @@ window.openTemplateEditor = (index) => {
             <input type="text" id="edit-tpl-name" class="input-control" value="${tpl.name}">
         </div>
         <div class="form-group">
-            <label class="form-label">預設任務細項</label>
+            <label class="form-label">預設任務/子專案配置</label>
             <div id="edit-tpl-tasks-container"></div>
-            <button type="button" class="action-btn" onclick="addTemplateTaskRow()" style="margin-top:8px;">➕ 新增模板細項</button>
+            <div style="display:flex; gap:10px; margin-top:8px;">
+                <button type="button" class="action-btn" onclick="addTemplateTaskRow()">➕ 新增模板細項</button>
+                <button type="button" class="action-btn" onclick="addTemplateSubProjectRow()" style="border-color: #d97706; color: #d97706;">➕ 新增子專案 (採購/品檢)</button>
+            </div>
         </div>
     `;
     const form = document.getElementById("general-edit-form");
@@ -3855,4 +3858,35 @@ window.addInnerSubTask = (btn) => {
       <button type="button" class="btn-close" style="font-size:14px; color:var(--danger);" onclick="this.parentElement.remove()">×</button>
    `;
    container.appendChild(div);
+};
+
+window.addTemplateSubProjectRow = () => {
+    const container = document.getElementById("edit-tpl-tasks-container");
+    const div = document.createElement('div');
+    // 加上 tpl-subproject-row 方便後續儲存時辨識
+    div.className = "form-row tpl-subproject-row"; 
+    div.style.cssText = "margin-bottom: 8px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px; flex-direction: column; gap: 8px;";
+    
+    div.innerHTML = `
+      <div style="display:flex; gap:8px; align-items:center;">
+        <span style="font-weight:bold; color:#d97706;">📦 子專案</span>
+        <div class="form-group" style="margin:0; flex:2;">
+          <input type="text" class="input-control task-name subproject-name" placeholder="子專案名稱 (例: 零件採購)">
+        </div>
+        <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
+          <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
+          <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
+          <button type="button" class="action-btn danger" onclick="this.closest('.tpl-subproject-row').remove()" style="padding:8px 10px;">X</button>
+        </div>
+      </div>
+      <div class="sub-tasks-container" style="margin-left: 20px; border-left: 2px solid #fcd34d; padding-left: 10px; display:flex; flex-direction:column; gap:6px;">
+         <div style="display:flex; gap:6px; align-items:center;" class="sub-task-item">
+            <span style="font-size:12px; color:var(--danger); font-weight:bold; width:20px;">1.</span>
+            <input type="text" class="input-control sub-task-name" value="簽核流程" readonly style="flex:2; background:#f1f5f9;">
+            <input type="number" class="input-control sub-task-days" value="1" placeholder="天數" style="width:60px;">
+         </div>
+      </div>
+      <button type="button" class="action-btn" onclick="addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加預設子細項</button>
+    `;
+    container.appendChild(div);
 };
