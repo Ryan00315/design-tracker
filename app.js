@@ -1586,7 +1586,7 @@ function renderProjects() {
     try {
       const currentProgress = task.progress || 0;
       
-      // ⭐ 防呆處理：如果舊資料沒有 start/end，給予預設值避免 replace 崩潰
+      // ⭐ 核心防呆：如果舊資料沒有 start/end，給予預設今天日期，防止 replace 報錯崩潰！
       const safeStart = task.start || getTodayStr();
       const safeEnd = task.end || getTodayStr();
       const workDays = getWorkingDays(safeStart, safeEnd);
@@ -1607,7 +1607,7 @@ function renderProjects() {
       const taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
       const isMyTask = (auth.currentUser.uid === taskAssigneeId);
 
-      // ⭐ 防呆處理：確保 task.createdAt 就算拿到物件也不會導致後續 NaN 運算錯誤
+      // ⭐ 防止 createdAt 格式異常
       let taskCreatedTime = Date.now();
       if (task.createdAt) {
           taskCreatedTime = typeof task.createdAt.toMillis === 'function' ? task.createdAt.toMillis() : task.createdAt;
@@ -1624,7 +1624,6 @@ function renderProjects() {
       let lastUpdateMs = taskCreatedTime;
       if (task.history && task.history.length > 0) {
           const lastHist = task.history[task.history.length - 1];
-          // ⭐ 確保 timestamp 存在且為字串才進行 replace
           if (lastHist && lastHist.timestamp && typeof lastHist.timestamp === 'string') {
               let parsedTime = new Date(lastHist.timestamp.replace(/-/g, '/')).getTime();
               if (!isNaN(parsedTime)) lastUpdateMs = parsedTime;
@@ -1644,7 +1643,7 @@ function renderProjects() {
           <button class="action-btn danger" onclick="deleteActiveProjectTask('${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px;" title="刪除此細項">🗑️</button>
         </div>` : '';
 
-      // ⭐ 防呆處理：如果日期解析出 NaN，顯示 '-' 而不崩潰
+      // ⭐ 使用安全的日期轉換
       const sDate = new Date(safeStart.replace(/-/g, '/'));
       const eDate = new Date(safeEnd.replace(/-/g, '/'));
       const sMonth = !isNaN(sDate.getMonth()) ? sDate.getMonth() + 1 : '-';
@@ -1663,7 +1662,7 @@ function renderProjects() {
       const row = document.createElement("div"); 
       row.className = "gantt-row";
       row.innerHTML = `
-        <div class="col-name" title="${task.name}"><span style="overflow:hidden; text-overflow:ellipsis;">${task.name || '未命名任務'}</span>${editHtml}</div>
+        <div class="col-name" title="${task.name || '未命名任務'}"><span style="overflow:hidden; text-overflow:ellipsis;">${task.name || '未命名任務'}</span>${editHtml}</div>
         ${expectedDateHtml}
         <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
         <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="${progressInputStyle}"><span style="font-weight:bold; margin-left:2px;">%</span></div>
