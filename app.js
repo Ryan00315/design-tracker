@@ -1583,134 +1583,158 @@ function renderProjects() {
 
   const ganttTasks = [];
   (activeProj.tasks || []).forEach((task, index) => {
-    const currentProgress = task.progress || 0;
-    const workDays = getWorkingDays(task.start, task.end);
-    
-    const isCollabTask = task.assigneeId && (task.assigneeId !== activeProj.ownerId);
-    let projColorClass = isCollabTask ? 'bar-pink' : (activeProj.color || 'bar-primary');
+    try {
+      const currentProgress = task.progress || 0;
+      
+      // ⭐ 防呆處理：如果舊資料沒有 start/end，給予預設值避免 replace 崩潰
+      const safeStart = task.start || getTodayStr();
+      const safeEnd = task.end || getTodayStr();
+      const workDays = getWorkingDays(safeStart, safeEnd);
+      
+      const isCollabTask = task.assigneeId && (task.assigneeId !== activeProj.ownerId);
+      let projColorClass = isCollabTask ? 'bar-pink' : (activeProj.color || 'bar-primary');
 
-    ganttTasks.push({ 
-      id: `t_${index}`, 
-      name: task.name, 
-      start: task.start, 
-      end: task.end, 
-      progress: currentProgress, 
-      custom_class: task.isCompleted ? 'bar-success' : projColorClass 
-    });
+      ganttTasks.push({ 
+        id: `t_${index}`, 
+        name: task.name || '未命名任務', 
+        start: safeStart, 
+        end: safeEnd, 
+        progress: currentProgress, 
+        custom_class: task.isCompleted ? 'bar-success' : projColorClass 
+      });
 
-    const taskAssigneeId = task.assigneeId || activeProj.ownerId;
-    const taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
-    const isMyTask = (auth.currentUser.uid === taskAssigneeId);
+      const taskAssigneeId = task.assigneeId || activeProj.ownerId;
+      const taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
+      const isMyTask = (auth.currentUser.uid === taskAssigneeId);
 
-    let taskCreatedTime = task.createdAt || (activeProj.createdAt && typeof activeProj.createdAt.toMillis === 'function' ? activeProj.createdAt.toMillis() : Date.now());
-    let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
-
-    const canOperateThisTask = (hasGlobalEdit || isMyTask || isProjOwner);
-    const isProjectPaused = activeProj.status === 'paused' || activeProj.status === 'pause_requested';
-    
-    const isInputLocked = task.isCompleted || !canOperateThisTask || isProjectPaused; 
-
-    let lastUpdateMs = task.createdAt || Date.now();
-    if (task.history && task.history.length > 0) {
-        const lastHist = task.history[task.history.length - 1];
-        if (lastHist && lastHist.timestamp) {
-            let parsedTime = new Date(lastHist.timestamp.replace(/-/g, '/')).getTime();
-            if (!isNaN(parsedTime)) lastUpdateMs = parsedTime;
-        }
-    }
-    const isWithin2Days = (Date.now() - lastUpdateMs) <= (2 * 24 * 60 * 60 * 1000);
-    
-    const canEditRemark = canOperateThisTask && isWithin2Days;
-
-    // ⭐ 只要是 7 天內自己的任務，或者管理員開啟了編輯模式，就顯示細項的編輯/刪除按鈕
-    let canEditTask = (hasGlobalEdit && isEditMode) || ((isProjOwner || isMyTask) && isTaskInGrace);
-    
-    let editHtml = canEditTask ? `
-      <div style="display:inline-flex; align-items:center; gap:2px; margin-left:auto; flex-shrink:0;">
-        <button type="button" class="btn-sort" onclick="moveActiveProjectTask('${activeProj.id}', ${index}, -1)" title="上移">↑</button>
-        <button type="button" class="btn-sort" onclick="moveActiveProjectTask('${activeProj.id}', ${index}, 1)" title="下移">↓</button>
-        <button class="action-btn" onclick="openGeneralEdit('task', '${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px;" title="編輯細項">✏️</button>
-        <button class="action-btn danger" onclick="deleteActiveProjectTask('${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px;" title="刪除此細項">🗑️</button>
-      </div>` : '';
-
-    const sDate = new Date(task.start.replace(/-/g, '/'));
-    const eDate = new Date(task.end.replace(/-/g, '/'));
-    const expectedDateHtml = `<div class="col-expected-date" style="color: #64748b;"><span>${sDate.getMonth()+1}/${sDate.getDate()}</span><span>~ ${eDate.getMonth()+1}/${eDate.getDate()}</span></div>`;
-
-    const progressInputStyle = task.isCompleted 
-      ? 'width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold; color:var(--success);' 
-      : 'width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold;';
-
-    const confirmBtnStyle = task.isCompleted ? 'opacity: 0.4; cursor: not-allowed;' : '';
-
-    const row = document.createElement("div"); 
-    row.className = "gantt-row";
-    row.innerHTML = `
-      <div class="col-name" title="${task.name}"><span style="overflow:hidden; text-overflow:ellipsis;">${task.name}</span>${editHtml}</div>
-      ${expectedDateHtml}
-      <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
-      <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="${progressInputStyle}"><span style="font-weight:bold; margin-left:2px;">%</span></div>
-      <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} style="${confirmBtnStyle}" onclick="confirmProgress('${activeProj.id}', ${index}, '${task.end}')">${task.isCompleted ? '完成' : '確認'}</button></div>
-      <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
-    `;
-    if(leftBody) leftBody.appendChild(row);
-
-    if (listBody) {
-      let historyHtml = '';
-      const historyList = task.history || [];
-      if (historyList.length > 0) {
-        const sortedHistory = [...historyList].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        
-        historyHtml = `<div style="max-height: 180px; overflow-y: auto; padding-right: 2px;">` + 
-          `<table style="width:100%; table-layout:fixed; border-collapse:collapse; margin:0; background:transparent;"><colgroup><col style="width:22%;"><col style="width:78%;"></colgroup><tbody>` +
-          sortedHistory.map((h, i) => {
-             let histTimeMs = new Date(h.timestamp.replace(/-/g, '/')).getTime();
-             let isHistWithin2Days = !isNaN(histTimeMs) && (Date.now() - histTimeMs) <= (2 * 24 * 60 * 60 * 1000);
-             
-             let hasContent = (h.delayReason && h.delayReason.trim() !== "") || 
-                              (h.remark && h.remark.trim() !== "" && h.remark !== '專案建立' && h.remark !== '追加任務細項');
-
-             let canEditThisHist = canOperateThisTask && isHistWithin2Days && hasContent;
-             let rowEditBtn = canEditThisHist ? `<button class="action-btn" style="padding:1px 4px; font-size:10px; margin-left:6px;" onclick="openEditRemarkModal('${activeProj.id}', ${index}, '${h.timestamp}')">✏️ 修改</button>` : '';
-
-             let contentText = '';
-             if (h.type === 'complete' && h.delayReason) {
-                 contentText = `<span class="pill pill-danger">Delay: ${h.delayReason}</span>`;
-             } else if (h.remark && h.remark !== '專案建立' && h.remark !== '追加任務細項') {
-                 contentText = `<span style="color: var(--text-muted);">${h.remark}</span>`;
-             } else {
-                 contentText = `<span style="color: #cbd5e1;">${h.remark || '-'}</span>`;
-             }
-
-             const borderStyle = i === sortedHistory.length - 1 ? "" : "border-bottom:1px dashed var(--border-light);";
-             return `<tr style="${borderStyle}">
-                       <td style="padding: 6px 2px 6px 0; vertical-align: top;">
-                         <span style="color:var(--primary); font-weight:600; font-size:11px; white-space:nowrap;">[ ${h.timestamp} ]</span>
-                         <div style="margin-top:1px; font-size:10.5px; color:#64748b; white-space:nowrap;">歷時 <b>${h.daysPassed}</b> 工作天</div>
-                       </td>
-                       <td style="padding: 6px 0 6px 4px; vertical-align: top; word-break: break-all;">
-                         <div style="display:flex; align-items:center; flex-wrap:wrap; margin-bottom:2px;">
-                           <span>${contentText}</span>
-                           ${rowEditBtn}
-                         </div>
-                       </td>
-                     </tr>`;
-          }).join('') + `</tbody></table></div>`;
-      } else {
-        historyHtml = `<div style="padding: 6px 0; color:var(--text-muted);">尚無紀錄</div>`;
+      // ⭐ 防呆處理：確保 task.createdAt 就算拿到物件也不會導致後續 NaN 運算錯誤
+      let taskCreatedTime = Date.now();
+      if (task.createdAt) {
+          taskCreatedTime = typeof task.createdAt.toMillis === 'function' ? task.createdAt.toMillis() : task.createdAt;
+      } else if (activeProj.createdAt) {
+          taskCreatedTime = typeof activeProj.createdAt.toMillis === 'function' ? activeProj.createdAt.toMillis() : Date.now();
       }
 
-      const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="padding:4px 8px;">已完成</span>` : `<span style="font-weight:bold;">進度: ${task.progress || 0}%</span>`;
+      let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
 
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td style="vertical-align: top; padding: 8px 4px;"><strong>${task.name}</strong></td>
-        <td style="vertical-align: top; padding: 8px 4px; width: 90px;">${taskAssigneeName}</td>
-        <td style="vertical-align: top; padding: 8px 4px; width: 100px;">${statusHtml}</td>
-        <td style="padding: 6px 4px; vertical-align: top;">
-            ${historyHtml}
-        </td>`;
-      listBody.appendChild(tr);
+      const canOperateThisTask = (hasGlobalEdit || isMyTask || isProjOwner);
+      const isProjectPaused = activeProj.status === 'paused' || activeProj.status === 'pause_requested';
+      const isInputLocked = task.isCompleted || !canOperateThisTask || isProjectPaused; 
+
+      let lastUpdateMs = taskCreatedTime;
+      if (task.history && task.history.length > 0) {
+          const lastHist = task.history[task.history.length - 1];
+          // ⭐ 確保 timestamp 存在且為字串才進行 replace
+          if (lastHist && lastHist.timestamp && typeof lastHist.timestamp === 'string') {
+              let parsedTime = new Date(lastHist.timestamp.replace(/-/g, '/')).getTime();
+              if (!isNaN(parsedTime)) lastUpdateMs = parsedTime;
+          }
+      }
+      const isWithin2Days = (Date.now() - lastUpdateMs) <= (2 * 24 * 60 * 60 * 1000);
+      
+      const canEditRemark = canOperateThisTask && isWithin2Days;
+
+      let canEditTask = (hasGlobalEdit && isEditMode) || ((isProjOwner || isMyTask) && isTaskInGrace);
+      
+      let editHtml = canEditTask ? `
+        <div style="display:inline-flex; align-items:center; gap:2px; margin-left:auto; flex-shrink:0;">
+          <button type="button" class="btn-sort" onclick="moveActiveProjectTask('${activeProj.id}', ${index}, -1)" title="上移">↑</button>
+          <button type="button" class="btn-sort" onclick="moveActiveProjectTask('${activeProj.id}', ${index}, 1)" title="下移">↓</button>
+          <button class="action-btn" onclick="openGeneralEdit('task', '${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px;" title="編輯細項">✏️</button>
+          <button class="action-btn danger" onclick="deleteActiveProjectTask('${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px;" title="刪除此細項">🗑️</button>
+        </div>` : '';
+
+      // ⭐ 防呆處理：如果日期解析出 NaN，顯示 '-' 而不崩潰
+      const sDate = new Date(safeStart.replace(/-/g, '/'));
+      const eDate = new Date(safeEnd.replace(/-/g, '/'));
+      const sMonth = !isNaN(sDate.getMonth()) ? sDate.getMonth() + 1 : '-';
+      const sDay = !isNaN(sDate.getDate()) ? sDate.getDate() : '-';
+      const eMonth = !isNaN(eDate.getMonth()) ? eDate.getMonth() + 1 : '-';
+      const eDay = !isNaN(eDate.getDate()) ? eDate.getDate() : '-';
+
+      const expectedDateHtml = `<div class="col-expected-date" style="color: #64748b;"><span>${sMonth}/${sDay}</span><span>~ ${eMonth}/${eDay}</span></div>`;
+
+      const progressInputStyle = task.isCompleted 
+        ? 'width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold; color:var(--success);' 
+        : 'width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold;';
+
+      const confirmBtnStyle = task.isCompleted ? 'opacity: 0.4; cursor: not-allowed;' : '';
+
+      const row = document.createElement("div"); 
+      row.className = "gantt-row";
+      row.innerHTML = `
+        <div class="col-name" title="${task.name}"><span style="overflow:hidden; text-overflow:ellipsis;">${task.name || '未命名任務'}</span>${editHtml}</div>
+        ${expectedDateHtml}
+        <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
+        <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="${progressInputStyle}"><span style="font-weight:bold; margin-left:2px;">%</span></div>
+        <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} style="${confirmBtnStyle}" onclick="confirmProgress('${activeProj.id}', ${index}, '${safeEnd}')">${task.isCompleted ? '完成' : '確認'}</button></div>
+        <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
+      `;
+      if(leftBody) leftBody.appendChild(row);
+
+      if (listBody) {
+        let historyHtml = '';
+        const historyList = task.history || [];
+        if (historyList.length > 0) {
+          const sortedHistory = [...historyList].sort((a, b) => {
+              let timeA = (a.timestamp && typeof a.timestamp === 'string') ? new Date(a.timestamp.replace(/-/g, '/')).getTime() : 0;
+              let timeB = (b.timestamp && typeof b.timestamp === 'string') ? new Date(b.timestamp.replace(/-/g, '/')).getTime() : 0;
+              return timeB - timeA;
+          });
+          
+          historyHtml = `<div style="max-height: 180px; overflow-y: auto; padding-right: 2px;">` + 
+            `<table style="width:100%; table-layout:fixed; border-collapse:collapse; margin:0; background:transparent;"><colgroup><col style="width:22%;"><col style="width:78%;"></colgroup><tbody>` +
+            sortedHistory.map((h, i) => {
+               let histTimeMs = (h.timestamp && typeof h.timestamp === 'string') ? new Date(h.timestamp.replace(/-/g, '/')).getTime() : NaN;
+               let isHistWithin2Days = !isNaN(histTimeMs) && (Date.now() - histTimeMs) <= (2 * 24 * 60 * 60 * 1000);
+               
+               let hasContent = (h.delayReason && h.delayReason.trim() !== "") || 
+                                (h.remark && h.remark.trim() !== "" && h.remark !== '專案建立' && h.remark !== '追加任務細項');
+
+               let canEditThisHist = canOperateThisTask && isHistWithin2Days && hasContent;
+               let rowEditBtn = canEditThisHist ? `<button class="action-btn" style="padding:1px 4px; font-size:10px; margin-left:6px;" onclick="openEditRemarkModal('${activeProj.id}', ${index}, '${h.timestamp}')">✏️ 修改</button>` : '';
+
+               let contentText = '';
+               if (h.type === 'complete' && h.delayReason) {
+                   contentText = `<span class="pill pill-danger">Delay: ${h.delayReason}</span>`;
+               } else if (h.remark && h.remark !== '專案建立' && h.remark !== '追加任務細項') {
+                   contentText = `<span style="color: var(--text-muted);">${h.remark}</span>`;
+               } else {
+                   contentText = `<span style="color: #cbd5e1;">${h.remark || '-'}</span>`;
+               }
+
+               const borderStyle = i === sortedHistory.length - 1 ? "" : "border-bottom:1px dashed var(--border-light);";
+               return `<tr style="${borderStyle}">
+                         <td style="padding: 6px 2px 6px 0; vertical-align: top;">
+                           <span style="color:var(--primary); font-weight:600; font-size:11px; white-space:nowrap;">[ ${h.timestamp || '-'} ]</span>
+                           <div style="margin-top:1px; font-size:10.5px; color:#64748b; white-space:nowrap;">歷時 <b>${h.daysPassed || 0}</b> 工作天</div>
+                         </td>
+                         <td style="padding: 6px 0 6px 4px; vertical-align: top; word-break: break-all;">
+                           <div style="display:flex; align-items:center; flex-wrap:wrap; margin-bottom:2px;">
+                             <span>${contentText}</span>
+                             ${rowEditBtn}
+                           </div>
+                         </td>
+                       </tr>`;
+            }).join('') + `</tbody></table></div>`;
+        } else {
+          historyHtml = `<div style="padding: 6px 0; color:var(--text-muted);">尚無紀錄</div>`;
+        }
+
+        const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="padding:4px 8px;">已完成</span>` : `<span style="font-weight:bold;">進度: ${task.progress || 0}%</span>`;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td style="vertical-align: top; padding: 8px 4px;"><strong>${task.name || '未命名任務'}</strong></td>
+          <td style="vertical-align: top; padding: 8px 4px; width: 90px;">${taskAssigneeName}</td>
+          <td style="vertical-align: top; padding: 8px 4px; width: 100px;">${statusHtml}</td>
+          <td style="padding: 6px 4px; vertical-align: top;">
+              ${historyHtml}
+          </td>`;
+        listBody.appendChild(tr);
+      }
+    } catch (e) {
+      console.error("渲染任務細項時發生錯誤:", e, task);
     }
   });
 
