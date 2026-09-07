@@ -1618,7 +1618,16 @@ function renderProjects() {
           taskCreatedTime = typeof activeProj.createdAt.toMillis === 'function' ? activeProj.createdAt.toMillis() : Date.now();
       }
 
-      let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+      let isTaskInGrace = true;
+      if (task.isSubProjectTask && !task.name.includes("簽核流程")) {
+          if (task.datesSetAt) {
+              isTaskInGrace = ((Date.now() - task.datesSetAt) / (1000 * 60 * 60 * 24)) <= 14;
+          } else {
+              isTaskInGrace = true; 
+          }
+      } else {
+          isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+      }
 
       const canOperateThisTask = (hasGlobalEdit || isMyTask || isProjOwner);
       const isProjectPaused = activeProj.status === 'paused' || activeProj.status === 'pause_requested';
@@ -1809,7 +1818,16 @@ window.deleteActiveProjectTask = async (projId, index) => {
   
   const task = proj.tasks[index];
   let taskCreatedTime = task.createdAt || (proj.createdAt && typeof proj.createdAt.toMillis === 'function' ? proj.createdAt.toMillis() : Date.now());
-  let isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+  let isTaskInGrace = true;
+  if (task.isSubProjectTask && !task.name.includes("簽核流程")) {
+      if (task.datesSetAt) {
+          isTaskInGrace = ((Date.now() - task.datesSetAt) / (1000 * 60 * 60 * 24)) <= 14;
+      } else {
+          isTaskInGrace = true;
+      }
+  } else {
+      isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+  }
 
   let isAuthorized = currentUserData.role === 'admin' || currentUserData.canEdit || ((proj.ownerId === auth.currentUser.uid || task.assigneeId === auth.currentUser.uid) && isTaskInGrace);
   
@@ -1970,19 +1988,29 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
 
   let delayReason = targetTask.delayReason || ""; 
   let currentRemark = "";
-  if (newProg === 100) {
-    if (todayStr > plannedEnd && !delayReason) {
-      delayReason = await window.openCustomPrompt("⚠️ 任務已 Delay", "此任務已超出預計完成日，請填寫 Delay 原因 (必填)：", true);
-      if (delayReason === null) { inputElem.value = oldProg; return; }
+  if (targetTask.isSubProjectTask && targetTask.name.includes("簽核流程")) {
+        const parentSubName = targetTask.parentSubProject;
+        const nextWorkingDay = getNextWorkingDayStr(todayStr); // 完成的下一個工作日
+        let modifiedCount = 0;
+        
+        tasks.forEach(t => {
+            if (t.isSubProjectTask && t.parentSubProject === parentSubName && !t.name.includes("簽核流程")) {
+                if (!t.isCompleted) {
+                    t.start = nextWorkingDay;
+                    if (t.end < t.start) t.end = nextWorkingDay;
+                    modifiedCount++;
+                }
+            }
+        });
+        if (modifiedCount > 0) {
+            alert(`🎉 簽核流程已結案！後續 ${modifiedCount} 個細項的起始日，已自動展延至下一個工作日 (${nextWorkingDay})。`);
+        } else {
+            alert("🎉 簽核流程已結案！");
+        }
     } else {
-      currentRemark = await window.openCustomPrompt("🎉 任務結案", "即將結案！可填寫結案備註 (選填)：", false);
-      if (currentRemark === null) { inputElem.value = oldProg; return; }
+        alert("🎉 進度已達 100%！該任務已結案。");
     }
-    targetTask.isCompleted = true; 
-    targetTask.completedAt = ts; 
-    targetTask.delayReason = delayReason;
-    alert("🎉 進度已達 100%！該任務已結案。");
-  } else { 
+  } else {
     currentRemark = await window.openCustomPrompt("📝 進度更新", "請輸入此次進度更新的備註事項 (選填)：", false);
     if (currentRemark === null) { inputElem.value = oldProg; return; }
     targetTask.isCompleted = false; 
@@ -2930,7 +2958,16 @@ window.openGeneralEdit = (type, id, extra) => {
       if (type === 'task') {
         const t = p.tasks[extra];
         let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
-        let tInGrace = ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+        let tInGrace = true;
+      if (t.isSubProjectTask && !t.name.includes("簽核流程")) {
+          if (t.datesSetAt) {
+              tInGrace = ((Date.now() - t.datesSetAt) / (1000 * 60 * 60 * 24)) <= 14;
+          } else {
+              tInGrace = true;
+          }
+      } else {
+          tInGrace = ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+      }
         let isMyTask = (auth.currentUser.uid === (t.assigneeId || p.ownerId));
         let isProjOwner = (p.ownerId === auth.currentUser.uid);
 
@@ -3224,9 +3261,16 @@ window.saveGeneralEdit = async () => {
     } else if (type === 'task') {
       const proj = allProjectsData.find(p => p.id === id); 
       const tasks = [...proj.tasks];
+      
       tasks[extra].name = document.getElementById("edit-val-name").value.trim();
       tasks[extra].start = document.getElementById("edit-val-start").value;
       tasks[extra].end = document.getElementById("edit-val-end").value;
+      
+      // 🌟 新增：如果是一般子細項，儲存時就記錄下「已填寫」的鎖定時間戳
+      if (tasks[extra].isSubProjectTask && !tasks[extra].name.includes("簽核流程")) {
+          if (!tasks[extra].datesSetAt) tasks[extra].datesSetAt = Date.now();
+      }
+      
       await updateDoc(doc(db, "projects", id), { tasks });
     } else if (type === 'adhoc') {
       await updateDoc(doc(db, "ad_hoc_events", id), {
@@ -3895,18 +3939,24 @@ window.addSubProjectRow = () => {
   addInnerSubTask(div.querySelector('button[onclick="addInnerSubTask(this)"]'));
 };
 
-// 新增子專案內部的細項 (允許保留天數與結束日為空)
+// 新增子專案內部細項
 window.addInnerSubTask = (btn) => {
    const container = btn.previousElementSibling;
+   
+   // 🌟 自動抓取簽核流程的日期 (若有)
+   let defaultStart = "";
+   const existingApproval = container.querySelector('.is-approval-task .sub-task-start');
+   if (existingApproval && existingApproval.value) defaultStart = existingApproval.value;
+
    const div = document.createElement('div');
    div.className = "sub-task-item normal-sub-task";
    div.style.cssText = "display:flex; gap:6px; align-items:center;";
    div.innerHTML = `
       <span style="font-size:12px; font-weight:bold; width:20px;"></span>
       <input type="text" class="input-control sub-task-name" placeholder="子細項名稱" style="flex:2;">
-      <input type="date" class="input-control sub-task-start" placeholder="未定" style="flex:1;" onchange="onTaskStartChange(this, null)">
+      <input type="date" class="input-control sub-task-start" value="${defaultStart}" style="flex:1;" onchange="onTaskStartChange(this, null)">
       <input type="number" class="input-control sub-task-days" placeholder="天" style="width:60px;" oninput="onTaskDaysChange(this, null, null)">
-      <input type="date" class="input-control sub-task-end" placeholder="未定" style="flex:1;" onchange="onTaskEndChange(this, null, null)">
+      <input type="date" class="input-control sub-task-end" value="${defaultStart}" style="flex:1;" onchange="onTaskEndChange(this, null, null)">
       <button type="button" class="btn-close" style="font-size:14px; color:var(--danger);" onclick="const c = this.closest('.sub-tasks-container'); this.parentElement.remove(); window.updateSubTaskNumbers(c);">×</button>
    `;
    container.appendChild(div);
@@ -3953,15 +4003,13 @@ window.addTemplateSubProjectRow = () => {
     addInnerSubTask(div.querySelector('button[onclick="addInnerSubTask(this)"]'));
 };
 
-// 3. 當指派人員變動時，動態決定是否插入「簽核流程」
+// 選擇人員觸發簽核流程
 window.onSubProjectAssigneeChange = (selectElem) => {
     const uid = selectElem.value;
     let isPurchasing = false;
     if (uid) {
         const user = allUsersList.find(u => u.uid === uid);
-        if (user && user.dept === '採購部') {
-            isPurchasing = true;
-        }
+        if (user && user.dept === '採購部') isPurchasing = true;
     }
 
     const row = selectElem.closest('.subproject-row') || selectElem.closest('.tpl-subproject-row');
@@ -3969,7 +4017,6 @@ window.onSubProjectAssigneeChange = (selectElem) => {
     const existingApproval = tasksContainer.querySelector('.is-approval-task');
 
     if (isPurchasing) {
-        // 如果選了採購部且還沒有簽核流程，強制插在第一項
         if (!existingApproval) {
             let defaultStart = getTodayStr();
             const div = document.createElement('div');
@@ -3978,19 +4025,18 @@ window.onSubProjectAssigneeChange = (selectElem) => {
             div.innerHTML = `
               <span style="font-size:12px; color:var(--danger); font-weight:bold; width:20px;"></span>
               <input type="text" class="input-control sub-task-name" value="簽核流程" readonly style="flex:2; background:#fef2f2; color:var(--danger); font-weight:bold; border-color:#fca5a5;">
-              <input type="date" class="input-control sub-task-start" value="${defaultStart}" onchange="onTaskStartChange(this, null)" style="flex:1;">
+              <input type="date" class="input-control sub-task-start" value="${defaultStart}" onchange="onTaskStartChange(this, null); window.syncSubTasksDate(this)" style="flex:1;">
               <input type="number" class="input-control sub-task-days" value="1" placeholder="天數" oninput="onTaskDaysChange(this, null, null)" style="width:60px;">
               <input type="date" class="input-control sub-task-end" value="${defaultStart}" onchange="onTaskEndChange(this, null, null)" style="flex:1;">
             `;
             tasksContainer.insertBefore(div, tasksContainer.firstChild);
+            
+            // 🌟 自動讓底下的細項跟隨簽核流程日期
+            window.syncSubTasksDate(div.querySelector('.sub-task-start'));
         }
     } else {
-        // 如果取消選擇或改成非採購部，移除簽核流程
-        if (existingApproval) {
-            existingApproval.remove();
-        }
+        if (existingApproval) existingApproval.remove();
     }
-    // 重新編號
     window.updateSubTaskNumbers(tasksContainer);
 };
 
@@ -4014,6 +4060,12 @@ window.openAddSubProjectModal = () => {
     
     const container = document.getElementById("add-subproject-container");
     container.innerHTML = ""; // 清空舊內容
+    
+    // 🌟 在彈窗頂部顯示所屬主專案名稱
+    const titleHeader = document.createElement('div');
+    titleHeader.style.cssText = "margin-bottom: 15px; font-size: 15px; font-weight: bold; color: var(--primary); background: #e0e7ff; padding: 8px 12px; border-radius: 6px; border: 1px solid #c7d2fe;";
+    titleHeader.innerHTML = `📝 目前主專案：<span style="color: #312e81;">${proj.title}</span>`;
+    container.appendChild(titleHeader);
     
     // 只載入採購部人員
     let assigneeOptions = '<option value="">-- 指派給 (選填) --</option>';
@@ -4044,10 +4096,7 @@ window.openAddSubProjectModal = () => {
     `;
     
     container.appendChild(div);
-    
-    // 初始化自帶一筆預設細項
     addInnerSubTask(div.querySelector('button[onclick="addInnerSubTask(this)"]'));
-    
     document.getElementById("project-subproject-modal").classList.add("active");
 };
 
@@ -4110,4 +4159,24 @@ window.submitAddSubProject = async () => {
     
     closeAddSubProjectModal();
     alert("🎉 子專案追加成功！(已自動依日期重新排序)");
+};
+
+// 🌟 新增：連動更新底下細項的日期
+window.syncSubTasksDate = (startInput) => {
+    const container = startInput.closest('.sub-tasks-container');
+    if (!container || !startInput.value) return;
+    
+    const normalTasks = container.querySelectorAll('.normal-sub-task');
+    normalTasks.forEach(task => {
+        const startEl = task.querySelector('.sub-task-start');
+        const endEl = task.querySelector('.sub-task-end');
+        const daysEl = task.querySelector('.sub-task-days');
+        
+        startEl.value = startInput.value;
+        if (daysEl && endEl) {
+           let days = parseInt(daysEl.value) || 1;
+           endEl.value = calculateEndDateByDays(startInput.value, days);
+           endEl.min = startInput.value;
+        }
+    });
 };
