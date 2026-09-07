@@ -3854,12 +3854,11 @@ window.openEditRemarkModal = async (projId, taskIndex, targetTimestamp) => {
 window.addSubProjectRow = () => {
   const container = document.getElementById("task-list-container"); 
   
-  // 載入所有人，採購/品檢排前面
+  // ⭐ 替換原本的 sortedUsers 邏輯，改為只篩選採購部人員
   let assigneeOptions = '<option value="">-- 指派給 (選填) --</option>';
-  let sortedUsers = [...allUsersList].sort((a, b) => {
-      let weightA = (a.dept === '採購部' || a.dept === '品檢部') ? 0 : 1;
-      let weightB = (b.dept === '採購部' || b.dept === '品檢部') ? 0 : 1;
-      return weightA - weightB;
+  let purchasingUsers = allUsersList.filter(u => u.dept === '採購部');
+  purchasingUsers.forEach(u => {
+      assigneeOptions += `<option value="${u.uid}">${u.name} (採購部)</option>`;
   });
   sortedUsers.forEach(u => {
       assigneeOptions += `<option value="${u.uid}">${u.name} (${u.dept || '未設定'})</option>`;
