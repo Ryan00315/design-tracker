@@ -3072,8 +3072,15 @@ window.openGeneralEdit = (type, id, extra) => {
     const task = proj.tasks[extra];
     const taskDays = getWorkingDays(task.start, task.end);
     document.getElementById("general-edit-title").innerText = "編輯專案細項";
+
+    // 🌟 自動過濾掉名稱中的 [子專案名稱] 前綴，讓編輯時只顯示純細項名稱
+    let cleanTaskName = task.name || '';
+    if (task.isSubProjectTask && task.parentSubProject) {
+        cleanTaskName = cleanTaskName.replace(`[${task.parentSubProject}] `, '');
+    }
+
     form.innerHTML = `
-      <div class="form-group"><label class="form-label">細項名稱</label><input type="text" id="edit-val-name" class="input-control" value="${task.name}"></div>
+      <div class="form-group"><label class="form-label">細項名稱</label><input type="text" id="edit-val-name" class="input-control" value="${cleanTaskName}"></div>
       <div class="form-row">
         <div class="form-group" style="flex:1.5;"><label class="form-label">開始日期</label><input type="date" id="edit-val-start" class="input-control" value="${task.start}" onchange="onTaskStartChange(this, 'edit-val-end')"></div>
         <div class="form-group" style="width:65px; flex-shrink:0;"><label class="form-label">天數</label><input type="number" min="1" id="edit-val-days" class="input-control task-days" value="${taskDays}" oninput="onTaskDaysChange(this, 'edit-val-start', 'edit-val-end')"></div>
@@ -4312,9 +4319,6 @@ window.syncSubTasksDate = (startInput) => {
 // ==========================================
 // 🌟 專案指派通知系統 (UI生成與邏輯)
 // ==========================================
-// ==========================================
-// 🌟 專案指派通知系統 (UI生成與邏輯)
-// ==========================================
 window.initNotificationsUI = () => {
     const navUl = document.querySelector(".sidebar-menu") || document.querySelector("ul");
     if (navUl && !document.getElementById("nav-notifications")) {
@@ -4324,26 +4328,26 @@ window.initNotificationsUI = () => {
         li.innerHTML = `<span style="margin-right:6px;">🔔</span> 系統通知 <span class="badge" id="notif-badge" style="display:none; background:var(--danger); color:white; border-radius:10px; padding:2px 6px; font-size:10px; margin-left:auto;">0</span>`;
         li.onclick = () => window.switchNav('tab-notifications', '系統通知', li);
         
-        // 放在週報填寫下方
+        // 🌟 嚴格對齊順序：強制插在「週報填寫」下方
         const weeklyNav = document.querySelector('li[onclick*="tab-weekly"]');
-        if (weeklyNav && weeklyNav.nextSibling) {
+        if (weeklyNav && weeklyNav.parentNode) {
             weeklyNav.parentNode.insertBefore(li, weeklyNav.nextSibling);
         } else {
             navUl.appendChild(li);
         }
     }
 
-    // 🌟 修正點：精準抓取「專案進度」分頁所在的父容器，確保排版與其他頁面完全一致
-    const existingTab = document.getElementById("tab-projects");
-    const mainContent = existingTab ? existingTab.parentElement : (document.querySelector(".main-content") || document.getElementById("app-section"));
+    // 🌟 修正排版：精準對齊中央主畫面容器，不再擠在右側
+    const mainContent = document.querySelector(".main-content") || document.querySelector(".content-body") || document.getElementById("app-section");
     
     if (mainContent && !document.getElementById("tab-notifications")) {
         const tab = document.createElement("div");
         tab.className = "tab-pane";
         tab.id = "tab-notifications";
         tab.style.display = "none";
+        tab.style.width = "100%";
         tab.innerHTML = `
-            <div class="panel" style="border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); overflow: hidden;">
+            <div class="panel" style="border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); overflow: hidden; background: #fff;">
                 <div class="panel-head" style="background: #f8fafc; padding: 15px 20px; border-bottom: 1px solid #e2e8f0; display:flex; align-items:center;">
                     <span style="font-size: 16px; font-weight: bold; color: #0f172a;">🔔 待處理的專案 / 子專案指派</span>
                 </div>
