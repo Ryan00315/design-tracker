@@ -3781,3 +3781,78 @@ window.openEditRemarkModal = async (projId, taskIndex, targetTimestamp) => {
         alert("修改失敗：" + err.message);
     }
 };
+
+// 在 app.js 中新增這個函式
+window.addSubProjectRow = () => {
+  const container = document.getElementById("task-list-container"); 
+  const rows = container.querySelectorAll('.task-row, .subproject-row');
+  
+  // 抓取前一項的日期作為預設值
+  let defaultStart = "";
+  if (rows.length > 0) {
+     const lastRow = rows[rows.length - 1];
+     const lastEndInput = lastRow.querySelector('.task-end') || lastRow.querySelector('.sub-task-start');
+     if (lastEndInput && lastEndInput.value) {
+         defaultStart = getNextWorkingDayStr(lastEndInput.value);
+     }
+  }
+  if (!defaultStart) defaultStart = getTodayStr();
+
+  const div = document.createElement('div'); 
+  div.className = "form-row subproject-row"; 
+  // 用不同的背景色區隔子專案
+  div.style.cssText = "margin-bottom: 8px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px; flex-direction: column; gap: 8px;";
+  
+  div.innerHTML = `
+    <!-- 子專案主資訊 -->
+    <div style="display:flex; gap:8px; align-items:center;">
+      <span style="font-weight:bold; color:#d97706;">📦 子專案</span>
+      <div class="form-group" style="margin:0; flex:2;">
+        <input type="text" class="input-control task-name subproject-name" placeholder="子專案名稱 (例: 零件採購)">
+      </div>
+      <div class="form-group" style="margin:0; flex:1;">
+        <select class="input-control subproject-assignee">
+           <option value="">-- 指派給 (選填) --</option>
+           <!-- 這裡你可以稍後用動態載入人員名單 -->
+        </select>
+      </div>
+      <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
+        <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
+        <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
+        <button type="button" class="action-btn danger" onclick="this.closest('.subproject-row').remove()" style="padding:8px 10px;">X</button>
+      </div>
+    </div>
+
+    <!-- 子專案內部的細項清單 (預設鎖定第一筆為簽核流程) -->
+    <div class="sub-tasks-container" style="margin-left: 20px; border-left: 2px solid #fcd34d; padding-left: 10px; display:flex; flex-direction:column; gap:6px;">
+       <div style="display:flex; gap:6px; align-items:center;" class="sub-task-item">
+          <span style="font-size:12px; color:var(--danger); font-weight:bold; width:20px;">1.</span>
+          <input type="text" class="input-control sub-task-name" value="簽核流程" readonly style="flex:2; background:#f1f5f9;">
+          <input type="date" class="input-control sub-task-start" value="${defaultStart}" onchange="onTaskStartChange(this, null)" style="flex:1;">
+          <input type="number" class="input-control sub-task-days" value="1" placeholder="天數" style="width:60px;">
+          <input type="date" class="input-control sub-task-end" value="${defaultStart}" style="flex:1;">
+       </div>
+    </div>
+    <button type="button" class="action-btn" onclick="addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項 (保留空白天數)</button>
+  `;
+  container.appendChild(div);
+};
+
+// 新增子專案內部的細項 (允許保留天數與結束日為空)
+window.addInnerSubTask = (btn) => {
+   const container = btn.previousElementSibling;
+   const index = container.querySelectorAll('.sub-task-item').length + 1;
+   
+   const div = document.createElement('div');
+   div.className = "sub-task-item";
+   div.style.cssText = "display:flex; gap:6px; align-items:center;";
+   div.innerHTML = `
+      <span style="font-size:12px; color:var(--text-muted); font-weight:bold; width:20px;">${index}.</span>
+      <input type="text" class="input-control sub-task-name" placeholder="後續子細項" style="flex:2;">
+      <input type="date" class="input-control sub-task-start" placeholder="未定" style="flex:1;">
+      <input type="number" class="input-control sub-task-days" placeholder="天" style="width:60px;">
+      <input type="date" class="input-control sub-task-end" placeholder="未定" style="flex:1;">
+      <button type="button" class="btn-close" style="font-size:14px; color:var(--danger);" onclick="this.parentElement.remove()">×</button>
+   `;
+   container.appendChild(div);
+};
