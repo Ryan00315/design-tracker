@@ -3720,86 +3720,180 @@ window.submitPauseRequest = async () => {
 };
 
 window.approvePause = async (projId) => {
-  if (!confirm("確定要執行此同意審核嗎？")) return;
-  const proj = allProjectsData.find(p => p.id === projId);
-  const history = proj.pauseHistory || [];
-  const logs = proj.auditLogs || []; 
+    if (!confirm("確定要執行此同意審核嗎？")) return;
+    const proj = allProjectsData.find(p => p.id === projId);
+    if (!proj) return;
+    
+    const history = proj.pauseHistory || [];
+    const logs = proj.auditLogs || []; 
+    const tasks = [...proj.tasks];
+    const ts = getNowTimeStr();
+    const managerName = currentUserData.name || "主管";
 
-  if (proj.status === 'pause_requested') {
-      const startDateToUse = proj.pauseStartDate || getTodayStr();
-      const reqBy = proj.pauseRequestedBy || "未記錄";
-      const reqAt = proj.pauseRequestedAt || "未記錄";
-      const reason = proj.pauseReason || "未記錄";
+    if (proj.status === 'pause_requested') {
+        const startDateToUse = proj.pauseStartDate || getTodayStr();
+        const reqBy = proj.pauseRequestedBy || "未記錄";
+        const reqAt = proj.pauseRequestedAt || "未記錄";
+        const reason = proj.pauseReason || "未記錄";
 
-      history.push({ start: startDateToUse, end: null, reason: reason, requestedAt: reqAt });
-      
-      logs.push({ 
-          action: '✅ 同意暫停', 
-          manager: currentUserData.name, 
-          time: getNowTimeStr(),
-          reqBy: reqBy, reqAt: reqAt, reqStart: startDateToUse, reqReason: reason
-      });
-
-      await updateDoc(doc(db, "projects", projId), {
-        status: "paused",
-        pauseHistory: history,
-        auditLogs: logs,
-        pauseStartDate: "", pauseRequestedAt: "", pauseRequestedBy: "", pauseReason: ""
-      });
-  } 
-  else if (proj.status === 'resume_requested') {
-      const lastPause = history[history.length - 1];
-      const resumeDate = proj.resumeRequestedDate || getTodayStr();
-
-      if (lastPause && !lastPause.end) {
-        lastPause.end = resumeDate;
-        let shiftDays = getWorkingDays(lastPause.start, resumeDate);
-        let actualShift = Math.max(0, shiftDays - 1); 
-        lastPause.days = actualShift;
-
+        history.push({ start: startDateToUse, end: null, reason: reason, requestedAt: reqAt });
+        
         logs.push({ 
-            action: `▶️ 同意恢復執行 (遞延 ${actualShift} 天)`, 
-            manager: currentUserData.name, 
-            time: getNowTimeStr(),
-            reqBy: proj.resumeRequestedBy || '-', reqAt: proj.resumeRequestedAt || '-', reqStart: resumeDate, reqReason: '專案申請恢復執行'
+            action: '✅ 同意暫停', 
+            manager: managerName, 
+            time: ts,
+            reqBy: reqBy, reqAt: reqAt, reqStart: startDateToUse, reqReason: reason
         });
 
-        const updatedTasks = proj.tasks.map(t => {
-          if (t.isCompleted) return t;
-          if (t.start >= lastPause.start) return { ...t, start: calculateEndDateByDays(t.start, actualShift + 1), end: calculateEndDateByDays(t.end, actualShift + 1) };
-          if (t.end >= lastPause.start) return { ...t, end: calculateEndDateByDays(t.end, actualShift + 1) };
-          return t;
+        // 🌟 自動新增一筆系統通知任務給申請人 (暫停申請獲准)
+        tasks.push({
+            name: `[系統通知] 您的專案 [${proj.title}] 暫停申請已被【${managerName}】✅ 同意`,
+            start: getTodayStr(),
+            end: getTodayStr(),
+            progress: 100,
+            isCompleted: true,
+            isSubProjectTask: true,
+            parentSubProject: "專案審核通知",
+            assigneeId: proj.lastPauseRequestedUid || proj.ownerId, // 嘗試找尋申請人UID，若無則給擁有者
+            assigneeName: reqBy,
+            isPendingAcceptance: true, // 讓它跳出在系統通知中
+            assignedByUid: auth.currentUser.uid,
+            assignedByName: managerName,
+            assignedAt: ts,
+            history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: '主管已同意暫停' }]
         });
 
         await updateDoc(doc(db, "projects", projId), {
-          status: 'active',
-          pauseHistory: history,
-          auditLogs: logs,
-          tasks: updatedTasks,
-          resumeRequestedDate: "", resumeRequestedBy: "", resumeRequestedAt: ""
+            status: "paused",
+            pauseHistory: history,
+            auditLogs: logs,
+            tasks: tasks,
+            pauseStartDate: "", pauseRequestedAt: "", pauseRequestedBy: "", pauseReason: "", lastPauseRequestedUid: ""
         });
-      }
-  }
+        alert("已同意暫停申請，並已發送系統通知給申請人！");
+    } 
+    else if (proj.status === 'resume_requested') {
+        const lastPause = history[history.length - 1];
+        const resumeDate = proj.resumeRequestedDate || getTodayStr();
+        const reqBy = proj.resumeRequestedBy || "未記錄";
+
+        if (lastPause && !lastPause.end) {
+            lastPause.end = resumeDate;
+            let shiftDays = getWorkingDays(lastPause.start, resumeDate);
+            let actualShift = Math.max(0, shiftDays - 1); 
+            lastPause.days = actualShift;
+
+            logs.push({ 
+                action: `▶️ 同意恢復執行 (遞延 ${actualShift} 天)`, 
+                manager: managerName, 
+                time: ts,
+                reqBy: reqBy, reqAt: proj.resumeRequestedAt || '-', reqStart: resumeDate, reqReason: '專案申請恢復執行'
+            });
+
+            const updatedTasks = proj.tasks.map(t => {
+              if (t.isCompleted) return t;
+              if (t.start >= lastPause.start) return { ...t, start: calculateEndDateByDays(t.start, actualShift + 1), end: calculateEndDateByDays(t.end, actualShift + 1) };
+              if (t.end >= lastPause.start) return { ...t, end: calculateEndDateByDays(t.end, actualShift + 1) };
+              return t;
+            });
+
+            // 🌟 自動新增一筆系統通知任務給申請人 (恢復申請獲准)
+            updatedTasks.push({
+                name: `[系統通知] 您的專案 [${proj.title}] 恢復執行申請已被【${managerName}】✅ 同意`,
+                start: getTodayStr(),
+                end: getTodayStr(),
+                progress: 100,
+                isCompleted: true,
+                isSubProjectTask: true,
+                parentSubProject: "專案審核通知",
+                assigneeId: proj.lastResumeRequestedUid || proj.ownerId,
+                assigneeName: reqBy,
+                isPendingAcceptance: true,
+                assignedByUid: auth.currentUser.uid,
+                assignedByName: managerName,
+                assignedAt: ts,
+                history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: '主管已同意恢復' }]
+            });
+
+            await updateDoc(doc(db, "projects", projId), {
+                status: 'active',
+                pauseHistory: history,
+                auditLogs: logs,
+                tasks: updatedTasks,
+                resumeRequestedDate: "", resumeRequestedBy: "", resumeRequestedAt: "", lastResumeRequestedUid: ""
+            });
+            alert("已同意恢復執行，並已發送系統通知給申請人！");
+        }
+    }
 };
 
 window.rejectPause = async (projId) => {
-  if (!confirm("確定要退回此申請嗎？")) return;
-  const proj = allProjectsData.find(p => p.id === projId);
-  const logs = proj.auditLogs || [];
-  
-  if (proj.status === 'pause_requested') {
-      logs.push({ action: '❌ 退回暫停申請', manager: currentUserData.name, time: getNowTimeStr(), reqBy: proj.pauseRequestedBy, reqAt: proj.pauseRequestedAt, reqStart: proj.pauseStartDate, reqReason: proj.pauseReason });
-      await updateDoc(doc(db, "projects", projId), {
-        status: "active", pauseReason: "", pauseRequestedBy: "", pauseStartDate: "", pauseRequestedAt: "", auditLogs: logs
-      });
-  } else if (proj.status === 'resume_requested') {
-      logs.push({ action: '❌ 退回恢復申請', manager: currentUserData.name, time: getNowTimeStr(), reqBy: proj.resumeRequestedBy, reqAt: proj.resumeRequestedAt, reqStart: proj.resumeRequestedDate, reqReason: '恢復執行申請' });
-      await updateDoc(doc(db, "projects", projId), {
-        status: "paused", resumeRequestedDate: "", resumeRequestedBy: "", resumeRequestedAt: "", auditLogs: logs
-      });
-  }
-};
+    const reason = prompt("請輸入退回原因：", "");
+    if (reason === null) return; 
 
+    const proj = allProjectsData.find(p => p.id === projId);
+    if (!proj) return;
+    
+    const logs = proj.auditLogs || [];
+    const tasks = [...proj.tasks];
+    const ts = getNowTimeStr();
+    const managerName = currentUserData.name || "主管";
+  
+    if (proj.status === 'pause_requested') {
+        const reqBy = proj.pauseRequestedBy || "未記錄";
+        logs.push({ action: '❌ 退回暫停申請', manager: managerName, time: ts, reqBy: reqBy, reqAt: proj.pauseRequestedAt, reqStart: proj.pauseStartDate, reqReason: proj.pauseReason });
+
+        // 🌟 自動新增一筆系統通知任務給申請人 (暫停申請遭退回)
+        tasks.push({
+            name: `[系統通知] 您的專案 [${proj.title}] 暫停申請已被退回 (原因: ${reason || '無'})`,
+            start: getTodayStr(),
+            end: getTodayStr(),
+            progress: 100,
+            isCompleted: true,
+            isSubProjectTask: true,
+            parentSubProject: "專案審核通知",
+            assigneeId: proj.lastPauseRequestedUid || proj.ownerId,
+            assigneeName: reqBy,
+            isPendingAcceptance: true,
+            assignedByUid: auth.currentUser.uid,
+            assignedByName: managerName,
+            assignedAt: ts,
+            history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: `暫停申請被退回: ${reason}` }]
+        });
+
+        await updateDoc(doc(db, "projects", projId), {
+            status: "active", pauseReason: "", pauseRequestedBy: "", pauseStartDate: "", pauseRequestedAt: "", lastPauseRequestedUid: "", auditLogs: logs, tasks: tasks
+        });
+        alert("已退回暫停申請，並已發送系統通知給申請人！");
+        
+    } else if (proj.status === 'resume_requested') {
+        const reqBy = proj.resumeRequestedBy || "未記錄";
+        logs.push({ action: '❌ 退回恢復申請', manager: managerName, time: ts, reqBy: reqBy, reqAt: proj.resumeRequestedAt, reqStart: proj.resumeRequestedDate, reqReason: '恢復執行申請' });
+
+        // 🌟 自動新增一筆系統通知任務給申請人 (恢復申請遭退回)
+        tasks.push({
+            name: `[系統通知] 您的專案 [${proj.title}] 恢復執行申請已被退回 (原因: ${reason || '無'})`,
+            start: getTodayStr(),
+            end: getTodayStr(),
+            progress: 100,
+            isCompleted: true,
+            isSubProjectTask: true,
+            parentSubProject: "專案審核通知",
+            assigneeId: proj.lastResumeRequestedUid || proj.ownerId,
+            assigneeName: reqBy,
+            isPendingAcceptance: true,
+            assignedByUid: auth.currentUser.uid,
+            assignedByName: managerName,
+            assignedAt: ts,
+            history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: `恢復申請被退回: ${reason}` }]
+        });
+
+        await updateDoc(doc(db, "projects", projId), {
+            status: "paused", resumeRequestedDate: "", resumeRequestedBy: "", resumeRequestedAt: "", lastResumeRequestedUid: "", auditLogs: logs, tasks: tasks
+        });
+        alert("已退回恢復執行申請，並已發送系統通知給申請人！");
+    }
+};
 window.resumeProject = async (projId) => {
   if (!confirm("確定要恢復執行此專案嗎？\n系統將會自動結算暫停天數，並將尚未完成的任務時程往後遞延！")) return;
   const proj = allProjectsData.find(p => p.id === projId);
