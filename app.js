@@ -1790,7 +1790,7 @@ function renderProjects() {
                 displayName = displayName.replace(`[${task.parentSubProject}] `, '');
             }
             // 僅保留左側縮排，字體顏色與大小維持與一般任務相同
-            const nameIndent = item.isChild ? 'padding-left: 22px;' : '';
+            const nameIndent = item.isChild ? 'padding-left: 22px; color: var(--text-muted);' : '';
 
             const row = document.createElement("div"); 
             row.className = "gantt-row";
