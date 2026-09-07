@@ -3318,6 +3318,7 @@ window.saveGeneralEdit = async () => {
 
       if(title) await updateDoc(doc(db, "projects", id), { title, collaborators });
       else return alert("專案名稱不可為空！");
+      
     } else if (type === 'subproject_edit') {
       const newName = document.getElementById("edit-subproj-name").value.trim();
       const newAssigneeId = document.getElementById("edit-subproj-assignee").value;
@@ -3336,12 +3337,11 @@ window.saveGeneralEdit = async () => {
       tasks.forEach(t => {
           if (t.isSubProjectTask && t.parentSubProject === oldName) {
               t.parentSubProject = newName;
-              // 取代名稱中的 [舊子專案名] 為 [新子專案名]
               t.name = t.name.replace(`[${oldName}]`, `[${newName}]`);
               if (newAssigneeId) {
                   t.assigneeId = newAssigneeId;
                   t.assigneeName = newAssigneeName;
-                  t.isPendingAcceptance = isPending; // 若換人需重新審核
+                  t.isPendingAcceptance = isPending; 
               }
           }
       });
@@ -3351,7 +3351,7 @@ window.saveGeneralEdit = async () => {
       alert("✅ 子專案資訊修改成功！");
       renderProjects();
       return;
-    }
+      
     } else if (type === 'task') {
       const proj = allProjectsData.find(p => p.id === id); 
       const tasks = [...proj.tasks];
@@ -3365,12 +3365,14 @@ window.saveGeneralEdit = async () => {
       }
       
       await updateDoc(doc(db, "projects", id), { tasks });
+      
     } else if (type === 'adhoc') {
       await updateDoc(doc(db, "ad_hoc_events", id), {
         title: document.getElementById("edit-val-title").value.trim(),
         startDate: document.getElementById("edit-val-start").value,
         reason: document.getElementById("edit-val-reason").value.trim()
       });
+      
     } else if (type === 'weekly') {
       const weekly = allWeeklyData.find(w => w.id === id);
       const updateData = {};
@@ -3398,6 +3400,7 @@ window.saveGeneralEdit = async () => {
         updateData.items = newItems;
       }
       await updateDoc(doc(db, "weekly_reports", id), updateData);
+      
     } else if (type === 'template') {
       const newName = document.getElementById("edit-tpl-name").value.trim();
       const container = document.getElementById("edit-tpl-tasks-container");
@@ -3431,6 +3434,7 @@ window.saveGeneralEdit = async () => {
       projectTemplates[id].tasks = tasks;
       await setDoc(doc(db, "user_templates", auth.currentUser.uid), { templates: projectTemplates }, { merge: true });
     }
+    
     closeGeneralEditModal(); 
     alert("✅ 資料修改成功！");
   } catch (err) { 
