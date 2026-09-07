@@ -1559,6 +1559,10 @@ function renderProjects() {
   
   const btnProjectAddTask = document.getElementById("btn-project-add-task");
   const btnProjectAddSubProject = document.getElementById("btn-project-add-subproject");
+  
+  // 新增這兩行：定義 canAddTask 權限與取得刪除按鈕
+  let canAddTask = (hasGlobalEdit && isEditMode) || (isProjOwner && inGracePeriod);
+  const delProjBtn = document.getElementById("btn-project-del"); 
 
   if (btnProjectAddTask) {
     if (canAddTask) {
@@ -4111,7 +4115,7 @@ window.submitAddSubProject = async () => {
     const updatedTasks = [...proj.tasks, ...newTasks];
     
     // 將所有任務依照「起始日期」重新排序
-    updatedTasks.sort((a, b) => new Date(a.start) - new Date(b.start));
+  updatedTasks.sort((a, b) => (a.start || "").localeCompare(b.start || ""));
 
     await updateDoc(doc(db, "projects", proj.id), { tasks: updatedTasks });
     
