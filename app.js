@@ -1988,9 +1988,25 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
 
   let delayReason = targetTask.delayReason || ""; 
   let currentRemark = "";
-  if (targetTask.isSubProjectTask && targetTask.name.includes("簽核流程")) {
+  
+  // 🌟 修復處：補回遺失的 100% 判斷與結案彈窗邏輯
+  if (newProg === 100) {
+    if (todayStr > plannedEnd && !delayReason) {
+      delayReason = await window.openCustomPrompt("⚠️ 任務已 Delay", "此任務已超出預計完成日，請填寫 Delay 原因 (必填)：", true);
+      if (delayReason === null) { inputElem.value = oldProg; return; }
+    } else {
+      currentRemark = await window.openCustomPrompt("🎉 任務結案", "即將結案！可填寫結案備註 (選填)：", false);
+      if (currentRemark === null) { inputElem.value = oldProg; return; }
+    }
+    
+    targetTask.isCompleted = true; 
+    targetTask.completedAt = ts; 
+    targetTask.delayReason = delayReason;
+    
+    // 簽核流程連動展延
+    if (targetTask.isSubProjectTask && targetTask.name.includes("簽核流程")) {
         const parentSubName = targetTask.parentSubProject;
-        const nextWorkingDay = getNextWorkingDayStr(todayStr); // 完成的下一個工作日
+        const nextWorkingDay = getNextWorkingDayStr(todayStr); 
         let modifiedCount = 0;
         
         tasks.forEach(t => {
@@ -2010,12 +2026,14 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
     } else {
         alert("🎉 進度已達 100%！該任務已結案。");
     }
-  } else {
+
+  } else { 
     currentRemark = await window.openCustomPrompt("📝 進度更新", "請輸入此次進度更新的備註事項 (選填)：", false);
     if (currentRemark === null) { inputElem.value = oldProg; return; }
     targetTask.isCompleted = false; 
     targetTask.completedAt = null; 
   }
+  
   targetTask.progress = newProg; 
   targetTask.lastUpdatedAt = ts;
 
