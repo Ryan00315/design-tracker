@@ -3052,7 +3052,7 @@ window.openTemplateEditor = (index) => {
             <div id="edit-tpl-tasks-container"></div>
             <div style="display:flex; gap:10px; margin-top:8px;">
                 <button type="button" class="action-btn" onclick="addTemplateTaskRow()">➕ 新增模板細項</button>
-                <button type="button" class="action-btn" onclick="addTemplateSubProjectRow()" style="border-color: #d97706; color: #d97706;">➕ 新增子專案 (採購/品檢)</button>
+                <button type="button" class="action-btn" onclick="addTemplateSubProjectRow()" style="border-color: #d97706; color: #d97706;">➕ 新增子專案</button>
             </div>
         </div>
     `;
@@ -3785,27 +3785,19 @@ window.openEditRemarkModal = async (projId, taskIndex, targetTimestamp) => {
     }
 };
 
+// 1. 新增子專案 (建立專案用)
 window.addSubProjectRow = () => {
   const container = document.getElementById("task-list-container"); 
-  const rows = container.querySelectorAll('.task-row, .subproject-row');
   
-  // 抓取前一項的日期作為預設值
-  let defaultStart = "";
-  if (rows.length > 0) {
-     const lastRow = rows[rows.length - 1];
-     const lastEndInput = lastRow.querySelector('.task-end') || lastRow.querySelector('.sub-task-start');
-     if (lastEndInput && lastEndInput.value) {
-         defaultStart = getNextWorkingDayStr(lastEndInput.value);
-     }
-  }
-  if (!defaultStart) defaultStart = getTodayStr();
-
-  // ⭐ 動態生成指派人員選單 (嚴格限制只顯示「採購部」)
+  // 載入所有人，採購/品檢排前面
   let assigneeOptions = '<option value="">-- 指派給 (選填) --</option>';
-  
-  const purchasingUsers = allUsersList.filter(u => (u.dept || '') === '採購部');
-  purchasingUsers.forEach(u => {
-      assigneeOptions += `<option value="${u.uid}">${u.name} (採購部)</option>`;
+  let sortedUsers = [...allUsersList].sort((a, b) => {
+      let weightA = (a.dept === '採購部' || a.dept === '品檢部') ? 0 : 1;
+      let weightB = (b.dept === '採購部' || b.dept === '品檢部') ? 0 : 1;
+      return weightA - weightB;
+  });
+  sortedUsers.forEach(u => {
+      assigneeOptions += `<option value="${u.uid}">${u.name} (${u.dept || '未設定'})</option>`;
   });
 
   const div = document.createElement('div'); 
@@ -3813,15 +3805,14 @@ window.addSubProjectRow = () => {
   div.style.cssText = "margin-bottom: 8px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px; flex-direction: column; gap: 8px;";
   
   div.innerHTML = `
-    <!-- 子專案主資訊 -->
     <div style="display:flex; gap:8px; align-items:center;">
       <span style="font-weight:bold; color:#d97706;">📦 子專案</span>
       <div class="form-group" style="margin:0; flex:2;">
         <input type="text" class="input-control task-name subproject-name" placeholder="子專案名稱 (例: 零件採購)">
       </div>
       <div class="form-group" style="margin:0; flex:1;">
-        <!-- 這裡只會出現採購部人員 -->
-        <select class="input-control subproject-assignee">
+        <!-- 當選擇人員改變時，觸發動態判斷 -->
+        <select class="input-control subproject-assignee" onchange="onSubProjectAssigneeChange(this)">
            ${assigneeOptions}
         </select>
       </div>
@@ -3831,45 +3822,50 @@ window.addSubProjectRow = () => {
         <button type="button" class="action-btn danger" onclick="this.closest('.subproject-row').remove()" style="padding:8px 10px;">X</button>
       </div>
     </div>
-
-    <!-- 子專案內部的細項清單 (預設鎖定第一筆為簽核流程) -->
+    <!-- 預設內部為空 -->
     <div class="sub-tasks-container" style="margin-left: 20px; border-left: 2px solid #fcd34d; padding-left: 10px; display:flex; flex-direction:column; gap:6px;">
-       <div style="display:flex; gap:6px; align-items:center;" class="sub-task-item">
-          <span style="font-size:12px; color:var(--danger); font-weight:bold; width:20px;">1.</span>
-          <input type="text" class="input-control sub-task-name" value="簽核流程" readonly style="flex:2; background:#f1f5f9;">
-          <input type="date" class="input-control sub-task-start" value="${defaultStart}" onchange="onTaskStartChange(this, null)" style="flex:1;">
-          <input type="number" class="input-control sub-task-days" value="1" placeholder="天數" style="width:60px;" oninput="onTaskDaysChange(this, null, null)">
-          <input type="date" class="input-control sub-task-end" value="${defaultStart}" style="flex:1;" onchange="onTaskEndChange(this, null, null)">
-       </div>
     </div>
-    <button type="button" class="action-btn" onclick="addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項 (保留空白天數)</button>
+    <button type="button" class="action-btn" onclick="addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項</button>
   `;
   container.appendChild(div);
+  
+  // 建立時自動塞入一行普通的空白細項
+  addInnerSubTask(div.querySelector('button[onclick="addInnerSubTask(this)"]'));
 };
 
 // 新增子專案內部的細項 (允許保留天數與結束日為空)
 window.addInnerSubTask = (btn) => {
    const container = btn.previousElementSibling;
-   const index = container.querySelectorAll('.sub-task-item').length + 1;
-   
    const div = document.createElement('div');
-   div.className = "sub-task-item";
+   div.className = "sub-task-item normal-sub-task";
    div.style.cssText = "display:flex; gap:6px; align-items:center;";
    div.innerHTML = `
-      <span style="font-size:12px; color:var(--text-muted); font-weight:bold; width:20px;">${index}.</span>
-      <input type="text" class="input-control sub-task-name" placeholder="後續子細項" style="flex:2;">
-      <input type="date" class="input-control sub-task-start" placeholder="未定" style="flex:1;">
-      <input type="number" class="input-control sub-task-days" placeholder="天" style="width:60px;">
-      <input type="date" class="input-control sub-task-end" placeholder="未定" style="flex:1;">
-      <button type="button" class="btn-close" style="font-size:14px; color:var(--danger);" onclick="this.parentElement.remove()">×</button>
+      <span style="font-size:12px; font-weight:bold; width:20px;"></span>
+      <input type="text" class="input-control sub-task-name" placeholder="子細項名稱" style="flex:2;">
+      <input type="date" class="input-control sub-task-start" placeholder="未定" style="flex:1;" onchange="onTaskStartChange(this, null)">
+      <input type="number" class="input-control sub-task-days" placeholder="天" style="width:60px;" oninput="onTaskDaysChange(this, null, null)">
+      <input type="date" class="input-control sub-task-end" placeholder="未定" style="flex:1;" onchange="onTaskEndChange(this, null, null)">
+      <button type="button" class="btn-close" style="font-size:14px; color:var(--danger);" onclick="const c = this.closest('.sub-tasks-container'); this.parentElement.remove(); window.updateSubTaskNumbers(c);">×</button>
    `;
    container.appendChild(div);
+   window.updateSubTaskNumbers(container);
 };
 
+// 2. 新增子專案 (編輯模板用)
 window.addTemplateSubProjectRow = () => {
     const container = document.getElementById("edit-tpl-tasks-container");
+    
+    let assigneeOptions = '<option value="">-- 指派給 (選填) --</option>';
+    let sortedUsers = [...allUsersList].sort((a, b) => {
+        let weightA = (a.dept === '採購部' || a.dept === '品檢部') ? 0 : 1;
+        let weightB = (b.dept === '採購部' || b.dept === '品檢部') ? 0 : 1;
+        return weightA - weightB;
+    });
+    sortedUsers.forEach(u => {
+        assigneeOptions += `<option value="${u.uid}">${u.name} (${u.dept || '未設定'})</option>`;
+    });
+
     const div = document.createElement('div');
-    // 加上 tpl-subproject-row 方便後續儲存時辨識
     div.className = "form-row tpl-subproject-row"; 
     div.style.cssText = "margin-bottom: 8px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px; flex-direction: column; gap: 8px;";
     
@@ -3879,6 +3875,11 @@ window.addTemplateSubProjectRow = () => {
         <div class="form-group" style="margin:0; flex:2;">
           <input type="text" class="input-control task-name subproject-name" placeholder="子專案名稱 (例: 零件採購)">
         </div>
+        <div class="form-group" style="margin:0; flex:1;">
+            <select class="input-control subproject-assignee" onchange="onSubProjectAssigneeChange(this)">
+               ${assigneeOptions}
+            </select>
+        </div>
         <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
           <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
           <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
@@ -3886,15 +3887,63 @@ window.addTemplateSubProjectRow = () => {
         </div>
       </div>
       <div class="sub-tasks-container" style="margin-left: 20px; border-left: 2px solid #fcd34d; padding-left: 10px; display:flex; flex-direction:column; gap:6px;">
-         <div style="display:flex; gap:6px; align-items:center;" class="sub-task-item">
-            <span style="font-size:12px; color:var(--danger); font-weight:bold; width:20px;">1.</span>
-            <input type="text" class="input-control sub-task-name" value="簽核流程" readonly style="flex:2; background:#f1f5f9;">
-            <input type="date" class="input-control sub-task-start" onchange="onTaskStartChange(this, null)" style="flex:1;">
-            <input type="number" class="input-control sub-task-days" value="1" placeholder="天數" oninput="onTaskDaysChange(this, null, null)" style="width:60px;">
-            <input type="date" class="input-control sub-task-end" onchange="onTaskEndChange(this, null, null)" style="flex:1;">
-         </div>
       </div>
-      <button type="button" class="action-btn" onclick="addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加預設子細項</button>
+      <button type="button" class="action-btn" onclick="addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項</button>
     `;
     container.appendChild(div);
+    addInnerSubTask(div.querySelector('button[onclick="addInnerSubTask(this)"]'));
+};
+
+// 3. 當指派人員變動時，動態決定是否插入「簽核流程」
+window.onSubProjectAssigneeChange = (selectElem) => {
+    const uid = selectElem.value;
+    let isPurchasing = false;
+    if (uid) {
+        const user = allUsersList.find(u => u.uid === uid);
+        if (user && user.dept === '採購部') {
+            isPurchasing = true;
+        }
+    }
+
+    const row = selectElem.closest('.subproject-row') || selectElem.closest('.tpl-subproject-row');
+    const tasksContainer = row.querySelector('.sub-tasks-container');
+    const existingApproval = tasksContainer.querySelector('.is-approval-task');
+
+    if (isPurchasing) {
+        // 如果選了採購部且還沒有簽核流程，強制插在第一項
+        if (!existingApproval) {
+            let defaultStart = getTodayStr();
+            const div = document.createElement('div');
+            div.className = "sub-task-item is-approval-task";
+            div.style.cssText = "display:flex; gap:6px; align-items:center;";
+            div.innerHTML = `
+              <span style="font-size:12px; color:var(--danger); font-weight:bold; width:20px;"></span>
+              <input type="text" class="input-control sub-task-name" value="簽核流程" readonly style="flex:2; background:#fef2f2; color:var(--danger); font-weight:bold; border-color:#fca5a5;">
+              <input type="date" class="input-control sub-task-start" value="${defaultStart}" onchange="onTaskStartChange(this, null)" style="flex:1;">
+              <input type="number" class="input-control sub-task-days" value="1" placeholder="天數" oninput="onTaskDaysChange(this, null, null)" style="width:60px;">
+              <input type="date" class="input-control sub-task-end" value="${defaultStart}" onchange="onTaskEndChange(this, null, null)" style="flex:1;">
+            `;
+            tasksContainer.insertBefore(div, tasksContainer.firstChild);
+        }
+    } else {
+        // 如果取消選擇或改成非採購部，移除簽核流程
+        if (existingApproval) {
+            existingApproval.remove();
+        }
+    }
+    // 重新編號
+    window.updateSubTaskNumbers(tasksContainer);
+};
+
+// 5. 自動更新子細項的編號 (1., 2., 3. ...)
+window.updateSubTaskNumbers = (container) => {
+    if (!container) return;
+    const items = container.querySelectorAll('.sub-task-item');
+    items.forEach((item, idx) => {
+        const span = item.querySelector('span');
+        if (span) {
+            span.innerText = (idx + 1) + ".";
+            span.style.color = item.classList.contains('is-approval-task') ? "var(--danger)" : "var(--text-muted)";
+        }
+    });
 };
