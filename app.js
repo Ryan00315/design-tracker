@@ -1558,19 +1558,16 @@ function renderProjects() {
   if(currentTitleEl) currentTitleEl.innerHTML = `<span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} <span style="display:inline-flex; flex-wrap:wrap; align-items:center; gap:4px; margin-top:2px;">${collabBadge} ${statusBadge} ${graceBadge} ${pauseBtnHtml} ${editProjBtn}</span>`;
   
   const btnProjectAddTask = document.getElementById("btn-project-add-task");
-  const lockBtn = document.getElementById("btn-toggle-lock");
-  const delProjBtn = document.getElementById("btn-delete-project");
-
-  if(lockBtn) lockBtn.style.display = "none"; 
-
-  const canAddTask = hasGlobalEdit || isCollabMember || isProjOwner;
+  const btnProjectAddSubProject = document.getElementById("btn-project-add-subproject");
 
   if (btnProjectAddTask) {
     if (canAddTask) {
       btnProjectAddTask.style.display = "inline-block";
       btnProjectAddTask.innerText = hasCollab ? "➕ 協作細項" : "➕ 新增細項";
+      if (btnProjectAddSubProject) btnProjectAddSubProject.style.display = "inline-block";
     } else {
       btnProjectAddTask.style.display = "none";
+      if (btnProjectAddSubProject) btnProjectAddSubProject.style.display = "none";
     }
   }
 
@@ -3946,4 +3943,76 @@ window.updateSubTaskNumbers = (container) => {
             span.style.color = item.classList.contains('is-approval-task') ? "var(--danger)" : "var(--text-muted)";
         }
     });
+};
+
+// 開啟已建立專案的「新增子專案」彈窗
+window.openAddSubProjectModal = () => {
+    const proj = allProjectsData.find(p => p.id === selectedProjectId);
+    if (!proj) return;
+    
+    const container = document.getElementById("add-subproject-container");
+    container.innerHTML = ""; // 清空舊內容
+    
+    // 生成人員選單 (採購/品檢優先)
+    let assigneeOptions = '<option value="">-- 指派給 (選填) --</option>';
+    let sortedUsers = [...allUsersList].sort((a, b) => {
+        let weightA = (a.dept === '採購部' || a.dept === '品檢部') ? 0 : 1;
+        let weightB = (b.dept === '採購部' || b.dept === '品檢部') ? 0 : 1;
+        return weightA - weightB;
+    });
+    sortedUsers.forEach(u => {
+        assigneeOptions += `<option value="${u.uid}">${u.name} (${u.dept || '未設定'})</option>`;
+    });
+
+    const div = document.createElement('div'); 
+    div.className = "form-row subproject-row"; 
+    div.style.cssText = "background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px; flex-direction: column; gap: 8px;";
+    
+    div.innerHTML = `
+      <div style="display:flex; gap:8px; align-items:center;">
+        <span style="font-weight:bold; color:#d97706;">📦 子專案</span>
+        <div class="form-group" style="margin:0; flex:2;">
+          <input type="text" class="input-control task-name subproject-name" placeholder="子專案名稱 (例: 零件採購)">
+        </div>
+        <div class="form-group" style="margin:0; flex:1;">
+          <select class="input-control subproject-assignee" onchange="onSubProjectAssigneeChange(this)">
+             ${assigneeOptions}
+          </select>
+        </div>
+      </div>
+      <div class="sub-tasks-container" style="margin-top: 10px; margin-left: 20px; border-left: 2px solid #fcd34d; padding-left: 10px; display:flex; flex-direction:column; gap:6px;">
+      </div>
+      <button type="button" class="action-btn" onclick="addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項</button>
+    `;
+    
+    container.appendChild(div);
+    
+    // 初始化自帶一筆預設細項
+    addInnerSubTask(div.querySelector('button[onclick="addInnerSubTask(this)"]'));
+    
+    document.getElementById("project-subproject-modal").classList.add("active");
+};
+
+window.closeAddSubProjectModal = () => {
+    document.getElementById("project-subproject-modal").classList.remove("active");
+};
+
+// 送出暫時綁定 Alert 測試，確保介面無誤
+window.submitAddSubProject = async () => {
+    const container = document.getElementById("add-subproject-container");
+    const name = container.querySelector('.subproject-name').value.trim();
+    if (!name) return alert("請填寫子專案名稱！");
+    
+    // 檢查底下子任務是否為空
+    const taskItems = container.querySelectorAll('.sub-task-item');
+    if (taskItems.length === 0) return alert("請至少保留一項子細項！");
+    
+    let hasError = false;
+    taskItems.forEach(item => {
+        if (!item.querySelector('.sub-task-name').value.trim()) hasError = true;
+    });
+    if (hasError) return alert("子細項名稱不可為空！");
+
+    alert("✅ UI 介面與資料驗證完成！\n下一個階段我們將實作【儲存至資料庫與接收指派】的複雜功能！");
+    closeAddSubProjectModal();
 };
