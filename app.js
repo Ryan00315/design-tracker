@@ -1461,7 +1461,17 @@ function renderProjects() {
   if(listBody) listBody.innerHTML = "";
 
   // 🌟 1. 註冊全域的子專案展開/收合切換函式與狀態記憶
+  // 🌟 預設讓所有子專案處於摺疊狀態 (true)
   if (!window.collapsedSubProjects) window.collapsedSubProjects = {};
+  
+  // 註冊一個輔助函式用來檢查狀態，若該子專案還沒有被手動點擊過，預設回傳 true (摺疊)
+  window.isSubProjCollapsed = (projId, subProjName) => {
+      const key = `${projId}_${subProjName}`;
+      if (window.collapsedSubProjects[key] === undefined) {
+          window.collapsedSubProjects[key] = true; // 預設摺疊
+      }
+      return window.collapsedSubProjects[key];
+  };
   window.toggleSubProject = (projId, subProjName) => {
       const key = `${projId}_${subProjName}`;
       window.collapsedSubProjects[key] = !window.collapsedSubProjects[key]; 
@@ -1513,7 +1523,7 @@ function renderProjects() {
 
               renderList.push(group); 
               
-              const isCollapsed = window.collapsedSubProjects[`${activeProj.id}_${task.parentSubProject}`];
+              const isCollapsed = window.isSubProjCollapsed(activeProj.id, task.parentSubProject);
               if (!isCollapsed) {
                   group.tasks.forEach((t, i) => {
                       renderList.push({ ...t, originalIndex: group.originalIndexes[i], isChild: true });
@@ -1529,7 +1539,7 @@ function renderProjects() {
   const ganttTasks = [];
   renderList.forEach((item, displayIndex) => {
       if (item.isGroupHeader) {
-          const isCollapsed = window.collapsedSubProjects[`${activeProj.id}_${item.parentSubProject}`];
+          const isCollapsed = window.isSubProjCollapsed(activeProj.id, item.parentSubProject);
           const chevron = isCollapsed ? '▶' : '▼';
           const workDays = getWorkingDays(item.start, item.end);
           
