@@ -149,6 +149,7 @@
                 <span id="current-gantt-title">專案時程檢視</span>
                 <div style="display:flex; align-items:center; gap:8px;">
                   <button id="btn-project-add-task" class="action-btn" style="display:none; color:var(--primary); border-color:var(--primary); font-weight:600;" onclick="openAddProjectTaskModal()">➕ 細項</button>
+                  <button id="btn-project-add-subproject" class="action-btn" style="display:none; color:#d97706; border-color:#d97706; font-weight:600;" onclick="openAddSubProjectModal()">➕ 子專案</button>
                   <button id="btn-toggle-lock" class="action-btn danger" style="display:none;" onclick="toggleCurrentProjectLock()"></button>
                   <button id="btn-delete-project" class="action-btn danger" style="display:none;" onclick="deleteCurrentProject()">刪除專案</button>
                 </div>
@@ -491,6 +492,17 @@
   </div>
 
   <!-- 單一專案追加任務細項專用視窗 -->
+  <!-- 單一專案追加子專案專用視窗 -->
+  <div id="project-subproject-modal" class="modal-overlay">
+    <div class="modal-box" style="max-width: 600px;">
+      <div class="modal-header"><span>➕ 新增子專案 (採購/品檢)</span><button class="btn-close" onclick="closeAddSubProjectModal()">×</button></div>
+      <div id="add-subproject-container"></div>
+      <div class="modal-actions" style="margin-top:16px;">
+        <button class="action-btn" onclick="closeAddSubProjectModal()">取消</button>
+        <button class="btn-primary" onclick="submitAddSubProject()">送出子專案</button>
+      </div>
+    </div>
+  </div>
   <div id="project-task-modal" class="modal-overlay">
     <div class="modal-box" style="max-width: 500px;">
       <div class="modal-header"><span id="project-task-modal-title">➕ 細項</span><button class="btn-close" onclick="closeAddProjectTaskModal()">×</button></div>
