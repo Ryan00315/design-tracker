@@ -3756,7 +3756,7 @@ window.approvePause = async (projId) => {
             parentSubProject: "專案審核通知",
             assigneeId: proj.lastPauseRequestedUid || proj.ownerId, // 嘗試找尋申請人UID，若無則給擁有者
             assigneeName: reqBy,
-            isPendingAcceptance: true, // 讓它跳出在系統通知中
+            isPendingAcceptance: false, // 🌟 設為 false，直接生效不用再按同意
             assignedByUid: auth.currentUser.uid,
             assignedByName: managerName,
             assignedAt: ts,
@@ -4435,10 +4435,6 @@ window.syncSubTasksDate = (startInput) => {
         }
     });
 };
-
-// ==========================================
-// 🌟 專案指派通知系統 (UI生成與邏輯)
-// ==========================================
 // ==========================================
 // 🌟 專案指派通知系統 (UI生成與邏輯)
 // ==========================================
@@ -4451,7 +4447,6 @@ window.initNotificationsUI = () => {
         li.innerHTML = `<span style="margin-right:6px;">🔔</span> 系統通知 <span class="badge" id="notif-badge" style="display:none; background:var(--danger); color:white; border-radius:10px; padding:2px 6px; font-size:10px; margin-left:auto;">0</span>`;
         li.onclick = () => window.switchNav('tab-notifications', '系統通知', li);
         
-        // 嚴格對齊順序：強制插在「週報填寫」下方
         const weeklyNav = document.querySelector('li[onclick*="tab-weekly"]');
         if (weeklyNav && weeklyNav.parentNode) {
             weeklyNav.parentNode.insertBefore(li, weeklyNav.nextSibling);
@@ -4460,7 +4455,6 @@ window.initNotificationsUI = () => {
         }
     }
 
-    // 修正點：尋找其他分頁的家（例如 tab-projects 的父層），確保它位在中央內容區而非右側
     const samplePane = document.getElementById("tab-projects") || document.querySelector(".tab-pane");
     const mainContent = samplePane ? samplePane.parentNode : (document.querySelector(".main-content") || document.getElementById("app-section"));
     
@@ -4470,7 +4464,7 @@ window.initNotificationsUI = () => {
         tab.id = "tab-notifications";
         tab.style.display = "none";
         tab.innerHTML = `
-            <div class="panel">
+            <div class="panel" style="margin-bottom: 20px;">
                 <div class="panel-head"><span>🔔 待處理的專案 / 子專案指派</span></div>
                 <div class="table-responsive">
                     <table style="width:100%;">
@@ -4487,6 +4481,25 @@ window.initNotificationsUI = () => {
                     </table>
                 </div>
             </div>
+
+            <!-- 🌟 新增：歷史紀錄區塊 -->
+            <div class="panel">
+                <div class="panel-head"><span>📜 指派與通知歷史紀錄</span></div>
+                <div class="table-responsive">
+                    <table style="width:100%;">
+                        <thead>
+                            <tr>
+                                <th style="width:25%">專案名稱</th>
+                                <th style="width:30%">任務/子專案名稱</th>
+                                <th style="width:15%">指派/發布人</th>
+                                <th style="width:15%">處理時間 / 狀態</th>
+                                <th style="width:15%; text-align:center;">備註 / 結果</th>
+                            </tr>
+                        </thead>
+                        <tbody id="notif-history-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
         `;
         mainContent.appendChild(tab);
     }
@@ -4494,17 +4507,21 @@ window.initNotificationsUI = () => {
 
 window.renderNotifications = () => {
     const tbody = document.getElementById("notif-list-tbody");
+    const historyTbody = document.getElementById("notif-history-tbody");
     const badge = document.getElementById("notif-badge");
     if (!tbody || !auth.currentUser) return;
+    
     tbody.innerHTML = "";
+    if (historyTbody) historyTbody.innerHTML = "";
+
     let pendingCount = 0;
     const myUid = auth.currentUser.uid;
-    
-    // 🌟 透過 Map 將同專案、同子專案的待同意細項歸納在一起
     const groupMap = new Map();
+    const historyList = [];
 
     allProjectsData.forEach(p => {
         (p.tasks || []).forEach(t => {
+            // 1. 收集待處理 (指派或系統通知且未同意)
             if (t.assigneeId === myUid && t.isPendingAcceptance === true && t.isSubProjectTask) {
                 const key = `${p.id}_${t.parentSubProject}`;
                 if (!groupMap.has(key)) {
@@ -4517,9 +4534,25 @@ window.renderNotifications = () => {
                     });
                 }
             }
+            
+            // 2. 收集與我相關的歷史紀錄 (過去曾被指派或系統通知，且已處理完畢的)
+            if (t.assigneeId === myUid && t.isPendingAcceptance === false && t.isSubProjectTask) {
+                // 檢查最後一筆歷史紀錄
+                const lastHist = (t.history && t.history.length > 0) ? t.history[t.history.length - 1] : null;
+                if (lastHist && (lastHist.remark.includes('同意') || lastHist.remark.includes('退回') || lastHist.remark.includes('拒絕'))) {
+                    historyList.push({
+                        projTitle: p.title,
+                        name: t.name,
+                        assignedByName: t.assignedByName || '系統',
+                        timestamp: lastHist.timestamp || '-',
+                        remark: lastHist.remark
+                    });
+                }
+            }
         });
     });
     
+    // 渲染待處理清單
     groupMap.forEach(group => {
         pendingCount++;
         const tr = document.createElement("tr");
@@ -4540,6 +4573,26 @@ window.renderNotifications = () => {
     if (pendingCount === 0) {
         tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:30px;">目前沒有待處理的指派通知。</td></tr>`;
     }
+
+    // 渲染歷史紀錄清單
+    if (historyTbody) {
+        if (historyList.length === 0) {
+            historyTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:20px;">尚無歷史紀錄。</td></tr>`;
+        } else {
+            historyList.forEach(h => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td style="font-weight:bold; color:#475569;">${h.projTitle}</td>
+                    <td>${h.name}</td>
+                    <td><span class="pill" style="background:#f1f5f9; color:#334155;">${h.assignedByName}</span></td>
+                    <td><span style="font-size:12px; color:var(--text-muted);">${h.timestamp}</span></td>
+                    <td style="text-align:center; font-weight:bold;">${h.remark}</td>
+                `;
+                historyTbody.appendChild(tr);
+            });
+        }
+    }
+
     if (badge) {
         badge.innerText = pendingCount;
         badge.style.display = pendingCount > 0 ? "inline-block" : "none";
