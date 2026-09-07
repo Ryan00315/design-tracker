@@ -1980,29 +1980,70 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   const collabCheckboxes = document.querySelectorAll('input[name="collab_dept"]:checked');
   const collaborators = Array.from(collabCheckboxes).map(cb => cb.value);
 
-  const taskRows = document.querySelectorAll('.task-row'); 
   const tasks = [];
   const todayStr = getTodayStr(); 
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
 
-  for (let row of taskRows) {
-    const name = row.querySelector('.task-name').value.trim(); 
-    const start = row.querySelector('.task-start').value; 
-    const end = row.querySelector('.task-end').value;
-    if (!name || !start || !end) return alert("任務細項不可有空白欄位！");
-    if (start > end) return alert(`任務 [${name}] 的起始日不可大於完成日！`);
-    let passedDays = 0; 
-    if (todayStr >= start) passedDays = getWorkingDays(start, todayStr);
-    tasks.push({ 
-      name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
-      assigneeId: auth.currentUser.uid,
-      assigneeName: myName,
-      createdAt: Date.now(), 
-      history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '專案建立' }] 
-    });
+  // ⭐ 改為同時抓取「一般任務」與「子專案」的區塊
+  const allRows = document.querySelectorAll('#task-list-container > .form-row');
+
+  for (let row of allRows) {
+    if (row.classList.contains('task-row')) {
+        // 處理一般任務
+        const name = row.querySelector('.task-name').value.trim(); 
+        const start = row.querySelector('.task-start').value; 
+        const end = row.querySelector('.task-end').value;
+        if (!name || !start || !end) return alert("一般任務細項不可有空白欄位！");
+        if (start > end) return alert(`任務 [${name}] 的起始日不可大於完成日！`);
+        let passedDays = 0; 
+        if (todayStr >= start) passedDays = getWorkingDays(start, todayStr);
+        
+        tasks.push({ 
+          name, start, end, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
+          assigneeId: auth.currentUser.uid,
+          assigneeName: myName,
+          createdAt: Date.now(), 
+          history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '專案建立' }] 
+        });
+
+    } else if (row.classList.contains('subproject-row')) {
+        // ⭐ 處理子專案與它內部的細項
+        const subProjName = row.querySelector('.subproject-name').value.trim() || "未命名子專案";
+        const assigneeSelect = row.querySelector('.subproject-assignee');
+        const assigneeId = assigneeSelect.value;
+        const assigneeName = assigneeId ? assigneeSelect.options[assigneeSelect.selectedIndex].text.split(' ')[0] : myName;
+        const uidToAssign = assigneeId || auth.currentUser.uid;
+
+        const subTasks = row.querySelectorAll('.sub-task-item');
+        for (let subRow of subTasks) {
+            const sName = subRow.querySelector('.sub-task-name').value.trim();
+            const sStart = subRow.querySelector('.sub-task-start').value;
+            const sEnd = subRow.querySelector('.sub-task-end').value;
+            
+            if (!sName || !sStart || !sEnd) return alert(`子專案 [${subProjName}] 內的細項不可有空白日期！(請確認是否已填妥天數)`);
+            if (sStart > sEnd) return alert(`子專案任務 [${sName}] 的起始日不可大於完成日！`);
+            
+            let passedDays = 0; 
+            if (todayStr >= sStart) passedDays = getWorkingDays(sStart, todayStr);
+
+            // 存入陣列，並加上 [子專案名稱] 前綴以便在甘特圖中辨識
+            tasks.push({ 
+              name: `[${subProjName}] ${sName}`, 
+              start: sStart, end: sEnd, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
+              assigneeId: uidToAssign,
+              assigneeName: assigneeName,
+              isSubProjectTask: true,       // 標記為子專案任務
+              parentSubProject: subProjName, 
+              createdAt: Date.now(), 
+              history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '子專案指派建立' }] 
+            });
+        }
+    }
   }
   
+  if (tasks.length === 0) return alert("請至少新增一項任務或子專案！");
+
   const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, uid: auth.currentUser.uid };
   const ownerNameToSave = targetUser.name || currentUserData.name;
 
@@ -2011,7 +2052,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     tasks: tasks, createdAt: serverTimestamp() 
   });
 
-  alert("🎉 新專案已成功建立！開放 7 日自由編輯期。");
+  alert("🎉 新專案與子專案已成功建立並發送指派！開放 7 日自由編輯期。");
 
   document.getElementById("proj-name").value = ""; 
   document.getElementById("task-list-container").innerHTML = ""; 
@@ -2026,7 +2067,6 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   selectedProjectId = docRef.id;
   renderProjects(); 
 });
-
 window.deleteCurrentProject = async () => { 
   const p = allProjectsData.find(x => x.id === selectedProjectId);
   const inGrace = p && (auth.currentUser.uid === p.ownerId) && isWithin7DaysGracePeriod(p);
