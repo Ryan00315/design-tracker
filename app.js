@@ -89,82 +89,39 @@ function initDynamicUI() {
   
   const style = document.createElement('style');
   style.innerHTML = `
-    :root {
-      --font-scale: 1;
-    }
-    
+    :root { --font-scale: 1; }
     .tab-pane { zoom: var(--font-scale, 1); }
-
     body.font-md { --font-scale: 1.2; }
     body.font-lg { --font-scale: 1.5; }
-    
     .kpi-card { padding: 8px 12px !important; min-height: unset !important; }
     .kpi-title { font-size: 11.5px !important; margin-bottom: 2px !important; }
     .kpi-number { font-size: 18px !important; }
     .col-sum-name.clickable { cursor: pointer; text-decoration: none; transition: 0.2s; }
     .col-sum-name.clickable:hover { opacity: 0.7; }
-    
     .gantt-left-panel, .gantt-left-panel-summary { flex: 0 0 40% !important; max-width: 40% !important; }
     .gantt-right-panel, .gantt-right-panel-summary { flex: 0 0 60% !important; max-width: 60% !important; }
-    
     .col-sum-name { flex: 5.8 !important; } 
     .col-sum-date { flex: 1.4 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; } 
     .col-sum-prog { flex: 1.6 !important; text-align: center; display: flex; justify-content: center; align-items: center; } 
     .col-sum-owner { flex: 1.6 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
     .col-name { flex: 1.8 !important; } 
     .col-expected-date { flex: 0.5 !important; min-width: 55px !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; }
     .col-date { flex: 0.4 !important; min-width: 40px !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; } 
     .col-prog { flex: 0.4 !important; min-width: 55px !important; text-align: center; display: flex; justify-content: center; align-items: center; }
     .col-act { flex: 0.4 !important; min-width: 45px !important; text-align: center; display: flex; justify-content: center; align-items: center; }
     .col-owner { flex: 0.5 !important; min-width: 50px !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    
-    .mobile-fixed-dropdown {
-        position: fixed !important;
-        top: 60px !important;
-        left: 0 !important;
-        width: 100vw !important;
-        height: calc(100vh - 60px) !important;
-        background: #f1f5f9 !important;
-        z-index: 999999 !important;
-        display: flex !important;
-        flex-direction: column;
-        overflow-y: auto !important;
-        padding: 20px !important;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-    }
-    
+    .mobile-fixed-dropdown { position: fixed !important; top: 60px !important; left: 0 !important; width: 100vw !important; height: calc(100vh - 60px) !important; background: #f1f5f9 !important; z-index: 999999 !important; display: flex !important; flex-direction: column; overflow-y: auto !important; padding: 20px !important; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
     .hide-on-mobile { display: flex !important; }
     .font-btn { transition: 0.2s; }
     .font-btn.active { background: #4f46e5 !important; color: #fff !important; border-color: #4f46e5 !important; }
-    
     @media (max-width: 768px) {
       :root { --font-scale: 1 !important; }
       .kpi-row { grid-template-columns: repeat(5, 1fr) !important; gap: 4px !important; }
       .kpi-title { font-size: 10px !important; }
       .kpi-card { padding: 6px 4px !important; }
-      
-      /* 將原本左右並排的佈局，改為上下堆疊 */
-      .gantt-master-layout { 
-          display: flex !important; 
-          flex-direction: column !important; 
-      }
-      
-      /* 左側列表改為 100% 寬度，放在上方，字就不會擠在一起 */
-      .gantt-left-panel, .gantt-left-panel-summary { 
-          flex: 0 0 100% !important; 
-          max-width: 100% !important; 
-          margin-bottom: 16px !important; 
-          overflow-x: auto !important; 
-      }
-      
-      /* 右側甘特圖也展開為 100% 寬度，接在列表的下方，並允許左右滑動 */
-      .gantt-right-panel, .gantt-right-panel-summary { 
-          display: block !important; 
-          flex: 0 0 100% !important; 
-          max-width: 100% !important; 
-      }
-      
+      .gantt-master-layout { display: flex !important; flex-direction: column !important; }
+      .gantt-left-panel, .gantt-left-panel-summary { flex: 0 0 100% !important; max-width: 100% !important; margin-bottom: 16px !important; overflow-x: auto !important; }
+      .gantt-right-panel, .gantt-right-panel-summary { display: block !important; flex: 0 0 100% !important; max-width: 100% !important; }
       .hide-on-mobile { display: none !important; }
     }
   `;
@@ -226,7 +183,6 @@ function fixHeaders() {
 
 window.injectFontSizeUI = () => {
   if (document.getElementById('font-size-control-container')) return;
-  
   const userNameEl = document.getElementById('user-display-name');
   const avatarEl = document.getElementById('user-avatar');
   if (!userNameEl) return;
@@ -251,7 +207,6 @@ window.injectFontSizeUI = () => {
      userNameEl.parentNode.style.alignItems = 'center';
      userNameEl.parentNode.insertBefore(div, userNameEl);
   }
-
   const savedSize = localStorage.getItem('desktop-font-size') || 'sm';
   window.setGlobalFontSize(savedSize);
 };
@@ -283,7 +238,6 @@ function initTemplateUI() {
     container.style.cssText = "margin: 15px 0; padding: 15px; background: #eef2ff; border: 2px dashed #818cf8; border-radius: 8px;";
     taskContainer.parentNode.insertBefore(container, taskContainer);
   }
-
   if (container) {
     renderTemplateUI();
     if (!window.hasInitTemplateSnapshot && auth.currentUser) {
@@ -294,8 +248,6 @@ function initTemplateUI() {
             projectTemplates = docSnap.data().templates || projectTemplates;
           }
           renderTemplateUI(); 
-        }, (err) => {
-          console.warn("尚未建立模板資料庫或權限不足，將使用本地預設值:", err);
         });
       } catch (e) {
         console.warn("模板讀取錯誤:", e);
@@ -413,16 +365,12 @@ document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => 
 function checkEditModeVisibility() {
   const btn = document.getElementById("btn-toggle-edit-mode");
   if (!btn) return;
-
-  // ⭐ 只有「系統管理員」或被勾選「開放」編輯權限的帳號，才會出現這個按鈕
   let shouldShow = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
-
   if (!shouldShow && isEditMode) {
     isEditMode = false;
     btn.innerHTML = "✏️ 開啟編輯模式";
     btn.style.background = "transparent";
   }
-
   btn.style.display = shouldShow ? "inline-block" : "none";
 }
 
@@ -490,9 +438,7 @@ function calculateEndDateByDays(startDateStr, days) {
   let added = 1;
   while (added < days) {
     curDate.setDate(curDate.getDate() + 1);
-    if (curDate.getDay() !== 0 && curDate.getDay() !== 6) {
-      added++;
-    }
+    if (curDate.getDay() !== 0 && curDate.getDay() !== 6) added++;
   }
   return formatDateSafe(curDate);
 }
@@ -507,13 +453,11 @@ function formatDateSafe(dateObj) {
 function scrollToTodayMinus2Days(ganttInst, containerSelector) {
   const wrapper = document.querySelector(containerSelector);
   if (!wrapper) return;
-
   [80, 200, 400].forEach(delay => {
     setTimeout(() => {
       const scrollElement = wrapper.querySelector('.gantt-container') || wrapper;
       const svg = wrapper.querySelector('.gantt');
       if (!scrollElement || !svg) return;
-
       let todayIndex = -1;
       const today = new Date();
       today.setHours(0,0,0,0);
@@ -522,9 +466,7 @@ function scrollToTodayMinus2Days(ganttInst, containerSelector) {
         ganttInst.dates.forEach((d, idx) => {
           const checkD = new Date(d);
           checkD.setHours(0,0,0,0);
-          if (checkD.getTime() === today.getTime() && todayIndex === -1) {
-            todayIndex = idx;
-          }
+          if (checkD.getTime() === today.getTime() && todayIndex === -1) todayIndex = idx;
         });
       }
 
@@ -542,12 +484,9 @@ function scrollToTodayMinus2Days(ganttInst, containerSelector) {
         const todayHighlight = svg.querySelector('.today-highlight') || svg.querySelector('.current-date-highlight');
         if (todayHighlight) {
           const x = parseFloat(todayHighlight.getAttribute('x'));
-          if (!isNaN(x)) {
-            targetScrollLeft = Math.max(0, x - (colWidth * 2));
-          }
+          if (!isNaN(x)) targetScrollLeft = Math.max(0, x - (colWidth * 2));
         }
       }
-
       scrollElement.scrollLeft = targetScrollLeft;
       if (scrollElement !== wrapper) wrapper.scrollLeft = targetScrollLeft;
     }, delay);
@@ -584,7 +523,6 @@ function patchGanttVisuals(ganttInst, containerSelector, currentProjData = null)
 
   if (currentProjData && currentProjData.pauseHistory) {
     const firstDateMs = ganttInst.dates[0].getTime();
-
     function getDateX(dateString, isEnd = false) {
         let d = new Date(dateString.replace(/-/g, '/'));
         if (isEnd) d.setHours(23, 59, 59, 999);
@@ -595,7 +533,6 @@ function patchGanttVisuals(ganttInst, containerSelector, currentProjData = null)
     currentProjData.pauseHistory.forEach(pause => {
       const pStart = pause.start; 
       const pEnd = pause.end || getTodayStr();
-
       let startX = getDateX(pStart, false);
       let endX = getDateX(pEnd, true);
       let lineWidth = endX - startX;
@@ -615,7 +552,6 @@ function patchGanttVisuals(ganttInst, containerSelector, currentProjData = null)
           if (barRect) {
             const barY = parseFloat(barRect.getAttribute('y') || 0);
             const barHeight = parseFloat(barRect.getAttribute('height') || 0);
-
             const redLine = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
             redLine.setAttribute('x', startX);
             redLine.setAttribute('y', barY + barHeight / 2 - 6); 
@@ -657,11 +593,8 @@ function patchGanttVisuals(ganttInst, containerSelector, currentProjData = null)
       } else {
         const origX = parseFloat(el.getAttribute('data-orig-x') || el.getAttribute('x'));
         if (!el.getAttribute('data-orig-x')) el.setAttribute('data-orig-x', origX);
-        if (origX < currentScrollLeft + 120) {
-          el.style.display = 'none';
-        } else {
-          el.style.display = 'block';
-        }
+        if (origX < currentScrollLeft + 120) el.style.display = 'none';
+        else el.style.display = 'block';
       }
     });
   };
@@ -669,7 +602,6 @@ function patchGanttVisuals(ganttInst, containerSelector, currentProjData = null)
   scrollElement.removeEventListener('scroll', scrollElement._ganttScrollHandler);
   scrollElement._ganttScrollHandler = updateStickyMonthHeader;
   scrollElement.addEventListener('scroll', updateStickyMonthHeader);
-
   updateStickyMonthHeader();
   scrollToTodayMinus2Days(ganttInst, containerSelector);
 }
@@ -709,7 +641,6 @@ onAuthStateChanged(auth, async (user) => {
       document.getElementById("nav-divider-org").style.display = "none";
     }
 
-    // ⭐ 只有最高級主管與系統管理員可以看到「待審核通知」，高級主管看不到
     const navApp = document.getElementById("nav-approvals");
     if (navApp) {
       if (currentUserData.role === "admin" || currentUserData.role === "top_manager") {
@@ -735,7 +666,6 @@ onAuthStateChanged(auth, async (user) => {
     loadWeeklyReports();
     loadMyCalendarTodos(user.uid);
     initTemplateUI();
-    
     window.injectFontSizeUI();
   } else {
     document.getElementById("auth-section").style.display = "flex"; 
@@ -745,22 +675,18 @@ onAuthStateChanged(auth, async (user) => {
 
 function loadSidebarSubordinates() {
   const rolePriority = { admin: 1, top_manager: 2, senior_manager: 3, manager: 4, assistant_manager: 5, staff: 6 };
-
   onSnapshot(collection(db, "users"), (snapshot) => {
     const list = document.getElementById("nav-sub-list");
     if (!list) return;
 
     list.innerHTML = `<li class="nav-sub-item active" id="sub-li-${auth.currentUser.uid}" onclick="switchViewingUser('${auth.currentUser.uid}', '自己 (個人專案)')">個人專案</li>`;
-
     const visibleUsers = [];
     const myUid = auth.currentUser.uid;
     const myRole = currentUserData.role; 
     const myDept = currentUserData.dept || "設計部";
 
     allUsersList = [];
-    snapshot.forEach(docSnap => {
-      allUsersList.push({ uid: docSnap.id, ...docSnap.data() });
-    });
+    snapshot.forEach(docSnap => allUsersList.push({ uid: docSnap.id, ...docSnap.data() }));
 
     const isSubordinate = (bossUid, targetUid) => {
       let current = allUsersList.find(u => u.uid === targetUid);
@@ -775,35 +701,22 @@ function loadSidebarSubordinates() {
 
     allUsersList.forEach(u => {
       if (u.uid === myUid) return;
-
       const targetRole = u.role; 
       const targetDept = u.dept || "設計部";
       let canView = false;
-
-      // ⭐ 系統管理員、最高級主管、高級主管可以檢視所有人
-      if (myRole === 'admin' || myRole === 'top_manager' || myRole === 'senior_manager') {
-        canView = true;
-      }
+      if (myRole === 'admin' || myRole === 'top_manager' || myRole === 'senior_manager') canView = true;
       else if (myRole === 'manager') {
-        if (targetDept === myDept && (targetRole === 'assistant_manager' || targetRole === 'staff')) {
-          canView = true;
-        }
+        if (targetDept === myDept && (targetRole === 'assistant_manager' || targetRole === 'staff')) canView = true;
       }
       else if (myRole === 'assistant_manager') {
-        if (targetDept === myDept && targetRole === 'staff') {
-          canView = true;
-        }
+        if (targetDept === myDept && targetRole === 'staff') canView = true;
       }
-
-      if (canView || isSubordinate(myUid, u.uid)) {
-        visibleUsers.push(u);
-      }
+      if (canView || isSubordinate(myUid, u.uid)) visibleUsers.push(u);
     });
 
     departmentList.forEach((dept, dIdx) => {
       const deptMembers = visibleUsers.filter(u => (u.dept || "設計部") === dept);
       if (deptMembers.length === 0) return;
-
       deptMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99));
 
       const deptGroupId = `dept-group-${dIdx}`;
@@ -813,9 +726,7 @@ function loadSidebarSubordinates() {
       list.innerHTML += `
         <li class="nav-sub-dept-header ${isExpanded ? 'open' : ''}" onclick="toggleDeptSubList('${deptGroupId}', this)">
           <div style="display:flex; align-items:center; gap:6px;">
-            <span>🏢</span>
-            <span>${dept}</span>
-            <span class="dept-count-badge">${deptMembers.length}</span>
+            <span>🏢</span><span>${dept}</span><span class="dept-count-badge">${deptMembers.length}</span>
           </div>
           <span class="dept-arrow">▶</span>
         </li>
@@ -826,15 +737,13 @@ function loadSidebarSubordinates() {
         const isActive = (viewingUserId === u.uid) ? 'active' : '';
         membersHtml += `
           <li class="nav-sub-item ${isActive}" id="sub-li-${u.uid}" onclick="switchViewingUser('${u.uid}', '${u.name}')">
-            ${u.name || '未命名'} 
-            <small style="color:#94a3b8; font-size:11px; margin-left:4px;">(${roleNames[u.role] || '人員'})</small>
+            ${u.name || '未命名'} <small style="color:#94a3b8; font-size:11px; margin-left:4px;">(${roleNames[u.role] || '人員'})</small>
           </li>
         `;
       });
       membersHtml += `</div>`;
       list.innerHTML += membersHtml;
     });
-
     renderProjects();
   });
 }
@@ -861,7 +770,6 @@ window.switchViewingUser = (uid, name) => {
     document.getElementById('weekly-form-panel').style.display = isSelf ? 'block' : 'none';
 
     selectedProjectId = 'SUMMARY'; 
-    
     isEditMode = false;
     const editBtn = document.getElementById("btn-toggle-edit-mode");
     if(editBtn) {
@@ -869,26 +777,20 @@ window.switchViewingUser = (uid, name) => {
        editBtn.style.background = "transparent";
     }
 
-    // ⭐ 檢查目前顯示中的分頁 ID
     const activePane = Array.from(document.querySelectorAll('.tab-pane')).find(el => el.style.display === 'block');
     const activeTabId = activePane ? activePane.id : 'tab-projects';
 
-    // ⭐ 如果目前不在「專案進度 (tab-projects)」、「事件紀錄 (tab-adhoc)」、「週報填寫 (tab-weekly)」其中之一，才強行切回專案進度
     if (activeTabId !== 'tab-projects' && activeTabId !== 'tab-adhoc' && activeTabId !== 'tab-weekly') {
         document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        
         const projPane = document.getElementById('tab-projects');
         if (projPane) projPane.style.display = 'block';
-        
         const projectNavElem = document.querySelector('li[onclick*="tab-projects"]') || document.querySelector('.nav-item');
         if (projectNavElem) projectNavElem.classList.add('active');
-        
         const titleEl = document.getElementById('current-title');
         if (titleEl) titleEl.innerText = '專案進度';
     }
 
-    // 重新載入當前頁面或強行切換後的資料
     renderProjects(); 
     renderAdHocEvents(); 
     renderWeeklyReports();
@@ -901,6 +803,7 @@ window.switchViewingUser = (uid, name) => {
       list.classList.remove('mobile-fixed-dropdown'); 
     }
 };
+
 document.getElementById("btn-login").addEventListener("click", () => { 
   signInWithEmailAndPassword(auth, document.getElementById("login-email").value.trim(), document.getElementById("login-password").value.trim()).catch(e=>alert(e.message)); 
 });
@@ -938,7 +841,6 @@ window.cascadeDatesIfSequential = (startRow) => {
         const endInput = row.querySelector('.task-end');
 
         if (!startInput.value) break; 
-
         const days = parseInt(daysInput.value) || 1;
         endInput.value = calculateEndDateByDays(startInput.value, days);
         endInput.min = startInput.value;
@@ -1062,20 +964,12 @@ window.selectProject = (projId) => {
 window.getAvailableTasks = (projId) => {
   const proj = allProjectsData.find(p => p.id === projId);
   if(!proj || !proj.tasks) return [];
-
-  // 直接篩選所有任務，不再強制要求上一項必須完成才能回報
   return proj.tasks.map((t, index) => ({ ...t, index })).filter(t => {
-    // 1. 確保只能選到「派給自己」的細項 (如果是開案者且未指派也算自己的)
     const isMyTask = (t.assigneeId === viewingUserId) || (!t.assigneeId && proj.ownerId === viewingUserId);
     if (!isMyTask) return false;
-
-    // 2. 如果任務還沒完成，都可以回報
     if (!t.isCompleted) return true;
-    
-    // 3. 如果已經在週報結案過(被打勾)，就不要再顯示
     if (t.reportedCompleted === true) return false;
     
-    // 4. 防呆：避免已完成但尚未打勾 reportedCompleted 的細項重複出現
     const taskCompletedTime = t.completedAt ? new Date(t.completedAt.replace(/-/g, '/')).getTime() : 0;
     const alreadyReported = allWeeklyData.some(w => {
       if(w.ownerId !== viewingUserId) return false;
@@ -1083,7 +977,6 @@ window.getAvailableTasks = (projId) => {
       const hasTask = (w.items || []).some(item => item.projectId === proj.id && String(item.taskId) === String(t.index));
       return hasTask && reportTime > (taskCompletedTime - 60000);
     });
-    
     return !alreadyReported;
   });
 };
@@ -1101,20 +994,9 @@ window.getAvailableAdHocEvents = () => {
       const hasItem = (w.items || []).some(item => item.projectId === 'SPECIAL_ADHOC' && item.taskId === evt.id);
       return hasItem && reportTime >= (evtCompletedTime - 60000); 
     });
-    
     return !alreadyReportedAfterCompletion;
   });
 };
-
-function loadProjects() {
-  onSnapshot(query(collection(db, "projects")), (snapshot) => {
-    allProjectsData = []; 
-    snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
-    renderProjects(); 
-    refreshAllWeeklyProjSelects();
-    if (window.renderApprovals) window.renderApprovals(); 
-  }); 
-}
 
 function getAdHocDateStr(evt) {
   if (evt.startDate) return evt.startDate;
@@ -1221,22 +1103,15 @@ function renderProjects() {
 
   allInvolvedProjects.forEach(p => {
     let relevantTasks = [];
-    
-    // ⭐ 嚴格修正：只有「該專案的真正建立者 (ownerId)」才能擁有整張專案的全部任務
-    // 其餘任何人（包含同部門的其他同事、其他協作部門人員），都必須要有具體被指派 (assigneeId) 任務才算數！
     const isRealOwner = (p.ownerId === viewingUserId);
 
     if (isRealOwner) {
       relevantTasks = p.tasks || [];
     } else {
-      // 🌟 被指派者在「同意」前，看不見該任務 (不會納入進度與計算)
       relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId && t.isPendingAcceptance !== true);
     }
 
-    // 若該帳號在專案中半個細項也沒有，直接跳過，不讓它進主清單
-    if (relevantTasks.length === 0) {
-      return; 
-    }
+    if (relevantTasks.length === 0) return; 
 
     let isAllDone = relevantTasks.every(t => t.isCompleted);
     let hasDelay = relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
@@ -1330,7 +1205,7 @@ function renderProjects() {
     tabsContainer.appendChild(summaryBtn);
   }
 
- activeList.forEach(p => {
+  activeList.forEach(p => {
     const hasCollab = (p.collaborators && p.collaborators.length > 0);
     const isPendingPause = (p.status === 'pause_requested');
     const isPaused = (p.status === 'paused');
@@ -1520,7 +1395,6 @@ function renderProjects() {
   const hasGlobalEdit = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
   const inGracePeriod = isWithin7DaysGracePeriod(activeProj);
   
-  // ⭐ 只要是 7 天內的專案擁有者，或者管理員開啟了編輯模式，就顯示主專案編輯按鈕
   let canEditMainProj = (hasGlobalEdit && isEditMode) || (isProjOwner && inGracePeriod);
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px;">✏️ 編輯主資訊</button>` : '';
   
@@ -1578,7 +1452,6 @@ function renderProjects() {
   }
 
   if (delProjBtn) {
-    // ⭐ 套用同一套邏輯，不用再驗證 isEditMode
     delProjBtn.style.display = canEditMainProj ? "inline-block" : "none";
   }
 
@@ -1591,8 +1464,8 @@ function renderProjects() {
   if (!window.collapsedSubProjects) window.collapsedSubProjects = {};
   window.toggleSubProject = (projId, subProjName) => {
       const key = `${projId}_${subProjName}`;
-      window.collapsedSubProjects[key] = !window.collapsedSubProjects[key]; // 反轉狀態
-      renderProjects(); // 重新渲染畫面
+      window.collapsedSubProjects[key] = !window.collapsedSubProjects[key]; 
+      renderProjects(); 
   };
 
   // 🌟 2. 預處理：將相同名稱的子專案細項彙整成「群組標頭」
@@ -1617,8 +1490,10 @@ function renderProjects() {
           const group = subProjMap[task.parentSubProject];
           group.tasks.push(task);
           group.originalIndexes.push(index);
-          if (task.start < group.start) group.start = task.start;
-          if (task.end > group.end) group.end = task.end;
+          
+          if (task.start && task.start !== "尚未建立細項" && task.start < group.start) group.start = task.start;
+          if (task.end && task.end !== "尚未建立細項" && task.end > group.end) group.end = task.end;
+          
           if (!task.isCompleted) group.isCompleted = false;
       }
   });
@@ -1633,9 +1508,11 @@ function renderProjects() {
               group.tasks.forEach(t => totalProg += (t.progress || 0));
               group.progress = group.tasks.length ? Math.round(totalProg / group.tasks.length) : 0;
               
-              renderList.push(group); // 塞入黃色的群組標頭
+              if(group.start === "9999-12-31") group.start = getTodayStr();
+              if(group.end === "0000-01-01") group.end = getTodayStr();
+
+              renderList.push(group); 
               
-              // 檢查該子專案是否被收合，若沒有收合 (預設展開)，則印出底下的細項
               const isCollapsed = window.collapsedSubProjects[`${activeProj.id}_${task.parentSubProject}`];
               if (!isCollapsed) {
                   group.tasks.forEach((t, i) => {
@@ -1644,16 +1521,14 @@ function renderProjects() {
               }
           }
       } else {
-          // 一般任務直接塞入
           renderList.push({ ...task, originalIndex: index });
       }
   });
 
-  // 🌟 4. 根據 renderList 開始畫出左側列表與收集甘特圖資料
+  // 🌟 4. 根據 renderList 畫出左側列表與收集甘特圖資料
   const ganttTasks = [];
   renderList.forEach((item, displayIndex) => {
       if (item.isGroupHeader) {
-          // 畫出子專案的「群組標頭」
           const isCollapsed = window.collapsedSubProjects[`${activeProj.id}_${item.parentSubProject}`];
           const chevron = isCollapsed ? '▶' : '▼';
           const workDays = getWorkingDays(item.start, item.end);
@@ -1704,7 +1579,6 @@ function renderProjects() {
               listBody.appendChild(tr);
           }
       } else {
-          // 畫出「一般任務」與「展開的子細項」
           const task = item;
           const index = item.originalIndex;
           try {
@@ -1728,7 +1602,6 @@ function renderProjects() {
             const taskAssigneeId = task.assigneeId || activeProj.ownerId;
             let taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
             
-            // 🌟 如果該任務對方還沒同意，給予明顯標記
             if (task.isPendingAcceptance) {
                 taskAssigneeName = `⏳ ${taskAssigneeName}(待同意)`;
             }
@@ -1792,12 +1665,10 @@ function renderProjects() {
 
             const confirmBtnStyle = task.isCompleted ? 'opacity: 0.4; cursor: not-allowed;' : '';
 
-            // 處理子細項名稱前綴：拔除長長的 [專案名]
             let displayName = task.name || '未命名任務';
             if (item.isChild && displayName.startsWith(`[${task.parentSubProject}] `)) {
                 displayName = displayName.replace(`[${task.parentSubProject}] `, '');
             }
-            // 僅保留左側縮排，字體顏色與大小維持與一般任務相同
             const nameIndent = item.isChild ? 'padding-left: 22px; color: var(--text-muted);' : '';
 
             const row = document.createElement("div"); 
@@ -1812,7 +1683,6 @@ function renderProjects() {
             `;
             if(leftBody) leftBody.appendChild(row);
 
-            // 畫出下方歷史紀錄 Table
             if (listBody) {
               let historyHtml = '';
               const historyList = task.history || [];
@@ -1837,7 +1707,7 @@ function renderProjects() {
                      let contentText = '';
                      if (h.type === 'complete' && h.delayReason) {
                          contentText = `<span class="pill pill-danger">Delay: ${h.delayReason}</span>`;
-                     } else if (h.remark && h.remark !== '專案建立' && h.remark !== '追加任務細項' && h.remark !== '子專案指派建立') {
+                     } else if (h.remark && h.remark !== '專案建立' && h.remark !== '追加任務細項' && h.remark !== '子專案指派建立' && h.remark !== '建立空子專案' && h.remark !== '追加空子專案') {
                          contentText = `<span style="color: var(--text-muted);">${h.remark}</span>`;
                      } else {
                          contentText = `<span style="color: #cbd5e1;">${h.remark || '-'}</span>`;
@@ -2033,6 +1903,7 @@ window.submitAddProjectTask = async () => {
     assigneeId: auth.currentUser.uid,
     assigneeName: currentUserData.name || auth.currentUser.email.split('@')[0],
     createdAt: Date.now(), 
+    isPendingAcceptance: false,
     history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '追加任務細項' }]
   };
 
@@ -2119,7 +1990,6 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   let delayReason = targetTask.delayReason || ""; 
   let currentRemark = "";
   
-  // 🌟 修復處：補回遺失的 100% 判斷與結案彈窗邏輯
   if (newProg === 100) {
     if (todayStr > plannedEnd && !delayReason) {
       delayReason = await window.openCustomPrompt("⚠️ 任務已 Delay", "此任務已超出預計完成日，請填寫 Delay 原因 (必填)：", true);
@@ -2133,7 +2003,6 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
     targetTask.completedAt = ts; 
     targetTask.delayReason = delayReason;
     
-    // 簽核流程連動展延
     if (targetTask.isSubProjectTask && targetTask.name.includes("簽核流程")) {
         const parentSubName = targetTask.parentSubProject;
         const nextWorkingDay = getNextWorkingDayStr(todayStr); 
@@ -2187,17 +2056,14 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
 
-  // ⭐ 改為同時抓取「一般任務」與「子專案」的區塊
   const allRows = document.querySelectorAll('#task-list-container > .form-row');
 
   for (let row of allRows) {
     if (row.classList.contains('task-row')) {
-        // 1. 處理一般任務
         const name = row.querySelector('.task-name').value.trim(); 
         const start = row.querySelector('.task-start').value; 
         const end = row.querySelector('.task-end').value;
         
-        // 🌟 核心修復：如果連名稱都沒打，直接忽略這行(過濾掉系統自動產生的預設空白行)
         if (!name) continue; 
         if (!start || !end) return alert(`任務 [${name}] 不可有空白日期！`);
         if (start > end) return alert(`任務 [${name}] 的起始日不可大於完成日！`);
@@ -2210,23 +2076,21 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
           assigneeId: auth.currentUser.uid,
           assigneeName: myName,
           createdAt: Date.now(), 
-          isPendingAcceptance: false, // 自己的任務不用簽核
+          isPendingAcceptance: false, 
           history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '專案建立' }] 
         });
 
     } else if (row.classList.contains('subproject-row')) {
-        // 2. 處理黃色子專案與它內部的所有細項
         const subProjName = row.querySelector('.subproject-name').value.trim() || "未命名子專案";
         const assigneeSelect = row.querySelector('.subproject-assignee');
         const assigneeId = assigneeSelect.value;
         const assigneeName = assigneeId ? assigneeSelect.options[assigneeSelect.selectedIndex].text.split(' ')[0] : myName;
         const uidToAssign = assigneeId || auth.currentUser.uid;
         
-        const isPending = (uidToAssign !== auth.currentUser.uid); // 🌟 判斷是否派給別人(需要同意)
+        const isPending = (uidToAssign !== auth.currentUser.uid); 
 
         const subTasks = row.querySelectorAll('.sub-task-item');
         
-        // 🌟 核心修復：允許子專案無細項，存入佔位符號以保留子專案結構
         if (subTasks.length === 0) {
              tasks.push({ 
               name: `[${subProjName}] 尚未建立細項`, 
@@ -2336,12 +2200,8 @@ function renderAdHocEvents() {
 
   filtered.forEach(evt => {
     let isOwner = (evt.ownerId === auth.currentUser.uid);
-    
-    // 計算是否在 7 天寬限期內
     let createdTime = evt.createdAt && typeof evt.createdAt.toMillis === 'function' ? evt.createdAt.toMillis() : Date.now();
     let inGracePeriod = ((Date.now() - createdTime) / (1000 * 60 * 60 * 24)) <= 7;
-    
-    // ⭐ 拔除 isEditMode 的依賴，只要有權限或在 7 天內，就直接顯示操作按鈕
     let canEditEvent = isGlobalEditor || (isOwner && inGracePeriod);
     
     let editHtml = canEditEvent ? `<button class="action-btn" style="margin-left:4px; border-color:var(--warning); color:var(--warning);" onclick="openGeneralEdit('adhoc', '${evt.id}')">✏️</button>` : '';
@@ -2446,11 +2306,9 @@ document.querySelectorAll('input[name="leave_type"]').forEach(radio => {
 window.populateWeeklyProjSelect = (selectElem) => {
   selectElem.innerHTML = '<option value="">-- 請選擇主專案/事件/其他 --</option>';
   
-  // 只要該專案裡面有「我可以回報的細項」，就將它列入下拉選單 (包含他人建立的協作專案)
   const availableProjs = allProjectsData.filter(p => window.getAvailableTasks(p.id).length > 0);
   
   availableProjs.forEach(p => { 
-    // 若是協作專案，加上 👥 符號以利辨識
     const prefix = p.ownerId !== viewingUserId ? '👥 ' : '';
     selectElem.innerHTML += `<option value="${p.id}">${prefix}${p.title}</option>`; 
   });
@@ -3054,7 +2912,6 @@ function renderOrgChart() {
   const mainWrapper = document.createElement("div");
   mainWrapper.className = "org-dept-container";
 
-  // ⭐ 嚴格拆分階層，確保「最高級主管」在「高級主管」之上
   const roleTiers = [
     { key: "top_manager", label: "👑 最高級主管 / 管理員", roles: ["top_manager", "admin"] },
     { key: "senior_manager", label: "👔 高級主管", roles: ["senior_manager"] },
@@ -3075,8 +2932,6 @@ function renderOrgChart() {
       let memberCardsHtml = "";
       tierMembers.forEach(u => {
         const supUser = allUsersList.find(x => x.uid === u.supervisorId);
-        
-        // ⭐ 修正：讓最高級主管、高級主管、一般主管都能吃到專屬的卡片樣式
         const isMgr = ["top_manager", "senior_manager", "manager"].includes(tier.key);
         const supText = supUser ? `直屬: ${supUser.name}` : "直屬: 無";
 
@@ -3135,16 +2990,18 @@ window.openGeneralEdit = (type, id, extra) => {
       if (type === 'task') {
         const t = p.tasks[extra];
         let tCreatedTime = t.createdAt || (p.createdAt && typeof p.createdAt.toMillis === 'function' ? p.createdAt.toMillis() : Date.now());
+        
         let tInGrace = true;
-      if (t.isSubProjectTask && !t.name.includes("簽核流程")) {
-          if (t.datesSetAt) {
-              tInGrace = ((Date.now() - t.datesSetAt) / (1000 * 60 * 60 * 24)) <= 14;
-          } else {
-              tInGrace = true;
-          }
-      } else {
-          tInGrace = ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
-      }
+        if (t.isSubProjectTask && !t.name.includes("簽核流程")) {
+            if (t.datesSetAt) {
+                tInGrace = ((Date.now() - t.datesSetAt) / (1000 * 60 * 60 * 24)) <= 14;
+            } else {
+                tInGrace = true;
+            }
+        } else {
+            tInGrace = ((Date.now() - tCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+        }
+
         let isMyTask = (auth.currentUser.uid === (t.assigneeId || p.ownerId));
         let isProjOwner = (p.ownerId === auth.currentUser.uid);
 
@@ -3220,7 +3077,6 @@ window.openGeneralEdit = (type, id, extra) => {
     document.getElementById("general-edit-title").innerText = "編輯週報內容";
     
     let html = `<div style="display:flex; flex-direction:column; gap:12px; max-height:400px; overflow-y:auto;">`;
-    // 改為同時抓取自己建立的，以及自己有被指派細項的協作專案
     const userProjects = allProjectsData.filter(p => {
         if (p.ownerId === weekly.ownerId) return true;
         if (p.tasks && p.tasks.some(t => t.assigneeId === weekly.ownerId)) return true;
@@ -3340,7 +3196,6 @@ window.openTemplateEditor = (index) => {
 
     const tplContainer = document.getElementById("edit-tpl-tasks-container");
     if (tpl.tasks && tpl.tasks.length > 0) {
-        // 🌟 讀取判斷區分一般任務與子專案
         tpl.tasks.forEach(t => {
             if (!t.type || t.type === 'task') {
                 tplContainer.appendChild(createTemplateTaskRow(t.name, t.start, t.days, t.end));
@@ -3448,7 +3303,6 @@ window.saveGeneralEdit = async () => {
       tasks[extra].start = document.getElementById("edit-val-start").value;
       tasks[extra].end = document.getElementById("edit-val-end").value;
       
-      // 🌟 新增：如果是一般子細項，儲存時就記錄下「已填寫」的鎖定時間戳
       if (tasks[extra].isSubProjectTask && !tasks[extra].name.includes("簽核流程")) {
           if (!tasks[extra].datesSetAt) tasks[extra].datesSetAt = Date.now();
       }
@@ -3492,7 +3346,6 @@ window.saveGeneralEdit = async () => {
       const container = document.getElementById("edit-tpl-tasks-container");
       const tasks = [];
       
-      // 🌟 分類儲存：一般細項與子專案及其內部細項
       for (let r of container.children) {
           if (r.classList.contains('tpl-task-row')) {
               const name = r.querySelector('.task-name').value.trim();
@@ -3584,7 +3437,6 @@ function loadOrgUsers() {
     snapshot.forEach(docSnap => {
       const u = docSnap.data(); 
       allUsersList.push({ uid: docSnap.id, ...u });
-      // ⭐ 這裡的長官選單順序與職級對應已完整對齊
       if (["top_manager", "senior_manager", "manager", "assistant_manager"].includes(u.role)) {
         supervisorSelect.innerHTML += `<option value="${docSnap.id}">${u.name} (${roleNames[u.role] || u.role})</option>`;
       }
@@ -3636,7 +3488,6 @@ function loadOrgUsers() {
         `;
       tbody.appendChild(tr);
     });
-
     renderOrgChart(); 
   });
 }
@@ -3669,14 +3520,12 @@ window.openEditModal = (uid) => {
   document.getElementById("edit-user-uid").value = u.uid; 
   document.getElementById("edit-user-name").value = u.name || ''; 
   document.getElementById("edit-user-dept").value = u.dept || '設計部';
-  
   document.getElementById("edit-user-role").value = u.role || 'staff';
   
   const supSelect = document.getElementById("edit-user-supervisor"); 
   supSelect.innerHTML = '<option value="">-- 無 --</option>';
   allUsersList.forEach(user => { 
     if (user.uid !== uid && ["top_manager", "senior_manager", "manager", "assistant_manager"].includes(user.role)) {
-      // ⭐ 加上職稱後綴顯示
       supSelect.innerHTML += `<option value="${user.uid}">${user.name} (${roleNames[user.role] || user.role})</option>`;
     }
   });
@@ -3761,9 +3610,7 @@ window.openPauseModal = (projId) => {
   document.getElementById("pause-request-modal").classList.add("active");
 };
 
-window.closePauseModal = () => {
-  document.getElementById("pause-request-modal").classList.remove("active");
-};
+window.closePauseModal = () => document.getElementById("pause-request-modal").classList.remove("active");
 
 window.submitPauseRequest = async () => {
   const projId = document.getElementById("pause-proj-id").value;
@@ -3884,7 +3731,6 @@ window.resumeProject = async (projId) => {
     lastPause.end = todayStr;
     let shiftDays = getWorkingDays(lastPause.start, todayStr);
     let actualShift = Math.max(0, shiftDays - 1); 
-    
     lastPause.days = actualShift;
 
     logs.push({ 
@@ -4005,7 +3851,6 @@ window.deleteAuditLog = async (projId, logTime, logAction) => {
   if (currentUserData.role !== 'admin' && currentUserData.role !== 'top_manager') {
     return alert("權限不足：只有系統管理員或高級主管可以刪除歷史紀錄！");
   }
-  
   if (!confirm("⚠️ 確定要刪除這筆歷史操作紀錄嗎？刪除後將無法復原。")) return;
 
   const proj = allProjectsData.find(p => p.id === projId);
@@ -4029,9 +3874,7 @@ window.openResumeModal = (projId) => {
   document.getElementById("resume-request-modal").classList.add("active");
 };
 
-window.closeResumeModal = () => {
-  document.getElementById("resume-request-modal").classList.remove("active");
-};
+window.closeResumeModal = () => document.getElementById("resume-request-modal").classList.remove("active");
 
 window.submitResumeRequest = async () => {
   const projId = document.getElementById("resume-proj-id").value;
@@ -4046,7 +3889,6 @@ window.submitResumeRequest = async () => {
       resumeRequestedBy: currentUserData.name || "人員",
       resumeRequestedAt: getNowTimeStr()
     });
-    
     window.closeResumeModal(); 
     alert("已送出恢復執行申請，請等待最高主管或管理員審核！");
   } catch (err) {
@@ -4058,17 +3900,12 @@ window.openEditRemarkModal = async (projId, taskIndex, targetTimestamp) => {
     const proj = allProjectsData.find(p => p.id === projId);
     if (!proj || !proj.tasks[taskIndex]) return;
     const task = proj.tasks[taskIndex];
-    
     if (!task.history || task.history.length === 0) return;
 
     const targetHist = task.history.find(h => h.timestamp === targetTimestamp);
-    if (!targetHist) {
-        alert("找不到此筆歷史紀錄！");
-        return;
-    }
+    if (!targetHist) return alert("找不到此筆歷史紀錄！");
 
     let currentRemark = targetHist.delayReason || targetHist.remark || "";
-
     const newRemark = await window.openCustomPrompt(
         "✏️ 修改原因", 
         "修改紀錄的備註 / Delay 內容：", 
@@ -4095,7 +3932,6 @@ window.openEditRemarkModal = async (projId, taskIndex, targetTimestamp) => {
     }
 };
 
-// 🌟 新增：帶入含有預設資料的子專案細項
 window.addPreFilledInnerSubTask = (container, name, start, days, end, isApproval) => {
    const div = document.createElement('div');
    div.className = isApproval ? "sub-task-item is-approval-task" : "sub-task-item normal-sub-task";
@@ -4122,7 +3958,7 @@ window.addPreFilledInnerSubTask = (container, name, start, days, end, isApproval
    container.appendChild(div);
    window.updateSubTaskNumbers(container);
 };
-// 1. 新增子專案 (建立專案用，支援預設資料帶入)
+
 window.addSubProjectRow = (defaultName = "", defaultAssignee = "", subTasks = [], mode = "sequential") => {
   const container = document.getElementById("task-list-container"); 
   
@@ -4156,7 +3992,7 @@ window.addSubProjectRow = (defaultName = "", defaultAssignee = "", subTasks = []
     </div>
     <div class="sub-tasks-container" style="margin-left: 20px; border-left: 2px solid #fcd34d; padding-left: 10px; display:flex; flex-direction:column; gap:6px;">
     </div>
-    <button type="button" class="action-btn" onclick="addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項</button>
+    <button type="button" class="action-btn" onclick="window.addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項</button>
   `;
   container.appendChild(div);
   
@@ -4169,11 +4005,8 @@ window.addSubProjectRow = (defaultName = "", defaultAssignee = "", subTasks = []
   }
 };
 
-// 新增子專案內部細項
 window.addInnerSubTask = (btn) => {
    const container = btn.previousElementSibling;
-   
-   // 🌟 自動抓取簽核流程的日期 (若有)
    let defaultStart = "";
    const existingApproval = container.querySelector('.is-approval-task .sub-task-start');
    if (existingApproval && existingApproval.value) defaultStart = existingApproval.value;
@@ -4193,7 +4026,6 @@ window.addInnerSubTask = (btn) => {
    window.updateSubTaskNumbers(container);
 };
 
-// 2. 新增子專案 (編輯模板用，支援預設資料帶入)
 window.addTemplateSubProjectRow = (defaultName = "", defaultAssignee = "", subTasks = []) => {
     const container = document.getElementById("edit-tpl-tasks-container");
     
@@ -4227,7 +4059,7 @@ window.addTemplateSubProjectRow = (defaultName = "", defaultAssignee = "", subTa
       </div>
       <div class="sub-tasks-container" style="margin-left: 20px; border-left: 2px solid #fcd34d; padding-left: 10px; display:flex; flex-direction:column; gap:6px;">
       </div>
-      <button type="button" class="action-btn" onclick="addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項</button>
+      <button type="button" class="action-btn" onclick="window.addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項</button>
     `;
     container.appendChild(div);
 
@@ -4239,7 +4071,6 @@ window.addTemplateSubProjectRow = (defaultName = "", defaultAssignee = "", subTa
     }
 };
 
-// 選擇人員觸發簽核流程
 window.onSubProjectAssigneeChange = (selectElem) => {
     const uid = selectElem.value;
     let isPurchasing = false;
@@ -4266,8 +4097,6 @@ window.onSubProjectAssigneeChange = (selectElem) => {
               <input type="date" class="input-control sub-task-end" value="${defaultStart}" onchange="onTaskEndChange(this, null, null)" style="flex:1;">
             `;
             tasksContainer.insertBefore(div, tasksContainer.firstChild);
-            
-            // 🌟 自動讓底下的細項跟隨簽核流程日期
             window.syncSubTasksDate(div.querySelector('.sub-task-start'));
         }
     } else {
@@ -4276,7 +4105,6 @@ window.onSubProjectAssigneeChange = (selectElem) => {
     window.updateSubTaskNumbers(tasksContainer);
 };
 
-// 5. 自動更新子細項的編號 (1., 2., 3. ...)
 window.updateSubTaskNumbers = (container) => {
     if (!container) return;
     const items = container.querySelectorAll('.sub-task-item');
@@ -4289,21 +4117,18 @@ window.updateSubTaskNumbers = (container) => {
     });
 };
 
-// 開啟已建立專案的「新增子專案」彈窗
 window.openAddSubProjectModal = () => {
     const proj = allProjectsData.find(p => p.id === selectedProjectId);
     if (!proj) return;
     
     const container = document.getElementById("add-subproject-container");
-    container.innerHTML = ""; // 清空舊內容
+    container.innerHTML = ""; 
     
-    // 🌟 在彈窗頂部顯示所屬主專案名稱
     const titleHeader = document.createElement('div');
     titleHeader.style.cssText = "margin-bottom: 15px; font-size: 15px; font-weight: bold; color: var(--primary); background: #e0e7ff; padding: 8px 12px; border-radius: 6px; border: 1px solid #c7d2fe;";
     titleHeader.innerHTML = `📝 目前主專案：<span style="color: #312e81;">${proj.title}</span>`;
     container.appendChild(titleHeader);
     
-    // 只載入採購部人員
     let assigneeOptions = '<option value="">-- 指派給 (選填) --</option>';
     let purchasingUsers = allUsersList.filter(u => u.dept === '採購部');
     purchasingUsers.forEach(u => {
@@ -4328,7 +4153,7 @@ window.openAddSubProjectModal = () => {
       </div>
       <div class="sub-tasks-container" style="margin-top: 10px; margin-left: 20px; border-left: 2px solid #fcd34d; padding-left: 10px; display:flex; flex-direction:column; gap:6px;">
       </div>
-      <button type="button" class="action-btn" onclick="addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項</button>
+      <button type="button" class="action-btn" onclick="window.addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項</button>
     `;
     
     container.appendChild(div);
@@ -4343,7 +4168,6 @@ window.submitAddSubProject = async () => {
     const container = document.getElementById("add-subproject-container");
     const subProjName = container.querySelector('.subproject-name').value.trim() || "未命名子專案";
     
-    // 獲取指派人員
     const assigneeSelect = container.querySelector('.subproject-assignee');
     const assigneeId = assigneeSelect.value;
     const assigneeName = assigneeId ? assigneeSelect.options[assigneeSelect.selectedIndex].text.split(' ')[0] : (currentUserData.name || auth.currentUser.email.split('@')[0]);
@@ -4353,12 +4177,11 @@ window.submitAddSubProject = async () => {
     const todayStr = getTodayStr();
     const newTasks = [];
     
-    const isPending = (uidToAssign !== auth.currentUser.uid); // 🌟 是否需要同意
+    const isPending = (uidToAssign !== auth.currentUser.uid);
     const currentUserName = currentUserData.name || auth.currentUser.email.split('@')[0];
 
     const taskItems = container.querySelectorAll('.sub-task-item');
     if (taskItems.length === 0) {
-        // 🌟 允許空細項
         newTasks.push({ 
             name: `[${subProjName}] 尚未建立細項`, 
             start: todayStr, end: todayStr, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
@@ -4417,7 +4240,6 @@ window.submitAddSubProject = async () => {
     alert("🎉 子專案追加成功！");
 };
 
-// 🌟 新增：連動更新底下細項的日期
 window.syncSubTasksDate = (startInput) => {
     const container = startInput.closest('.sub-tasks-container');
     if (!container || !startInput.value) return;
@@ -4437,9 +4259,6 @@ window.syncSubTasksDate = (startInput) => {
     });
 };
 
-// ==========================================
-// 🌟 專案指派通知系統 (UI生成與邏輯)
-// ==========================================
 window.initNotificationsUI = () => {
     const navUl = document.querySelector(".sidebar-menu") || document.querySelector("ul");
     if (navUl && !document.getElementById("nav-notifications")) {
@@ -4482,9 +4301,8 @@ window.initNotificationsUI = () => {
         mainContent.appendChild(tab);
     }
 };
-setTimeout(window.initNotificationsUI, 1000); // 確保在頁面載入後生成
+setTimeout(window.initNotificationsUI, 1000); 
 
-// 渲染通知清單
 window.renderNotifications = () => {
     const tbody = document.getElementById("notif-list-tbody");
     const badge = document.getElementById("notif-badge");
@@ -4522,19 +4340,6 @@ window.renderNotifications = () => {
     }
 };
 
-// 🌟 修改原本的 loadProjects，讓它連帶刷新通知清單
-function loadProjects() {
-  onSnapshot(query(collection(db, "projects")), (snapshot) => {
-    allProjectsData = []; 
-    snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
-    renderProjects(); 
-    refreshAllWeeklyProjSelects();
-    if (window.renderApprovals) window.renderApprovals(); 
-    if (window.renderNotifications) window.renderNotifications(); // 同步刷新通知數字
-  }); 
-}
-
-// 點擊同意
 window.acceptAssignment = async (projId, taskIndex) => {
     const p = allProjectsData.find(x => x.id === projId);
     if(!p) return;
@@ -4549,7 +4354,6 @@ window.acceptAssignment = async (projId, taskIndex) => {
     alert("已同意指派！任務已納入您的專案進度清單。");
 };
 
-// 點擊拒絕
 window.rejectAssignment = async (projId, taskIndex) => {
     const reason = prompt("請輸入拒絕原因 (將退回給發配人)：", "");
     if (reason === null) return; 
@@ -4557,7 +4361,6 @@ window.rejectAssignment = async (projId, taskIndex) => {
     if(!p) return;
     const tasks = [...p.tasks];
     
-    // 退回給原指派人
     const assignerId = tasks[taskIndex].assignedByUid || p.ownerId;
     const assignerName = tasks[taskIndex].assignedByName || p.ownerName;
     
@@ -4574,3 +4377,14 @@ window.rejectAssignment = async (projId, taskIndex) => {
     await updateDoc(doc(db, "projects", projId), { tasks });
     alert("已拒絕指派，任務已退回給開案者！");
 };
+
+function loadProjects() {
+  onSnapshot(query(collection(db, "projects")), (snapshot) => {
+    allProjectsData = []; 
+    snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
+    renderProjects(); 
+    refreshAllWeeklyProjSelects();
+    if (window.renderApprovals) window.renderApprovals(); 
+    if (window.renderNotifications) window.renderNotifications(); 
+  }); 
+}
