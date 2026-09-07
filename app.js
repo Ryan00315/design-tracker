@@ -1675,8 +1675,9 @@ function renderProjects() {
           row.className = "gantt-row";
           row.style.backgroundColor = "#fffbeb";
           row.innerHTML = `
-              <div class="col-name" style="cursor:pointer; font-weight:bold; color:#d97706; flex:1.8;" onclick="window.toggleSubProject('${activeProj.id}', '${item.parentSubProject}')">
-                  <span style="display:inline-block; width:16px;">${chevron}</span> 📦 ${item.parentSubProject}
+              <div class="col-name" style="cursor:pointer; font-weight:bold; color:#d97706; flex:1.8; display:flex; align-items:center;" onclick="window.toggleSubProject('${activeProj.id}', '${item.parentSubProject}')">
+                  <span>📦 ${item.parentSubProject}</span>
+                  <span style="margin-left: 8px; font-size: 11px;">${chevron}</span>
               </div>
               <div class="col-expected-date" style="color: #64748b; font-size:12px;"><span>${sMonth}/${sDay}</span><span>~ ${eMonth}/${eDay}</span></div>
               <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
@@ -1691,7 +1692,10 @@ function renderProjects() {
               tr.style.backgroundColor = "#fffbeb";
               tr.innerHTML = `
                   <td style="padding:8px 4px; font-weight:bold; color:#d97706; cursor:pointer;" colspan="4" onclick="window.toggleSubProject('${activeProj.id}', '${item.parentSubProject}')">
-                      <span>${chevron} 📦 ${item.parentSubProject} (總進度: ${item.progress}%)</span>
+                      <div style="display:inline-flex; align-items:center;">
+                          <span>📦 ${item.parentSubProject} (總進度: ${item.progress}%)</span>
+                          <span style="margin-left: 8px; font-size: 11px;">${chevron}</span>
+                      </div>
                   </td>
               `;
               listBody.appendChild(tr);
@@ -1780,12 +1784,13 @@ function renderProjects() {
 
             const confirmBtnStyle = task.isCompleted ? 'opacity: 0.4; cursor: not-allowed;' : '';
 
-            // 處理子細項名稱前綴：拔除長長的 [專案名] 改用箭頭縮排顯示
+            // 處理子細項名稱前綴：拔除長長的 [專案名]
             let displayName = task.name || '未命名任務';
             if (item.isChild && displayName.startsWith(`[${task.parentSubProject}] `)) {
-                displayName = displayName.replace(`[${task.parentSubProject}] `, '↳ ');
+                displayName = displayName.replace(`[${task.parentSubProject}] `, '');
             }
-            const nameIndent = item.isChild ? 'padding-left: 22px; color: var(--text-muted); font-size: 13.5px;' : '';
+            // 僅保留左側縮排，字體顏色與大小維持與一般任務相同
+            const nameIndent = item.isChild ? 'padding-left: 22px;' : '';
 
             const row = document.createElement("div"); 
             row.className = "gantt-row";
