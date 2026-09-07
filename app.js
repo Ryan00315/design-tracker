@@ -3785,7 +3785,6 @@ window.openEditRemarkModal = async (projId, taskIndex, targetTimestamp) => {
     }
 };
 
-// 在 app.js 中新增這個函式
 window.addSubProjectRow = () => {
   const container = document.getElementById("task-list-container"); 
   const rows = container.querySelectorAll('.task-row, .subproject-row');
@@ -3801,9 +3800,16 @@ window.addSubProjectRow = () => {
   }
   if (!defaultStart) defaultStart = getTodayStr();
 
+  // ⭐ 動態生成指派人員選單 (嚴格限制只顯示「採購部」)
+  let assigneeOptions = '<option value="">-- 指派給 (選填) --</option>';
+  
+  const purchasingUsers = allUsersList.filter(u => (u.dept || '') === '採購部');
+  purchasingUsers.forEach(u => {
+      assigneeOptions += `<option value="${u.uid}">${u.name} (採購部)</option>`;
+  });
+
   const div = document.createElement('div'); 
   div.className = "form-row subproject-row"; 
-  // 用不同的背景色區隔子專案
   div.style.cssText = "margin-bottom: 8px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px; flex-direction: column; gap: 8px;";
   
   div.innerHTML = `
@@ -3814,9 +3820,9 @@ window.addSubProjectRow = () => {
         <input type="text" class="input-control task-name subproject-name" placeholder="子專案名稱 (例: 零件採購)">
       </div>
       <div class="form-group" style="margin:0; flex:1;">
+        <!-- 這裡只會出現採購部人員 -->
         <select class="input-control subproject-assignee">
-           <option value="">-- 指派給 (選填) --</option>
-           <!-- 這裡你可以稍後用動態載入人員名單 -->
+           ${assigneeOptions}
         </select>
       </div>
       <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
@@ -3832,8 +3838,8 @@ window.addSubProjectRow = () => {
           <span style="font-size:12px; color:var(--danger); font-weight:bold; width:20px;">1.</span>
           <input type="text" class="input-control sub-task-name" value="簽核流程" readonly style="flex:2; background:#f1f5f9;">
           <input type="date" class="input-control sub-task-start" value="${defaultStart}" onchange="onTaskStartChange(this, null)" style="flex:1;">
-          <input type="number" class="input-control sub-task-days" value="1" placeholder="天數" style="width:60px;">
-          <input type="date" class="input-control sub-task-end" value="${defaultStart}" style="flex:1;">
+          <input type="number" class="input-control sub-task-days" value="1" placeholder="天數" style="width:60px;" oninput="onTaskDaysChange(this, null, null)">
+          <input type="date" class="input-control sub-task-end" value="${defaultStart}" style="flex:1;" onchange="onTaskEndChange(this, null, null)">
        </div>
     </div>
     <button type="button" class="action-btn" onclick="addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項 (保留空白天數)</button>
