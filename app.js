@@ -1229,7 +1229,8 @@ function renderProjects() {
     if (isRealOwner) {
       relevantTasks = p.tasks || [];
     } else {
-      relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
+      // 🌟 被指派者在「同意」前，看不見該任務 (不會納入進度與計算)
+      relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId && t.isPendingAcceptance !== true);
     }
 
     // 若該帳號在專案中半個細項也沒有，直接跳過，不讓它進主清單
@@ -1725,7 +1726,12 @@ function renderProjects() {
             });
 
             const taskAssigneeId = task.assigneeId || activeProj.ownerId;
-            const taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
+            let taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
+            
+            // 🌟 如果該任務對方還沒同意，給予明顯標記
+            if (task.isPendingAcceptance) {
+                taskAssigneeName = `⏳ ${taskAssigneeName}(待同意)`;
+            }
             const isMyTask = (auth.currentUser.uid === taskAssigneeId);
 
             let taskCreatedTime = Date.now();
@@ -2190,8 +2196,12 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
         const name = row.querySelector('.task-name').value.trim(); 
         const start = row.querySelector('.task-start').value; 
         const end = row.querySelector('.task-end').value;
-        if (!name || !start || !end) return alert("一般任務細項不可有空白欄位！");
+        
+        // 🌟 核心修復：如果連名稱都沒打，直接忽略這行(過濾掉系統自動產生的預設空白行)
+        if (!name) continue; 
+        if (!start || !end) return alert(`任務 [${name}] 不可有空白日期！`);
         if (start > end) return alert(`任務 [${name}] 的起始日不可大於完成日！`);
+        
         let passedDays = 0; 
         if (todayStr >= start) passedDays = getWorkingDays(start, todayStr);
         
@@ -2200,6 +2210,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
           assigneeId: auth.currentUser.uid,
           assigneeName: myName,
           createdAt: Date.now(), 
+          isPendingAcceptance: false, // 自己的任務不用簽核
           history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '專案建立' }] 
         });
 
@@ -2208,38 +2219,62 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
         const subProjName = row.querySelector('.subproject-name').value.trim() || "未命名子專案";
         const assigneeSelect = row.querySelector('.subproject-assignee');
         const assigneeId = assigneeSelect.value;
-        // 如果有選人，抓取名字；沒選則指派給建立者自己
         const assigneeName = assigneeId ? assigneeSelect.options[assigneeSelect.selectedIndex].text.split(' ')[0] : myName;
         const uidToAssign = assigneeId || auth.currentUser.uid;
+        
+        const isPending = (uidToAssign !== auth.currentUser.uid); // 🌟 判斷是否派給別人(需要同意)
 
         const subTasks = row.querySelectorAll('.sub-task-item');
-        for (let subRow of subTasks) {
-            const sName = subRow.querySelector('.sub-task-name').value.trim();
-            const sStart = subRow.querySelector('.sub-task-start').value;
-            const sEnd = subRow.querySelector('.sub-task-end').value;
-            
-            if (!sName || !sStart || !sEnd) return alert(`子專案 [${subProjName}] 內的細項不可有空白日期！(請確認是否已填寫天數)`);
-            if (sStart > sEnd) return alert(`子專案任務 [${sName}] 的起始日不可大於完成日！`);
-            
-            let passedDays = 0; 
-            if (todayStr >= sStart) passedDays = getWorkingDays(sStart, todayStr);
-
-            // 存入陣列，名稱會自動加上 [子專案名稱] 前綴以便在甘特圖中辨識
-            tasks.push({ 
-              name: `[${subProjName}] ${sName}`, 
-              start: sStart, end: sEnd, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
+        
+        // 🌟 核心修復：允許子專案無細項，存入佔位符號以保留子專案結構
+        if (subTasks.length === 0) {
+             tasks.push({ 
+              name: `[${subProjName}] 尚未建立細項`, 
+              start: todayStr, end: todayStr, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
               assigneeId: uidToAssign,
               assigneeName: assigneeName,
               isSubProjectTask: true,
               parentSubProject: subProjName, 
               createdAt: Date.now(), 
-              history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '子專案指派建立' }] 
+              isPendingAcceptance: isPending,
+              assignedByUid: auth.currentUser.uid,
+              assignedByName: myName,
+              assignedAt: ts,
+              history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: 0, delayReason: '', remark: '建立空子專案' }] 
             });
+        } else {
+            for (let subRow of subTasks) {
+                const sName = subRow.querySelector('.sub-task-name').value.trim();
+                const sStart = subRow.querySelector('.sub-task-start').value;
+                const sEnd = subRow.querySelector('.sub-task-end').value;
+                
+                if (!sName) continue;
+                if (!sStart || !sEnd) return alert(`子專案 [${subProjName}] 內的細項不可有空白日期！(請確認是否已填寫天數)`);
+                if (sStart > sEnd) return alert(`子專案任務 [${sName}] 的起始日不可大於完成日！`);
+                
+                let passedDays = 0; 
+                if (todayStr >= sStart) passedDays = getWorkingDays(sStart, todayStr);
+
+                tasks.push({ 
+                  name: `[${subProjName}] ${sName}`, 
+                  start: sStart, end: sEnd, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
+                  assigneeId: uidToAssign,
+                  assigneeName: assigneeName,
+                  isSubProjectTask: true,
+                  parentSubProject: subProjName, 
+                  createdAt: Date.now(), 
+                  isPendingAcceptance: isPending,
+                  assignedByUid: auth.currentUser.uid,
+                  assignedByName: myName,
+                  assignedAt: ts,
+                  history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '子專案指派建立' }] 
+                });
+            }
         }
     }
   }
   
-  if (tasks.length === 0) return alert("請至少新增一項任務或子專案！");
+  if (tasks.length === 0) return alert("請至少新增一項任務或子專案！(名稱不可空白)");
 
   const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, uid: auth.currentUser.uid };
   const ownerNameToSave = targetUser.name || currentUserData.name;
@@ -4304,7 +4339,6 @@ window.closeAddSubProjectModal = () => {
     document.getElementById("project-subproject-modal").classList.remove("active");
 };
 
-// 送出暫時綁定 Alert 測試，確保介面無誤
 window.submitAddSubProject = async () => {
     const container = document.getElementById("add-subproject-container");
     const subProjName = container.querySelector('.subproject-name').value.trim() || "未命名子專案";
@@ -4315,50 +4349,72 @@ window.submitAddSubProject = async () => {
     const assigneeName = assigneeId ? assigneeSelect.options[assigneeSelect.selectedIndex].text.split(' ')[0] : (currentUserData.name || auth.currentUser.email.split('@')[0]);
     const uidToAssign = assigneeId || auth.currentUser.uid;
     
-    const taskItems = container.querySelectorAll('.sub-task-item');
-    if (taskItems.length === 0) return alert("請至少保留一項子細項！");
-    
     const ts = new Date().toLocaleString('zh-TW', { hour12: false });
     const todayStr = getTodayStr();
     const newTasks = [];
+    
+    const isPending = (uidToAssign !== auth.currentUser.uid); // 🌟 是否需要同意
+    const currentUserName = currentUserData.name || auth.currentUser.email.split('@')[0];
 
-    // 依序打包所有子細項
-    for (let subRow of taskItems) {
-        const sName = subRow.querySelector('.sub-task-name').value.trim();
-        const sStart = subRow.querySelector('.sub-task-start').value;
-        const sEnd = subRow.querySelector('.sub-task-end').value;
-        
-        if (!sName || !sStart || !sEnd) return alert(`子細項不可有空白日期！(請確認是否已填寫天數)`);
-        if (sStart > sEnd) return alert(`子細項 [${sName}] 的起始日不可大於完成日！`);
-        
-        let passedDays = 0; 
-        if (todayStr >= sStart) passedDays = getWorkingDays(sStart, todayStr);
-
+    const taskItems = container.querySelectorAll('.sub-task-item');
+    if (taskItems.length === 0) {
+        // 🌟 允許空細項
         newTasks.push({ 
-          name: `[${subProjName}] ${sName}`, 
-          start: sStart, end: sEnd, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
-          assigneeId: uidToAssign,
-          assigneeName: assigneeName,
-          isSubProjectTask: true,
-          parentSubProject: subProjName, 
-          createdAt: Date.now(), 
-          history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '追加子專案細項' }] 
+            name: `[${subProjName}] 尚未建立細項`, 
+            start: todayStr, end: todayStr, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
+            assigneeId: uidToAssign,
+            assigneeName: assigneeName,
+            isSubProjectTask: true,
+            parentSubProject: subProjName, 
+            createdAt: Date.now(), 
+            isPendingAcceptance: isPending,
+            assignedByUid: auth.currentUser.uid,
+            assignedByName: currentUserName,
+            assignedAt: ts,
+            history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: 0, delayReason: '', remark: '追加空子專案' }] 
         });
+    } else {
+        for (let subRow of taskItems) {
+            const sName = subRow.querySelector('.sub-task-name').value.trim();
+            const sStart = subRow.querySelector('.sub-task-start').value;
+            const sEnd = subRow.querySelector('.sub-task-end').value;
+            
+            if (!sName) continue;
+            if (!sStart || !sEnd) return alert(`子細項不可有空白日期！`);
+            if (sStart > sEnd) return alert(`子細項 [${sName}] 的起始日不可大於完成日！`);
+            
+            let passedDays = 0; 
+            if (todayStr >= sStart) passedDays = getWorkingDays(sStart, todayStr);
+
+            newTasks.push({ 
+              name: `[${subProjName}] ${sName}`, 
+              start: sStart, end: sEnd, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
+              assigneeId: uidToAssign,
+              assigneeName: assigneeName,
+              isSubProjectTask: true,
+              parentSubProject: subProjName, 
+              createdAt: Date.now(),
+              isPendingAcceptance: isPending,
+              assignedByUid: auth.currentUser.uid,
+              assignedByName: currentUserName,
+              assignedAt: ts,
+              history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '追加子專案細項' }] 
+            });
+        }
     }
+    
+    if (newTasks.length === 0) return alert("沒有有效的新增細項！");
 
     const proj = allProjectsData.find(p => p.id === selectedProjectId);
     if (!proj) return alert("找不到目前專案！");
     
-    // 將舊任務與新子專案任務合併
     const updatedTasks = [...proj.tasks, ...newTasks];
-    
-    // 將所有任務依照「起始日期」重新排序
-  updatedTasks.sort((a, b) => (a.start || "").localeCompare(b.start || ""));
+    updatedTasks.sort((a, b) => (a.start || "").localeCompare(b.start || ""));
 
     await updateDoc(doc(db, "projects", proj.id), { tasks: updatedTasks });
     
     closeAddSubProjectModal();
-    alert("🎉 子專案追加成功！(已自動依日期重新排序)");
+    alert("🎉 子專案追加成功！");
 };
 
 // 🌟 新增：連動更新底下細項的日期
@@ -4379,4 +4435,142 @@ window.syncSubTasksDate = (startInput) => {
            endEl.min = startInput.value;
         }
     });
+};
+
+// ==========================================
+// 🌟 專案指派通知系統 (UI生成與邏輯)
+// ==========================================
+window.initNotificationsUI = () => {
+    const navUl = document.querySelector(".sidebar-menu") || document.querySelector("ul");
+    if (navUl && !document.getElementById("nav-notifications")) {
+        const li = document.createElement("li");
+        li.className = "nav-item";
+        li.id = "nav-notifications";
+        li.innerHTML = `<span style="margin-right:6px;">🔔</span> 專案通知 <span class="badge" id="notif-badge" style="display:none; background:var(--danger); color:white; border-radius:10px; padding:2px 6px; font-size:10px; margin-left:auto;">0</span>`;
+        li.onclick = () => window.switchNav('tab-notifications', '專案通知', li);
+        
+        const projNav = document.querySelector('li[onclick*="tab-projects"]');
+        if (projNav && projNav.parentNode) projNav.parentNode.insertBefore(li, projNav.nextSibling);
+        else navUl.appendChild(li);
+    }
+
+    const mainContent = document.querySelector(".main-content") || document.getElementById("app-section");
+    if (mainContent && !document.getElementById("tab-notifications")) {
+        const tab = document.createElement("div");
+        tab.className = "tab-pane";
+        tab.id = "tab-notifications";
+        tab.style.display = "none";
+        tab.innerHTML = `
+            <div class="panel">
+                <div class="panel-head"><span>🔔 待處理的專案 / 子專案指派</span></div>
+                <div class="table-responsive">
+                    <table style="width:100%;">
+                        <thead>
+                            <tr>
+                                <th style="width:25%">專案名稱</th>
+                                <th style="width:30%">任務/子專案名稱</th>
+                                <th style="width:15%">指派人</th>
+                                <th style="width:15%">指派時間</th>
+                                <th style="width:15%; text-align:center;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="notif-list-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+        mainContent.appendChild(tab);
+    }
+};
+setTimeout(window.initNotificationsUI, 1000); // 確保在頁面載入後生成
+
+// 渲染通知清單
+window.renderNotifications = () => {
+    const tbody = document.getElementById("notif-list-tbody");
+    const badge = document.getElementById("notif-badge");
+    if (!tbody || !auth.currentUser) return;
+    tbody.innerHTML = "";
+    let pendingCount = 0;
+    const myUid = auth.currentUser.uid;
+    
+    allProjectsData.forEach(p => {
+        (p.tasks || []).forEach((t, index) => {
+            if (t.assigneeId === myUid && t.isPendingAcceptance === true) {
+                pendingCount++;
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td style="font-weight:bold; color:var(--primary);">${p.title}</td>
+                    <td>${t.name}</td>
+                    <td><span class="pill pill-role">${t.assignedByName || '未知'}</span></td>
+                    <td><span style="font-size:12px; color:var(--text-muted);">${t.assignedAt || '-'}</span></td>
+                    <td style="text-align:center;">
+                        <button class="action-btn" style="background:var(--success); color:#fff; border:none; margin-right:4px;" onclick="acceptAssignment('${p.id}', ${index})">✅ 同意</button>
+                        <button class="action-btn danger" onclick="rejectAssignment('${p.id}', ${index})">❌ 拒絕</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            }
+        });
+    });
+    
+    if (pendingCount === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:20px;">目前沒有待處理的指派通知。</td></tr>`;
+    }
+    if (badge) {
+        badge.innerText = pendingCount;
+        badge.style.display = pendingCount > 0 ? "inline-block" : "none";
+    }
+};
+
+// 🌟 修改原本的 loadProjects，讓它連帶刷新通知清單
+function loadProjects() {
+  onSnapshot(query(collection(db, "projects")), (snapshot) => {
+    allProjectsData = []; 
+    snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
+    renderProjects(); 
+    refreshAllWeeklyProjSelects();
+    if (window.renderApprovals) window.renderApprovals(); 
+    if (window.renderNotifications) window.renderNotifications(); // 同步刷新通知數字
+  }); 
+}
+
+// 點擊同意
+window.acceptAssignment = async (projId, taskIndex) => {
+    const p = allProjectsData.find(x => x.id === projId);
+    if(!p) return;
+    const tasks = [...p.tasks];
+    tasks[taskIndex].isPendingAcceptance = false;
+    tasks[taskIndex].history.push({
+        timestamp: new Date().toLocaleString('zh-TW', { hour12: false }),
+        progress: tasks[taskIndex].progress, type: 'update', daysPassed: 0, delayReason: '',
+        remark: '✅ 已同意指派'
+    });
+    await updateDoc(doc(db, "projects", projId), { tasks });
+    alert("已同意指派！任務已納入您的專案進度清單。");
+};
+
+// 點擊拒絕
+window.rejectAssignment = async (projId, taskIndex) => {
+    const reason = prompt("請輸入拒絕原因 (將退回給發配人)：", "");
+    if (reason === null) return; 
+    const p = allProjectsData.find(x => x.id === projId);
+    if(!p) return;
+    const tasks = [...p.tasks];
+    
+    // 退回給原指派人
+    const assignerId = tasks[taskIndex].assignedByUid || p.ownerId;
+    const assignerName = tasks[taskIndex].assignedByName || p.ownerName;
+    
+    tasks[taskIndex].isPendingAcceptance = false; 
+    tasks[taskIndex].assigneeId = assignerId;
+    tasks[taskIndex].assigneeName = assignerName;
+    
+    tasks[taskIndex].history.push({
+        timestamp: new Date().toLocaleString('zh-TW', { hour12: false }),
+        progress: tasks[taskIndex].progress, type: 'update', daysPassed: 0, delayReason: '',
+        remark: `❌ 退回指派 (原因: ${reason || '無'})`
+    });
+    
+    await updateDoc(doc(db, "projects", projId), { tasks });
+    alert("已拒絕指派，任務已退回給開案者！");
 };
