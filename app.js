@@ -1086,8 +1086,9 @@ function renderProjects() {
 
   const collabProjects = allProjectsData.filter(p => {
     const collabs = p.collaborators || [];
-    if (collabs.length === 0) return false;
-    return collabs.includes(targetDept) || p.ownerId === viewingUserId;
+    const hasMyAssignedTask = (p.tasks || []).some(t => t.assigneeId === viewingUserId && t.isPendingAcceptance !== true);
+    if (collabs.length === 0 && !hasMyAssignedTask) return false;
+    return collabs.includes(targetDept) || p.ownerId === viewingUserId || hasMyAssignedTask;
   });
 
   const allInvolvedProjectsMap = new Map();
