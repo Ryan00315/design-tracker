@@ -656,7 +656,7 @@ onAuthStateChanged(auth, async (user) => {
     } else {
       document.getElementById('nav-sub-wrapper').style.display = 'none';
     }
-
+    window.initNotificationsUI();
     loadOrgUsers();
     initWeeklyDateAndLeave(); 
     addTaskRow(); 
@@ -2208,12 +2208,26 @@ function renderAdHocEvents() {
     let actionHtml = !evt.isCompleted && isOwner ? `<button class="action-btn" onclick="completeAdHoc('${evt.id}')">完成</button>` : '';
     let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || canEditEvent) ? `<button class="action-btn danger" style="margin-left:4px;" onclick="deleteAdHoc('${evt.id}')">刪除</button>` : '';
 
+    // 🌟 新增：精算事件共計時數 (使用 startDateTime 與 completedAt 比對)
+    let durationHtml = "";
+    if (evt.isCompleted && evt.completedAt) {
+        try {
+            let startStr = evt.startDateTime || (evt.startDate + ' 00:00:00');
+            let startMs = new Date(startStr.replace(/-/g, '/')).getTime();
+            let endMs = new Date(evt.completedAt.replace(/-/g, '/')).getTime();
+            if (!isNaN(startMs) && !isNaN(endMs) && endMs >= startMs) {
+                let diffHours = ((endMs - startMs) / (1000 * 60 * 60)).toFixed(1);
+                durationHtml = `<div style="font-size:12px; color:var(--success); font-weight:bold; margin-top:4px;">共計 ${diffHours} 小時</div>`;
+            }
+        } catch (e) { console.error("時數解析錯誤:", e); }
+    }
+
     const tr = document.createElement("tr"); 
     tr.innerHTML = `
       <td style="white-space: nowrap; width: 1%;"><strong>${evt.title}</strong></td>
       <td style="word-break: break-all; width: 100%; min-width: 200px;">${evt.reason}</td>
       <td style="white-space: nowrap; width: 1%;">${evt.startDate || '-'}</td>
-      <td style="white-space: nowrap; width: 1%;">${evt.completedAt || '-'}</td>
+      <td style="white-space: nowrap; width: 1%;">${evt.completedAt || '-'}${durationHtml}</td>
       <td style="white-space: nowrap; width: 1%;">${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td>
       <td style="white-space: nowrap; width: 1%;">${actionHtml}${editHtml}${delHtml}</td>
     `; 
@@ -4259,18 +4273,25 @@ window.syncSubTasksDate = (startInput) => {
     });
 };
 
+// ==========================================
+// 🌟 專案指派通知系統 (UI生成與邏輯)
+// ==========================================
 window.initNotificationsUI = () => {
     const navUl = document.querySelector(".sidebar-menu") || document.querySelector("ul");
     if (navUl && !document.getElementById("nav-notifications")) {
         const li = document.createElement("li");
         li.className = "nav-item";
         li.id = "nav-notifications";
-        li.innerHTML = `<span style="margin-right:6px;">🔔</span> 專案通知 <span class="badge" id="notif-badge" style="display:none; background:var(--danger); color:white; border-radius:10px; padding:2px 6px; font-size:10px; margin-left:auto;">0</span>`;
-        li.onclick = () => window.switchNav('tab-notifications', '專案通知', li);
+        li.innerHTML = `<span style="margin-right:6px;">🔔</span> 系統通知 <span class="badge" id="notif-badge" style="display:none; background:var(--danger); color:white; border-radius:10px; padding:2px 6px; font-size:10px; margin-left:auto;">0</span>`;
+        li.onclick = () => window.switchNav('tab-notifications', '系統通知', li);
         
-        const projNav = document.querySelector('li[onclick*="tab-projects"]');
-        if (projNav && projNav.parentNode) projNav.parentNode.insertBefore(li, projNav.nextSibling);
-        else navUl.appendChild(li);
+        // 🌟 改為放在週報填寫下方
+        const weeklyNav = document.querySelector('li[onclick*="tab-weekly"]');
+        if (weeklyNav && weeklyNav.nextSibling) {
+            weeklyNav.parentNode.insertBefore(li, weeklyNav.nextSibling);
+        } else {
+            navUl.appendChild(li);
+        }
     }
 
     const mainContent = document.querySelector(".main-content") || document.getElementById("app-section");
@@ -4279,21 +4300,24 @@ window.initNotificationsUI = () => {
         tab.className = "tab-pane";
         tab.id = "tab-notifications";
         tab.style.display = "none";
+        // 🌟 美化排版 (加入 padding、圓角、格線與現代感表格)
         tab.innerHTML = `
-            <div class="panel">
-                <div class="panel-head"><span>🔔 待處理的專案 / 子專案指派</span></div>
-                <div class="table-responsive">
-                    <table style="width:100%;">
+            <div class="panel" style="border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); overflow: hidden;">
+                <div class="panel-head" style="background: #f8fafc; padding: 15px 20px; border-bottom: 1px solid #e2e8f0; display:flex; align-items:center;">
+                    <span style="font-size: 16px; font-weight: bold; color: #0f172a;">🔔 待處理的專案 / 子專案指派</span>
+                </div>
+                <div class="table-responsive" style="padding: 0 20px 20px 20px;">
+                    <table style="width:100%; border-collapse: collapse; text-align: left; margin-top: 10px;">
                         <thead>
-                            <tr>
-                                <th style="width:25%">專案名稱</th>
-                                <th style="width:30%">任務/子專案名稱</th>
-                                <th style="width:15%">指派人</th>
-                                <th style="width:15%">指派時間</th>
-                                <th style="width:15%; text-align:center;">操作</th>
+                            <tr style="border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 13px;">
+                                <th style="width:25%; padding: 12px 8px;">專案名稱</th>
+                                <th style="width:30%; padding: 12px 8px;">任務/子專案名稱</th>
+                                <th style="width:15%; padding: 12px 8px;">指派人</th>
+                                <th style="width:15%; padding: 12px 8px;">指派時間</th>
+                                <th style="width:15%; text-align:center; padding: 12px 8px;">操作</th>
                             </tr>
                         </thead>
-                        <tbody id="notif-list-tbody"></tbody>
+                        <tbody id="notif-list-tbody" style="font-size: 14px;"></tbody>
                     </table>
                 </div>
             </div>
@@ -4301,7 +4325,7 @@ window.initNotificationsUI = () => {
         mainContent.appendChild(tab);
     }
 };
-setTimeout(window.initNotificationsUI, 1000); 
+// (已移除原有的 setTimeout，由上方 onAuthStateChanged 同步觸發)
 
 window.renderNotifications = () => {
     const tbody = document.getElementById("notif-list-tbody");
@@ -4316,14 +4340,15 @@ window.renderNotifications = () => {
             if (t.assigneeId === myUid && t.isPendingAcceptance === true) {
                 pendingCount++;
                 const tr = document.createElement("tr");
+                tr.style.borderBottom = "1px solid #f1f5f9"; // 增加分隔線
                 tr.innerHTML = `
-                    <td style="font-weight:bold; color:var(--primary);">${p.title}</td>
-                    <td>${t.name}</td>
-                    <td><span class="pill pill-role">${t.assignedByName || '未知'}</span></td>
-                    <td><span style="font-size:12px; color:var(--text-muted);">${t.assignedAt || '-'}</span></td>
-                    <td style="text-align:center;">
-                        <button class="action-btn" style="background:var(--success); color:#fff; border:none; margin-right:4px;" onclick="acceptAssignment('${p.id}', ${index})">✅ 同意</button>
-                        <button class="action-btn danger" onclick="rejectAssignment('${p.id}', ${index})">❌ 拒絕</button>
+                    <td style="padding: 12px 8px; font-weight:bold; color:var(--primary);">${p.title}</td>
+                    <td style="padding: 12px 8px;">${t.name}</td>
+                    <td style="padding: 12px 8px;"><span class="pill" style="background:#eff6ff; color:#1e40af;">${t.assignedByName || '未知'}</span></td>
+                    <td style="padding: 12px 8px;"><span style="font-size:12px; color:var(--text-muted);">${t.assignedAt || '-'}</span></td>
+                    <td style="padding: 12px 8px; text-align:center;">
+                        <button class="action-btn" style="background:#10b981; color:#fff; border:none; margin-right:4px; padding:4px 10px;" onclick="acceptAssignment('${p.id}', ${index})">✅ 同意</button>
+                        <button class="action-btn danger" style="padding:4px 10px;" onclick="rejectAssignment('${p.id}', ${index})">❌ 拒絕</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -4332,7 +4357,7 @@ window.renderNotifications = () => {
     });
     
     if (pendingCount === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:20px;">目前沒有待處理的指派通知。</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:30px;">目前沒有待處理的指派通知。</td></tr>`;
     }
     if (badge) {
         badge.innerText = pendingCount;
