@@ -112,7 +112,10 @@
 
             <div style="margin-top: 8px; margin-bottom: 10px; font-weight: 600; font-size: 14px; color: #334155;">任務細項排程 (系統自動避開週末，支援上下移動調整排序)</div>
             <div id="task-list-container"></div>
-            <button class="action-btn" onclick="addTaskRow()" style="margin-top: 10px; border-style: dashed;">+ 新增任務細項</button>
+            <div style="display:flex; gap:10px;">
+              <button type="button" class="action-btn" onclick="addTaskRow()" style="margin-top: 10px; border-style: dashed;">+ 新增任務細項</button>
+              <button type="button" class="action-btn" onclick="addSubProjectRow()" style="margin-top: 10px; border-style: dashed; border-color: #d97706; color: #d97706;">+ 新增子專案 (採購/品檢)</button>
+            </div>
             <div style="margin-top: 24px; border-top: 1px solid var(--border); padding-top: 20px;"><button id="btn-add-project" class="btn-primary" style="width: 180px;">送出並建立專案</button></div>
           </div>
 
