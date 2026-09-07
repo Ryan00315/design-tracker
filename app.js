@@ -4319,6 +4319,9 @@ window.syncSubTasksDate = (startInput) => {
 // ==========================================
 // 🌟 專案指派通知系統 (UI生成與邏輯)
 // ==========================================
+// ==========================================
+// 🌟 專案指派通知系統 (UI生成與邏輯)
+// ==========================================
 window.initNotificationsUI = () => {
     const navUl = document.querySelector(".sidebar-menu") || document.querySelector("ul");
     if (navUl && !document.getElementById("nav-notifications")) {
@@ -4328,7 +4331,7 @@ window.initNotificationsUI = () => {
         li.innerHTML = `<span style="margin-right:6px;">🔔</span> 系統通知 <span class="badge" id="notif-badge" style="display:none; background:var(--danger); color:white; border-radius:10px; padding:2px 6px; font-size:10px; margin-left:auto;">0</span>`;
         li.onclick = () => window.switchNav('tab-notifications', '系統通知', li);
         
-        // 🌟 嚴格對齊順序：強制插在「週報填寫」下方
+        // 嚴格對齊順序：強制插在「週報填寫」下方
         const weeklyNav = document.querySelector('li[onclick*="tab-weekly"]');
         if (weeklyNav && weeklyNav.parentNode) {
             weeklyNav.parentNode.insertBefore(li, weeklyNav.nextSibling);
@@ -4337,32 +4340,30 @@ window.initNotificationsUI = () => {
         }
     }
 
-    // 🌟 修正排版：精準對齊中央主畫面容器，不再擠在右側
-    const mainContent = document.querySelector(".main-content") || document.querySelector(".content-body") || document.getElementById("app-section");
+    // 修正點：尋找其他分頁的家（例如 tab-projects 的父層），確保它位在中央內容區而非右側
+    const samplePane = document.getElementById("tab-projects") || document.querySelector(".tab-pane");
+    const mainContent = samplePane ? samplePane.parentNode : (document.querySelector(".main-content") || document.getElementById("app-section"));
     
     if (mainContent && !document.getElementById("tab-notifications")) {
         const tab = document.createElement("div");
         tab.className = "tab-pane";
         tab.id = "tab-notifications";
         tab.style.display = "none";
-        tab.style.width = "100%";
         tab.innerHTML = `
-            <div class="panel" style="border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); overflow: hidden; background: #fff;">
-                <div class="panel-head" style="background: #f8fafc; padding: 15px 20px; border-bottom: 1px solid #e2e8f0; display:flex; align-items:center;">
-                    <span style="font-size: 16px; font-weight: bold; color: #0f172a;">🔔 待處理的專案 / 子專案指派</span>
-                </div>
-                <div class="table-responsive" style="padding: 0 20px 20px 20px;">
-                    <table style="width:100%; border-collapse: collapse; text-align: left; margin-top: 10px;">
+            <div class="panel">
+                <div class="panel-head"><span>🔔 待處理的專案 / 子專案指派</span></div>
+                <div class="table-responsive">
+                    <table style="width:100%;">
                         <thead>
-                            <tr style="border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 13px;">
-                                <th style="width:25%; padding: 12px 8px;">專案名稱</th>
-                                <th style="width:30%; padding: 12px 8px;">任務/子專案名稱</th>
-                                <th style="width:15%; padding: 12px 8px;">指派人</th>
-                                <th style="width:15%; padding: 12px 8px;">指派時間</th>
-                                <th style="width:15%; text-align:center; padding: 12px 8px;">操作</th>
+                            <tr>
+                                <th style="width:25%">專案名稱</th>
+                                <th style="width:30%">任務/子專案名稱</th>
+                                <th style="width:15%">指派人</th>
+                                <th style="width:15%">指派時間</th>
+                                <th style="width:15%; text-align:center;">操作</th>
                             </tr>
                         </thead>
-                        <tbody id="notif-list-tbody" style="font-size: 14px;"></tbody>
+                        <tbody id="notif-list-tbody"></tbody>
                     </table>
                 </div>
             </div>
