@@ -1453,7 +1453,9 @@ function renderProjects() {
   }
 
   if (delProjBtn) {
-    delProjBtn.style.display = canEditMainProj ? "inline-block" : "none";
+    // 🌟 修正：只要是 7 天內擁有者，或者 (管理員 + 開啟編輯模式)，刪除按鈕就會顯示
+    let canDeleteProj = (isProjOwner && inGracePeriod) || (hasGlobalEdit && isEditMode);
+    delProjBtn.style.display = canDeleteProj ? "inline-block" : "none";
   }
 
   const leftBody = document.getElementById("gantt-left-body");
