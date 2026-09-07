@@ -1584,6 +1584,290 @@ function renderProjects() {
   if(leftBody) leftBody.innerHTML = ""; 
   if(listBody) listBody.innerHTML = "";
 
+  // 🌟 1. 註冊全域的子專案展開/收合切換函式與狀態記憶
+  if (!window.collapsedSubProjects) window.collapsedSubProjects = {};
+  window.toggleSubProject = (projId, subProjName) => {
+      const key = `${projId}_${subProjName}`;
+      window.collapsedSubProjects[key] = !window.collapsedSubProjects[key]; // 反轉狀態
+      renderProjects(); // 重新渲染畫面
+  };
+
+  // 🌟 2. 預處理：將相同名稱的子專案細項彙整成「群組標頭」
+  const renderList = [];
+  const subProjMap = {};
+  const handledGroups = new Set();
+
+  (activeProj.tasks || []).forEach((task, index) => {
+      if (task.isSubProjectTask) {
+          if (!subProjMap[task.parentSubProject]) {
+              subProjMap[task.parentSubProject] = {
+                  isGroupHeader: true,
+                  parentSubProject: task.parentSubProject,
+                  tasks: [],
+                  originalIndexes: [],
+                  start: "9999-12-31",
+                  end: "0000-01-01",
+                  isCompleted: true,
+                  assigneeName: task.assigneeName || '原負責人'
+              };
+          }
+          const group = subProjMap[task.parentSubProject];
+          group.tasks.push(task);
+          group.originalIndexes.push(index);
+          if (task.start < group.start) group.start = task.start;
+          if (task.end > group.end) group.end = task.end;
+          if (!task.isCompleted) group.isCompleted = false;
+      }
+  });
+
+  // 🌟 3. 將群組標頭與子細項塞入新的 renderList (控制展開與收合)
+  (activeProj.tasks || []).forEach((task, index) => {
+      if (task.isSubProjectTask) {
+          if (!handledGroups.has(task.parentSubProject)) {
+              handledGroups.add(task.parentSubProject);
+              const group = subProjMap[task.parentSubProject];
+              let totalProg = 0;
+              group.tasks.forEach(t => totalProg += (t.progress || 0));
+              group.progress = group.tasks.length ? Math.round(totalProg / group.tasks.length) : 0;
+              
+              renderList.push(group); // 塞入黃色的群組標頭
+              
+              // 檢查該子專案是否被收合，若沒有收合 (預設展開)，則印出底下的細項
+              const isCollapsed = window.collapsedSubProjects[`${activeProj.id}_${task.parentSubProject}`];
+              if (!isCollapsed) {
+                  group.tasks.forEach((t, i) => {
+                      renderList.push({ ...t, originalIndex: group.originalIndexes[i], isChild: true });
+                  });
+              }
+          }
+      } else {
+          // 一般任務直接塞入
+          renderList.push({ ...task, originalIndex: index });
+      }
+  });
+
+  // 🌟 4. 根據 renderList 開始畫出左側列表與收集甘特圖資料
+  const ganttTasks = [];
+  renderList.forEach((item, displayIndex) => {
+      if (item.isGroupHeader) {
+          // 畫出子專案的「群組標頭」
+          const isCollapsed = window.collapsedSubProjects[`${activeProj.id}_${item.parentSubProject}`];
+          const chevron = isCollapsed ? '▶' : '▼';
+          const workDays = getWorkingDays(item.start, item.end);
+          
+          ganttTasks.push({ 
+              id: `g_${displayIndex}`,
+              name: `📦 ${item.parentSubProject}`, 
+              start: item.start, 
+              end: item.end, 
+              progress: item.progress, 
+              custom_class: item.isCompleted ? 'bar-success' : 'bar-warning' 
+          });
+
+          const sDate = new Date(item.start.replace(/-/g, '/'));
+          const eDate = new Date(item.end.replace(/-/g, '/'));
+          const sMonth = !isNaN(sDate.getMonth()) ? sDate.getMonth() + 1 : '-';
+          const sDay = !isNaN(sDate.getDate()) ? sDate.getDate() : '-';
+          const eMonth = !isNaN(eDate.getMonth()) ? eDate.getMonth() + 1 : '-';
+          const eDay = !isNaN(eDate.getDate()) ? eDate.getDate() : '-';
+
+          const row = document.createElement("div"); 
+          row.className = "gantt-row";
+          row.style.backgroundColor = "#fffbeb";
+          row.innerHTML = `
+              <div class="col-name" style="cursor:pointer; font-weight:bold; color:#d97706; flex:1.8;" onclick="window.toggleSubProject('${activeProj.id}', '${item.parentSubProject}')">
+                  <span style="display:inline-block; width:16px;">${chevron}</span> 📦 ${item.parentSubProject}
+              </div>
+              <div class="col-expected-date" style="color: #64748b; font-size:12px;"><span>${sMonth}/${sDay}</span><span>~ ${eMonth}/${eDay}</span></div>
+              <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
+              <div class="col-prog"><span style="font-weight:bold;">${item.progress}%</span></div>
+              <div class="col-act"><span style="font-size:12px; color:var(--text-muted);">-</span></div>
+              <div class="col-owner" title="${item.assigneeName}">${item.assigneeName}</div>
+          `;
+          if(leftBody) leftBody.appendChild(row);
+          
+          if (listBody) {
+              const tr = document.createElement("tr");
+              tr.style.backgroundColor = "#fffbeb";
+              tr.innerHTML = `
+                  <td style="padding:8px 4px; font-weight:bold; color:#d97706; cursor:pointer;" colspan="4" onclick="window.toggleSubProject('${activeProj.id}', '${item.parentSubProject}')">
+                      <span>${chevron} 📦 ${item.parentSubProject} (總進度: ${item.progress}%)</span>
+                  </td>
+              `;
+              listBody.appendChild(tr);
+          }
+      } else {
+          // 畫出「一般任務」與「展開的子細項」
+          const task = item;
+          const index = item.originalIndex;
+          try {
+            const currentProgress = task.progress || 0;
+            const safeStart = task.start || getTodayStr();
+            const safeEnd = task.end || getTodayStr();
+            const workDays = getWorkingDays(safeStart, safeEnd);
+            
+            const isCollabTask = task.assigneeId && (task.assigneeId !== activeProj.ownerId);
+            let projColorClass = isCollabTask ? 'bar-pink' : (activeProj.color || 'bar-primary');
+
+            ganttTasks.push({ 
+              id: `t_${index}`, 
+              name: task.name || '未命名任務', 
+              start: safeStart, 
+              end: safeEnd, 
+              progress: currentProgress, 
+              custom_class: task.isCompleted ? 'bar-success' : projColorClass 
+            });
+
+            const taskAssigneeId = task.assigneeId || activeProj.ownerId;
+            const taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
+            const isMyTask = (auth.currentUser.uid === taskAssigneeId);
+
+            let taskCreatedTime = Date.now();
+            if (task.createdAt) {
+                taskCreatedTime = typeof task.createdAt.toMillis === 'function' ? task.createdAt.toMillis() : task.createdAt;
+            } else if (activeProj.createdAt) {
+                taskCreatedTime = typeof activeProj.createdAt.toMillis === 'function' ? activeProj.createdAt.toMillis() : Date.now();
+            }
+
+            let isTaskInGrace = true;
+            if (task.isSubProjectTask && !task.name.includes("簽核流程")) {
+                if (task.datesSetAt) {
+                    isTaskInGrace = ((Date.now() - task.datesSetAt) / (1000 * 60 * 60 * 24)) <= 14;
+                } else {
+                    isTaskInGrace = true; 
+                }
+            } else {
+                isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+            }
+
+            const canOperateThisTask = (hasGlobalEdit || isMyTask || isProjOwner);
+            const isProjectPaused = activeProj.status === 'paused' || activeProj.status === 'pause_requested';
+            const isInputLocked = task.isCompleted || !canOperateThisTask || isProjectPaused; 
+
+            let lastUpdateMs = taskCreatedTime;
+            if (task.history && task.history.length > 0) {
+                const lastHist = task.history[task.history.length - 1];
+                if (lastHist && lastHist.timestamp && typeof lastHist.timestamp === 'string') {
+                    let parsedTime = new Date(lastHist.timestamp.replace(/-/g, '/')).getTime();
+                    if (!isNaN(parsedTime)) lastUpdateMs = parsedTime;
+                }
+            }
+            const isWithin2Days = (Date.now() - lastUpdateMs) <= (2 * 24 * 60 * 60 * 1000);
+            const canEditRemark = canOperateThisTask && isWithin2Days;
+
+            let canEditTask = (hasGlobalEdit && isEditMode) || ((isProjOwner || isMyTask) && isTaskInGrace);
+            
+            let editHtml = canEditTask ? `
+              <div style="display:inline-flex; align-items:center; gap:2px; margin-left:auto; flex-shrink:0;">
+                <button type="button" class="btn-sort" onclick="moveActiveProjectTask('${activeProj.id}', ${index}, -1)" title="上移">↑</button>
+                <button type="button" class="btn-sort" onclick="moveActiveProjectTask('${activeProj.id}', ${index}, 1)" title="下移">↓</button>
+                <button class="action-btn" onclick="openGeneralEdit('task', '${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px;" title="編輯細項">✏️</button>
+                <button class="action-btn danger" onclick="deleteActiveProjectTask('${activeProj.id}', ${index})" style="padding:2px 5px; font-size:10px;" title="刪除此細項">🗑️</button>
+              </div>` : '';
+
+            const sDate = new Date(safeStart.replace(/-/g, '/'));
+            const eDate = new Date(safeEnd.replace(/-/g, '/'));
+            const sMonth = !isNaN(sDate.getMonth()) ? sDate.getMonth() + 1 : '-';
+            const sDay = !isNaN(sDate.getDate()) ? sDate.getDate() : '-';
+            const eMonth = !isNaN(eDate.getMonth()) ? eDate.getMonth() + 1 : '-';
+            const eDay = !isNaN(eDate.getDate()) ? eDate.getDate() : '-';
+
+            const expectedDateHtml = `<div class="col-expected-date" style="color: #64748b;"><span>${sMonth}/${sDay}</span><span>~ ${eMonth}/${eDay}</span></div>`;
+
+            const progressInputStyle = task.isCompleted 
+              ? 'width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold; color:var(--success);' 
+              : 'width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold;';
+
+            const confirmBtnStyle = task.isCompleted ? 'opacity: 0.4; cursor: not-allowed;' : '';
+
+            // 處理子細項名稱前綴：拔除長長的 [專案名] 改用箭頭縮排顯示
+            let displayName = task.name || '未命名任務';
+            if (item.isChild && displayName.startsWith(`[${task.parentSubProject}] `)) {
+                displayName = displayName.replace(`[${task.parentSubProject}] `, '↳ ');
+            }
+            const nameIndent = item.isChild ? 'padding-left: 22px; color: var(--text-muted); font-size: 13.5px;' : '';
+
+            const row = document.createElement("div"); 
+            row.className = "gantt-row";
+            row.innerHTML = `
+              <div class="col-name" title="${task.name || '未命名任務'}" style="${nameIndent}"><span style="overflow:hidden; text-overflow:ellipsis;">${displayName}</span>${editHtml}</div>
+              ${expectedDateHtml}
+              <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
+              <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="${progressInputStyle}"><span style="font-weight:bold; margin-left:2px;">%</span></div>
+              <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} style="${confirmBtnStyle}" onclick="confirmProgress('${activeProj.id}', ${index}, '${safeEnd}')">${task.isCompleted ? '完成' : '確認'}</button></div>
+              <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
+            `;
+            if(leftBody) leftBody.appendChild(row);
+
+            // 畫出下方歷史紀錄 Table
+            if (listBody) {
+              let historyHtml = '';
+              const historyList = task.history || [];
+              if (historyList.length > 0) {
+                const sortedHistory = [...historyList].sort((a, b) => {
+                    let timeA = (a.timestamp && typeof a.timestamp === 'string') ? new Date(a.timestamp.replace(/-/g, '/')).getTime() : 0;
+                    let timeB = (b.timestamp && typeof b.timestamp === 'string') ? new Date(b.timestamp.replace(/-/g, '/')).getTime() : 0;
+                    return timeB - timeA;
+                });
+                
+                historyHtml = `<div style="max-height: 180px; overflow-y: auto; padding-right: 2px;">` + 
+                  `<table style="width:100%; table-layout:fixed; border-collapse:collapse; margin:0; background:transparent;"><colgroup><col style="width:22%;"><col style="width:78%;"></colgroup><tbody>` +
+                  sortedHistory.map((h, i) => {
+                     let histTimeMs = (h.timestamp && typeof h.timestamp === 'string') ? new Date(h.timestamp.replace(/-/g, '/')).getTime() : NaN;
+                     let isHistWithin2Days = !isNaN(histTimeMs) && (Date.now() - histTimeMs) <= (2 * 24 * 60 * 60 * 1000);
+                     let hasContent = (h.delayReason && h.delayReason.trim() !== "") || 
+                                      (h.remark && h.remark.trim() !== "" && h.remark !== '專案建立' && h.remark !== '追加任務細項');
+
+                     let canEditThisHist = canOperateThisTask && isHistWithin2Days && hasContent;
+                     let rowEditBtn = canEditThisHist ? `<button class="action-btn" style="padding:1px 4px; font-size:10px; margin-left:6px;" onclick="openEditRemarkModal('${activeProj.id}', ${index}, '${h.timestamp}')">✏️ 修改</button>` : '';
+
+                     let contentText = '';
+                     if (h.type === 'complete' && h.delayReason) {
+                         contentText = `<span class="pill pill-danger">Delay: ${h.delayReason}</span>`;
+                     } else if (h.remark && h.remark !== '專案建立' && h.remark !== '追加任務細項' && h.remark !== '子專案指派建立') {
+                         contentText = `<span style="color: var(--text-muted);">${h.remark}</span>`;
+                     } else {
+                         contentText = `<span style="color: #cbd5e1;">${h.remark || '-'}</span>`;
+                     }
+
+                     const borderStyle = i === sortedHistory.length - 1 ? "" : "border-bottom:1px dashed var(--border-light);";
+                     return `<tr style="${borderStyle}">
+                               <td style="padding: 6px 2px 6px 0; vertical-align: top;">
+                                 <span style="color:var(--primary); font-weight:600; font-size:11px; white-space:nowrap;">[ ${h.timestamp || '-'} ]</span>
+                                 <div style="margin-top:1px; font-size:10.5px; color:#64748b; white-space:nowrap;">歷時 <b>${h.daysPassed || 0}</b> 工作天</div>
+                               </td>
+                               <td style="padding: 6px 0 6px 4px; vertical-align: top; word-break: break-all;">
+                                 <div style="display:flex; align-items:center; flex-wrap:wrap; margin-bottom:2px;">
+                                   <span>${contentText}</span>
+                                   ${rowEditBtn}
+                                 </div>
+                               </td>
+                             </tr>`;
+                  }).join('') + `</tbody></table></div>`;
+              } else {
+                historyHtml = `<div style="padding: 6px 0; color:var(--text-muted);">尚無紀錄</div>`;
+              }
+
+              const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="padding:4px 8px;">已完成</span>` : `<span style="font-weight:bold;">進度: ${task.progress || 0}%</span>`;
+
+              const tr = document.createElement("tr");
+              tr.innerHTML = `
+                <td style="vertical-align: top; padding: 8px 4px; ${nameIndent}"><strong>${displayName}</strong></td>
+                <td style="vertical-align: top; padding: 8px 4px; width: 90px;">${taskAssigneeName}</td>
+                <td style="vertical-align: top; padding: 8px 4px; width: 100px;">${statusHtml}</td>
+                <td style="padding: 6px 4px; vertical-align: top;">
+                    ${historyHtml}
+                </td>`;
+              listBody.appendChild(tr);
+            }
+          } catch (e) {
+            console.error("渲染任務細項時發生錯誤:", e, task);
+          }
+      }
+  });
+
+// ==== 修改片段結束，以下保持不動 ====
+
   const ganttTasks = [];
   (activeProj.tasks || []).forEach((task, index) => {
     try {
