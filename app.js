@@ -3883,7 +3883,9 @@ window.addTemplateSubProjectRow = () => {
          <div style="display:flex; gap:6px; align-items:center;" class="sub-task-item">
             <span style="font-size:12px; color:var(--danger); font-weight:bold; width:20px;">1.</span>
             <input type="text" class="input-control sub-task-name" value="簽核流程" readonly style="flex:2; background:#f1f5f9;">
-            <input type="number" class="input-control sub-task-days" value="1" placeholder="天數" style="width:60px;">
+            <input type="date" class="input-control sub-task-start" onchange="onTaskStartChange(this, null)" style="flex:1;">
+            <input type="number" class="input-control sub-task-days" value="1" placeholder="天數" oninput="onTaskDaysChange(this, null, null)" style="width:60px;">
+            <input type="date" class="input-control sub-task-end" onchange="onTaskEndChange(this, null, null)" style="flex:1;">
          </div>
       </div>
       <button type="button" class="action-btn" onclick="addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加預設子細項</button>
