@@ -4521,8 +4521,11 @@ window.renderNotifications = () => {
 
     allProjectsData.forEach(p => {
         (p.tasks || []).forEach(t => {
-            // 1. 收集待處理 (指派或系統通知且未同意)
-            if (t.assigneeId === myUid && t.isPendingAcceptance === true && t.isSubProjectTask) {
+            // 🌟 防呆修正：如果名稱包含 "[系統通知]"，絕對不能當作待處理項目讓使用者按同意/拒絕！
+            const isSystemNotif = t.name && t.name.includes("[系統通知]");
+
+            // 1. 收集真正需要同意的待處理項目 (排除系統通知)
+            if (t.assigneeId === myUid && t.isPendingAcceptance === true && t.isSubProjectTask && !isSystemNotif) {
                 const key = `${p.id}_${t.parentSubProject}`;
                 if (!groupMap.has(key)) {
                     groupMap.set(key, {
@@ -4535,19 +4538,18 @@ window.renderNotifications = () => {
                 }
             }
             
-            // 2. 收集與我相關的歷史紀錄 (過去曾被指派或系統通知，且已處理完畢的)
-            if (t.assigneeId === myUid && t.isPendingAcceptance === false && t.isSubProjectTask) {
-                // 檢查最後一筆歷史紀錄
+            // 2. 收集歷史紀錄 (包含「已處理的指派」以及「所有的系統通知」)
+            if (t.assigneeId === myUid && t.isSubProjectTask && (t.isPendingAcceptance === false || isSystemNotif)) {
                 const lastHist = (t.history && t.history.length > 0) ? t.history[t.history.length - 1] : null;
-                if (lastHist && (lastHist.remark.includes('同意') || lastHist.remark.includes('退回') || lastHist.remark.includes('拒絕'))) {
-                    historyList.push({
-                        projTitle: p.title,
-                        name: t.name,
-                        assignedByName: t.assignedByName || '系統',
-                        timestamp: lastHist.timestamp || '-',
-                        remark: lastHist.remark
-                    });
-                }
+                const remarkText = lastHist ? lastHist.remark : (isSystemNotif ? t.name : '已處理');
+                
+                historyList.push({
+                    projTitle: p.title,
+                    name: t.name,
+                    assignedByName: t.assignedByName || '系統主管',
+                    timestamp: lastHist ? lastHist.timestamp : (t.assignedAt || '-'),
+                    remark: remarkText
+                });
             }
         });
     });
