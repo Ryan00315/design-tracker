@@ -123,6 +123,58 @@ function initDynamicUI() {
       .gantt-left-panel, .gantt-left-panel-summary { flex: 0 0 100% !important; max-width: 100% !important; margin-bottom: 16px !important; overflow-x: auto !important; }
       .gantt-right-panel, .gantt-right-panel-summary { display: block !important; flex: 0 0 100% !important; max-width: 100% !important; }
       .hide-on-mobile { display: none !important; }
+    /* 🌟 修復手機版人員選單：強制改為深色文字與清楚的背景底色 */
+.mobile-fixed-dropdown {
+  background: #ffffff !important; /* 底色改為純白 */
+}
+
+/* 部門標題：改為深灰藍色、粗體、加淺底色區隔 */
+.mobile-fixed-dropdown .nav-sub-dept-header {
+  color: #1e293b !important;
+  background: #e2e8f0 !important;
+  font-size: 14px !important;
+  padding: 10px 14px !important;
+  border-radius: 6px !important;
+  margin-top: 8px !important;
+}
+
+.mobile-fixed-dropdown .nav-sub-dept-header span {
+  color: #1e293b !important;
+}
+
+.mobile-fixed-dropdown .dept-count-badge {
+  background: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.mobile-fixed-dropdown .dept-arrow {
+  color: #475569 !important;
+}
+
+/* 人員名稱：改為深色文字，避免看不到 */
+.mobile-fixed-dropdown .nav-sub-item {
+  color: #0f172a !important;
+  font-size: 15px !important;
+  padding: 10px 16px !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+/* 人員職稱小字（如：設計部、人員等） */
+.mobile-fixed-dropdown .nav-sub-item small {
+  color: #64748b !important;
+}
+
+/* 當前選中或點擊時的高亮效果 */
+.mobile-fixed-dropdown .nav-sub-item:hover,
+.mobile-fixed-dropdown .nav-sub-item.active {
+  background: #eff6ff !important;
+  color: #2563eb !important;
+  font-weight: 700 !important;
+}
+
+.mobile-fixed-dropdown .nav-sub-item.active small {
+  color: #3b82f6 !important;
+}
     }
   `;
   document.head.appendChild(style);
