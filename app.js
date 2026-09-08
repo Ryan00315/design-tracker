@@ -165,6 +165,31 @@ function initDynamicUI() {
 }
 initDynamicUI();
 
+// 🌟🌟🌟 請將 Quill 初始化設定貼在這裡 🌟🌟🌟
+let adhocQuill; // 宣告為全域變數，讓底下的「存檔按鈕」可以讀取到它
+
+// 設定工具列只顯示你要的功能
+const toolbarOptions = [
+  ['bold', 'underline', 'strike'],        // 加粗、底線、刪除線
+  [{ 'color': [] }],                     // 字體顏色
+  [{ 'list': 'bullet' }],                // 項目符號
+  ['clean']                              // 一鍵清除格式
+];
+
+// 執行初始化
+setTimeout(() => { // 用 setTimeout 確保網頁元素都已準備好
+  adhocQuill = new Quill('#adhoc-editor-container', {
+    modules: { toolbar: toolbarOptions },
+    theme: 'snow',
+    placeholder: '請填寫事件原因說明 (Shift+Enter 換行)...'
+  });
+}, 500);
+// 🌟🌟🌟 新增結束 🌟🌟🌟
+
+function fixHeaders() {
+  const sumHeader = document.querySelector('#project-summary-view .gantt-row-header');
+// ...下面是你原本的程式碼...
+
 function fixHeaders() {
   const sumHeader = document.querySelector('#project-summary-view .gantt-row-header');
   if (sumHeader) {
@@ -2295,7 +2320,11 @@ function renderAdHocEvents() {
 
 document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
   const title = document.getElementById("adhoc-title").value.trim(); 
-  const reason = document.getElementById("adhoc-reason").value.trim(); 
+  
+  // ✅ 改為從 Quill 編輯器抓取包含格式的 HTML 內容
+  let reason = adhocQuill.root.innerHTML.trim();
+  if (reason === '<p><br></p>') reason = ""; // 如果是全空的，Quill 預設會產生這個標籤，將它視為空值
+
   const start = document.getElementById("adhoc-start").value;
   if (!title || !reason || !start) return alert("請填寫完整名稱、開始日期與原因！");
   
@@ -2306,7 +2335,7 @@ document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
     title, reason, startDate: start, startDateTime: new Date().toLocaleString(), isCompleted: false, createdAt: serverTimestamp() 
   });
   document.getElementById("adhoc-title").value = ""; 
-  document.getElementById("adhoc-reason").value = ""; 
+  adhocQuill.root.innerHTML = ""; 
   document.getElementById("adhoc-start").value = ""; 
   alert("事件紀錄完成！");
 });
