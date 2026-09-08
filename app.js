@@ -3865,8 +3865,9 @@ window.approvePause = async (projId) => {
         const reqByUid = proj.lastPauseRequestedUid || proj.ownerId;
 
         // 🌟 讓系統直接發送「已退回」的通知
+        // 🌟 修正：主管同意暫停通知
         tasks.push({
-            name: `[系統通知] 您的專案 [${proj.title}] 申請已被【${managerName}】❌ 退回 (原因: ${reason || '無'})`,
+            name: `[系統通知] 您的專案 [${proj.title}] 暫停申請已被【${managerName}】✅ 同意 (原因: ${reason || '無'})`,
             start: getTodayStr(),
             end: getTodayStr(),
             progress: 100,
@@ -3875,11 +3876,12 @@ window.approvePause = async (projId) => {
             parentSubProject: "專案審核通知",
             assigneeId: reqByUid,
             assigneeName: reqBy,
-            isPendingAcceptance: false, // 🌟 關鍵：設為 false，直接列入歷史紀錄
+            isPendingAcceptance: false,
+            isSystemNotifUnread: true,
             assignedByUid: auth.currentUser.uid,
             assignedByName: managerName,
             assignedAt: ts,
-            history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: `❌ 主管已退回您的申請 (原因: ${reason || '無'})` }]
+            history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: `✅ 主管已同意專案暫停 (原因: ${reason || '無'})` }]
         });
 
         await updateDoc(doc(db, "projects", projId), {
