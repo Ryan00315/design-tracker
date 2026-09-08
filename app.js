@@ -4065,24 +4065,24 @@ window.resumeProject = async (projId) => {
 window.renderApprovals = () => {
   const tbody = document.getElementById("approvals-list-tbody");
   const emptyState = document.getElementById("approvals-empty-state");
-  const badge = document.getElementById("approval-badge");
   const historyTbody = document.getElementById("approval-history-tbody");
   
   if (!tbody) return;
   tbody.innerHTML = "";
 
   const pendingProjects = allProjectsData.filter(p => p.status === 'pause_requested' || p.status === 'resume_requested');
-  if (badge) {
-    badge.innerText = pendingProjects.length;
-    badge.style.display = pendingProjects.length > 0 ? "inline-block" : "none";
-  }
+
+  const tableElement = tbody.closest('table');
+  const tableResponsive = tbody.closest('.table-responsive');
 
   if (pendingProjects.length === 0) {
-    emptyState.style.display = "block";
-    tbody.parentElement.style.display = "none";
+    if (emptyState) emptyState.style.display = "block";
+    if (tableResponsive) tableResponsive.style.display = "none";
+    else if (tableElement) tableElement.style.display = "none";
   } else {
-    emptyState.style.display = "none";
-    tbody.parentElement.style.display = "table";
+    if (emptyState) emptyState.style.display = "none";
+    if (tableResponsive) tableResponsive.style.display = "block";
+    if (tableElement) tableElement.style.display = "table";
     
     pendingProjects.forEach(p => {
       let isResume = (p.status === 'resume_requested');
@@ -4093,21 +4093,23 @@ window.renderApprovals = () => {
       let reqAt = isResume ? p.resumeRequestedAt : p.pauseRequestedAt;
 
       const tr = document.createElement("tr");
+      tr.style.borderBottom = "1px solid var(--border-light)";
       tr.innerHTML = `
-        <td><span style="color:var(--primary); font-weight:bold; cursor:pointer; text-decoration:none;" onclick="switchViewingUser('${p.ownerId}', '${p.ownerName || '人員'}'); switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*=\\'tab-projects\\']')); setTimeout(() => selectProject('${p.id}'), 150);">${reqTitle}</span></td>
-        <td><span class="pill" style="background:#eff6ff; color:#1e40af;">${reqBy || '未知'}</span></td>
-        <td><span style="font-size:12px; color:var(--text-muted);">${reqAt || '未記錄'}</span></td>
-        <td><strong style="color:var(--danger);">${reqDate}</strong></td>
-        <td style="word-break: break-all; color: var(--text-muted);">${reqReason}</td>
-        <td style="text-align: center;">
-          <button class="btn-primary" style="background:var(--danger); border:none; padding:4px 10px; font-size:12px;" onclick="approvePause('${p.id}')">同意</button>
-          <button class="action-btn" style="padding:4px 10px; font-size:12px; margin-left:6px;" onclick="rejectPause('${p.id}')">退回</button>
+        <td style="padding: 12px 8px;"><span style="color:var(--primary); font-weight:bold; cursor:pointer;" onclick="switchViewingUser('${p.ownerId}', '${p.ownerName || '人員'}'); switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*=\\'tab-projects\\']')); setTimeout(() => selectProject('${p.id}'), 150);">${reqTitle}</span></td>
+        <td style="padding: 12px 8px;"><span class="pill" style="background:#eff6ff; color:#1e40af;">${reqBy || '未知'}</span></td>
+        <td style="padding: 12px 8px;"><span style="font-size:12px; color:var(--text-muted);">${reqAt || '未記錄'}</span></td>
+        <td style="padding: 12px 8px;"><strong style="color:var(--danger);">${reqDate}</strong></td>
+        <td style="padding: 12px 8px; word-break: break-all; color: var(--text-muted);">${reqReason}</td>
+        <td style="padding: 12px 8px; text-align: center; white-space: nowrap;">
+          <button class="btn-primary" style="background:var(--danger); border:none; padding:4px 10px; font-size:12px; width:auto; margin-right:4px;" onclick="approvePause('${p.id}')">同意</button>
+          <button class="action-btn" style="padding:4px 10px; font-size:12px; width:auto;" onclick="rejectPause('${p.id}')">退回</button>
         </td>
       `;
       tbody.appendChild(tr);
     });
   }
 
+  // 渲染主管歷史審核操作紀錄
   if (historyTbody) {
     historyTbody.innerHTML = "";
     let allLogs = [];
@@ -4129,24 +4131,25 @@ window.renderApprovals = () => {
       let delBtnHtml = `<button class="action-btn danger" style="padding: 2px 6px; font-size: 11px;" onclick="deleteAuditLog('${log.projId}', '${log.time}', '${log.action}')">刪除</button>`;
 
       const tr = document.createElement("tr");
+      tr.style.borderBottom = "1px solid var(--border-light)";
       tr.innerHTML = `
-        <td><span style="font-size:12px; color:#475569;">${log.time}</span></td>
-        <td>
-          <span style="color:var(--primary); font-weight:bold; cursor:pointer; text-decoration:none;" 
+        <td style="padding: 10px 8px;"><span style="font-size:12px; color:#475569;">${log.time}</span></td>
+        <td style="padding: 10px 8px;">
+          <span style="color:var(--primary); font-weight:bold; cursor:pointer;" 
                 onclick="switchViewingUser('${log.ownerId}', '${log.ownerName}'); switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*=\\'tab-projects\\']')); setTimeout(() => selectProject('${log.projId}'), 150);" 
                 title="點擊前往查看此專案">
             ${log.title}
           </span>
         </td>
-        <td><span style="${actionStyle}">${log.action}</span></td>
-        <td><span class="pill" style="background:#f1f5f9; color:#334155;">${log.manager}</span></td>
-        <td>
-          <span class="pill" style="background:#eff6ff; color:#1e40af; margin-bottom:4px; display:inline-block;">${log.reqBy || '-'}</span><br>
+        <td style="padding: 10px 8px;"><span style="${actionStyle}">${log.action}</span></td>
+        <td style="padding: 10px 8px;"><span class="pill" style="background:#f1f5f9; color:#334155;">${log.manager}</span></td>
+        <td style="padding: 10px 8px;">
+          <span class="pill" style="background:#eff6ff; color:#1e40af; margin-bottom:2px; display:inline-block;">${log.reqBy || '-'}</span><br>
           <span style="font-size:11px; color:#94a3b8;">${log.reqAt || '-'}</span>
         </td>
-        <td><strong style="color:var(--danger); font-size:12px;">${log.reqStart || '-'}</strong></td>
-        <td style="word-break:break-all; color:var(--text-muted); font-size:12px;">${log.reqReason || '-'}</td>
-        <td style="text-align: center;">${delBtnHtml}</td>
+        <td style="padding: 10px 8px;"><strong style="color:var(--danger); font-size:12px;">${log.reqStart || '-'}</strong></td>
+        <td style="padding: 10px 8px; word-break:break-all; color:var(--text-muted); font-size:12px;">${log.reqReason || '-'}</td>
+        <td style="padding: 10px 8px; text-align: center;">${delBtnHtml}</td>
       `;
       historyTbody.appendChild(tr);
     });
@@ -4614,7 +4617,7 @@ window.initNotificationsUI = () => {
                     <!-- 分頁按鈕 2：主管待審核通知 (僅主管/管理員可見) -->
                     <button type="button" id="tab-btn-sub-approvals" class="action-btn" onclick="window.switchNotifSubTab('approvals')" 
                         style="display: none; align-items: center; gap: 6px; padding: 8px 18px; border-radius: 20px; font-size: 14px; font-weight: bold; background: var(--surface); color: var(--text-muted); border-color: var(--border); transition: 0.2s;">
-                        <span>👑 待審核申請</span>
+                        <span>👑 待審核通知</span>
                         <span id="badge-sub-approvals" style="display:none; background: var(--danger); color: #fff; border-radius: 10px; padding: 1px 6px; font-size: 11px;">0</span>
                     </button>
                 </div>
