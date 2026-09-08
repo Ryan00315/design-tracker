@@ -3826,7 +3826,7 @@ window.submitPauseRequest = async () => {
       pauseReason: reason,
       pauseStartDate: startDate, 
       pauseRequestedBy: currentUserData.name || "人員",
-      pauseRequestedAt: getNowTimeStr()
+      pauseRequestedAt: getNowTimeStr(),
       lastPauseRequestedUid: auth.currentUser.uid
     });
     
@@ -3862,6 +3862,7 @@ window.approvePause = async (projId) => {
             time: ts,
             reqBy: reqBy, reqAt: reqAt, reqStart: startDateToUse, reqReason: reason
         });
+        const reqByUid = proj.lastPauseRequestedUid || proj.ownerId;
 
         // 🌟 讓系統直接發送「已退回」的通知
         tasks.push({
@@ -4182,7 +4183,7 @@ window.submitResumeRequest = async () => {
       status: "resume_requested",
       resumeRequestedDate: resumeDate,
       resumeRequestedBy: currentUserData.name || "人員",
-      resumeRequestedAt: getNowTimeStr()
+      resumeRequestedAt: getNowTimeStr(),
       lastResumeRequestedUid: auth.currentUser.uid
     });
     window.closeResumeModal(); 
