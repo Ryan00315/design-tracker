@@ -20,14 +20,14 @@ body { background: var(--bg-page); color: var(--text-main); height: 100vh; overf
 .sidebar-header { height: 64px; flex-shrink: 0; display: flex; align-items: center; padding: 0 20px; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 16px; font-weight: 700; }
 .version-tag { background: #334155; color: #94a3b8; font-size: 11px; padding: 2px 6px; border-radius: 4px; }
 .nav-list { list-style: none; padding: 16px 10px; flex: 1; display: flex; flex-direction: column; gap: 4px; }
-.nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--radius-md); color: #94a3b8; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s ease; user-select: none;}
-.nav-item svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; flex-shrink: 0;}
+.nav-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--radius-md); color: #94a3b8; font-size: 18px; font-weight: 500; cursor: pointer; transition: all 0.15s ease; user-select: none;}
+.nav-item svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; flex-shrink: 0;}
 .nav-item:hover { background: var(--sidebar-hover); color: #f8fafc; }
 .nav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 600; }
 .nav-divider { height: 1px; background: rgba(255, 255, 255, 0.08); margin: 12px 14px; flex-shrink: 0;}
 
 .nav-sub-list { list-style: none; padding: 6px; margin: 0; display: none; flex-direction: column; gap: 4px; background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius-md); overflow: hidden; margin-top: 6px; margin-bottom: 6px;}
-.nav-sub-item { padding: 10px 14px 10px 44px; color: #cbd5e1; font-size: 13px; font-weight: 500; cursor: pointer; transition: 0.15s; position: relative; border-radius: 6px; }
+.nav-sub-item { padding: 10px 14px 10px 44px; color: #cbd5e1; font-size: 15px; font-weight: 500; cursor: pointer; transition: 0.15s; position: relative; border-radius: 6px; }
 .nav-sub-item::before { content: ''; position: absolute; left: 22px; top: 50%; transform: translateY(-50%); width: 6px; height: 6px; border-radius: 50%; background: #64748b; transition: 0.2s;}
 .nav-sub-item:hover { color: #fff; background: rgba(255,255,255,0.08); }
 .nav-sub-item.active { color: #fff; font-weight: 600; background: var(--sidebar-active); }
@@ -367,7 +367,7 @@ tr:hover td { background: #fafafa; }
 /* 🚀 側邊欄人員切換之部門分類小標題 */
 .nav-sub-dept-header {
   padding: 8px 12px 4px 18px;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   color: #64748b;
   letter-spacing: 0.5px;
