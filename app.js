@@ -4568,7 +4568,14 @@ window.initNotificationsUI = () => {
         const li = document.createElement("li");
         li.className = "nav-item";
         li.id = "nav-notifications";
-        li.innerHTML = `<span style="margin-right:6px;">🔔</span> 系統通知 <span class="badge" id="notif-badge" style="display:none; background:var(--danger); color:white; border-radius:10px; padding:2px 6px; font-size:10px; margin-left:auto;">0</span>`;
+        li.innerHTML = `
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" style="flex-shrink:0;">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+          <span>系統通知</span>
+          <span class="badge" id="notif-badge" style="display:none; background:var(--danger); color:white; border-radius:10px; padding:2px 6px; font-size:10px; margin-left:auto;">0</span>
+        `;
         li.onclick = () => window.switchNav('tab-notifications', '系統通知', li);
         
         const weeklyNav = document.querySelector('li[onclick*="tab-weekly"]');
