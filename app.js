@@ -89,10 +89,10 @@ function initDynamicUI() {
   
   const style = document.createElement('style');
   style.innerHTML = `
-    :root { --font-scale: 1; }
-    .tab-pane { zoom: var(--font-scale, 1); }
-    body.font-md { --font-scale: 1.2; }
-    body.font-lg { --font-scale: 1.5; }
+    :root { --font-scale: 1.2; }
+    .tab-pane { zoom: var(--font-scale, 1.2); }
+    body.font-md { --font-scale: 1.5; }
+    body.font-lg { --font-scale: 1.8; }
     .kpi-card { padding: 8px 12px !important; min-height: unset !important; }
     .kpi-title { font-size: 11.5px !important; margin-bottom: 2px !important; }
     .kpi-number { font-size: 18px !important; }
