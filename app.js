@@ -2255,13 +2255,13 @@ function renderAdHocEvents() {
   if (table) {
       const theadTr = table.querySelector("thead tr");
       if (theadTr && theadTr.cells.length >= 6) {
-          // 修改標題寬度與靠右對齊
+          // 修改標題：將「共計」欄寬縮小 (width: 45px) 並靠右對齊 (text-align: right)
           theadTr.innerHTML = `
               <th style="white-space: nowrap; width: 1%;">事項名稱</th>
               <th style="word-break: break-all; width: 100%; min-width: 200px;">原因說明</th>
               <th style="white-space: nowrap; width: 60px; text-align: right;">開始日期</th>
               <th style="white-space: nowrap; width: 110px; text-align: right;">實際完成時間</th>
-              <th style="white-space: nowrap; width: 1%; text-align: center;">共計</th>
+              <th style="white-space: nowrap; width: 45px; text-align: right;">共計</th>
               <th style="white-space: nowrap; width: 1%;">狀態</th>
               <th style="white-space: nowrap; width: 1%;">操作</th>
           `;
@@ -2278,12 +2278,11 @@ function renderAdHocEvents() {
 
   const isGlobalEditor = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
 
-  // 強化版時間解析器：專門對付帶有「上午/下午」的中文時間字串
+  // 強化版時間解析器
   const safeParseTime = (timeStr) => {
       if(!timeStr) return NaN;
       let d = new Date(timeStr.replace(/-/g, '/'));
       if (!isNaN(d.getTime())) return d.getTime();
-      // 容錯解析：抓取 2026/09/08 下午 03:25:55 這類格式
       let match = timeStr.match(/(\d+)\/(\d+)\/(\d+)[^\d]+(\d+):(\d+)/);
       if (match) {
          let h = parseInt(match[4]);
@@ -2304,7 +2303,6 @@ function renderAdHocEvents() {
     let actionHtml = !evt.isCompleted && isOwner ? `<button class="action-btn" onclick="completeAdHoc('${evt.id}')">完成</button>` : '';
     let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || canEditEvent) ? `<button class="action-btn danger" style="margin-left:4px;" onclick="deleteAdHoc('${evt.id}')">刪除</button>` : '';
 
-    // 格式化 1：開始日期 -> YY/M/D
     let sDateStr = '-';
     if (evt.startDate) {
         let sd = new Date(evt.startDate);
@@ -2313,7 +2311,6 @@ function renderAdHocEvents() {
         }
     }
 
-    // 格式化 2：實際完成時間 -> YY/M/D HH:mm
     let cDateStr = '-';
     let durationText = "-";
     
@@ -2329,31 +2326,30 @@ function renderAdHocEvents() {
             cDateStr = `${yy}/${m}/${d} ${hh}:${mm}`;
         }
 
-        // 計算共計時數
+        // 計算共計時數 (移除中文字「小時」)
         try {
             let startMs = safeParseTime(evt.startDateTime || (evt.startDate + ' 00:00:00'));
             let endMs = cdMs;
             
-            // 如果起迄時間都能成功解析
             if (!isNaN(startMs) && !isNaN(endMs) && endMs >= startMs) {
                 let diffHours = ((endMs - startMs) / (1000 * 60 * 60)).toFixed(1);
-                durationText = `<strong style="color:var(--success);">${diffHours} 小時</strong>`;
+                durationText = `<strong style="color:var(--success);">${diffHours}</strong>`;
             } 
-            // 備用方案：如果起訖時間有缺，用系統紀錄建立時間(createdAt)來算
             else if (!isNaN(endMs) && createdTime) {
                 let diffHours = ((endMs - createdTime) / (1000 * 60 * 60)).toFixed(1);
-                if (diffHours >= 0) durationText = `<strong style="color:var(--success);">${diffHours} 小時</strong>`;
+                if (diffHours >= 0) durationText = `<strong style="color:var(--success);">${diffHours}</strong>`;
             }
         } catch (e) { console.error("時數計算錯誤:", e); }
     }
 
     const tr = document.createElement("tr"); 
+    // 將「共計」的 td 也設定為 text-align: right
     tr.innerHTML = `
       <td style="white-space: nowrap; width: 1%;"><strong>${evt.title}</strong></td>
       <td style="word-break: break-all; width: 100%; min-width: 200px;">${evt.reason}</td>
       <td style="white-space: nowrap; text-align: right; color: #475569;">${sDateStr}</td>
       <td style="white-space: nowrap; text-align: right; color: #475569;">${cDateStr}</td>
-      <td style="white-space: nowrap; width: 1%; text-align: center;">${durationText}</td>
+      <td style="white-space: nowrap; text-align: right; padding-right: 8px;">${durationText}</td>
       <td style="white-space: nowrap; width: 1%;">${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td>
       <td style="white-space: nowrap; width: 1%;">${actionHtml}${editHtml}${delHtml}</td>
     `; 
