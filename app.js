@@ -3849,6 +3849,7 @@ window.approvePause = async (projId) => {
         const reqBy = proj.pauseRequestedBy || "未記錄";
         const reqAt = proj.pauseRequestedAt || "未記錄";
         const reason = proj.pauseReason || "未記錄";
+        const reqByUid = proj.lastPauseRequestedUid || proj.ownerId;
 
         history.push({ start: startDateToUse, end: null, reason: reason, requestedAt: reqAt });
         
@@ -3858,10 +3859,7 @@ window.approvePause = async (projId) => {
             time: ts,
             reqBy: reqBy, reqAt: reqAt, reqStart: startDateToUse, reqReason: reason
         });
-        const reqByUid = proj.lastPauseRequestedUid || proj.ownerId;
 
-        // 🌟 讓系統直接發送「已退回」的通知
-        // 🌟 修正：主管同意暫停通知
         tasks.push({
             name: `[系統通知] 您的專案 [${proj.title}] 暫停申請已被【${managerName}】✅ 同意 (原因: ${reason || '無'})`,
             start: getTodayStr(),
@@ -3885,7 +3883,11 @@ window.approvePause = async (projId) => {
             pauseHistory: history,
             auditLogs: logs,
             tasks: tasks,
-            pauseStartDate: "", pauseRequestedAt: "", pauseRequestedBy: "", pauseReason: "", lastPauseRequestedUid: ""
+            pauseStartDate: "", 
+            pauseRequestedAt: "", 
+            pauseRequestedBy: "", 
+            pauseReason: ""
+            // 🌟 保留 lastPauseRequestedUid，千萬不要刪除！
         });
         alert("已同意暫停申請，並已發送系統通知給申請人！");
     } 
@@ -3893,6 +3895,7 @@ window.approvePause = async (projId) => {
         const lastPause = history[history.length - 1];
         const resumeDate = proj.resumeRequestedDate || getTodayStr();
         const reqBy = proj.resumeRequestedBy || "未記錄";
+        const targetResumeUid = proj.lastResumeRequestedUid || proj.ownerId;
 
         if (lastPause && !lastPause.end) {
             lastPause.end = resumeDate;
@@ -3914,7 +3917,6 @@ window.approvePause = async (projId) => {
               return t;
             });
 
-            // 🌟 自動新增一筆系統通知任務給申請人 (恢復申請獲准)
             updatedTasks.push({
                 name: `[系統通知] 您的專案 [${proj.title}] 恢復執行申請已被【${managerName}】✅ 同意`,
                 start: getTodayStr(),
@@ -3923,9 +3925,10 @@ window.approvePause = async (projId) => {
                 isCompleted: true,
                 isSubProjectTask: true,
                 parentSubProject: "專案審核通知",
-                assigneeId: proj.lastResumeRequestedUid || proj.ownerId,
+                assigneeId: targetResumeUid,
                 assigneeName: reqBy,
-                isPendingAcceptance: true,
+                isPendingAcceptance: false,
+                isSystemNotifUnread: true,
                 assignedByUid: auth.currentUser.uid,
                 assignedByName: managerName,
                 assignedAt: ts,
@@ -3937,7 +3940,10 @@ window.approvePause = async (projId) => {
                 pauseHistory: history,
                 auditLogs: logs,
                 tasks: updatedTasks,
-                resumeRequestedDate: "", resumeRequestedBy: "", resumeRequestedAt: "", lastResumeRequestedUid: ""
+                resumeRequestedDate: "", 
+                resumeRequestedBy: "", 
+                resumeRequestedAt: ""
+                // 🌟 保留 lastResumeRequestedUid，千萬不要刪除！
             });
             alert("已同意恢復執行，並已發送系統通知給申請人！");
         }
