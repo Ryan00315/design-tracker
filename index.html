@@ -201,14 +201,15 @@
         <div id="tab-adhoc" class="tab-pane" style="display:none;">
           <div class="section-panel" id="adhoc-form-panel">
             <div class="panel-head">紀錄臨時事件</div>
-            <div class="form-row">
-              <div class="form-group" style="flex:1.5;"><label class="form-label">事項名稱</label><input type="text" id="adhoc-title" class="input-control" placeholder="緊急樣品修改"></div>
-              <div class="form-group" style="flex:1;"><label class="form-label">預計開始日期</label><input type="date" id="adhoc-start" class="input-control" onchange="checkWorkingDay(this)"></div>
-              <div class="form-group" style="flex:2;">
-                <label class="form-label">原因說明</label>
-                <!-- 這裡換成 Quill 編輯器專用的 div -->
-                <div id="adhoc-editor-container" style="background: #fff; min-height: 80px;"></div>
-              </div>
+            <div class="form-row" style="margin-bottom: 8px;">
+              <div class="form-group" style="flex:1.5; margin-bottom:0;"><label class="form-label">事項名稱</label><input type="text" id="adhoc-title" class="input-control" placeholder="緊急樣品修改"></div>
+              <div class="form-group" style="flex:1; margin-bottom:0;"><label class="form-label">預計開始日期</label><input type="date" id="adhoc-start" class="input-control" onchange="checkWorkingDay(this)"></div>
+            </div>
+            
+            <!-- 獨立成全新的一列，佔據 100% 寬度 -->
+            <div class="form-group">
+              <label class="form-label">原因說明</label>
+              <div id="adhoc-editor-container" style="background: #fff; min-height: 120px;"></div>
             </div>
             <button id="btn-add-adhoc" class="btn-primary" style="width: 160px; margin-top: 6px;">紀錄臨時事件</button>
           </div>
