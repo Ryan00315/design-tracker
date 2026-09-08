@@ -3960,9 +3960,11 @@ window.rejectPause = async (projId) => {
   
     if (proj.status === 'pause_requested') {
         const reqBy = proj.pauseRequestedBy || "未記錄";
+        // 🌟 確保優先抓取申請人 UID
+        const targetApplicantUid = proj.lastPauseRequestedUid || proj.ownerId;
+
         logs.push({ action: '❌ 退回暫停申請', manager: managerName, time: ts, reqBy: reqBy, reqAt: proj.pauseRequestedAt, reqStart: proj.pauseStartDate, reqReason: proj.pauseReason });
 
-        // 🌟 自動新增一筆系統通知任務給申請人 (暫停申請遭退回)
         tasks.push({
             name: `[系統通知] 您的專案 [${proj.title}] 暫停申請已被退回 (原因: ${reason || '無'})`,
             start: getTodayStr(),
@@ -3971,25 +3973,28 @@ window.rejectPause = async (projId) => {
             isCompleted: true,
             isSubProjectTask: true,
             parentSubProject: "專案審核通知",
-            assigneeId: proj.lastPauseRequestedUid || proj.ownerId,
+            assigneeId: targetApplicantUid,
             assigneeName: reqBy,
-            isPendingAcceptance: true,
+            isPendingAcceptance: false, // 設為 false，直接顯示已通知
+            isSystemNotifUnread: true,   // 🌟 標記為未讀，方便紅點提示
             assignedByUid: auth.currentUser.uid,
             assignedByName: managerName,
             assignedAt: ts,
-            history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: `暫停申請被退回: ${reason}` }]
+            history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: `暫停申請被退回: ${reason || '無'}` }]
         });
 
         await updateDoc(doc(db, "projects", projId), {
-            status: "active", pauseReason: "", pauseRequestedBy: "", pauseStartDate: "", pauseRequestedAt: "", lastPauseRequestedUid: "", auditLogs: logs, tasks: tasks
+            status: "active", pauseReason: "", pauseRequestedBy: "", pauseStartDate: "", pauseRequestedAt: "", auditLogs: logs, tasks: tasks
         });
         alert("已退回暫停申請，並已發送系統通知給申請人！");
         
     } else if (proj.status === 'resume_requested') {
         const reqBy = proj.resumeRequestedBy || "未記錄";
+        // 🌟 確保優先抓取申請人 UID
+        const targetApplicantUid = proj.lastResumeRequestedUid || proj.ownerId;
+
         logs.push({ action: '❌ 退回恢復申請', manager: managerName, time: ts, reqBy: reqBy, reqAt: proj.resumeRequestedAt, reqStart: proj.resumeRequestedDate, reqReason: '恢復執行申請' });
 
-        // 🌟 自動新增一筆系統通知任務給申請人 (恢復申請遭退回)
         tasks.push({
             name: `[系統通知] 您的專案 [${proj.title}] 恢復執行申請已被退回 (原因: ${reason || '無'})`,
             start: getTodayStr(),
@@ -3998,17 +4003,18 @@ window.rejectPause = async (projId) => {
             isCompleted: true,
             isSubProjectTask: true,
             parentSubProject: "專案審核通知",
-            assigneeId: proj.lastResumeRequestedUid || proj.ownerId,
+            assigneeId: targetApplicantUid,
             assigneeName: reqBy,
-            isPendingAcceptance: true,
+            isPendingAcceptance: false,
+            isSystemNotifUnread: true,
             assignedByUid: auth.currentUser.uid,
             assignedByName: managerName,
             assignedAt: ts,
-            history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: `恢復申請被退回: ${reason}` }]
+            history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: `恢復申請被退回: ${reason || '無'}` }]
         });
 
         await updateDoc(doc(db, "projects", projId), {
-            status: "paused", resumeRequestedDate: "", resumeRequestedBy: "", resumeRequestedAt: "", lastResumeRequestedUid: "", auditLogs: logs, tasks: tasks
+            status: "paused", resumeRequestedDate: "", resumeRequestedBy: "", resumeRequestedAt: "", auditLogs: logs, tasks: tasks
         });
         alert("已退回恢復執行申請，並已發送系統通知給申請人！");
     }
@@ -4637,14 +4643,14 @@ window.renderNotifications = () => {
     let pendingCount = 0;
     const myUid = auth.currentUser.uid;
     const groupMap = new Map();
+    const systemNotifs = [];
     const historyList = [];
 
     allProjectsData.forEach(p => {
-        (p.tasks || []).forEach(t => {
-            // 🌟 防呆修正：如果名稱包含 "[系統通知]"，絕對不能當作待處理項目讓使用者按同意/拒絕！
+        (p.tasks || []).forEach((t, tIdx) => {
             const isSystemNotif = t.name && t.name.includes("[系統通知]");
 
-            // 1. 收集真正需要同意的待處理項目 (排除系統通知)
+            // 1. 真正的子專案指派（需同意/拒絕）
             if (t.assigneeId === myUid && t.isPendingAcceptance === true && t.isSubProjectTask && !isSystemNotif) {
                 const key = `${p.id}_${t.parentSubProject}`;
                 if (!groupMap.has(key)) {
@@ -4658,10 +4664,22 @@ window.renderNotifications = () => {
                 }
             }
             
-            // 2. 收集歷史紀錄 (包含「已處理的指派」以及「所有的系統通知」)
+            // 2. 🌟 審核退回/同意通知（未點選「我知道了」之前，維持在上方提示區）
+            if (t.assigneeId === myUid && isSystemNotif && t.isSystemNotifUnread !== false) {
+                systemNotifs.push({
+                    projId: p.id,
+                    taskIndex: tIdx,
+                    projTitle: p.title,
+                    msg: t.name.replace("[系統通知] ", ""),
+                    assignedByName: t.assignedByName || '主管',
+                    assignedAt: t.assignedAt || '-'
+                });
+            }
+
+            // 3. 歷史紀錄
             if (t.assigneeId === myUid && t.isSubProjectTask && (t.isPendingAcceptance === false || isSystemNotif)) {
                 const lastHist = (t.history && t.history.length > 0) ? t.history[t.history.length - 1] : null;
-                const remarkText = lastHist ? lastHist.remark : (isSystemNotif ? t.name : '已處理');
+                const remarkText = lastHist ? lastHist.remark : t.name;
                 
                 historyList.push({
                     projTitle: p.title,
@@ -4674,7 +4692,7 @@ window.renderNotifications = () => {
         });
     });
     
-    // 渲染待處理清單
+    // 渲染待處理清單：一般指派
     groupMap.forEach(group => {
         pendingCount++;
         const tr = document.createElement("tr");
@@ -4687,6 +4705,24 @@ window.renderNotifications = () => {
             <td style="padding: 12px 8px; text-align:center;">
                 <button class="action-btn" style="background:#10b981; color:#fff; border:none; margin-right:4px; padding:4px 10px;" onclick="acceptSubProjectAssignment('${group.projId}', '${group.subProjName}')">✅ 同意</button>
                 <button class="action-btn danger" style="padding:4px 10px;" onclick="rejectSubProjectAssignment('${group.projId}', '${group.subProjName}')">❌ 拒絕</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    // 渲染待處理清單：🌟 退回審核系統通知
+    systemNotifs.forEach(notif => {
+        pendingCount++;
+        const tr = document.createElement("tr");
+        tr.style.borderBottom = "1px solid #f1f5f9";
+        tr.style.background = "#fef2f2"; // 紅底醒目提示
+        tr.innerHTML = `
+            <td style="padding: 12px 8px; font-weight:bold; color:var(--danger);">${notif.projTitle}</td>
+            <td style="padding: 12px 8px; color:var(--danger); font-weight:600;">🚨 ${notif.msg}</td>
+            <td style="padding: 12px 8px;"><span class="pill" style="background:#fee2e2; color:#b91c1c;">${notif.assignedByName}</span></td>
+            <td style="padding: 12px 8px;"><span style="font-size:12px; color:var(--text-muted);">${notif.assignedAt}</span></td>
+            <td style="padding: 12px 8px; text-align:center;">
+                <button class="action-btn" style="background:var(--danger); color:#fff; border:none; padding:4px 10px;" onclick="dismissSystemNotif('${notif.projId}', ${notif.taskIndex})">✔️ 我知道了</button>
             </td>
         `;
         tbody.appendChild(tr);
@@ -4715,10 +4751,22 @@ window.renderNotifications = () => {
         }
     }
 
+    // 🌟 更新紅點數字
     if (badge) {
         badge.innerText = pendingCount;
         badge.style.display = pendingCount > 0 ? "inline-block" : "none";
     }
+};
+
+// 🌟 點擊「我知道了」把未讀狀態消除
+window.dismissSystemNotif = async (projId, taskIndex) => {
+    const proj = allProjectsData.find(p => p.id === projId);
+    if (!proj || !proj.tasks[taskIndex]) return;
+
+    const tasks = [...proj.tasks];
+    tasks[taskIndex].isSystemNotifUnread = false;
+
+    await updateDoc(doc(db, "projects", projId), { tasks });
 };
 
 // 🌟 同意整個子專案的所有細項
