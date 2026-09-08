@@ -4650,7 +4650,7 @@ window.renderNotifications = () => {
         (p.tasks || []).forEach((t, tIdx) => {
             const isSystemNotif = t.name && t.name.includes("[系統通知]");
 
-            // 1. 真正的子專案指派（需同意/拒絕）
+            // 1. 待同意的子專案指派
             if (t.assigneeId === myUid && t.isPendingAcceptance === true && t.isSubProjectTask && !isSystemNotif) {
                 const key = `${p.id}_${t.parentSubProject}`;
                 if (!groupMap.has(key)) {
@@ -4664,7 +4664,7 @@ window.renderNotifications = () => {
                 }
             }
             
-            // 2. 🌟 審核退回/同意通知（未點選「我知道了」之前，維持在上方提示區）
+            // 2. 審核退回/同意通知（未點選「我知道了」之前，維持在上方待處理區）
             if (t.assigneeId === myUid && isSystemNotif && t.isSystemNotifUnread !== false) {
                 systemNotifs.push({
                     projId: p.id,
@@ -4676,23 +4676,29 @@ window.renderNotifications = () => {
                 });
             }
 
-            // 3. 歷史紀錄
-            if (t.assigneeId === myUid && t.isSubProjectTask && (t.isPendingAcceptance === false || isSystemNotif)) {
-                const lastHist = (t.history && t.history.length > 0) ? t.history[t.history.length - 1] : null;
-                const remarkText = lastHist ? lastHist.remark : t.name;
-                
-                historyList.push({
-                    projTitle: p.title,
-                    name: t.name,
-                    assignedByName: t.assignedByName || '系統主管',
-                    timestamp: lastHist ? lastHist.timestamp : (t.assignedAt || '-'),
-                    remark: remarkText
-                });
+            // 3. 收集歷史紀錄（只要是自己的子專案任務或系統通知）
+            if (t.assigneeId === myUid && t.isSubProjectTask) {
+                // 如果是已處理的指派，或是系統通知
+                if (t.isPendingAcceptance === false || isSystemNotif) {
+                    const lastHist = (t.history && t.history.length > 0) ? t.history[t.history.length - 1] : null;
+                    const timeStr = lastHist?.timestamp || t.assignedAt || '-';
+                    const remarkText = lastHist ? lastHist.remark : (isSystemNotif ? '已送達通知' : '已指派');
+
+                    historyList.push({
+                        projTitle: p.title,
+                        name: t.name,
+                        assignedByName: t.assignedByName || '系統主管',
+                        timestamp: timeStr,
+                        // 解析成標準毫秒，供排序使用
+                        sortTime: new Date(timeStr.replace(/-/g, '/')).getTime() || 0,
+                        remark: remarkText
+                    });
+                }
             }
         });
     });
     
-    // 渲染待處理清單：一般指派
+    // 渲染待處理清單：一般子專案指派
     groupMap.forEach(group => {
         pendingCount++;
         const tr = document.createElement("tr");
@@ -4710,12 +4716,12 @@ window.renderNotifications = () => {
         tbody.appendChild(tr);
     });
 
-    // 渲染待處理清單：🌟 退回審核系統通知
+    // 渲染待處理清單：退回審核系統通知
     systemNotifs.forEach(notif => {
         pendingCount++;
         const tr = document.createElement("tr");
         tr.style.borderBottom = "1px solid #f1f5f9";
-        tr.style.background = "#fef2f2"; // 紅底醒目提示
+        tr.style.background = "#fef2f2";
         tr.innerHTML = `
             <td style="padding: 12px 8px; font-weight:bold; color:var(--danger);">${notif.projTitle}</td>
             <td style="padding: 12px 8px; color:var(--danger); font-weight:600;">🚨 ${notif.msg}</td>
@@ -4731,6 +4737,9 @@ window.renderNotifications = () => {
     if (pendingCount === 0) {
         tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:30px;">目前沒有待處理的指派通知。</td></tr>`;
     }
+
+    // 🌟 關鍵排序：按時間由新到舊 (大到小)
+    historyList.sort((a, b) => b.sortTime - a.sortTime);
 
     // 渲染歷史紀錄清單
     if (historyTbody) {
@@ -4751,7 +4760,7 @@ window.renderNotifications = () => {
         }
     }
 
-    // 🌟 更新紅點數字
+    // 更新紅點計數
     if (badge) {
         badge.innerText = pendingCount;
         badge.style.display = pendingCount > 0 ? "inline-block" : "none";
@@ -4764,7 +4773,21 @@ window.dismissSystemNotif = async (projId, taskIndex) => {
     if (!proj || !proj.tasks[taskIndex]) return;
 
     const tasks = [...proj.tasks];
-    tasks[taskIndex].isSystemNotifUnread = false;
+    const targetTask = tasks[taskIndex];
+    const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+
+    targetTask.isSystemNotifUnread = false;
+
+    // 🌟 補入確認紀錄，確保歷史清單完整顯示
+    if (!targetTask.history) targetTask.history = [];
+    targetTask.history.push({
+        timestamp: ts,
+        progress: 100,
+        type: 'update',
+        daysPassed: 0,
+        delayReason: '',
+        remark: '✔️ 已確認知悉'
+    });
 
     await updateDoc(doc(db, "projects", projId), { tasks });
 };
