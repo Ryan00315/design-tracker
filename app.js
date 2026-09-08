@@ -1044,6 +1044,9 @@ window.getAvailableTasks = (projId) => {
   const proj = allProjectsData.find(p => p.id === projId);
   if(!proj || !proj.tasks) return [];
   return proj.tasks.map((t, index) => ({ ...t, index })).filter(t => {
+    // 🌟 加入這行：強制排除所有系統通知任務，不讓它出現在週報選項中
+    if (t.name && t.name.includes("[系統通知]")) return false;
+
     const isMyTask = (t.assigneeId === viewingUserId) || (!t.assigneeId && proj.ownerId === viewingUserId);
     if (!isMyTask) return false;
     if (!t.isCompleted) return true;
@@ -3824,6 +3827,7 @@ window.submitPauseRequest = async () => {
       pauseStartDate: startDate, 
       pauseRequestedBy: currentUserData.name || "人員",
       pauseRequestedAt: getNowTimeStr()
+      lastPauseRequestedUid: auth.currentUser.uid
     });
     
     window.closePauseModal(); 
@@ -4179,6 +4183,7 @@ window.submitResumeRequest = async () => {
       resumeRequestedDate: resumeDate,
       resumeRequestedBy: currentUserData.name || "人員",
       resumeRequestedAt: getNowTimeStr()
+      lastResumeRequestedUid: auth.currentUser.uid
     });
     window.closeResumeModal(); 
     alert("已送出恢復執行申請，請等待最高主管或管理員審核！");
