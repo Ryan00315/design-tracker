@@ -2192,6 +2192,30 @@ window.deleteCurrentProject = async () => {
   renderProjects(); 
 };
 
+function loadProjects() {
+  onSnapshot(collection(db, "projects"), (snapshot) => {
+    allProjectsData = [];
+    snapshot.forEach((docSnap) => {
+      allProjectsData.push({ id: docSnap.id, ...docSnap.data() });
+    });
+    renderProjects();
+    refreshAllWeeklyProjSelects();
+  });
+}
+
+function loadOrgUsers() {
+  onSnapshot(collection(db, "users"), (snapshot) => {
+    allUsersList = [];
+    snapshot.forEach((docSnap) => {
+      allUsersList.push({ uid: docSnap.id, ...docSnap.data() });
+    });
+  });
+}
+
+window.initNotificationsUI = () => {
+  // TODO: 初始化通知 UI
+};
+
 function loadAdHocEvents() { 
   onSnapshot(query(collection(db, "ad_hoc_events")), (snapshot) => { 
     allAdHocData = []; 
