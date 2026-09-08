@@ -185,11 +185,6 @@ setTimeout(() => { // 用 setTimeout 確保網頁元素都已準備好
   });
 }, 500);
 // 🌟🌟🌟 新增結束 🌟🌟🌟
-
-function fixHeaders() {
-  const sumHeader = document.querySelector('#project-summary-view .gantt-row-header');
-// ...下面是你原本的程式碼...
-
 function fixHeaders() {
   const sumHeader = document.querySelector('#project-summary-view .gantt-row-header');
   if (sumHeader) {
