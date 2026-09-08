@@ -1770,15 +1770,26 @@ function renderProjects() {
 
               const statusHtml = task.isCompleted ? `<span class="pill pill-success" style="padding:4px 8px;">已完成</span>` : `<span style="font-weight:bold;">進度: ${task.progress || 0}%</span>`;
 
-              const tr = document.createElement("tr");
+              const tr = document.createElement("tr"); 
+              // 請確保這裡面只有 7 個 <td> 標籤！
               tr.innerHTML = `
-                <td style="vertical-align: top; padding: 8px 4px; ${nameIndent}"><strong>${displayName}</strong></td>
-                <td style="vertical-align: top; padding: 8px 4px; width: 90px;">${taskAssigneeName}</td>
-                <td style="vertical-align: top; padding: 8px 4px; width: 100px;">${statusHtml}</td>
-                <td style="padding: 6px 4px; vertical-align: top;">
-                    ${historyHtml}
-                </td>`;
-              listBody.appendChild(tr);
+                <td style="white-space: nowrap; width: 1%;"><strong>${evt.title}</strong></td>
+                
+                <td style="word-break: break-all; width: 100%; min-width: 200px;">
+                    <div class="ql-snow" style="border: none;">
+                        <div class="ql-editor" style="padding: 0; min-height: auto; font-size: inherit;">
+                            ${evt.reason}
+                        </div>
+                    </div>
+                </td>
+                
+                <td style="white-space: nowrap; text-align: right; color: #475569;">${sDateStr}</td>
+                <td style="white-space: nowrap; text-align: right; color: #475569;">${cDateStr}</td>
+                <td style="white-space: nowrap; text-align: right; padding-right: 8px;">${durationText}</td>
+                <td style="white-space: nowrap; width: 1%;">${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td>
+                <td style="white-space: nowrap; width: 1%;">${actionHtml}${editHtml}${delHtml}</td>
+              `; 
+              tbody.appendChild(tr);
             }
           } catch (e) {
             console.error("渲染任務細項時發生錯誤:", e, task);
