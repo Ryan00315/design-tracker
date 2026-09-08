@@ -1107,9 +1107,11 @@ function renderProjects() {
     const isRealOwner = (p.ownerId === viewingUserId);
 
     if (isRealOwner) {
-      relevantTasks = p.tasks || [];
+      // 專案擁有者排除系統通知
+      relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
     } else {
-      relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId && t.isPendingAcceptance !== true);
+      // 被指派者排除未同意項目以及系統通知
+      relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId && t.isPendingAcceptance !== true && (!t.name || !t.name.includes("[系統通知]")));
     }
 
     if (relevantTasks.length === 0) return; 
@@ -3752,9 +3754,8 @@ window.approvePause = async (projId) => {
             reqBy: reqBy, reqAt: reqAt, reqStart: startDateToUse, reqReason: reason
         });
 
-        // 🌟 讓系統直接發送「已退回」的通知
         tasks.push({
-            name: `[系統通知] 您的專案 [${proj.title}] 申請已被【${managerName}】❌ 退回 (原因: ${reason || '無'})`,
+            name: `[系統通知] 您的專案 [${proj.title}] 申請已被【${managerName}】處理`,
             start: getTodayStr(),
             end: getTodayStr(),
             progress: 100,
@@ -3763,13 +3764,13 @@ window.approvePause = async (projId) => {
             parentSubProject: "專案審核通知",
             assigneeId: reqByUid,
             assigneeName: reqBy,
-            isPendingAcceptance: false, // 🌟 關鍵：設為 false，直接列入歷史紀錄
+            isPendingAcceptance: false, // 🌟 務必確保這裡絕對是 false！
             assignedByUid: auth.currentUser.uid,
             assignedByName: managerName,
             assignedAt: ts,
-            history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: `❌ 主管已退回您的申請 (原因: ${reason || '無'})` }]
+            history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: '審核結果通知' }]
         });
-
+      
         await updateDoc(doc(db, "projects", projId), {
             status: "paused",
             pauseHistory: history,
