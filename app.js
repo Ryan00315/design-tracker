@@ -156,6 +156,33 @@ function initDynamicUI() {
 }
 initDynamicUI();
 
+// 🌟🌟🌟 Quill 富文本編輯器初始化 (用於「事件紀錄」的原因說明) 🌟🌟🌟
+let adhocQuill; // 全域變數，讓「新增」與「編輯」都能存取
+
+// 工具列只顯示需要的功能
+const toolbarOptions = [
+  ['bold', 'underline', 'strike'],        // 加粗、底線、刪除線
+  [{ 'color': [] }],                      // 字體顏色
+  [{ 'list': 'ordered'}, { 'list': 'bullet' }], // 數字編號、項目點點
+  [{ 'indent': '-1'}, { 'indent': '+1' }],      // 減少縮排、增加縮排 (多層次清單)
+  ['clean']                               // 一鍵清除格式
+];
+
+// 用 setTimeout 確保 #adhoc-editor-container 元素已經存在於 DOM 中
+setTimeout(() => {
+  const editorEl = document.getElementById('adhoc-editor-container');
+  if (editorEl) {
+    adhocQuill = new Quill('#adhoc-editor-container', {
+      modules: { toolbar: toolbarOptions },
+      theme: 'snow',
+      placeholder: '請填寫事件原因說明 (Enter 換行)'
+    });
+  } else {
+    console.warn('⚠️ 找不到 #adhoc-editor-container，請確認 HTML 中已將原本的 <textarea id="adhoc-reason"> 換成 <div id="adhoc-editor-container"></div>，且已載入 Quill 的 JS 與 CSS (quill.snow.css)。');
+  }
+}, 500);
+// 🌟🌟🌟 Quill 初始化結束 🌟🌟🌟
+
 function fixHeaders() {
   const sumHeader = document.querySelector('#project-summary-view .gantt-row-header');
   if (sumHeader) {
@@ -2249,7 +2276,14 @@ function renderAdHocEvents() {
     const tr = document.createElement("tr"); 
     tr.innerHTML = `
       <td style="white-space: nowrap; width: 1%;"><strong>${evt.title}</strong></td>
-      <td style="word-break: break-all; width: 100%; min-width: 200px;">${evt.reason}</td>
+      <td style="word-break: break-all; width: 100%; min-width: 200px;">
+          <!-- 🌟 包在 ql-snow / ql-editor 內，才能正確套用 Quill 的多層次清單縮排樣式 -->
+          <div class="ql-snow" style="border: none;">
+              <div class="ql-editor" style="padding: 0; min-height: auto; font-size: inherit;">
+                  ${evt.reason}
+              </div>
+          </div>
+      </td>
       <td style="white-space: nowrap; width: 1%;">${evt.startDate || '-'}</td>
       <td style="white-space: nowrap; width: 1%;">${evt.completedAt || '-'}${durationHtml}</td>
       <td style="white-space: nowrap; width: 1%;">${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td>
@@ -2261,7 +2295,11 @@ function renderAdHocEvents() {
 
 document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
   const title = document.getElementById("adhoc-title").value.trim(); 
-  const reason = document.getElementById("adhoc-reason").value.trim(); 
+
+  // 🌟 從 Quill 抓取 HTML 內容 (而非純文字 input)
+  let reason = adhocQuill ? adhocQuill.root.innerHTML.trim() : "";
+  if (reason === '<p><br></p>') reason = ""; // Quill 預設空內容防呆
+
   const start = document.getElementById("adhoc-start").value;
   if (!title || !reason || !start) return alert("請填寫完整名稱、開始日期與原因！");
   
@@ -2269,11 +2307,16 @@ document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
   await addDoc(collection(db, "ad_hoc_events"), { 
     ownerId: viewingUserId, 
     ownerName: targetUser.name || '', 
-    title, reason, startDate: start, startDateTime: new Date().toLocaleString(), isCompleted: false, createdAt: serverTimestamp() 
+    title, 
+    reason, // 存入包含格式的 HTML
+    startDate: start, startDateTime: new Date().toLocaleString(), isCompleted: false, createdAt: serverTimestamp() 
   });
   document.getElementById("adhoc-title").value = ""; 
-  document.getElementById("adhoc-reason").value = ""; 
   document.getElementById("adhoc-start").value = ""; 
+
+  // 🌟 存檔後清空 Quill 編輯器
+  if (adhocQuill) adhocQuill.root.innerHTML = "";
+
   alert("事件紀錄完成！");
 });
 
@@ -3112,11 +3155,26 @@ window.openGeneralEdit = (type, id, extra) => {
   } else if (type === 'adhoc') {
     const adhoc = allAdHocData.find(a => a.id === id);
     document.getElementById("general-edit-title").innerText = "編輯事件紀錄";
+
+    // 🌟 將原因說明改用 Quill 編輯器容器，取代純文字 input
     form.innerHTML = `
       <div class="form-group"><label class="form-label">事項名稱</label><input type="text" id="edit-val-title" class="input-control" value="${adhoc.title}"></div>
       <div class="form-group"><label class="form-label">開始日期</label><input type="date" id="edit-val-start" class="input-control" value="${adhoc.startDate || ''}"></div>
-      <div class="form-group"><label class="form-label">原因說明</label><input type="text" id="edit-val-reason" class="input-control" value="${adhoc.reason}"></div>
+      <div class="form-group">
+        <label class="form-label">原因說明</label>
+        <div id="edit-val-reason-container" style="background:#fff; min-height:80px;"></div>
+      </div>
     `;
+
+    // 🌟 等待 Modal 的 DOM 渲染完成後，才綁定 Quill，並帶入原本存在 Firebase 的 HTML 內容
+    setTimeout(() => {
+      window.editAdhocQuill = new Quill('#edit-val-reason-container', {
+        modules: { toolbar: toolbarOptions },
+        theme: 'snow'
+      });
+      window.editAdhocQuill.root.innerHTML = adhoc.reason || '';
+    }, 100);
+
   } else if (type === 'weekly') {
     const weekly = allWeeklyData.find(w => w.id === id);
     document.getElementById("general-edit-title").innerText = "編輯週報內容";
@@ -3389,10 +3447,14 @@ window.saveGeneralEdit = async () => {
       await updateDoc(doc(db, "projects", id), { tasks });
       
     } else if (type === 'adhoc') {
+      // 🌟 從 Quill 編輯器抓取 HTML 內容，取代原本讀取純文字 input 的方式
+      let newReason = window.editAdhocQuill ? window.editAdhocQuill.root.innerHTML.trim() : "";
+      if (newReason === '<p><br></p>') newReason = "";
+
       await updateDoc(doc(db, "ad_hoc_events", id), {
         title: document.getElementById("edit-val-title").value.trim(),
         startDate: document.getElementById("edit-val-start").value,
-        reason: document.getElementById("edit-val-reason").value.trim()
+        reason: newReason
       });
       
     } else if (type === 'weekly') {
