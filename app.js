@@ -1436,11 +1436,17 @@ function renderProjects() {
   let canDeleteProj = (isProjOwner && inGracePeriod) || (hasGlobalEdit && isEditMode);
   let inlineDelBtn = canDeleteProj ? `<button class="action-btn danger" onclick="deleteCurrentProject()" style="padding:2px 8px; font-size:12px; margin-left:4px; font-weight:bold;">🗑️ 刪除專案</button>` : '';
 
+  let canDeleteProj = (isProjOwner && inGracePeriod) || (hasGlobalEdit && isEditMode);
+  let inlineDelBtn = canDeleteProj ? `<button class="action-btn danger" onclick="deleteCurrentProject()" style="padding:2px 8px; font-size:12px; margin-left:4px; font-weight:bold;">🗑️ 刪除專案</button>` : '';
+
+  // 🌟 支援在已建立的專案上方隨時追加子專案的按鈕
+  let addSubProjBtn = (canAddTask) ? `<button class="action-btn" onclick="openAddSubProjectModal()" style="padding:2px 8px; font-size:12px; margin-left:8px; border-color:#d97706; color:#d97706; font-weight:bold;">📦 + 追加子專案</button>` : '';
+
   const currentTitleEl = document.getElementById("current-gantt-title");
   if(currentTitleEl) currentTitleEl.innerHTML = `
       <span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} 
       <span style="display:inline-flex; flex-wrap:wrap; align-items:center; gap:4px; margin-top:2px;">
-          ${collabBadge} ${statusBadge} ${graceBadge} ${pauseBtnHtml} ${editProjBtn} ${inlineDelBtn}
+          ${collabBadge} ${statusBadge} ${graceBadge} ${pauseBtnHtml} ${addSubProjBtn} ${editProjBtn} ${inlineDelBtn}
       </span>
   `;
   
@@ -1863,8 +1869,9 @@ window.deleteActiveProjectTask = async (projId, index) => {
   const tasks = [...proj.tasks];
   tasks.splice(index, 1);
 
- if (tasks.length === 0) {
-    if (confirm("⚠️ 刪除此細項後，專案將沒有任何任務。\n是否要連同「整個主專案」一起刪除？\n(按【確定】刪除專案，按【取消】則保留空專案)")) {
+  // 🌟 嚴格防呆：只有當專案內部的細項真的被刪到「完全一項不剩 (tasks.length === 0)」時，才詢問是否刪除主專案
+  if (tasks.length === 0) {
+    if (confirm("⚠️ 目前專案已經沒有任何任務細項了。\n是否要連同「整個主專案」一起刪除？\n(按【確定】刪除專案，按【取消】則保留空專案)")) {
       await deleteDoc(doc(db, "projects", projId));
       selectedProjectId = 'SUMMARY';
       alert("專案已刪除！");
@@ -4257,7 +4264,11 @@ window.onSubProjectAssigneeChange = (selectElem) => {
     }
 
     const row = selectElem.closest('.subproject-row') || selectElem.closest('.tpl-subproject-row');
+    if (!row) return;
+    
     const tasksContainer = row.querySelector('.sub-tasks-container');
+    if (!tasksContainer) return;
+    
     const existingApproval = tasksContainer.querySelector('.is-approval-task');
 
     if (isPurchasing) {
