@@ -171,9 +171,10 @@ let adhocQuill; // 宣告為全域變數，讓底下的「存檔按鈕」可以�
 // 設定工具列只顯示你要的功能
 const toolbarOptions = [
   ['bold', 'underline', 'strike'],        // 加粗、底線、刪除線
-  [{ 'color': [] }],                     // 字體顏色
-  [{ 'list': 'bullet' }],                // 項目符號
-  ['clean']                              // 一鍵清除格式
+  [{ 'color': [] }],                      // 字體顏色
+  [{ 'list': 'ordered'}, { 'list': 'bullet' }], // 數字編號、項目點點
+  [{ 'indent': '-1'}, { 'indent': '+1' }],      // 減少縮排、增加縮排 (多層次清單)
+  ['clean']                               // 一鍵清除格式
 ];
 
 // 執行初始化
