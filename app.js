@@ -58,6 +58,15 @@ const taiwanHolidayMap = {
   '10-25': '光復節', '10-26': '補假', '12-25': '行憲紀念日'
 };
 
+if (!window.collapsedSubProjects) window.collapsedSubProjects = {};
+window.isSubProjCollapsed = (projId, subProjName) => {
+    const key = `${projId}_${subProjName}`;
+    if (window.collapsedSubProjects[key] === undefined) {
+        window.collapsedSubProjects[key] = true;
+    }
+    return window.collapsedSubProjects[key];
+};
+
 function getTodayStr() {
     const d = new Date();
     const y = d.getFullYear();
@@ -306,7 +315,6 @@ window.applySelectedTemplate = () => {
       return alert("套用成功，但此模板目前沒有預設的細項喔！");
   }
 
-  // 🌟 解析讀取：區分一般任務與子專案
   tpl.tasks.forEach(t => {
       if (!t.type || t.type === 'task') {
           const div = document.createElement('div'); 
@@ -656,6 +664,7 @@ onAuthStateChanged(auth, async (user) => {
     } else {
       document.getElementById('nav-sub-wrapper').style.display = 'none';
     }
+
     window.initNotificationsUI();
     loadOrgUsers();
     initWeeklyDateAndLeave(); 
@@ -1107,10 +1116,8 @@ function renderProjects() {
     const isRealOwner = (p.ownerId === viewingUserId);
 
     if (isRealOwner) {
-      // 專案擁有者排除系統通知
       relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
     } else {
-      // 被指派者排除未同意項目以及系統通知
       relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId && t.isPendingAcceptance !== true && (!t.name || !t.name.includes("[系統通知]")));
     }
 
@@ -1263,7 +1270,7 @@ function renderProjects() {
     activeList.forEach(p => {
       const ownerDept = getUserDept(p.ownerId);
       const isOwnerDept = (targetDept === ownerDept); 
-      let relevantTasks = isOwnerDept ? p.tasks : (p.tasks || []).filter(t => t.assigneeId === viewingUserId);
+      let relevantTasks = isOwnerDept ? (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]")) : (p.tasks || []).filter(t => t.assigneeId === viewingUserId && !t.name?.includes("[系統通知]"));
       let tasksForTimeline = relevantTasks.length > 0 ? relevantTasks : (p.tasks || []); 
       
       let minStart = "9999-12-31"; 
@@ -1433,15 +1440,11 @@ function renderProjects() {
           pauseBtnHtml = `<button class="action-btn" onclick="openPauseModal('${activeProj.id}')" style="margin-left:8px; border-color:var(--danger); color:var(--danger); padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">⏸️ 申請暫停</button>`;
       }
   }
-  
-  // 🌟 只要是 7 天內擁有者，或者 (管理員 + 開啟編輯模式)，就直接生成刪除按鈕 HTML
-  let canDeleteProj = (isProjOwner && inGracePeriod) || (hasGlobalEdit && isEditMode);
-  let inlineDelBtn = canDeleteProj ? `<button class="action-btn danger" onclick="deleteCurrentProject()" style="padding:2px 8px; font-size:12px; margin-left:4px; font-weight:bold;">🗑️ 刪除專案</button>` : '';
 
   let canDeleteProj = (isProjOwner && inGracePeriod) || (hasGlobalEdit && isEditMode);
   let inlineDelBtn = canDeleteProj ? `<button class="action-btn danger" onclick="deleteCurrentProject()" style="padding:2px 8px; font-size:12px; margin-left:4px; font-weight:bold;">🗑️ 刪除專案</button>` : '';
 
-  // 🌟 支援在已建立的專案上方隨時追加子專案的按鈕
+  let canAddTask = hasGlobalEdit || isProjOwner;
   let addSubProjBtn = (canAddTask) ? `<button class="action-btn" onclick="openAddSubProjectModal()" style="padding:2px 8px; font-size:12px; margin-left:8px; border-color:#d97706; color:#d97706; font-weight:bold;">📦 + 追加子專案</button>` : '';
 
   const currentTitleEl = document.getElementById("current-gantt-title");
@@ -1455,9 +1458,6 @@ function renderProjects() {
   const btnProjectAddTask = document.getElementById("btn-project-add-task");
   const btnProjectAddSubProject = document.getElementById("btn-project-add-subproject");
   
-  let canAddTask = hasGlobalEdit || isProjOwner;
-  const delProjBtn = document.getElementById("btn-project-del"); 
-
   if (btnProjectAddTask) {
     if (canAddTask) {
       btnProjectAddTask.style.display = "inline-block";
@@ -1469,9 +1469,8 @@ function renderProjects() {
     }
   }
 
+  const delProjBtn = document.getElementById("btn-project-del"); 
   if (delProjBtn) {
-    // 🌟 修正：只要是 7 天內擁有者，或者 (管理員 + 開啟編輯模式)，刪除按鈕就會顯示
-    let canDeleteProj = (isProjOwner && inGracePeriod) || (hasGlobalEdit && isEditMode);
     delProjBtn.style.display = canDeleteProj ? "inline-block" : "none";
   }
 
@@ -1480,25 +1479,12 @@ function renderProjects() {
   if(leftBody) leftBody.innerHTML = ""; 
   if(listBody) listBody.innerHTML = "";
 
-  // 🌟 1. 註冊全域的子專案展開/收合切換函式與狀態記憶
-  // 🌟 預設讓所有子專案處於摺疊狀態 (true)
-  if (!window.collapsedSubProjects) window.collapsedSubProjects = {};
-  
-  // 註冊一個輔助函式用來檢查狀態，若該子專案還沒有被手動點擊過，預設回傳 true (摺疊)
-  window.isSubProjCollapsed = (projId, subProjName) => {
-      const key = `${projId}_${subProjName}`;
-      if (window.collapsedSubProjects[key] === undefined) {
-          window.collapsedSubProjects[key] = true; // 預設摺疊
-      }
-      return window.collapsedSubProjects[key];
-  };
   window.toggleSubProject = (projId, subProjName) => {
       const key = `${projId}_${subProjName}`;
       window.collapsedSubProjects[key] = !window.collapsedSubProjects[key]; 
       renderProjects(); 
   };
 
-  // 🌟 2. 預處理：將相同名稱的子專案細項彙整成「群組標頭」
   const renderList = [];
   const subProjMap = {};
   const handledGroups = new Set();
@@ -1528,7 +1514,6 @@ function renderProjects() {
       }
   });
 
-  // 🌟 3. 將群組標頭與子細項塞入新的 renderList (控制展開與收合)
   (activeProj.tasks || []).forEach((task, index) => {
       if (task.isSubProjectTask) {
           if (!handledGroups.has(task.parentSubProject)) {
@@ -1555,7 +1540,6 @@ function renderProjects() {
       }
   });
 
-  // 🌟 4. 根據 renderList 畫出左側列表與收集甘特圖資料
   const ganttTasks = [];
   renderList.forEach((item, displayIndex) => {
       if (item.isGroupHeader) {
@@ -1871,7 +1855,6 @@ window.deleteActiveProjectTask = async (projId, index) => {
   const tasks = [...proj.tasks];
   tasks.splice(index, 1);
 
-  // 🌟 嚴格防呆：只有當專案內部的細項真的被刪到「完全一項不剩 (tasks.length === 0)」時，才詢問是否刪除主專案
   if (tasks.length === 0) {
     if (confirm("⚠️ 目前專案已經沒有任何任務細項了。\n是否要連同「整個主專案」一起刪除？\n(按【確定】刪除專案，按【取消】則保留空專案)")) {
       await deleteDoc(doc(db, "projects", projId));
@@ -2220,7 +2203,25 @@ function loadAdHocEvents() {
 
 function renderAdHocEvents() {
   const tbody = document.getElementById("adhoc-list-tbody"); 
+  if (!tbody) return;
   tbody.innerHTML = "";
+  
+  const table = tbody.closest("table");
+  if (table) {
+      const theadTr = table.querySelector("thead tr");
+      if (theadTr && theadTr.cells.length === 6) {
+          theadTr.innerHTML = `
+              <th style="white-space: nowrap; width: 1%;">事項名稱</th>
+              <th style="word-break: break-all; width: 100%; min-width: 200px;">原因說明</th>
+              <th style="white-space: nowrap; width: 1%;">開始日期</th>
+              <th style="white-space: nowrap; width: 1%;">實際完成時間</th>
+              <th style="white-space: nowrap; width: 1%;">共計</th>
+              <th style="white-space: nowrap; width: 1%;">狀態</th>
+              <th style="white-space: nowrap; width: 1%;">操作</th>
+          `;
+      }
+  }
+
   const filtered = allAdHocData.filter(e => e.ownerId === viewingUserId);
   
   filtered.sort((a, b) => {
@@ -2241,8 +2242,7 @@ function renderAdHocEvents() {
     let actionHtml = !evt.isCompleted && isOwner ? `<button class="action-btn" onclick="completeAdHoc('${evt.id}')">完成</button>` : '';
     let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || canEditEvent) ? `<button class="action-btn danger" style="margin-left:4px;" onclick="deleteAdHoc('${evt.id}')">刪除</button>` : '';
 
-    // 🌟 新增：精算事件共計時數 (使用 startDateTime 與 completedAt 比對)
-    let durationHtml = "";
+    let durationText = "-";
     if (evt.isCompleted && evt.completedAt) {
         try {
             let startStr = evt.startDateTime || (evt.startDate + ' 00:00:00');
@@ -2250,9 +2250,9 @@ function renderAdHocEvents() {
             let endMs = new Date(evt.completedAt.replace(/-/g, '/')).getTime();
             if (!isNaN(startMs) && !isNaN(endMs) && endMs >= startMs) {
                 let diffHours = ((endMs - startMs) / (1000 * 60 * 60)).toFixed(1);
-                durationHtml = `<div style="font-size:12px; color:var(--success); font-weight:bold; margin-top:4px;">共計 ${diffHours} 小時</div>`;
+                durationText = `<strong style="color:var(--success);">${diffHours} 小時</strong>`;
             }
-        } catch (e) { console.error("時數解析錯誤:", e); }
+        } catch (e) { console.error("時數計算錯誤:", e); }
     }
 
     const tr = document.createElement("tr"); 
@@ -2260,7 +2260,8 @@ function renderAdHocEvents() {
       <td style="white-space: nowrap; width: 1%;"><strong>${evt.title}</strong></td>
       <td style="word-break: break-all; width: 100%; min-width: 200px;">${evt.reason}</td>
       <td style="white-space: nowrap; width: 1%;">${evt.startDate || '-'}</td>
-      <td style="white-space: nowrap; width: 1%;">${evt.completedAt || '-'}${durationHtml}</td>
+      <td style="white-space: nowrap; width: 1%;">${evt.completedAt || '-'}</td>
+      <td style="white-space: nowrap; width: 1%; text-align: center;">${durationText}</td>
       <td style="white-space: nowrap; width: 1%;">${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td>
       <td style="white-space: nowrap; width: 1%;">${actionHtml}${editHtml}${delHtml}</td>
     `; 
@@ -3104,7 +3105,6 @@ window.openGeneralEdit = (type, id, extra) => {
     const taskDays = getWorkingDays(task.start, task.end);
     document.getElementById("general-edit-title").innerText = "編輯專案細項";
 
-    // 🌟 自動過濾掉名稱中的 [子專案名稱] 前綴，讓編輯時只顯示純細項名稱
     let cleanTaskName = task.name || '';
     if (task.isSubProjectTask && task.parentSubProject) {
         cleanTaskName = cleanTaskName.replace(`[${task.parentSubProject}] `, '');
@@ -3352,8 +3352,8 @@ window.saveGeneralEdit = async () => {
       
     } else if (type === 'subproject_edit') {
       const newName = document.getElementById("edit-subproj-name").value.trim();
-      const newAssigneeId = document.getElementById("edit-subproj-assignee").value;
       const assigneeSelect = document.getElementById("edit-subproj-assignee");
+      const newAssigneeId = assigneeSelect.value;
       const newAssigneeName = newAssigneeId ? assigneeSelect.options[assigneeSelect.selectedIndex].text.split(' ')[0] : currentUserData.name;
 
       if (!newName) return alert("子專案名稱不可空白！");
@@ -3472,1245 +3472,3 @@ window.saveGeneralEdit = async () => {
     alert("修改失敗：" + err.message); 
   }
 };
-
-window.toggleUserEditPermission = async (uid, checked) => {
-  if (currentUserData.role !== 'admin') return alert('權限不足！');
-  try { 
-    await updateDoc(doc(db, "users", uid), { canEdit: checked }); 
-  } catch(err) { 
-    alert('設定失敗：'+err.message); 
-  }
-};
-
-window.resetUserPassword = (email) => {
-  if (confirm(`確定要發送「重設密碼」信件至 ${email} 嗎？\n系統將寄送一封專屬連結信件，員工點擊後即可自行重設密碼。`)) {
-    sendPasswordResetEmail(auth, email).then(() => alert(`✅ 重設密碼信件已成功發送至：${email}\n請員工前往信箱收信。`)).catch(err => alert("發送失敗: " + err.message));
-  }
-};
-
-window.rescueUserProjects = async (uid, userName) => {
-  if (!userName) return alert("請先為該人員設定姓名！");
-  if (!confirm(`【資料救援】\n即將掃描系統中所有署名為「${userName}」的舊專案與事件，強制綁回給這個帳號。\n確定要進行修復嗎？`)) return;
-  try {
-    let pCount = 0, wCount = 0;
-    for (let p of allProjectsData) { 
-      if (p.ownerName === userName && p.ownerId !== uid) { 
-        await updateDoc(doc(db, "projects", p.id), { ownerId: uid }); 
-        pCount++; 
-      } 
-    }
-    for (let w of allWeeklyData) { 
-      if (w.ownerName === userName && w.ownerId !== uid) { 
-        await updateDoc(doc(db, "weekly_reports", w.id), { ownerId: uid }); 
-        wCount++; 
-      } 
-    }
-    for (let a of allAdHocData) { 
-      if (a.ownerName === userName && a.ownerId !== uid) { 
-        await updateDoc(doc(db, "ad_hoc_events", a.id), { ownerId: uid }); 
-      } 
-    }
-    alert(`🎉 救援成功！\n已為「${userName}」找回：\n- ${pCount} 個專案\n- ${wCount} 份週報\n請重新點擊左側人員檢視查看。`);
-  } catch (err) { 
-    alert("救援失敗：" + err.message); 
-  }
-};
-
-function loadOrgUsers() {
-  const rolePriority = { admin: 1, top_manager: 2, senior_manager: 3, manager: 4, assistant_manager: 5, staff: 6 };
-
-  onSnapshot(collection(db, "users"), (snapshot) => {
-    const tbody = document.getElementById("user-list-tbody"); 
-    const supervisorSelect = document.getElementById("new-user-supervisor");
-    tbody.innerHTML = ""; 
-    supervisorSelect.innerHTML = '<option value="">-- 無 --</option>'; 
-    allUsersList = [];
-    
-    snapshot.forEach(docSnap => {
-      const u = docSnap.data(); 
-      allUsersList.push({ uid: docSnap.id, ...u });
-      if (["top_manager", "senior_manager", "manager", "assistant_manager"].includes(u.role)) {
-        supervisorSelect.innerHTML += `<option value="${docSnap.id}">${u.name} (${roleNames[u.role] || u.role})</option>`;
-      }
-    });
-
-    allUsersList.sort((a, b) => {
-      const deptA = a.dept || "設計部";
-      const deptB = b.dept || "設計部";
-      const deptIdxA = departmentList.indexOf(deptA);
-      const deptIdxB = departmentList.indexOf(deptB);
-
-      if (deptIdxA !== deptIdxB) {
-        return (deptIdxA === -1 ? 99 : deptIdxA) - (deptIdxB === -1 ? 99 : deptIdxB);
-      }
-      return (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99);
-    });
-
-    let currentDeptGroup = "";
-
-    allUsersList.forEach(u => {
-      const uDept = u.dept || "設計部";
-      
-      if (uDept !== currentDeptGroup) {
-        currentDeptGroup = uDept;
-        const deptTr = document.createElement("tr");
-        deptTr.innerHTML = `<td colspan="7" style="background: #f1f5f9; font-weight: 700; color: #334155; padding: 10px 16px;">🏢 ${currentDeptGroup}</td>`;
-        tbody.appendChild(deptTr);
-      }
-
-      const supUser = allUsersList.find(x => x.uid === u.supervisorId); 
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td style="text-align: center;">
-          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer;">
-            <input type="checkbox" onchange="toggleUserEditPermission('${u.uid}', this.checked)" ${u.canEdit ? 'checked' : ''} ${currentUserData.role === 'admin' ? '' : 'disabled'}>
-            <span>開放</span>
-          </label>
-        </td>
-        <td><strong>${u.name || '未命名'}</strong></td>
-        <td>${u.email || '-'}</td>
-        <td><span class="pill" style="background:#f1f5f9; color:#334155;">${u.dept || '設計部'}</span></td>
-        <td><span class="pill pill-role">${roleNames[u.role] || u.role}</span></td>
-        <td>${supUser ? `${supUser.name}` : "-"}</td>
-        <td>
-          <button class="action-btn" onclick="openEditModal('${u.uid}')" style="margin-right:4px;">編輯</button>
-          <button class="action-btn" onclick="resetUserPassword('${u.email}')" style="margin-right:4px;">重設密碼</button>
-          <button class="action-btn" onclick="rescueUserProjects('${u.uid}', '${u.name}')" style="margin-right:4px; border-color:#f59e0b; color:#f59e0b;" title="找回建立錯ID的資料">找回資料</button>
-          ${u.uid !== auth.currentUser.uid ? `<button class="action-btn danger" onclick="deleteUserDoc('${u.uid}', '${u.name}')">刪除</button>` : ''}
-        `;
-      tbody.appendChild(tr);
-    });
-    renderOrgChart(); 
-  });
-}
-
-document.getElementById("btn-create-user").addEventListener("click", async () => {
-  const name = document.getElementById("new-user-name").value.trim(); 
-  const email = document.getElementById("new-user-email").value.trim(); 
-  const pass = document.getElementById("new-user-pass").value.trim();
-  const dept = document.getElementById("new-user-dept").value;
-  const role = document.getElementById("new-user-role").value;
-  const supervisorId = document.getElementById("new-user-supervisor").value || null;
-
-  if (!name || !email || pass.length < 6) return alert("資料填寫不全或密碼太短！");
-  try {
-    const secApp = initializeApp(firebaseConfig, "Secondary"); 
-    const secAuth = getAuth(secApp);
-    const userCred = await createUserWithEmailAndPassword(secAuth, email, pass); 
-    await signOut(secAuth);
-    await setDoc(doc(db, "users", userCred.user.uid), { 
-      name, email, dept, role, supervisorId, canEdit: false, createdAt: serverTimestamp() 
-    });
-    alert(`人員 ${name} 建立成功！`);
-  } catch (err) { 
-    alert("建立失敗: " + err.message); 
-  }
-});
-
-window.openEditModal = (uid) => {
-  const u = allUsersList.find(x => x.uid === uid);
-  document.getElementById("edit-user-uid").value = u.uid; 
-  document.getElementById("edit-user-name").value = u.name || ''; 
-  document.getElementById("edit-user-dept").value = u.dept || '設計部';
-  document.getElementById("edit-user-role").value = u.role || 'staff';
-  
-  const supSelect = document.getElementById("edit-user-supervisor"); 
-  supSelect.innerHTML = '<option value="">-- 無 --</option>';
-  allUsersList.forEach(user => { 
-    if (user.uid !== uid && ["top_manager", "senior_manager", "manager", "assistant_manager"].includes(user.role)) {
-      supSelect.innerHTML += `<option value="${user.uid}">${user.name} (${roleNames[user.role] || user.role})</option>`;
-    }
-  });
-  supSelect.value = u.supervisorId || ''; 
-  document.getElementById("edit-user-modal").classList.add("active");
-};
-
-window.closeEditModal = () => document.getElementById("edit-user-modal").classList.remove("active");
-
-window.submitEditUser = async () => {
-  try {
-    const uidToEdit = document.getElementById("edit-user-uid").value;
-    const newName = document.getElementById("edit-user-name").value.trim();
-    
-    await updateDoc(doc(db, "users", uidToEdit), { 
-      name: newName, 
-      dept: document.getElementById("edit-user-dept").value,
-      role: document.getElementById("edit-user-role").value, 
-      supervisorId: document.getElementById("edit-user-supervisor").value || null 
-    });
-    
-    closeEditModal(); 
-    alert("人員資訊更新成功！");
-
-    if (uidToEdit === auth.currentUser.uid) {
-      currentUserData.name = newName;
-      document.getElementById("user-display-name").innerText = newName;
-      document.getElementById("user-avatar").innerText = newName.charAt(0).toUpperCase();
-    }
-  } catch (err) { 
-    alert("更新失敗: " + err.message); 
-  }
-};
-
-window.deleteUserDoc = async (uid, name) => { 
-  if (currentUserData.role !== 'admin') return alert("權限不足！");
-  if (confirm(`確定刪除 ${name} 嗎？`)) { 
-    try { 
-      await deleteDoc(doc(db, "users", uid)); 
-      alert(`已移除 ${name}！`); 
-    } catch (err) { 
-      alert("刪除失敗: " + err.message); 
-    } 
-  } 
-};
-
-document.getElementById("btn-update-password").addEventListener("click", async () => {
-  const newPass = document.getElementById("profile-new-pass").value;
-  const confirmPass = document.getElementById("profile-confirm-pass").value;
-
-  if (!newPass || newPass.length < 6) return alert("新密碼至少需要 6 個字元！");
-  if (newPass !== confirmPass) return alert("兩次輸入的密碼不一致！");
-
-  if (!confirm("確定要更改您的登入密碼嗎？")) return;
-
-  try {
-    await updatePassword(auth.currentUser, newPass);
-    alert("✅ 密碼更換成功！下次登入請使用新密碼。");
-    document.getElementById("profile-new-pass").value = "";
-    document.getElementById("profile-confirm-pass").value = "";
-  } catch (error) {
-    if (error.code === 'auth/requires-recent-login') {
-      alert("⚠️ 基於安全考量，更換密碼需要您『最近剛登入過』。\n請先點擊右上角登出，重新使用舊密碼登入後，再嘗試修改密碼！");
-    } else {
-      alert("密碼更換失敗：" + error.message);
-    }
-  }
-});
-
-function getNowTimeStr() {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
-
-window.openPauseModal = (projId) => {
-  document.getElementById("pause-proj-id").value = projId;
-  document.getElementById("pause-reason-input").value = "";
-  const todayStr = getTodayStr();
-  const dateInput = document.getElementById("pause-start-date");
-  dateInput.value = todayStr;
-  dateInput.min = todayStr;
-  document.getElementById("pause-request-modal").classList.add("active");
-};
-
-window.closePauseModal = () => document.getElementById("pause-request-modal").classList.remove("active");
-
-window.submitPauseRequest = async () => {
-  const projId = document.getElementById("pause-proj-id").value;
-  const reason = document.getElementById("pause-reason-input").value.trim();
-  const startDate = document.getElementById("pause-start-date").value; 
-  
-  if (!startDate) return alert("請選擇暫停起始日期！");
-  if (!reason) return alert("請務必填寫暫停原因！");
-
-  try {
-    await updateDoc(doc(db, "projects", projId), {
-      status: "pause_requested",
-      pauseReason: reason,
-      pauseStartDate: startDate, 
-      pauseRequestedBy: currentUserData.name || "人員",
-      pauseRequestedAt: getNowTimeStr()
-    });
-    
-    window.closePauseModal(); 
-    alert("已送出暫停申請，請等待最高主管或管理員審核！");
-  } catch (err) {
-    alert("送出失敗：" + err.message);
-  }
-};
-
-window.approvePause = async (projId) => {
-    if (!confirm("確定要執行此同意審核嗎？")) return;
-    const proj = allProjectsData.find(p => p.id === projId);
-    if (!proj) return;
-    
-    const history = proj.pauseHistory || [];
-    const logs = proj.auditLogs || []; 
-    const tasks = [...proj.tasks];
-    const ts = getNowTimeStr();
-    const managerName = currentUserData.name || "主管";
-
-    if (proj.status === 'pause_requested') {
-        const startDateToUse = proj.pauseStartDate || getTodayStr();
-        const reqBy = proj.pauseRequestedBy || "未記錄";
-        const reqAt = proj.pauseRequestedAt || "未記錄";
-        const reason = proj.pauseReason || "未記錄";
-
-        history.push({ start: startDateToUse, end: null, reason: reason, requestedAt: reqAt });
-        
-        logs.push({ 
-            action: '✅ 同意暫停', 
-            manager: managerName, 
-            time: ts,
-            reqBy: reqBy, reqAt: reqAt, reqStart: startDateToUse, reqReason: reason
-        });
-
-        tasks.push({
-            name: `[系統通知] 您的專案 [${proj.title}] 申請已被【${managerName}】處理`,
-            start: getTodayStr(),
-            end: getTodayStr(),
-            progress: 100,
-            isCompleted: true,
-            isSubProjectTask: true,
-            parentSubProject: "專案審核通知",
-            assigneeId: reqByUid,
-            assigneeName: reqBy,
-            isPendingAcceptance: false, // 🌟 務必確保這裡絕對是 false！
-            assignedByUid: auth.currentUser.uid,
-            assignedByName: managerName,
-            assignedAt: ts,
-            history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: '審核結果通知' }]
-        });
-      
-        await updateDoc(doc(db, "projects", projId), {
-            status: "paused",
-            pauseHistory: history,
-            auditLogs: logs,
-            tasks: tasks,
-            pauseStartDate: "", pauseRequestedAt: "", pauseRequestedBy: "", pauseReason: "", lastPauseRequestedUid: ""
-        });
-        alert("已同意暫停申請，並已發送系統通知給申請人！");
-    } 
-    else if (proj.status === 'resume_requested') {
-        const lastPause = history[history.length - 1];
-        const resumeDate = proj.resumeRequestedDate || getTodayStr();
-        const reqBy = proj.resumeRequestedBy || "未記錄";
-
-        if (lastPause && !lastPause.end) {
-            lastPause.end = resumeDate;
-            let shiftDays = getWorkingDays(lastPause.start, resumeDate);
-            let actualShift = Math.max(0, shiftDays - 1); 
-            lastPause.days = actualShift;
-
-            logs.push({ 
-                action: `▶️ 同意恢復執行 (遞延 ${actualShift} 天)`, 
-                manager: managerName, 
-                time: ts,
-                reqBy: reqBy, reqAt: proj.resumeRequestedAt || '-', reqStart: resumeDate, reqReason: '專案申請恢復執行'
-            });
-
-            const updatedTasks = proj.tasks.map(t => {
-              if (t.isCompleted) return t;
-              if (t.start >= lastPause.start) return { ...t, start: calculateEndDateByDays(t.start, actualShift + 1), end: calculateEndDateByDays(t.end, actualShift + 1) };
-              if (t.end >= lastPause.start) return { ...t, end: calculateEndDateByDays(t.end, actualShift + 1) };
-              return t;
-            });
-
-            // 🌟 自動新增一筆系統通知任務給申請人 (恢復申請獲准)
-            updatedTasks.push({
-                name: `[系統通知] 您的專案 [${proj.title}] 恢復執行申請已被【${managerName}】✅ 同意`,
-                start: getTodayStr(),
-                end: getTodayStr(),
-                progress: 100,
-                isCompleted: true,
-                isSubProjectTask: true,
-                parentSubProject: "專案審核通知",
-                assigneeId: proj.lastResumeRequestedUid || proj.ownerId,
-                assigneeName: reqBy,
-                isPendingAcceptance: true,
-                assignedByUid: auth.currentUser.uid,
-                assignedByName: managerName,
-                assignedAt: ts,
-                history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: '主管已同意恢復' }]
-            });
-
-            await updateDoc(doc(db, "projects", projId), {
-                status: 'active',
-                pauseHistory: history,
-                auditLogs: logs,
-                tasks: updatedTasks,
-                resumeRequestedDate: "", resumeRequestedBy: "", resumeRequestedAt: "", lastResumeRequestedUid: ""
-            });
-            alert("已同意恢復執行，並已發送系統通知給申請人！");
-        }
-    }
-};
-
-window.rejectPause = async (projId) => {
-    const reason = prompt("請輸入退回原因：", "");
-    if (reason === null) return; 
-
-    const proj = allProjectsData.find(p => p.id === projId);
-    if (!proj) return;
-    
-    const logs = proj.auditLogs || [];
-    const tasks = [...proj.tasks];
-    const ts = getNowTimeStr();
-    const managerName = currentUserData.name || "主管";
-  
-    if (proj.status === 'pause_requested') {
-        const reqBy = proj.pauseRequestedBy || "未記錄";
-        logs.push({ action: '❌ 退回暫停申請', manager: managerName, time: ts, reqBy: reqBy, reqAt: proj.pauseRequestedAt, reqStart: proj.pauseStartDate, reqReason: proj.pauseReason });
-
-        // 🌟 自動新增一筆系統通知任務給申請人 (暫停申請遭退回)
-        tasks.push({
-            name: `[系統通知] 您的專案 [${proj.title}] 暫停申請已被退回 (原因: ${reason || '無'})`,
-            start: getTodayStr(),
-            end: getTodayStr(),
-            progress: 100,
-            isCompleted: true,
-            isSubProjectTask: true,
-            parentSubProject: "專案審核通知",
-            assigneeId: proj.lastPauseRequestedUid || proj.ownerId,
-            assigneeName: reqBy,
-            isPendingAcceptance: true,
-            assignedByUid: auth.currentUser.uid,
-            assignedByName: managerName,
-            assignedAt: ts,
-            history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: `暫停申請被退回: ${reason}` }]
-        });
-
-        await updateDoc(doc(db, "projects", projId), {
-            status: "active", pauseReason: "", pauseRequestedBy: "", pauseStartDate: "", pauseRequestedAt: "", lastPauseRequestedUid: "", auditLogs: logs, tasks: tasks
-        });
-        alert("已退回暫停申請，並已發送系統通知給申請人！");
-        
-    } else if (proj.status === 'resume_requested') {
-        const reqBy = proj.resumeRequestedBy || "未記錄";
-        logs.push({ action: '❌ 退回恢復申請', manager: managerName, time: ts, reqBy: reqBy, reqAt: proj.resumeRequestedAt, reqStart: proj.resumeRequestedDate, reqReason: '恢復執行申請' });
-
-        // 🌟 自動新增一筆系統通知任務給申請人 (恢復申請遭退回)
-        tasks.push({
-            name: `[系統通知] 您的專案 [${proj.title}] 恢復執行申請已被退回 (原因: ${reason || '無'})`,
-            start: getTodayStr(),
-            end: getTodayStr(),
-            progress: 100,
-            isCompleted: true,
-            isSubProjectTask: true,
-            parentSubProject: "專案審核通知",
-            assigneeId: proj.lastResumeRequestedUid || proj.ownerId,
-            assigneeName: reqBy,
-            isPendingAcceptance: true,
-            assignedByUid: auth.currentUser.uid,
-            assignedByName: managerName,
-            assignedAt: ts,
-            history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: `恢復申請被退回: ${reason}` }]
-        });
-
-        await updateDoc(doc(db, "projects", projId), {
-            status: "paused", resumeRequestedDate: "", resumeRequestedBy: "", resumeRequestedAt: "", lastResumeRequestedUid: "", auditLogs: logs, tasks: tasks
-        });
-        alert("已退回恢復執行申請，並已發送系統通知給申請人！");
-    }
-};
-window.resumeProject = async (projId) => {
-  if (!confirm("確定要恢復執行此專案嗎？\n系統將會自動結算暫停天數，並將尚未完成的任務時程往後遞延！")) return;
-  const proj = allProjectsData.find(p => p.id === projId);
-  if (!proj) return;
-
-  const todayStr = getTodayStr();
-  const history = proj.pauseHistory || [];
-  const logs = proj.auditLogs || [];
-  const lastPause = history[history.length - 1];
-
-  if (lastPause && !lastPause.end) {
-    lastPause.end = todayStr;
-    let shiftDays = getWorkingDays(lastPause.start, todayStr);
-    let actualShift = Math.max(0, shiftDays - 1); 
-    lastPause.days = actualShift;
-
-    logs.push({ 
-        action: `▶️ 恢復執行 (遞延 ${actualShift} 天)`, 
-        manager: currentUserData.name, 
-        time: getNowTimeStr(),
-        reqBy: '-', reqAt: '-', reqStart: '-', reqReason: '專案重新啟動'
-    });
-
-    const updatedTasks = proj.tasks.map(t => {
-      if (t.isCompleted) return t;
-      if (t.start >= lastPause.start) return { ...t, start: calculateEndDateByDays(t.start, actualShift + 1), end: calculateEndDateByDays(t.end, actualShift + 1) };
-      if (t.end >= lastPause.start) return { ...t, end: calculateEndDateByDays(t.end, actualShift + 1) };
-      return t;
-    });
-
-    await updateDoc(doc(db, "projects", projId), {
-      status: 'active',
-      pauseHistory: history,
-      auditLogs: logs,
-      tasks: updatedTasks
-    });
-  }
-};
-
-window.renderApprovals = () => {
-  const tbody = document.getElementById("approvals-list-tbody");
-  const emptyState = document.getElementById("approvals-empty-state");
-  const badge = document.getElementById("approval-badge");
-  const historyTbody = document.getElementById("approval-history-tbody");
-  
-  if (!tbody) return;
-  tbody.innerHTML = "";
-
-  const pendingProjects = allProjectsData.filter(p => p.status === 'pause_requested' || p.status === 'resume_requested');
-  if (badge) {
-    badge.innerText = pendingProjects.length;
-    badge.style.display = pendingProjects.length > 0 ? "inline-block" : "none";
-  }
-
-  if (pendingProjects.length === 0) {
-    emptyState.style.display = "block";
-    tbody.parentElement.style.display = "none";
-  } else {
-    emptyState.style.display = "none";
-    tbody.parentElement.style.display = "table";
-    
-    pendingProjects.forEach(p => {
-      let isResume = (p.status === 'resume_requested');
-      let reqTitle = isResume ? '<span style="color:var(--success); font-weight:bold;">[申請恢復]</span> ' + p.title : p.title;
-      let reqDate = isResume ? (p.resumeRequestedDate || '-') : (p.pauseStartDate || '-');
-      let reqReason = isResume ? '預計恢復執行' : (p.pauseReason || '');
-      let reqBy = isResume ? p.resumeRequestedBy : p.pauseRequestedBy;
-      let reqAt = isResume ? p.resumeRequestedAt : p.pauseRequestedAt;
-
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><span style="color:var(--primary); font-weight:bold; cursor:pointer; text-decoration:none;" onclick="switchViewingUser('${p.ownerId}', '${p.ownerName || '人員'}'); switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*=\\'tab-projects\\']')); setTimeout(() => selectProject('${p.id}'), 150);">${reqTitle}</span></td>
-        <td><span class="pill" style="background:#eff6ff; color:#1e40af;">${reqBy || '未知'}</span></td>
-        <td><span style="font-size:12px; color:var(--text-muted);">${reqAt || '未記錄'}</span></td>
-        <td><strong style="color:var(--danger);">${reqDate}</strong></td>
-        <td style="word-break: break-all; color: var(--text-muted);">${reqReason}</td>
-        <td style="text-align: center;">
-          <button class="btn-primary" style="background:var(--danger); border:none; padding:4px 10px; font-size:12px;" onclick="approvePause('${p.id}')">同意</button>
-          <button class="action-btn" style="padding:4px 10px; font-size:12px; margin-left:6px;" onclick="rejectPause('${p.id}')">退回</button>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    });
-  }
-
-  if (historyTbody) {
-    historyTbody.innerHTML = "";
-    let allLogs = [];
-    allProjectsData.forEach(p => {
-        if (p.auditLogs) {
-            p.auditLogs.forEach(log => allLogs.push({ 
-                projId: p.id, 
-                ownerId: p.ownerId, 
-                ownerName: p.ownerName || '人員', 
-                title: p.title, 
-                ...log 
-            }));
-        }
-    });
-    allLogs.sort((a, b) => new Date(b.time.replace(/-/g, '/')) - new Date(a.time.replace(/-/g, '/')));
-    
-    allLogs.forEach(log => {
-      let actionStyle = log.action.includes('同意') ? 'color:var(--danger);font-weight:bold;' : log.action.includes('恢復') ? 'color:var(--success);font-weight:bold;' : 'color:var(--text-muted);';
-      let delBtnHtml = `<button class="action-btn danger" style="padding: 2px 6px; font-size: 11px;" onclick="deleteAuditLog('${log.projId}', '${log.time}', '${log.action}')">刪除</button>`;
-
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><span style="font-size:12px; color:#475569;">${log.time}</span></td>
-        <td>
-          <span style="color:var(--primary); font-weight:bold; cursor:pointer; text-decoration:none;" 
-                onclick="switchViewingUser('${log.ownerId}', '${log.ownerName}'); switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*=\\'tab-projects\\']')); setTimeout(() => selectProject('${log.projId}'), 150);" 
-                title="點擊前往查看此專案">
-            ${log.title}
-          </span>
-        </td>
-        <td><span style="${actionStyle}">${log.action}</span></td>
-        <td><span class="pill" style="background:#f1f5f9; color:#334155;">${log.manager}</span></td>
-        <td>
-          <span class="pill" style="background:#eff6ff; color:#1e40af; margin-bottom:4px; display:inline-block;">${log.reqBy || '-'}</span><br>
-          <span style="font-size:11px; color:#94a3b8;">${log.reqAt || '-'}</span>
-        </td>
-        <td><strong style="color:var(--danger); font-size:12px;">${log.reqStart || '-'}</strong></td>
-        <td style="word-break:break-all; color:var(--text-muted); font-size:12px;">${log.reqReason || '-'}</td>
-        <td style="text-align: center;">${delBtnHtml}</td>
-      `;
-      historyTbody.appendChild(tr);
-    });
-  }
-};
-
-window.deleteAuditLog = async (projId, logTime, logAction) => {
-  if (currentUserData.role !== 'admin' && currentUserData.role !== 'top_manager') {
-    return alert("權限不足：只有系統管理員或高級主管可以刪除歷史紀錄！");
-  }
-  if (!confirm("⚠️ 確定要刪除這筆歷史操作紀錄嗎？刪除後將無法復原。")) return;
-
-  const proj = allProjectsData.find(p => p.id === projId);
-  if (!proj || !proj.auditLogs) return;
-
-  const newLogs = proj.auditLogs.filter(log => !(log.time === logTime && log.action === logAction));
-
-  try {
-    await updateDoc(doc(db, "projects", projId), { auditLogs: newLogs });
-  } catch (err) {
-    alert("刪除失敗：" + err.message);
-  }
-};
-
-window.openResumeModal = (projId) => {
-  document.getElementById("resume-proj-id").value = projId;
-  const todayStr = getTodayStr();
-  const dateInput = document.getElementById("resume-date-input");
-  dateInput.value = todayStr;
-  dateInput.min = todayStr;
-  document.getElementById("resume-request-modal").classList.add("active");
-};
-
-window.closeResumeModal = () => document.getElementById("resume-request-modal").classList.remove("active");
-
-window.submitResumeRequest = async () => {
-  const projId = document.getElementById("resume-proj-id").value;
-  const resumeDate = document.getElementById("resume-date-input").value;
-  
-  if (!resumeDate) return alert("請選擇預計恢復日期！");
-
-  try {
-    await updateDoc(doc(db, "projects", projId), {
-      status: "resume_requested",
-      resumeRequestedDate: resumeDate,
-      resumeRequestedBy: currentUserData.name || "人員",
-      resumeRequestedAt: getNowTimeStr()
-    });
-    window.closeResumeModal(); 
-    alert("已送出恢復執行申請，請等待最高主管或管理員審核！");
-  } catch (err) {
-    alert("送出失敗：" + err.message);
-  }
-};
-
-window.openEditRemarkModal = async (projId, taskIndex, targetTimestamp) => {
-    const proj = allProjectsData.find(p => p.id === projId);
-    if (!proj || !proj.tasks[taskIndex]) return;
-    const task = proj.tasks[taskIndex];
-    if (!task.history || task.history.length === 0) return;
-
-    const targetHist = task.history.find(h => h.timestamp === targetTimestamp);
-    if (!targetHist) return alert("找不到此筆歷史紀錄！");
-
-    let currentRemark = targetHist.delayReason || targetHist.remark || "";
-    const newRemark = await window.openCustomPrompt(
-        "✏️ 修改原因", 
-        "修改紀錄的備註 / Delay 內容：", 
-        false, 
-        currentRemark
-    );
-    
-    if (newRemark === null) return;
-
-    targetHist.remark = newRemark;
-    if (targetHist.delayReason !== undefined && targetHist.delayReason !== null && targetHist.delayReason !== "") {
-        targetHist.delayReason = newRemark;
-    }
-    
-    if (task.history[task.history.length - 1].timestamp === targetTimestamp && task.delayReason) {
-        task.delayReason = newRemark;
-    }
-
-    try {
-        await updateDoc(doc(db, "projects", projId), { tasks: proj.tasks });
-        alert("✅ 內容修改成功！");
-    } catch (err) {
-        alert("修改失敗：" + err.message);
-    }
-};
-
-window.addPreFilledInnerSubTask = (container, name, start, days, end, isApproval) => {
-   const div = document.createElement('div');
-   div.className = isApproval ? "sub-task-item is-approval-task" : "sub-task-item normal-sub-task";
-   div.style.cssText = "display:flex; gap:6px; align-items:center;";
-   
-   if (isApproval) {
-       div.innerHTML = `
-          <span style="font-size:12px; color:var(--danger); font-weight:bold; width:20px;"></span>
-          <input type="text" class="input-control sub-task-name" value="${name}" readonly style="flex:2; background:#fef2f2; color:var(--danger); font-weight:bold; border-color:#fca5a5;">
-          <input type="date" class="input-control sub-task-start" value="${start}" onchange="onTaskStartChange(this, null); window.syncSubTasksDate(this)" style="flex:1;">
-          <input type="number" class="input-control sub-task-days" value="${days}" placeholder="天數" oninput="onTaskDaysChange(this, null, null)" style="width:60px;">
-          <input type="date" class="input-control sub-task-end" value="${end}" onchange="onTaskEndChange(this, null, null)" style="flex:1;">
-        `;
-   } else {
-       div.innerHTML = `
-          <span style="font-size:12px; font-weight:bold; width:20px;"></span>
-          <input type="text" class="input-control sub-task-name" placeholder="子細項名稱" value="${name}" style="flex:2;">
-          <input type="date" class="input-control sub-task-start" value="${start}" style="flex:1;" onchange="onTaskStartChange(this, null)">
-          <input type="number" class="input-control sub-task-days" value="${days}" placeholder="天" style="width:60px;" oninput="onTaskDaysChange(this, null, null)">
-          <input type="date" class="input-control sub-task-end" value="${end}" style="flex:1;" onchange="onTaskEndChange(this, null, null)">
-          <button type="button" class="btn-close" style="font-size:14px; color:var(--danger);" onclick="const c = this.closest('.sub-tasks-container'); this.parentElement.remove(); window.updateSubTaskNumbers(c);">×</button>
-       `;
-   }
-   container.appendChild(div);
-   window.updateSubTaskNumbers(container);
-};
-
-window.addSubProjectRow = (defaultName = "", defaultAssignee = "", subTasks = [], mode = "sequential") => {
-  const container = document.getElementById("task-list-container"); 
-  
-  let assigneeOptions = '<option value="">-- 指派給 (選填) --</option>';
-  let purchasingUsers = allUsersList.filter(u => u.dept === '採購部');
-  purchasingUsers.forEach(u => {
-      const selected = (u.uid === defaultAssignee) ? "selected" : "";
-      assigneeOptions += `<option value="${u.uid}" ${selected}>${u.name} (採購部)</option>`;
-  });
-
-  const div = document.createElement('div'); 
-  div.className = "form-row subproject-row"; 
-  div.style.cssText = "margin-bottom: 8px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px; flex-direction: column; gap: 8px;";
-  
-  div.innerHTML = `
-    <div style="display:flex; gap:8px; align-items:center;">
-      <span style="font-weight:bold; color:#d97706;">📦 子專案</span>
-      <div class="form-group" style="margin:0; flex:2;">
-        <input type="text" class="input-control task-name subproject-name" placeholder="子專案名稱 (例: 零件採購)" value="${defaultName}">
-      </div>
-      <div class="form-group" style="margin:0; flex:1;">
-        <select class="input-control subproject-assignee" onchange="onSubProjectAssigneeChange(this)">
-           ${assigneeOptions}
-        </select>
-      </div>
-      <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
-        <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
-        <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
-        <button type="button" class="action-btn danger" onclick="this.closest('.subproject-row').remove()" style="padding:8px 10px;">X</button>
-      </div>
-    </div>
-    <div class="sub-tasks-container" style="margin-left: 20px; border-left: 2px solid #fcd34d; padding-left: 10px; display:flex; flex-direction:column; gap:6px;">
-    </div>
-    <button type="button" class="action-btn" onclick="window.addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項</button>
-  `;
-  container.appendChild(div);
-  
-  const tasksContainer = div.querySelector('.sub-tasks-container');
-  if (subTasks && subTasks.length > 0) {
-      subTasks.forEach(st => {
-         let sDays = mode === 'free' ? 1 : (st.days || 1);
-         window.addPreFilledInnerSubTask(tasksContainer, st.name, "", sDays, "", st.isApproval);
-      });
-  }
-};
-
-window.addInnerSubTask = (btn) => {
-   const container = btn.previousElementSibling;
-   let defaultStart = "";
-   const existingApproval = container.querySelector('.is-approval-task .sub-task-start');
-   if (existingApproval && existingApproval.value) defaultStart = existingApproval.value;
-
-   const div = document.createElement('div');
-   div.className = "sub-task-item normal-sub-task";
-   div.style.cssText = "display:flex; gap:6px; align-items:center;";
-   div.innerHTML = `
-      <span style="font-size:12px; font-weight:bold; width:20px;"></span>
-      <input type="text" class="input-control sub-task-name" placeholder="子細項名稱" style="flex:2;">
-      <input type="date" class="input-control sub-task-start" value="${defaultStart}" style="flex:1;" onchange="onTaskStartChange(this, null)">
-      <input type="number" class="input-control sub-task-days" placeholder="天" style="width:60px;" oninput="onTaskDaysChange(this, null, null)">
-      <input type="date" class="input-control sub-task-end" value="${defaultStart}" style="flex:1;" onchange="onTaskEndChange(this, null, null)">
-      <button type="button" class="btn-close" style="font-size:14px; color:var(--danger);" onclick="const c = this.closest('.sub-tasks-container'); this.parentElement.remove(); window.updateSubTaskNumbers(c);">×</button>
-   `;
-   container.appendChild(div);
-   window.updateSubTaskNumbers(container);
-};
-
-window.addTemplateSubProjectRow = (defaultName = "", defaultAssignee = "", subTasks = []) => {
-    const container = document.getElementById("edit-tpl-tasks-container");
-    
-    let assigneeOptions = '<option value="">-- 指派給 (選填) --</option>';
-    let purchasingUsers = allUsersList.filter(u => u.dept === '採購部');
-    purchasingUsers.forEach(u => {
-        const selected = (u.uid === defaultAssignee) ? "selected" : "";
-        assigneeOptions += `<option value="${u.uid}" ${selected}>${u.name} (採購部)</option>`;
-    });
-
-    const div = document.createElement('div');
-    div.className = "form-row tpl-subproject-row"; 
-    div.style.cssText = "margin-bottom: 8px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px; flex-direction: column; gap: 8px;";
-    
-    div.innerHTML = `
-      <div style="display:flex; gap:8px; align-items:center;">
-        <span style="font-weight:bold; color:#d97706;">📦 子專案</span>
-        <div class="form-group" style="margin:0; flex:2;">
-          <input type="text" class="input-control task-name subproject-name" placeholder="子專案名稱 (例: 零件採購)" value="${defaultName}">
-        </div>
-        <div class="form-group" style="margin:0; flex:1;">
-            <select class="input-control subproject-assignee" onchange="onSubProjectAssigneeChange(this)">
-               ${assigneeOptions}
-            </select>
-        </div>
-        <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
-          <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
-          <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
-          <button type="button" class="action-btn danger" onclick="this.closest('.tpl-subproject-row').remove()" style="padding:8px 10px;">X</button>
-        </div>
-      </div>
-      <div class="sub-tasks-container" style="margin-left: 20px; border-left: 2px solid #fcd34d; padding-left: 10px; display:flex; flex-direction:column; gap:6px;">
-      </div>
-      <button type="button" class="action-btn" onclick="window.addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項</button>
-    `;
-    container.appendChild(div);
-
-    const tasksContainer = div.querySelector('.sub-tasks-container');
-    if (subTasks && subTasks.length > 0) {
-        subTasks.forEach(st => {
-           window.addPreFilledInnerSubTask(tasksContainer, st.name, st.start, st.days, st.end, st.isApproval);
-        });
-    }
-};
-
-window.onSubProjectAssigneeChange = (selectElem) => {
-    const uid = selectElem.value;
-    let isPurchasing = false;
-    if (uid) {
-        const user = allUsersList.find(u => u.uid === uid);
-        if (user && user.dept === '採購部') isPurchasing = true;
-    }
-
-    const row = selectElem.closest('.subproject-row') || selectElem.closest('.tpl-subproject-row');
-    if (!row) return;
-    
-    const tasksContainer = row.querySelector('.sub-tasks-container');
-    if (!tasksContainer) return;
-    
-    const existingApproval = tasksContainer.querySelector('.is-approval-task');
-
-    if (isPurchasing) {
-        if (!existingApproval) {
-            let defaultStart = getTodayStr();
-            const div = document.createElement('div');
-            div.className = "sub-task-item is-approval-task";
-            div.style.cssText = "display:flex; gap:6px; align-items:center;";
-            div.innerHTML = `
-              <span style="font-size:12px; color:var(--danger); font-weight:bold; width:20px;"></span>
-              <input type="text" class="input-control sub-task-name" value="簽核流程" readonly style="flex:2; background:#fef2f2; color:var(--danger); font-weight:bold; border-color:#fca5a5;">
-              <input type="date" class="input-control sub-task-start" value="${defaultStart}" onchange="onTaskStartChange(this, null); window.syncSubTasksDate(this)" style="flex:1;">
-              <input type="number" class="input-control sub-task-days" value="1" placeholder="天數" oninput="onTaskDaysChange(this, null, null)" style="width:60px;">
-              <input type="date" class="input-control sub-task-end" value="${defaultStart}" onchange="onTaskEndChange(this, null, null)" style="flex:1;">
-            `;
-            tasksContainer.insertBefore(div, tasksContainer.firstChild);
-            window.syncSubTasksDate(div.querySelector('.sub-task-start'));
-        }
-    } else {
-        if (existingApproval) existingApproval.remove();
-    }
-    window.updateSubTaskNumbers(tasksContainer);
-};
-
-window.updateSubTaskNumbers = (container) => {
-    if (!container) return;
-    const items = container.querySelectorAll('.sub-task-item');
-    items.forEach((item, idx) => {
-        const span = item.querySelector('span');
-        if (span) {
-            span.innerText = (idx + 1) + ".";
-            span.style.color = item.classList.contains('is-approval-task') ? "var(--danger)" : "var(--text-muted)";
-        }
-    });
-};
-
-window.openAddSubProjectModal = () => {
-    const proj = allProjectsData.find(p => p.id === selectedProjectId);
-    if (!proj) return;
-    
-    const container = document.getElementById("add-subproject-container");
-    container.innerHTML = ""; 
-    
-    const titleHeader = document.createElement('div');
-    titleHeader.style.cssText = "margin-bottom: 15px; font-size: 15px; font-weight: bold; color: var(--primary); background: #e0e7ff; padding: 8px 12px; border-radius: 6px; border: 1px solid #c7d2fe;";
-    titleHeader.innerHTML = `📝 目前主專案：<span style="color: #312e81;">${proj.title}</span>`;
-    container.appendChild(titleHeader);
-    
-    let assigneeOptions = '<option value="">-- 指派給 (選填) --</option>';
-    let purchasingUsers = allUsersList.filter(u => u.dept === '採購部');
-    purchasingUsers.forEach(u => {
-        assigneeOptions += `<option value="${u.uid}">${u.name} (採購部)</option>`;
-    });
-
-    const div = document.createElement('div'); 
-    div.className = "form-row subproject-row"; 
-    div.style.cssText = "background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px; flex-direction: column; gap: 8px;";
-    
-    div.innerHTML = `
-      <div style="display:flex; gap:8px; align-items:center;">
-        <span style="font-weight:bold; color:#d97706;">📦 子專案</span>
-        <div class="form-group" style="margin:0; flex:2;">
-          <input type="text" class="input-control task-name subproject-name" placeholder="子專案名稱 (例: 零件採購)">
-        </div>
-        <div class="form-group" style="margin:0; flex:1;">
-          <select class="input-control subproject-assignee" onchange="onSubProjectAssigneeChange(this)">
-             ${assigneeOptions}
-          </select>
-        </div>
-      </div>
-      <div class="sub-tasks-container" style="margin-top: 10px; margin-left: 20px; border-left: 2px solid #fcd34d; padding-left: 10px; display:flex; flex-direction:column; gap:6px;">
-      </div>
-      <button type="button" class="action-btn" onclick="window.addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項</button>
-    `;
-    
-    container.appendChild(div);
-    document.getElementById("project-subproject-modal").classList.add("active");
-};
-
-window.closeAddSubProjectModal = () => {
-    document.getElementById("project-subproject-modal").classList.remove("active");
-};
-
-window.submitAddSubProject = async () => {
-    const container = document.getElementById("add-subproject-container");
-    const subProjName = container.querySelector('.subproject-name').value.trim() || "未命名子專案";
-    
-    const assigneeSelect = container.querySelector('.subproject-assignee');
-    const assigneeId = assigneeSelect.value;
-    const assigneeName = assigneeId ? assigneeSelect.options[assigneeSelect.selectedIndex].text.split(' ')[0] : (currentUserData.name || auth.currentUser.email.split('@')[0]);
-    const uidToAssign = assigneeId || auth.currentUser.uid;
-    
-    const ts = new Date().toLocaleString('zh-TW', { hour12: false });
-    const todayStr = getTodayStr();
-    const newTasks = [];
-    
-    const isPending = (uidToAssign !== auth.currentUser.uid);
-    const currentUserName = currentUserData.name || auth.currentUser.email.split('@')[0];
-
-    const taskItems = container.querySelectorAll('.sub-task-item');
-    if (taskItems.length === 0) {
-        newTasks.push({ 
-            name: `[${subProjName}] 尚未建立細項`, 
-            start: todayStr, end: todayStr, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
-            assigneeId: uidToAssign,
-            assigneeName: assigneeName,
-            isSubProjectTask: true,
-            parentSubProject: subProjName, 
-            createdAt: Date.now(), 
-            isPendingAcceptance: isPending,
-            assignedByUid: auth.currentUser.uid,
-            assignedByName: currentUserName,
-            assignedAt: ts,
-            history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: 0, delayReason: '', remark: '追加空子專案' }] 
-        });
-    } else {
-        for (let subRow of taskItems) {
-            const sName = subRow.querySelector('.sub-task-name').value.trim();
-            const sStart = subRow.querySelector('.sub-task-start').value;
-            const sEnd = subRow.querySelector('.sub-task-end').value;
-            
-            if (!sName) continue;
-            if (!sStart || !sEnd) return alert(`子細項不可有空白日期！`);
-            if (sStart > sEnd) return alert(`子細項 [${sName}] 的起始日不可大於完成日！`);
-            
-            let passedDays = 0; 
-            if (todayStr >= sStart) passedDays = getWorkingDays(sStart, todayStr);
-
-            newTasks.push({ 
-              name: `[${subProjName}] ${sName}`, 
-              start: sStart, end: sEnd, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
-              assigneeId: uidToAssign,
-              assigneeName: assigneeName,
-              isSubProjectTask: true,
-              parentSubProject: subProjName, 
-              createdAt: Date.now(),
-              isPendingAcceptance: isPending,
-              assignedByUid: auth.currentUser.uid,
-              assignedByName: currentUserName,
-              assignedAt: ts,
-              history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '追加子專案細項' }] 
-            });
-        }
-    }
-    
-    if (newTasks.length === 0) return alert("沒有有效的新增細項！");
-
-    const proj = allProjectsData.find(p => p.id === selectedProjectId);
-    if (!proj) return alert("找不到目前專案！");
-    
-    const updatedTasks = [...proj.tasks, ...newTasks];
-    updatedTasks.sort((a, b) => (a.start || "").localeCompare(b.start || ""));
-
-    await updateDoc(doc(db, "projects", proj.id), { tasks: updatedTasks });
-    
-    closeAddSubProjectModal();
-    alert("🎉 子專案追加成功！");
-};
-
-window.syncSubTasksDate = (startInput) => {
-    const container = startInput.closest('.sub-tasks-container');
-    if (!container || !startInput.value) return;
-    
-    const normalTasks = container.querySelectorAll('.normal-sub-task');
-    normalTasks.forEach(task => {
-        const startEl = task.querySelector('.sub-task-start');
-        const endEl = task.querySelector('.sub-task-end');
-        const daysEl = task.querySelector('.sub-task-days');
-        
-        startEl.value = startInput.value;
-        if (daysEl && endEl) {
-           let days = parseInt(daysEl.value) || 1;
-           endEl.value = calculateEndDateByDays(startInput.value, days);
-           endEl.min = startInput.value;
-        }
-    });
-};
-// ==========================================
-// 🌟 專案指派通知系統 (UI生成與邏輯)
-// ==========================================
-window.initNotificationsUI = () => {
-    const navUl = document.querySelector(".sidebar-menu") || document.querySelector("ul");
-    if (navUl && !document.getElementById("nav-notifications")) {
-        const li = document.createElement("li");
-        li.className = "nav-item";
-        li.id = "nav-notifications";
-        li.innerHTML = `<span style="margin-right:6px;">🔔</span> 系統通知 <span class="badge" id="notif-badge" style="display:none; background:var(--danger); color:white; border-radius:10px; padding:2px 6px; font-size:10px; margin-left:auto;">0</span>`;
-        li.onclick = () => window.switchNav('tab-notifications', '系統通知', li);
-        
-        const weeklyNav = document.querySelector('li[onclick*="tab-weekly"]');
-        if (weeklyNav && weeklyNav.parentNode) {
-            weeklyNav.parentNode.insertBefore(li, weeklyNav.nextSibling);
-        } else {
-            navUl.appendChild(li);
-        }
-    }
-
-    const samplePane = document.getElementById("tab-projects") || document.querySelector(".tab-pane");
-    const mainContent = samplePane ? samplePane.parentNode : (document.querySelector(".main-content") || document.getElementById("app-section"));
-    
-    if (mainContent && !document.getElementById("tab-notifications")) {
-        const tab = document.createElement("div");
-        tab.className = "tab-pane";
-        tab.id = "tab-notifications";
-        tab.style.display = "none";
-        tab.innerHTML = `
-            <div class="panel" style="margin-bottom: 20px;">
-                <div class="panel-head"><span>🔔 待處理的專案 / 子專案指派</span></div>
-                <div class="table-responsive">
-                    <table style="width:100%;">
-                        <thead>
-                            <tr>
-                                <th style="width:25%">專案名稱</th>
-                                <th style="width:30%">任務/子專案名稱</th>
-                                <th style="width:15%">指派人</th>
-                                <th style="width:15%">指派時間</th>
-                                <th style="width:15%; text-align:center;">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="notif-list-tbody"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- 🌟 新增：歷史紀錄區塊 -->
-            <div class="panel">
-                <div class="panel-head"><span>📜 指派與通知歷史紀錄</span></div>
-                <div class="table-responsive">
-                    <table style="width:100%;">
-                        <thead>
-                            <tr>
-                                <th style="width:25%">專案名稱</th>
-                                <th style="width:30%">任務/子專案名稱</th>
-                                <th style="width:15%">指派/發布人</th>
-                                <th style="width:15%">處理時間 / 狀態</th>
-                                <th style="width:15%; text-align:center;">備註 / 結果</th>
-                            </tr>
-                        </thead>
-                        <tbody id="notif-history-tbody"></tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-        mainContent.appendChild(tab);
-    }
-};
-
-window.renderNotifications = () => {
-    const tbody = document.getElementById("notif-list-tbody");
-    const historyTbody = document.getElementById("notif-history-tbody");
-    const badge = document.getElementById("notif-badge");
-    if (!tbody || !auth.currentUser) return;
-    
-    tbody.innerHTML = "";
-    if (historyTbody) historyTbody.innerHTML = "";
-
-    let pendingCount = 0;
-    const myUid = auth.currentUser.uid;
-    const groupMap = new Map();
-    const historyList = [];
-
-    allProjectsData.forEach(p => {
-        (p.tasks || []).forEach(t => {
-            // 🌟 防呆修正：如果名稱包含 "[系統通知]"，絕對不能當作待處理項目讓使用者按同意/拒絕！
-            const isSystemNotif = t.name && t.name.includes("[系統通知]");
-
-            // 1. 收集真正需要同意的待處理項目 (排除系統通知)
-            if (t.assigneeId === myUid && t.isPendingAcceptance === true && t.isSubProjectTask && !isSystemNotif) {
-                const key = `${p.id}_${t.parentSubProject}`;
-                if (!groupMap.has(key)) {
-                    groupMap.set(key, {
-                        projId: p.id,
-                        projTitle: p.title,
-                        subProjName: t.parentSubProject,
-                        assignedByName: t.assignedByName || '未知',
-                        assignedAt: t.assignedAt || '-'
-                    });
-                }
-            }
-            
-            // 2. 收集歷史紀錄 (包含「已處理的指派」以及「所有的系統通知」)
-            if (t.assigneeId === myUid && t.isSubProjectTask && (t.isPendingAcceptance === false || isSystemNotif)) {
-                const lastHist = (t.history && t.history.length > 0) ? t.history[t.history.length - 1] : null;
-                const remarkText = lastHist ? lastHist.remark : (isSystemNotif ? t.name : '已處理');
-                
-                historyList.push({
-                    projTitle: p.title,
-                    name: t.name,
-                    assignedByName: t.assignedByName || '系統主管',
-                    timestamp: lastHist ? lastHist.timestamp : (t.assignedAt || '-'),
-                    remark: remarkText
-                });
-            }
-        });
-    });
-    
-    // 渲染待處理清單
-    groupMap.forEach(group => {
-        pendingCount++;
-        const tr = document.createElement("tr");
-        tr.style.borderBottom = "1px solid #f1f5f9";
-        tr.innerHTML = `
-            <td style="padding: 12px 8px; font-weight:bold; color:var(--primary);">${group.projTitle}</td>
-            <td style="padding: 12px 8px;">📦 ${group.subProjName}</td>
-            <td style="padding: 12px 8px;"><span class="pill" style="background:#eff6ff; color:#1e40af;">${group.assignedByName}</span></td>
-            <td style="padding: 12px 8px;"><span style="font-size:12px; color:var(--text-muted);">${group.assignedAt}</span></td>
-            <td style="padding: 12px 8px; text-align:center;">
-                <button class="action-btn" style="background:#10b981; color:#fff; border:none; margin-right:4px; padding:4px 10px;" onclick="acceptSubProjectAssignment('${group.projId}', '${group.subProjName}')">✅ 同意</button>
-                <button class="action-btn danger" style="padding:4px 10px;" onclick="rejectSubProjectAssignment('${group.projId}', '${group.subProjName}')">❌ 拒絕</button>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
-    
-    if (pendingCount === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:30px;">目前沒有待處理的指派通知。</td></tr>`;
-    }
-
-    // 渲染歷史紀錄清單
-    if (historyTbody) {
-        if (historyList.length === 0) {
-            historyTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:20px;">尚無歷史紀錄。</td></tr>`;
-        } else {
-            historyList.forEach(h => {
-                const tr = document.createElement("tr");
-                tr.innerHTML = `
-                    <td style="font-weight:bold; color:#475569;">${h.projTitle}</td>
-                    <td>${h.name}</td>
-                    <td><span class="pill" style="background:#f1f5f9; color:#334155;">${h.assignedByName}</span></td>
-                    <td><span style="font-size:12px; color:var(--text-muted);">${h.timestamp}</span></td>
-                    <td style="text-align:center; font-weight:bold;">${h.remark}</td>
-                `;
-                historyTbody.appendChild(tr);
-            });
-        }
-    }
-
-    if (badge) {
-        badge.innerText = pendingCount;
-        badge.style.display = pendingCount > 0 ? "inline-block" : "none";
-    }
-};
-
-// 🌟 同意整個子專案的所有細項
-window.acceptSubProjectAssignment = async (projId, subProjName) => {
-    const p = allProjectsData.find(x => x.id === projId);
-    if(!p) return;
-    const tasks = [...p.tasks];
-    
-    tasks.forEach(t => {
-        if (t.isSubProjectTask && t.parentSubProject === subProjName && t.isPendingAcceptance) {
-            t.isPendingAcceptance = false;
-            if (!t.history) t.history = [];
-            t.history.push({
-                timestamp: new Date().toLocaleString('zh-TW', { hour12: false }),
-                progress: t.progress, type: 'update', daysPassed: 0, delayReason: '',
-                remark: '✅ 已同意指派'
-            });
-        }
-    });
-
-    await updateDoc(doc(db, "projects", projId), { tasks });
-    alert(`已同意子專案 [${subProjName}]！所有相關細項已納入您的清單。`);
-};
-
-// 🌟 拒絕整個子專案的所有細項
-window.rejectSubProjectAssignment = async (projId, subProjName) => {
-    const reason = prompt(`請輸入拒絕子專案 [${subProjName}] 的原因：`, "");
-    if (reason === null) return; 
-    const p = allProjectsData.find(x => x.id === projId);
-    if(!p) return;
-    const tasks = [...p.tasks];
-    
-    tasks.forEach(t => {
-        if (t.isSubProjectTask && t.parentSubProject === subProjName && t.isPendingAcceptance) {
-            const assignerId = t.assignedByUid || p.ownerId;
-            const assignerName = t.assignedByName || p.ownerName;
-            
-            t.isPendingAcceptance = false; 
-            t.assigneeId = assignerId;
-            t.assigneeName = assignerName;
-            
-            if (!t.history) t.history = [];
-            t.history.push({
-                timestamp: new Date().toLocaleString('zh-TW', { hour12: false }),
-                progress: t.progress, type: 'update', daysPassed: 0, delayReason: '',
-                remark: `❌ 退回指派 (原因: ${reason || '無'})`
-            });
-        }
-    });
-    
-    await updateDoc(doc(db, "projects", projId), { tasks });
-    alert(`已拒絕，子專案 [${subProjName}] 的細項已全數退回給開案者！`);
-};
-
-function loadProjects() {
-  onSnapshot(query(collection(db, "projects")), (snapshot) => {
-    allProjectsData = []; 
-    snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
-    renderProjects(); 
-    refreshAllWeeklyProjSelects();
-    if (window.renderApprovals) window.renderApprovals(); 
-    if (window.renderNotifications) window.renderNotifications(); 
-  }); 
-}
-
-// 🌟 開啟編輯子專案彈窗
-window.openEditSubProjectModal = (projId, subProjName) => {
-    const proj = allProjectsData.find(p => p.id === projId);
-    if (!proj) return;
-    
-    // 找出該子專案目前的負責人
-    const sampleTask = (proj.tasks || []).find(t => t.isSubProjectTask && t.parentSubProject === subProjName);
-    const currentAssigneeId = sampleTask ? sampleTask.assigneeId : "";
-
-    let assigneeOptions = '<option value="">-- 指派給 (選填) --</option>';
-    let purchasingUsers = allUsersList.filter(u => u.dept === '採購部');
-    purchasingUsers.forEach(u => {
-        const selected = (u.uid === currentAssigneeId) ? "selected" : "";
-        assigneeOptions += `<option value="${u.uid}" ${selected}>${u.name} (採購部)</option>`;
-    });
-
-    currentEditData = { type: 'subproject_edit', projId, oldSubProjName: subProjName };
-
-    document.getElementById("general-edit-title").innerText = `編輯子專案：${subProjName}`;
-    const form = document.getElementById("general-edit-form");
-    form.innerHTML = `
-        <div class="form-group">
-            <label class="form-label">子專案名稱</label>
-            <input type="text" id="edit-subproj-name" class="input-control" value="${subProjName}">
-        </div>
-        <div class="form-group">
-            <label class="form-label">指派人員 (採購部)</label>
-            <select id="edit-subproj-assignee" class="input-control">
-                ${assigneeOptions}
-            </select>
-        </div>
-    `;
-
-    document.getElementById("general-edit-modal").classList.add("active");
-};
-
-// 🌟 覆寫或擴充原本的 saveGeneralEdit 結尾，使其支援子專案編輯儲存
-// (請在 saveGeneralEdit 函式的 try 區塊內，加入以下 else if 判斷)
