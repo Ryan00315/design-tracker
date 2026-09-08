@@ -182,7 +182,7 @@ setTimeout(() => { // 用 setTimeout 確保網頁元素都已準備好
   adhocQuill = new Quill('#adhoc-editor-container', {
     modules: { toolbar: toolbarOptions },
     theme: 'snow',
-    placeholder: '請填寫事件原因說明 (Shift+Enter 換行)...'
+    placeholder: '請填寫事件原因說明 (Enter 換行)'
   });
 }, 500);
 // 🌟🌟🌟 新增結束 🌟🌟🌟
