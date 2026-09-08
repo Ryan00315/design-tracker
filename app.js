@@ -2321,10 +2321,10 @@ function renderAdHocEvents() {
 document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
   const title = document.getElementById("adhoc-title").value.trim(); 
   
-  // ✅ 改為從 Quill 編輯器抓取包含格式的 HTML 內容
+  // 🌟 1. 從 Quill 抓取 HTML 內容
   let reason = adhocQuill.root.innerHTML.trim();
-  if (reason === '<p><br></p>') reason = ""; // 如果是全空的，Quill 預設會產生這個標籤，將它視為空值
-
+  if (reason === '<p><br></p>') reason = ""; // Quill 預設空內容防呆
+  
   const start = document.getElementById("adhoc-start").value;
   if (!title || !reason || !start) return alert("請填寫完整名稱、開始日期與原因！");
   
@@ -2332,11 +2332,20 @@ document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
   await addDoc(collection(db, "ad_hoc_events"), { 
     ownerId: viewingUserId, 
     ownerName: targetUser.name || '', 
-    title, reason, startDate: start, startDateTime: new Date().toLocaleString(), isCompleted: false, createdAt: serverTimestamp() 
+    title, 
+    reason: reason, // 存入包含格式的 HTML 
+    startDate: start, 
+    startDateTime: new Date().toLocaleString(), 
+    isCompleted: false, 
+    createdAt: serverTimestamp() 
   });
+  
   document.getElementById("adhoc-title").value = ""; 
-  adhocQuill.root.innerHTML = ""; 
   document.getElementById("adhoc-start").value = ""; 
+  
+  // 🌟 2. 存檔後清空 Quill 編輯器
+  adhocQuill.root.innerHTML = ""; 
+  
   alert("事件紀錄完成！");
 });
 
@@ -3174,11 +3183,27 @@ window.openGeneralEdit = (type, id, extra) => {
   } else if (type === 'adhoc') {
     const adhoc = allAdHocData.find(a => a.id === id);
     document.getElementById("general-edit-title").innerText = "編輯事件紀錄";
+    
+    // 🌟 1. 將 input 替換成 Quill 的 div 容器
     form.innerHTML = `
       <div class="form-group"><label class="form-label">事項名稱</label><input type="text" id="edit-val-title" class="input-control" value="${adhoc.title}"></div>
       <div class="form-group"><label class="form-label">開始日期</label><input type="date" id="edit-val-start" class="input-control" value="${adhoc.startDate || ''}"></div>
-      <div class="form-group"><label class="form-label">原因說明</label><input type="text" id="edit-val-reason" class="input-control" value="${adhoc.reason}"></div>
+      <div class="form-group">
+        <label class="form-label">原因說明</label>
+        <div id="edit-val-reason-container" style="background:#fff; min-height:80px;"></div>
+      </div>
     `;
+    
+    // 🌟 2. 延遲一下等待 HTML 渲染完畢後，綁定 Quill 編輯器，並將原本的值塞進去
+    setTimeout(() => {
+      window.editAdhocQuill = new Quill('#edit-val-reason-container', {
+        modules: { toolbar: toolbarOptions }, // 沿用你在上面設定好的 toolbarOptions
+        theme: 'snow'
+      });
+      // 讀取 Firebase 裡的富文本內容
+      window.editAdhocQuill.root.innerHTML = adhoc.reason || '';
+    }, 100);
+
   } else if (type === 'weekly') {
     const weekly = allWeeklyData.find(w => w.id === id);
     document.getElementById("general-edit-title").innerText = "編輯週報內容";
@@ -3451,10 +3476,15 @@ window.saveGeneralEdit = async () => {
       await updateDoc(doc(db, "projects", id), { tasks });
       
     } else if (type === 'adhoc') {
+      
+      // 🌟 抓取編輯器內的 HTML
+      let newReason = window.editAdhocQuill ? window.editAdhocQuill.root.innerHTML.trim() : "";
+      if (newReason === '<p><br></p>') newReason = "";
+      
       await updateDoc(doc(db, "ad_hoc_events", id), {
         title: document.getElementById("edit-val-title").value.trim(),
         startDate: document.getElementById("edit-val-start").value,
-        reason: document.getElementById("edit-val-reason").value.trim()
+        reason: newReason // 存入更新後的 HTML
       });
       
     } else if (type === 'weekly') {
