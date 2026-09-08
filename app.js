@@ -4601,11 +4601,76 @@ window.initNotificationsUI = () => {
         tab.id = "tab-notifications";
         tab.style.display = "none";
         tab.innerHTML = `
-            <!-- 👑 1. 主管審核專區 (原待審核通知排版，只有主管/Admin 看得到) -->
-            <div id="notif-approvals-wrapper" style="display:none; margin-bottom: 24px;">
+            <!-- 🌟 精緻頂部分頁切換列 -->
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 14px;">
+                <div style="display: flex; gap: 10px;">
+                    <!-- 分頁按鈕 1：個人系統通知 -->
+                    <button type="button" id="tab-btn-sub-notifs" class="action-btn" onclick="window.switchNotifSubTab('notifs')" 
+                        style="display: flex; align-items: center; gap: 6px; padding: 8px 18px; border-radius: 20px; font-size: 14px; font-weight: bold; background: var(--primary); color: #fff; border-color: var(--primary); transition: 0.2s;">
+                        <span>🔔 指派與通知</span>
+                        <span id="badge-sub-notifs" style="display:none; background: var(--danger); color: #fff; border-radius: 10px; padding: 1px 6px; font-size: 11px;">0</span>
+                    </button>
+
+                    <!-- 分頁按鈕 2：主管待審核通知 (僅主管/管理員可見) -->
+                    <button type="button" id="tab-btn-sub-approvals" class="action-btn" onclick="window.switchNotifSubTab('approvals')" 
+                        style="display: none; align-items: center; gap: 6px; padding: 8px 18px; border-radius: 20px; font-size: 14px; font-weight: bold; background: var(--surface); color: var(--text-muted); border-color: var(--border); transition: 0.2s;">
+                        <span>👑 待審核申請</span>
+                        <span id="badge-sub-approvals" style="display:none; background: var(--danger); color: #fff; border-radius: 10px; padding: 1px 6px; font-size: 11px;">0</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- ------------------------------------------------------------- -->
+            <!-- 區塊 A：個人系統通知 (指派 + 審核回覆通知 + 歷史紀錄) -->
+            <!-- ------------------------------------------------------------- -->
+            <div id="sub-panel-notifs" style="display: block;">
+                <!-- 待處理指派與回覆 -->
+                <div class="panel" style="margin-bottom: 20px;">
+                    <div class="panel-head"><span>🔔 待處理的專案 / 子專案指派與回覆</span></div>
+                    <div class="table-responsive">
+                        <table style="width:100%;">
+                            <thead>
+                                <tr>
+                                    <th style="width:25%">專案名稱</th>
+                                    <th style="width:30%">任務/子專案名稱</th>
+                                    <th style="width:15%">指派/發布人</th>
+                                    <th style="width:15%">時間</th>
+                                    <th style="width:15%; text-align:center;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="notif-list-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 歷史紀錄 -->
+                <div class="panel">
+                    <div class="panel-head"><span>📜 指派與通知歷史紀錄</span></div>
+                    <div class="table-responsive">
+                        <table style="width:100%;">
+                            <thead>
+                                <tr>
+                                    <th style="width:25%">專案名稱</th>
+                                    <th style="width:30%">任務/子專案名稱</th>
+                                    <th style="width:15%">指派/發布人</th>
+                                    <th style="width:15%">處理時間</th>
+                                    <th style="width:15%; text-align:center;">狀態 / 結果</th>
+                                </tr>
+                            </thead>
+                            <tbody id="notif-history-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ------------------------------------------------------------- -->
+            <!-- 區塊 B：主管待審核通知 (待審核案件 + 歷史審核操作紀錄) -->
+            <!-- ------------------------------------------------------------- -->
+            <div id="sub-panel-approvals" style="display: none;">
+                <!-- 待審核專案清單 -->
                 <div class="panel" style="margin-bottom: 20px; border: 1.5px solid #fca5a5;">
                     <div class="panel-head" style="color: var(--danger); font-weight: bold;">
-                        <span>👑 主管專用：待審核的專案暫停 / 恢復申請</span>
+                        <span>👑 待審核的專案暫停 / 恢復申請</span>
                     </div>
                     <div class="table-responsive">
                         <table style="width: 100%;">
@@ -4622,12 +4687,13 @@ window.initNotificationsUI = () => {
                             <tbody id="approvals-list-tbody"></tbody>
                         </table>
                     </div>
-                    <div id="approvals-empty-state" style="text-align: center; padding: 25px; color: var(--text-muted); display: none;">
+                    <div id="approvals-empty-state" style="text-align: center; padding: 30px; color: var(--text-muted); display: none;">
                         目前沒有待審核的申請。
                     </div>
                 </div>
 
-                <div class="panel" style="margin-bottom: 24px;">
+                <!-- 主管審核操作歷史 -->
+                <div class="panel">
                     <div class="panel-head"><span>📝 主管審核與操作歷史紀錄</span></div>
                     <div class="table-responsive">
                         <table style="width: 100%;">
@@ -4647,48 +4713,43 @@ window.initNotificationsUI = () => {
                         </table>
                     </div>
                 </div>
-                <hr style="border: none; border-top: 2px dashed var(--border); margin: 24px 0;">
-            </div>
-
-            <!-- 🔔 2. 一般待處理指派與審核結果通知 (原本的系統通知介面) -->
-            <div class="panel" style="margin-bottom: 20px;">
-                <div class="panel-head"><span>🔔 待處理的專案 / 子專案指派與回覆</span></div>
-                <div class="table-responsive">
-                    <table style="width:100%;">
-                        <thead>
-                            <tr>
-                                <th style="width:25%">專案名稱</th>
-                                <th style="width:30%">任務/子專案名稱</th>
-                                <th style="width:15%">指派/發布人</th>
-                                <th style="width:15%">時間</th>
-                                <th style="width:15%; text-align:center;">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="notif-list-tbody"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- 📜 3. 個人通知與指派歷史紀錄 -->
-            <div class="panel">
-                <div class="panel-head"><span>📜 指派與通知歷史紀錄</span></div>
-                <div class="table-responsive">
-                    <table style="width:100%;">
-                        <thead>
-                            <tr>
-                                <th style="width:25%">專案名稱</th>
-                                <th style="width:30%">任務/子專案名稱</th>
-                                <th style="width:15%">指派/發布人</th>
-                                <th style="width:15%">處理時間</th>
-                                <th style="width:15%; text-align:center;">狀態 / 結果</th>
-                            </tr>
-                        </thead>
-                        <tbody id="notif-history-tbody"></tbody>
-                    </table>
-                </div>
             </div>
         `;
         mainContent.appendChild(tab);
+    }
+};
+
+// 🌟 子分頁切換函式
+window.switchNotifSubTab = (type) => {
+    const btnNotifs = document.getElementById("tab-btn-sub-notifs");
+    const btnApprovals = document.getElementById("tab-btn-sub-approvals");
+    const panelNotifs = document.getElementById("sub-panel-notifs");
+    const panelApprovals = document.getElementById("sub-panel-approvals");
+
+    if (type === 'notifs') {
+        panelNotifs.style.display = 'block';
+        panelApprovals.style.display = 'none';
+
+        btnNotifs.style.background = 'var(--primary)';
+        btnNotifs.style.color = '#fff';
+        btnNotifs.style.borderColor = 'var(--primary)';
+
+        btnApprovals.style.background = 'var(--surface)';
+        btnApprovals.style.color = 'var(--text-muted)';
+        btnApprovals.style.borderColor = 'var(--border)';
+    } else {
+        panelNotifs.style.display = 'none';
+        panelApprovals.style.display = 'block';
+
+        btnApprovals.style.background = 'var(--primary)';
+        btnApprovals.style.color = '#fff';
+        btnApprovals.style.borderColor = 'var(--primary)';
+
+        btnNotifs.style.background = 'var(--surface)';
+        btnNotifs.style.color = 'var(--text-muted)';
+        btnNotifs.style.borderColor = 'var(--border)';
+
+        if (window.renderApprovals) window.renderApprovals();
     }
 };
 
@@ -4696,18 +4757,22 @@ window.renderNotifications = () => {
     const tbody = document.getElementById("notif-list-tbody");
     const historyTbody = document.getElementById("notif-history-tbody");
     const badge = document.getElementById("notif-badge");
+    const badgeNotifs = document.getElementById("badge-sub-notifs");
+    const badgeApprovals = document.getElementById("badge-sub-approvals");
+    const btnApprovals = document.getElementById("tab-btn-sub-approvals");
+    
     if (!tbody || !auth.currentUser) return;
     
     tbody.innerHTML = "";
     if (historyTbody) historyTbody.innerHTML = "";
 
-    let pendingCount = 0;
+    let notifPendingCount = 0;
     const myUid = auth.currentUser.uid;
     const groupMap = new Map();
     const systemNotifs = [];
     const historyList = [];
 
-    // 1. 收集並過濾個人待處理與歷史紀錄
+    // 1. 收集指派與通知
     allProjectsData.forEach(p => {
         (p.tasks || []).forEach((t, tIdx) => {
             const isSystemNotif = t.name && t.name.includes("[系統通知]");
@@ -4738,7 +4803,7 @@ window.renderNotifications = () => {
                 });
             }
 
-            // 收集通知與指派歷史紀錄
+            // 收集歷史紀錄
             if (t.assigneeId === myUid && t.isSubProjectTask) {
                 if (t.isPendingAcceptance === false || isSystemNotif) {
                     const lastHist = (t.history && t.history.length > 0) ? t.history[t.history.length - 1] : null;
@@ -4758,9 +4823,9 @@ window.renderNotifications = () => {
         });
     });
     
-    // 渲染待處理清單：一般子專案指派
+    // 渲染待處理子專案指派
     groupMap.forEach(group => {
-        pendingCount++;
+        notifPendingCount++;
         const tr = document.createElement("tr");
         tr.style.borderBottom = "1px solid #f1f5f9";
         tr.innerHTML = `
@@ -4776,9 +4841,9 @@ window.renderNotifications = () => {
         tbody.appendChild(tr);
     });
 
-    // 渲染待處理清單：系統退回/同意通知
+    // 渲染系統通知 (未確認知悉)
     systemNotifs.forEach(notif => {
-        pendingCount++;
+        notifPendingCount++;
         const tr = document.createElement("tr");
         tr.style.borderBottom = "1px solid #f1f5f9";
         tr.style.background = "#fef2f2";
@@ -4794,14 +4859,14 @@ window.renderNotifications = () => {
         tbody.appendChild(tr);
     });
     
-    if (pendingCount === 0) {
+    if (notifPendingCount === 0) {
         tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:30px;">目前沒有待處理的指派通知。</td></tr>`;
     }
 
     // 歷史紀錄由新到舊排序
     historyList.sort((a, b) => b.sortTime - a.sortTime);
 
-    // 渲染歷史紀錄清單
+    // 渲染歷史清單
     if (historyTbody) {
         if (historyList.length === 0) {
             historyTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:20px;">尚無歷史紀錄。</td></tr>`;
@@ -4820,34 +4885,40 @@ window.renderNotifications = () => {
         }
     }
 
-    // ==========================================
-    // 🌟 控制主管審核區塊顯示 & 合併紅點計數
-    // ==========================================
+    // 2. 主管審核數量計算與按鈕顯示
     const isAdminOrTop = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager');
-    const approvalWrapper = document.getElementById("notif-approvals-wrapper");
-    let pendingApprovalsCount = 0;
+    let approvalPendingCount = 0;
 
-    if (approvalWrapper) {
+    if (btnApprovals) {
         if (isAdminOrTop) {
-            approvalWrapper.style.display = "block";
-            // 渲染審核清單與操作歷史
-            if (window.renderApprovals) window.renderApprovals();
-
-            // 計算待主管審核的暫停/恢復申請數
+            btnApprovals.style.display = 'inline-flex';
             const pendingApprovals = allProjectsData.filter(p => p.status === 'pause_requested' || p.status === 'resume_requested');
-            pendingApprovalsCount = pendingApprovals.length;
+            approvalPendingCount = pendingApprovals.length;
         } else {
-            approvalWrapper.style.display = "none";
+            btnApprovals.style.display = 'none';
         }
     }
 
-    // 合併紅點數字（個人待處理通知 + 主管待審核申請）
-    const totalPending = pendingCount + pendingApprovalsCount;
+    // 🌟 更新【指派與通知】子按鈕紅點
+    if (badgeNotifs) {
+        badgeNotifs.innerText = notifPendingCount;
+        badgeNotifs.style.display = notifPendingCount > 0 ? "inline-block" : "none";
+    }
+
+    // 🌟 更新【待審核申請】子按鈕紅點
+    if (badgeApprovals) {
+        badgeApprovals.innerText = approvalPendingCount;
+        badgeApprovals.style.display = approvalPendingCount > 0 ? "inline-block" : "none";
+    }
+
+    // 🌟 更新【左側選單：系統通知】總紅點
+    const totalPending = notifPendingCount + approvalPendingCount;
     if (badge) {
         badge.innerText = totalPending;
         badge.style.display = totalPending > 0 ? "inline-block" : "none";
     }
 };
+
 // 🌟 點擊「我知道了」把未讀狀態消除
 window.dismissSystemNotif = async (projId, taskIndex) => {
     const proj = allProjectsData.find(p => p.id === projId);
