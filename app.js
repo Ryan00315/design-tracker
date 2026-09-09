@@ -3533,9 +3533,17 @@ window.onEditWeeklyProjChange = (idx) => {
   }
 };
 
+// 🌟 關閉彈窗時恢復底部按鈕顯示
 window.closeGeneralEditModal = () => {
     const modal = document.getElementById("general-edit-modal");
     modal.classList.remove("active");
+    
+    // 恢復彈窗底部預設按鈕區塊的顯示
+    const modalFooter = modal.querySelector('.modal-footer') || modal.querySelector('[style*="display: none"]');
+    if (modalFooter) {
+        modalFooter.style.display = modalFooter.dataset.origDisplay || '';
+    }
+
     const modalBox = modal.querySelector('.modal-box');
     if (modalBox) {
         modalBox.style.width = "";
@@ -4181,39 +4189,22 @@ window.renderApprovals = () => {
     const isDeptManager = (currentUserData.role === 'manager' || currentUserData.role === 'assistant_manager');
     let approvalPendingCount = 0;
 
+    const myUid = auth.currentUser?.uid;
+    const btnApprovals = document.getElementById("btn-approvals");
+
     if (isTopOrAdmin || isDeptManager) {
         if (btnApprovals) btnApprovals.style.display = 'inline-flex';
         
-    // ==========================================
-    // 4. 🌟 主管審核、協作指派與退回重審事項 (資料過濾)
-    // ==========================================
-    const pendingApprovals = allProjectsData.filter(p => {
-      // 1. 暫停與恢復申請：最高主管與管理員負責
-      if (p.status === 'pause_requested' || p.status === 'resume_requested') {
-        return isTopOrAdmin;
-      }
-      
-      // 2. 🌟 開案者看自己被退回的專案（提示重新送審）
-      const isRejected = (p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
-      if (isRejected && p.ownerId === myUid) {
-        return true;
-      }
-
-      // 3. 專案開案簽核與協作指派審核
-      if (p.status === 'pending_approval') {
-        const cfg = p.approvalConfig || {};
-        if (cfg.currentAssigneeUid) {
-          return cfg.currentAssigneeUid === myUid;
-        }
-        if (isTopOrAdmin && (cfg.currentStage === 'top_manager' || !cfg.currentStage)) {
-          return true;
-        }
-      }
-
-      return false;
-    });
-
-    totalPendingCount += pendingApprovals.length;
+        const pendingApprovals = allProjectsData.filter(p => {
+          if (p.status === 'pause_requested' || p.status === 'resume_requested') {
+            return isTopOrAdmin;
+          }
+          if (p.status === 'pending_approval') {
+            if (isTopOrAdmin) return true;
+            if (p.approvalConfig?.currentAssigneeUid === myUid) return true;
+          }
+          return false;
+        });
         approvalPendingCount = pendingApprovals.length;
     } else {
         if (btnApprovals) btnApprovals.style.display = 'none';
@@ -4962,7 +4953,7 @@ window.renderNotifications = () => {
             
             // 系統知悉通知 (過濾掉協作指派，由專案主層級統一顯示)
             if (t.assigneeId === myUid && isSystemNotif && t.isSystemNotifUnread !== false) {
-                if (t.name.includes("您已被指派協作專案") || t.name.includes("收到來自")) {
+                if (t.name.includes("您已被指派協作專案") || t.name.includes("收到來自") || t.name.includes("簽核已被退回")) {
                     return;
                 }
                 systemNotifs.push({
@@ -5095,29 +5086,32 @@ window.renderNotifications = () => {
     // 4. 🌟 主管審核與協作指派（核心修復：精確比對責任人）
     // ==========================================
     const pendingApprovals = allProjectsData.filter(p => {
-      // 暫停與恢復申請：最高主管與管理員負責
+      // 1. 暫停與恢復申請：最高主管與管理員負責
       if (p.status === 'pause_requested' || p.status === 'resume_requested') {
         return isTopOrAdmin;
       }
-      
-      // 專案開案簽核與協作申請
+    
+      // 2. 🌟 關鍵：開案者看自己被退回的專案（亮紅點並提供重新送審）
+      const isRejected = (p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
+      if (isRejected && p.ownerId === myUid) {
+        return true;
+      }
+    
+      // 3. 專案開案簽核與協作指派審核
       if (p.status === 'pending_approval') {
         const cfg = p.approvalConfig || {};
-
-        // 🌟 關鍵修正 1：如果已經指派給某人（currentAssigneeUid 存在），則「只有被指派者本人」才能看到！
-        // 發出指派的主管（即使是最高主管/管理員）絕對不會再看到！
         if (cfg.currentAssigneeUid) {
           return cfg.currentAssigneeUid === myUid;
         }
-
-        // 🌟 關鍵修正 2：如果尚未指派（第一道關卡，currentStage === 'top_manager' 且 currentAssigneeUid 為空）
-        // 則由最高主管與管理員審核
         if (isTopOrAdmin && (cfg.currentStage === 'top_manager' || !cfg.currentStage)) {
           return true;
         }
       }
+    
       return false;
     });
+
+totalPendingCount += pendingApprovals.length;
 
     totalPendingCount += pendingApprovals.length;
 
@@ -5502,15 +5496,36 @@ window.rejectProjectApproval = async (projId) => {
     remark: `退回原因: ${reason.trim()}`
   });
 
-  // 🌟 將 status 設為 'rejected'，不再是 'active'，確保不會流入未完成
+  // 🌟 新增：產生系統通知任務，指派給專案申請人 (開案者)
+  const tasks = [...(proj.tasks || [])];
+  tasks.push({
+    name: `[系統通知] 您的專案 [${proj.title}] 簽核已被退回 (原因: ${reason.trim()})`,
+    start: getTodayStr(),
+    end: getTodayStr(),
+    progress: 100,
+    isCompleted: true,
+    isSubProjectTask: true,
+    parentSubProject: "專案審核通知",
+    assigneeId: proj.ownerId,
+    assigneeName: proj.ownerName,
+    isPendingAcceptance: false,
+    isSystemNotifUnread: true,
+    assignedByUid: auth.currentUser.uid,
+    assignedByName: myName,
+    assignedAt: ts,
+    history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: `專案簽核被退回: ${reason.trim()}` }]
+  });
+
+  // 🌟 將 status 設為 'rejected'，並將通知任務寫入 Firebase
   await updateDoc(doc(db, "projects", projId), {
     status: 'rejected',
+    tasks: tasks,
     "approvalConfig.approvalStatus": 'rejected',
     "approvalConfig.rejectReason": reason.trim(),
     approvalHistory: history
   });
 
-  alert("✅ 已退回專案簽核，專案已退回給開案者！");
+  alert("✅ 已退回專案簽核，並已發送通知給開案申請人！");
   renderProjects();
 };
 
@@ -5693,12 +5708,19 @@ window.openResubmitModal = (projId) => {
   const lastRejectLog = (proj.approvalHistory || []).slice().reverse().find(h => h.step.includes('退回'));
   const rejectReasonDisplay = lastRejectLog ? `<div style="background:#fee2e2; color:#991b1b; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:13px;"><b>主管退回原因：</b>${lastRejectLog.remark}</div>` : '';
 
+  const modal = document.getElementById("general-edit-modal");
   const form = document.getElementById("general-edit-form");
   document.getElementById("general-edit-title").innerText = `🔄 專案重新送審 [${proj.title}]`;
   
+  // 🌟 隱藏彈窗最外層底部的預設按鈕區塊 (通常是 modal-footer 或包含儲存修改的父容器)
+  const modalFooter = modal.querySelector('.modal-footer') || modal.querySelector('[style*="justify-content: flex-end"]') || modal.querySelector('div:last-child');
+  if (modalFooter && modalFooter !== form) {
+    modalFooter.dataset.origDisplay = modalFooter.style.display || '';
+    modalFooter.style.display = 'none';
+  }
+
   const isPreviouslyCollab = proj.approvalConfig?.isApplyCollab || false;
 
-  // 🌟 修正：文字改為「協作流程」與「專案簽核」，並將 textarea 改為 Quill 編輯器容器，且移除底部重複按鈕
   form.innerHTML = `
     ${rejectReasonDisplay}
     <div class="form-group" style="margin-bottom:14px;">
@@ -5724,9 +5746,8 @@ window.openResubmitModal = (projId) => {
     </div>
   `;
 
-  document.getElementById("general-edit-modal").classList.add("active");
+  modal.classList.add("active");
 
-  // 🌟 延遲初始化 Quill 編輯器並帶入原本的說明內容
   setTimeout(() => {
     window.resubmitQuill = new Quill('#resubmit-quill-container', {
       modules: { toolbar: toolbarOptions },
