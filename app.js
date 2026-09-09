@@ -4063,10 +4063,10 @@ window.resumeProject = async (projId) => {
 };
 
 window.renderApprovals = () => {
-  const tbody = document.getElementById("approvals-list-tbody");
-  const emptyState = document.getElementById("approvals-empty-state");
-  const tableContainer = document.getElementById("approvals-table-container");
-  const historyTbody = document.getElementById("approval-history-tbody");
+  const tbody = document.getElementById("sub-approvals-list-tbody") || document.getElementById("approvals-list-tbody");
+  const emptyState = document.getElementById("sub-approvals-empty-state") || document.getElementById("approvals-empty-state");
+  const tableContainer = document.getElementById("sub-approvals-table-container");
+  const historyTbody = document.getElementById("sub-approval-history-tbody") || document.getElementById("approval-history-tbody");
   
   if (!tbody) return;
   tbody.innerHTML = "";
@@ -4601,7 +4601,7 @@ window.initNotificationsUI = () => {
         tab.style.display = "none";
         tab.innerHTML = `
             <!-- 頂部分頁膠囊切換列 -->
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 14px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 14px;">
                 <div style="display: flex; gap: 10px;">
                     <button type="button" id="tab-btn-sub-notifs" class="action-btn" onclick="window.switchNotifSubTab('notifs')" 
                         style="display: flex; align-items: center; gap: 6px; padding: 8px 18px; border-radius: 20px; font-size: 14px; font-weight: bold; background: var(--primary); color: #fff; border-color: var(--primary); transition: 0.2s;">
@@ -4620,11 +4620,11 @@ window.initNotificationsUI = () => {
             <!-- ============================================================= -->
             <!-- 區塊 A：指派與通知 -->
             <!-- ============================================================= -->
-            <div id="sub-panel-notifs" style="display: block; min-height: 85vh;">
-                <!-- 待處理清單 (超過 5 筆固定高度 260px 自動內部滾動) -->
+            <div id="sub-panel-notifs" style="display: flex; flex-direction: column; min-height: calc(100vh - 220px);">
+                <!-- 上半部：待處理清單 (超過 5 筆高度 240px 自動滾動) -->
                 <div class="panel" style="margin-bottom: 20px;">
                     <div class="panel-head"><span>🔔 待處理的專案 / 子專案指派與回覆</span></div>
-                    <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
+                    <div class="table-responsive" style="max-height: 240px; overflow-y: auto;">
                         <table style="width:100%;">
                             <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 2;">
                                 <tr>
@@ -4640,12 +4640,11 @@ window.initNotificationsUI = () => {
                     </div>
                 </div>
 
-                <!-- 🌟 往下推移至頁面 2/3 處 -->
-                <div style="margin-top: 140px; border-top: 1px dashed var(--border); padding-top: 24px;">
-                    <!-- 歷史紀錄 (超過 5 筆固定高度 260px 自動內部滾動) -->
+                <!-- 🌟 彈性留白：強制將歷史紀錄沉到畫面下半部 2/3 處 -->
+                <div style="margin-top: auto; padding-top: 50px; border-top: 1px dashed var(--border);">
                     <div class="panel" style="background: #fafafa; border: 1px solid var(--border-light);">
                         <div class="panel-head" style="color: #64748b; font-size: 14px;"><span>📜 指派與通知歷史紀錄</span></div>
-                        <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
+                        <div class="table-responsive" style="max-height: 240px; overflow-y: auto;">
                             <table style="width:100%;">
                                 <thead style="position: sticky; top: 0; background: #f1f5f9; z-index: 2;">
                                     <tr>
@@ -4666,15 +4665,15 @@ window.initNotificationsUI = () => {
             <!-- ============================================================= -->
             <!-- 區塊 B：主管待審核通知 -->
             <!-- ============================================================= -->
-            <div id="sub-panel-approvals" style="display: none; min-height: 85vh;">
-                <!-- 待審核申請清單 (超過 5 筆固定高度 260px 自動內部滾動) -->
-                <div class="panel" style="margin-bottom: 20px; border: 1.5px solid #fca5a5;">
-                    <div class="panel-head" style="color: var(--danger); font-weight: bold;">
+            <div id="sub-panel-approvals" style="display: none; flex-direction: column; min-height: calc(100vh - 220px);">
+                <!-- 上半部：待審核申請清單 (無紅框，超過 5 筆高度 240px 自動滾動) -->
+                <div class="panel" style="margin-bottom: 20px;">
+                    <div class="panel-head" style="font-weight: bold; color: #0f172a;">
                         <span>👑 待審核的專案暫停 / 恢復申請</span>
                     </div>
-                    <div id="approvals-table-container" class="table-responsive" style="max-height: 260px; overflow-y: auto;">
+                    <div id="sub-approvals-table-container" class="table-responsive" style="max-height: 240px; overflow-y: auto;">
                         <table style="width: 100%;">
-                            <thead style="position: sticky; top: 0; background: #fff1f2; z-index: 2;">
+                            <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 2;">
                                 <tr>
                                     <th style="width: 20%;">專案名稱</th>
                                     <th style="width: 10%;">申請人</th>
@@ -4684,20 +4683,20 @@ window.initNotificationsUI = () => {
                                     <th style="width: 15%; text-align: center;">操作</th>
                                 </tr>
                             </thead>
-                            <tbody id="approvals-list-tbody"></tbody>
+                            <!-- 🌟 使用專屬全新 ID，絕不與 HTML 衝突 -->
+                            <tbody id="sub-approvals-list-tbody"></tbody>
                         </table>
                     </div>
-                    <div id="approvals-empty-state" style="text-align: center; padding: 30px; color: var(--text-muted); display: none;">
+                    <div id="sub-approvals-empty-state" style="text-align: center; padding: 30px; color: var(--text-muted); display: none;">
                         目前沒有待審核的申請。
                     </div>
                 </div>
 
-                <!-- 🌟 往下推移至頁面 2/3 處 -->
-                <div style="margin-top: 140px; border-top: 1px dashed var(--border); padding-top: 24px;">
-                    <!-- 主管審核操作歷史 (超過 5 筆固定高度 260px 自動內部滾動) -->
+                <!-- 🌟 彈性留白：強制將歷史紀錄沉到畫面下半部 2/3 處 -->
+                <div style="margin-top: auto; padding-top: 50px; border-top: 1px dashed var(--border);">
                     <div class="panel" style="background: #fafafa; border: 1px solid var(--border-light);">
                         <div class="panel-head" style="color: #64748b; font-size: 14px;"><span>📝 主管審核與操作歷史紀錄</span></div>
-                        <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
+                        <div class="table-responsive" style="max-height: 240px; overflow-y: auto;">
                             <table style="width: 100%;">
                                 <thead style="position: sticky; top: 0; background: #f1f5f9; z-index: 2;">
                                     <tr>
@@ -4711,7 +4710,8 @@ window.initNotificationsUI = () => {
                                         <th style="width: 6%; text-align: center;">操作</th>
                                     </tr>
                                 </thead>
-                                <tbody id="approval-history-tbody"></tbody>
+                                <!-- 🌟 使用專屬全新 ID，絕不與 HTML 衝突 -->
+                                <tbody id="sub-approval-history-tbody"></tbody>
                             </table>
                         </div>
                     </div>
@@ -4730,7 +4730,7 @@ window.switchNotifSubTab = (type) => {
     const panelApprovals = document.getElementById("sub-panel-approvals");
 
     if (type === 'notifs') {
-        panelNotifs.style.display = 'block';
+        panelNotifs.style.display = 'flex';
         panelApprovals.style.display = 'none';
 
         btnNotifs.style.background = 'var(--primary)';
@@ -4742,7 +4742,7 @@ window.switchNotifSubTab = (type) => {
         btnApprovals.style.borderColor = 'var(--border)';
     } else {
         panelNotifs.style.display = 'none';
-        panelApprovals.style.display = 'block';
+        panelApprovals.style.display = 'flex';
 
         btnApprovals.style.background = 'var(--primary)';
         btnApprovals.style.color = '#fff';
