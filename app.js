@@ -1141,20 +1141,26 @@ function renderProjects() {
   const selectedYear = yearFilterVal === 'all' ? 'all' : parseInt(yearFilterVal);
   const todayStr = getTodayStr();
 
-  // 1. 抓取開案者是自己的專案
+  // 1. 自己開案的專案
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
-  // 2. 抓取開放瀏覽或有細項指派給自己的專案 (加入防呆，確保 collaborators 一定是陣列)
+  // 2. 開放瀏覽專案 (部門被開放瀏覽，且自己不是開案者)
   const viewOnlyProjects = allProjectsData.filter(p => {
     const collabs = Array.isArray(p.collaborators) ? p.collaborators : [];
-    const hasMyTask = (p.tasks || []).some(t => t.assigneeId === viewingUserId);
-    return (collabs.includes(targetDept) || hasMyTask) && p.ownerId !== viewingUserId;
+    return collabs.includes(targetDept) && p.ownerId !== viewingUserId;
+  });
+
+  // 3. 有細項指派給自己的專案 (自己非開案者，但有負責的細項)
+  const assignedProjects = allProjectsData.filter(p => {
+    const hasMyTask = (p.tasks || []).some(t => t.assigneeId === viewingUserId && !t.name?.includes("[系統通知]"));
+    return hasMyTask && p.ownerId !== viewingUserId;
   });
 
   const allInvolvedProjectsMap = new Map();
   userProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
   viewOnlyProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
+  assignedProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
   
   const allInvolvedProjects = Array.from(allInvolvedProjectsMap.values()).map(p => {
       return { ...p, tasks: getDynamicallyShiftedTasks(p, todayStr) };
@@ -1175,8 +1181,20 @@ function renderProjects() {
       return;
     }
 
-    // 排除系統通知
-    const relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
+    // 🌟 核心過濾邏輯：
+    // 開案者看專案全部任務；非開案者只看「指派給自己」的任務細項
+    let relevantTasks = [];
+    if (isRealOwner) {
+      relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
+    } else {
+      relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId && !t.name?.includes("[系統通知]"));
+    }
+
+    // 🌟 關鍵限制：如果不是開案者，且在該專案中「完全沒有指派給自己的細項」
+    // 表示這純粹是「開放瀏覽」的專案，絕對不能跑到未完成、已完成或 Delay！
+    if (!isRealOwner && relevantTasks.length === 0) {
+      return; 
+    }
 
     const isAllDone = relevantTasks.length > 0 ? relevantTasks.every(t => t.isCompleted) : false;
     const hasDelay = relevantTasks.length > 0 ? relevantTasks.some(t => !t.isCompleted && todayStr > t.end) : false;
@@ -1211,7 +1229,7 @@ function renderProjects() {
   const elDelay = document.getElementById('stat-delay');
   if(elDelay) elDelay.innerText = countDelayed;
   const elCollab = document.getElementById('stat-collab');
-  if(elCollab) elCollab.innerText = viewOnlyProjects.length;
+  if(elCollab) elCollab.innerText = viewOnlyProjects.length; // 開放瀏覽數量
   const elPendingApp = document.getElementById('stat-pending-approval');
   if(elPendingApp) elPendingApp.innerText = countPendingApproval;
 
@@ -1228,7 +1246,7 @@ function renderProjects() {
       activeList = projectsDelayed;
       activeAdHocs = adHocsDelayed;
   } else if (currentFilter === 'collab') {
-      activeList = viewOnlyProjects;
+      activeList = viewOnlyProjects; // 🌟 點選「開放瀏覽」只看開放瀏覽的專案
       activeAdHocs = [];
   } else if (currentFilter === 'pending_approval') {
       activeList = projectsPendingApproval;
@@ -1434,7 +1452,7 @@ function renderProjects() {
   }
 
   // ==========================================
-  // 檢視 2：專案細部內容檢視
+  // 檢視 2：專案詳細內容檢視
   // ==========================================
   if(summaryView) summaryView.style.display = "none"; 
   if(detailView) detailView.style.display = "block";
@@ -1446,8 +1464,8 @@ function renderProjects() {
   const inGracePeriod = isWithin7DaysGracePeriod(activeProj);
   const collabList = Array.isArray(activeProj.collaborators) ? activeProj.collaborators : [];
   const hasViewOnly = collabList.length > 0;
-  const isViewOnlyMember = hasViewOnly && collabList.includes(currentUserData.dept) && !isProjOwner && !isGlobalAdmin;
-
+  
+  // 核心控制權：只有開案者或全域管理員可以新增細項、新增子專案、刪除或修改專案主檔
   let canOperateProject = (isGlobalAdmin || isProjOwner);
   let canEditMainProj = (isGlobalAdmin && isEditMode) || (isProjOwner && inGracePeriod);
 
@@ -1500,6 +1518,7 @@ function renderProjects() {
       </span>
   `;
   
+  // 🌟 嚴格控制：只有開案者或系統管理員可以看見新增細項/子專案按鈕
   const btnProjectAddTask = document.getElementById("btn-project-add-task");
   const btnProjectAddSubProject = document.getElementById("btn-project-add-subproject");
   const delProjBtn = document.getElementById("btn-project-del"); 
@@ -1685,7 +1704,8 @@ function renderProjects() {
                 isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
             }
 
-            const canOperateThisTask = !isViewOnlyMember && (isGlobalAdmin || isMyTask || isProjOwner);
+            // 🌟 只有開案者、管理員、或被指派該任務的負責人才能操作此細項
+            const canOperateThisTask = (isGlobalAdmin || isProjOwner || isMyTask);
             const isProjectPaused = activeProj.status === 'paused' || activeProj.status === 'pause_requested' || activeProj.status === 'pending_approval';
             const isInputLocked = task.isCompleted || !canOperateThisTask || isProjectPaused; 
 
@@ -1714,7 +1734,6 @@ function renderProjects() {
 
             const confirmBtnStyle = (task.isCompleted || isInputLocked) ? 'opacity: 0.4; cursor: not-allowed;' : '';
 
-            // 🌟 修正：使用正規 replace 移除子專案標籤，不再使用出錯的 startsWith 參數
             let displayName = task.name || '未命名任務';
             if (item.isChild && task.parentSubProject) {
                 displayName = displayName.replace(`[${task.parentSubProject}] `, '');
