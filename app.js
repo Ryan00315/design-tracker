@@ -433,6 +433,10 @@ window.switchNav = (tabId, title, elem) => {
     initCalendarSelectors();
     renderCalendar();
   }
+  // 🌟 新增：點擊系統通知時，立即重新計算並渲染待處理表格
+  if (tabId === 'tab-notifications') {
+    if (window.renderNotifications) window.renderNotifications();
+  }
 };
 
 document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => {
@@ -5081,21 +5085,25 @@ window.renderNotifications = () => {
         totalPendingCount++;
         const tr = document.createElement("tr");
         tr.style.borderBottom = "1px solid #f1f5f9";
+        tr.style.backgroundColor = "#fffbf0"; // 淺黃底提示待處理
         tr.innerHTML = `
             <td style="padding: 12px 8px;">
-                <span style="color:var(--danger); font-weight:bold; cursor:pointer; text-decoration:underline;" 
-                      onclick="window.viewProjectFromNotif('${notif.ownerId}', '${notif.ownerName || '人員'}', '${notif.projId}', '${notif.status}')" 
+                <span style="color:var(--primary); font-weight:bold; cursor:pointer; text-decoration:underline;" 
+                      onclick="window.viewProjectFromNotif('${group.ownerId}', '${group.ownerName || '人員'}', '${group.projId}', 'active')" 
                       title="點擊前往查看專案細項">
-                    ${notif.projTitle}
+                    ${group.projTitle}
                 </span>
             </td>
-            <td style="padding: 12px 8px; color:var(--danger); font-weight:600;">🚨 ${notif.msg}</td>
-            <td style="padding: 12px 8px;"><span class="pill" style="background:#fee2e2; color:#b91c1c;">${notif.assignedByName}</span></td>
-            <td style="padding: 12px 8px;"><span class="pill" style="background:#fecaca; color:#991b1b;">系統通知</span></td>
-            <td style="padding: 12px 8px;"><span style="font-size:12px; color:var(--text-muted);">${notif.assignedAt}</span></td>
-            <td style="padding: 12px 8px; color:var(--text-muted);">請確認知悉</td>
-            <td style="padding: 12px 8px; text-align:center;">
-                <button class="action-btn" style="background:var(--danger); color:#fff; border:none; padding:4px 8px;" onclick="dismissSystemNotif('${notif.projId}', ${notif.taskIndex})">我知道了</button>
+            <td style="padding: 12px 8px; color:var(--primary); font-weight:600;">
+                📦 您被指派了新子專案【${group.subProjName}】，請確認是否同意接收
+            </td>
+            <td style="padding: 12px 8px;"><span class="pill" style="background:#eff6ff; color:#1e40af;">${group.assignedByName}</span></td>
+            <td style="padding: 12px 8px;"><span class="pill" style="background:#e0e7ff; color:#3730a3; font-weight:bold;">子專案指派</span></td>
+            <td style="padding: 12px 8px;"><span style="font-size:12px; color:var(--text-muted);">${group.assignedAt}</span></td>
+            <td style="padding: 12px 8px; color:var(--text-muted); font-size:12px;">待確認接收 (同意後納入未完成)</td>
+            <td style="padding: 12px 8px; text-align:center; white-space:nowrap;">
+                <button class="action-btn" style="background:#10b981; color:#fff; border:none; margin-right:4px; padding:4px 10px; font-weight:bold;" onclick="acceptSubProjectAssignment('${group.projId}', '${group.subProjName}')">同意</button>
+                <button class="action-btn danger" style="padding:4px 10px; font-weight:bold;" onclick="rejectSubProjectAssignment('${group.projId}', '${group.subProjName}')">拒絕</button>
             </td>
         `;
         tbody.appendChild(tr);
