@@ -1163,7 +1163,15 @@ function renderProjects() {
   assignedProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
   
   const allInvolvedProjects = Array.from(allInvolvedProjectsMap.values()).map(p => {
-      return { ...p, tasks: getDynamicallyShiftedTasks(p, todayStr) };
+      const shiftedTasks = getDynamicallyShiftedTasks(p, todayStr);
+      // 🌟 在最源頭徹底過濾：排除所有假通知細項與通知建立的幽靈子專案
+      const cleanTasks = shiftedTasks.filter(t => {
+          if (!t || !t.name) return false;
+          if (t.name.includes("[系統通知]")) return false;
+          if (t.parentSubProject === "專案審核通知" || t.parentSubProject === "專案指派確認" || t.parentSubProject === "協作指派審核") return false;
+          return true;
+      });
+      return { ...p, tasks: cleanTasks };
   });
 
   let countOngoing = 0, countCompleted = 0, countDelayed = 0, countPendingApproval = 0;
@@ -5385,47 +5393,22 @@ window.approveProjectApproval = async (projId) => {
     remark: '主管已同意專案建立'
   });
 
-  const tasks = [...(proj.tasks || [])];
-  tasks.push({
-    name: `[系統通知] 您的專案 [${proj.title}] 簽核已被【${myName}】✅ 同意開案！`,
-    start: getTodayStr(),
-    end: getTodayStr(),
-    progress: 100,
-    isCompleted: true,
-    isSubProjectTask: true,
-    parentSubProject: "專案審核通知",
-    assigneeId: proj.ownerId,
-    assigneeName: proj.ownerName,
-    isPendingAcceptance: false,
-    isSystemNotifUnread: true,
-    assignedByUid: auth.currentUser.uid,
-    assignedByName: myName,
-    assignedAt: ts,
-    history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: '主管已同意開案' }]
-  });
-
+  // 🌟 只更新狀態為 active，不改動 tasks 細項
   await updateDoc(doc(db, "projects", projId), {
-    "approvalConfig.currentStage": isStaff ? 'staff' : 'manager',
-    "approvalConfig.currentAssigneeUid": targetUser.uid,
-    "approvalConfig.currentAssigneeName": targetUser.name,
-    "approvalConfig.lastDispatchedByUid": auth.currentUser.uid,
+    status: 'active',
+    "approvalConfig.approvalStatus": 'approved',
     approvalHistory: history
   });
 
-  alert("已成功同意開案，專案已正式上線！");
+  alert("✅ 已成功同意開案，專案已加入未完成！");
+  renderProjects();
 };
 
 // 🌟 2. 退回專案簽核
 window.rejectProjectApproval = async (projId) => {
   const reason = prompt("【退回審核】請輸入退回原因 (必填)：", "");
-  
-  // 點取消不動作
   if (reason === null) return; 
-  
-  // 🌟 強制檢查：未填寫原因直接擋下
-  if (!reason.trim()) {
-    return alert("⚠️ 退回必須填寫具體原因，請重新操作！");
-  }
+  if (!reason.trim()) return alert("⚠️ 退回必須填寫具體原因，請重新操作！");
 
   const proj = allProjectsData.find(p => p.id === projId);
   if (!proj) return;
@@ -5443,36 +5426,16 @@ window.rejectProjectApproval = async (projId) => {
     remark: `退回原因: ${reason.trim()}`
   });
 
-  const tasks = [...(proj.tasks || [])];
-  tasks.push({
-    name: `[系統通知] 您的專案 [${proj.title}] 審核已被【${myName}】❌ 退回 (原因: ${reason.trim()})`,
-    start: getTodayStr(),
-    end: getTodayStr(),
-    progress: 100,
-    isCompleted: true,
-    isSubProjectTask: true,
-    parentSubProject: "專案審核通知",
-    assigneeId: proj.ownerId,
-    assigneeName: proj.ownerName,
-    isPendingAcceptance: false,
-    isSystemNotifUnread: true,
-    assignedByUid: auth.currentUser.uid,
-    assignedByName: myName,
-    assignedAt: ts,
-    history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: `退回原因: ${reason.trim()}` }]
-  });
-
+  // 🌟 只更新狀態，不改動 tasks 細項
   await updateDoc(doc(db, "projects", projId), {
-    status: 'active', // 退回後恢復為 active 讓開案者可修改重送
+    status: 'active',
     "approvalConfig.approvalStatus": 'rejected',
-    approvalHistory: history,
-    tasks: tasks
+    approvalHistory: history
   });
 
-  alert("✅ 已成功退回，並已發送通知告知申請人！");
+  alert("✅ 已成功退回專案簽核！");
   renderProjects();
 };
-
 // 🌟 3. 主管自行承接協作專案
 window.selfAcceptCollabProject = async (projId) => {
   if (!confirm("確定要自行承接此協作專案嗎？\n承接後專案將轉入您的【未完成】清單。")) return;
