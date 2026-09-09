@@ -5075,7 +5075,9 @@ window.renderNotifications = () => {
             const isSystemNotif = t.name && t.name.includes("[系統通知]");
 
             // 🌟 抓取所有指派給自己、且尚未同意的子專案（不論專案是審核中或 active）
-            if (t.assigneeId === myUid && t.isPendingAcceptance === true && !isSystemNotif) {
+            const isProjectInApproval = (p.status === 'pending_approval' || p.status === 'rejected');
+
+            if (t.assigneeId === myUid && t.isPendingAcceptance === true && !isSystemNotif && !isProjectInApproval) {
                 const key = `${p.id}_${t.parentSubProject || t.name}`;
                 if (!groupMap.has(key)) {
                     groupMap.set(key, {
@@ -5084,7 +5086,7 @@ window.renderNotifications = () => {
                         ownerId: p.ownerId,
                         ownerName: p.ownerName,
                         subProjName: t.parentSubProject || t.name,
-                        assignedByName: t.assignedByName || '主管',
+                        assignedByName: t.assignedByName || '未知',
                         assignedAt: t.assignedAt || '-'
                     });
                 }
