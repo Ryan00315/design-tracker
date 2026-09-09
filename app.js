@@ -1180,15 +1180,14 @@ function renderProjects() {
   allInvolvedProjects.forEach(p => {
     const isRealOwner = (p.ownerId === viewingUserId);
     
-    // 簽核中專案判斷
-    if (p.status === 'pending_approval') {
+    // 🌟 簽核中與被退回專案判斷（納入 rejected）
+    if (p.status === 'pending_approval' || p.status === 'rejected') {
       if (isRealOwner || p.approvalConfig?.currentAssigneeUid === auth.currentUser.uid || currentUserData.role === 'admin' || currentUserData.role === 'top_manager') {
         countPendingApproval++;
         projectsPendingApproval.push(p);
       }
       return;
     }
-
     // 🌟 核心過濾邏輯：
     // 開案者看專案全部任務；非開案者只看「指派給自己」的任務細項
     let relevantTasks = [];
@@ -1488,10 +1487,17 @@ function renderProjects() {
 
   let statusBadge = "";
   let pauseBtnHtml = "";
+  let resubmitBtnHtml = ""; // 🌟 新增：重新送審按鈕容器
   const isAdminOrTop = currentUserData.role === 'admin' || currentUserData.role === 'top_manager';
 
   if (activeProj.status === 'pending_approval') {
       statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏳ 簽核審查中</span>`;
+  } else if (activeProj.status === 'rejected') {
+      // 🌟 當專案被退回時，顯示紅底退回標籤；若當前使用者為開案者，則顯示重新送審按鈕
+      statusBadge = `<span class="pill pill-danger" style="margin-left:8px; white-space:nowrap;">❌ 專案已被退回</span>`;
+      if (activeProj.ownerId === auth.currentUser.uid) {
+          resubmitBtnHtml = `<button class="action-btn" onclick="openResubmitModal('${activeProj.id}')" style="margin-left:8px; background:#4f46e5; color:#fff; border:none; padding:3px 10px; font-weight:bold; border-radius:4px; cursor:pointer;">🔄 重新送審</button>`;
+      }
   } else if (activeProj.status === 'pause_requested') {
       statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏸️ 暫停審核中 (${activeProj.pauseRequestedBy || '有人'} 申請)</span>`;
       if (isAdminOrTop) {
@@ -1522,7 +1528,7 @@ function renderProjects() {
   if (currentTitleEl) currentTitleEl.innerHTML = `
       <span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} 
       <span style="display:inline-flex; flex-wrap:wrap; align-items:center; gap:4px; margin-top:2px;">
-          ${viewOnlyBadge} ${statusBadge} ${graceBadge} ${approvalLogBtn} ${pauseBtnHtml} ${editProjBtn} ${inlineDelBtn}
+          ${viewOnlyBadge} ${statusBadge} ${resubmitBtnHtml} ${graceBadge} ${approvalLogBtn} ${pauseBtnHtml} ${editProjBtn} ${inlineDelBtn}
       </span>
   `;
   
@@ -5405,6 +5411,7 @@ window.approveProjectApproval = async (projId) => {
 };
 
 // 🌟 2. 退回專案簽核
+// 🌟 退回專案簽核
 window.rejectProjectApproval = async (projId) => {
   const reason = prompt("【退回審核】請輸入退回原因 (必填)：", "");
   if (reason === null) return; 
@@ -5426,16 +5433,18 @@ window.rejectProjectApproval = async (projId) => {
     remark: `退回原因: ${reason.trim()}`
   });
 
-  // 🌟 只更新狀態，不改動 tasks 細項
+  // 🌟 將 status 設為 'rejected'，不再是 'active'，確保不會流入未完成
   await updateDoc(doc(db, "projects", projId), {
-    status: 'active',
+    status: 'rejected',
     "approvalConfig.approvalStatus": 'rejected',
+    "approvalConfig.rejectReason": reason.trim(),
     approvalHistory: history
   });
 
-  alert("✅ 已成功退回專案簽核！");
+  alert("✅ 已退回專案簽核，專案已退回給開案者！");
   renderProjects();
 };
+
 // 🌟 3. 主管自行承接協作專案
 window.selfAcceptCollabProject = async (projId) => {
   if (!confirm("確定要自行承接此協作專案嗎？\n承接後專案將轉入您的【未完成】清單。")) return;
@@ -5604,5 +5613,88 @@ window.selfAcceptCollabProject = async (projId) => {
   });
 
   alert("🎉 您已成功承接此專案！專案已正式加入您的【未完成】專案清單。");
+  renderProjects();
+};
+// 🌟 開啟「重新送審」彈窗（二選一：申請協作 / 簽核流程）
+window.openResubmitModal = (projId) => {
+  const proj = allProjectsData.find(p => p.id === projId);
+  if (!proj) return;
+
+  const lastRejectLog = (proj.approvalHistory || []).slice().reverse().find(h => h.step.includes('退回'));
+  const rejectReasonDisplay = lastRejectLog ? `<div style="background:#fee2e2; color:#991b1b; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:13px;"><b>主管退回原因：</b>${lastRejectLog.remark}</div>` : '';
+
+  const form = document.getElementById("general-edit-form");
+  document.getElementById("general-edit-title").innerText = `🔄 專案重新送審 [${proj.title}]`;
+  
+  const isPreviouslyCollab = proj.approvalConfig?.isApplyCollab || false;
+
+  form.innerHTML = `
+    ${rejectReasonDisplay}
+    <div class="form-group" style="margin-bottom:14px;">
+      <label class="form-label" style="font-weight:bold;">請選擇送審類型：</label>
+      <div style="display:flex; gap:20px; margin-top:6px;">
+        <label style="cursor:pointer; display:flex; align-items:center; gap:6px;">
+          <input type="radio" name="resubmit_type" value="collab" ${isPreviouslyCollab ? 'checked' : ''} style="cursor:pointer;">
+          <span>👥 申請協作 (由最高主管指派)</span>
+        </label>
+        <label style="cursor:pointer; display:flex; align-items:center; gap:6px;">
+          <input type="radio" name="resubmit_type" value="approval" ${!isPreviouslyCollab ? 'checked' : ''} style="cursor:pointer;">
+          <span>📝 專案簽核 (簽核流程)</span>
+        </label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" style="font-weight:bold;">送審說明 / 調整備註 (必填)：</label>
+      <textarea id="resubmit-desc" class="input-control" rows="4" placeholder="請說明已根據退回意見所做的修改，或重新送審的理由...">${proj.approvalConfig?.approvalDesc || ''}</textarea>
+    </div>
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+      <button type="button" class="action-btn" onclick="closeGeneralEditModal()">取消</button>
+      <button type="button" class="btn-primary" style="width:auto; padding:6px 16px; background:#4f46e5;" onclick="submitProjectResubmit('${proj.id}')">確認重新送審</button>
+    </div>
+  `;
+
+  document.getElementById("general-edit-modal").classList.add("active");
+};
+
+// 🌟 送出「重新送審」
+window.submitProjectResubmit = async (projId) => {
+  const desc = document.getElementById("resubmit-desc").value.trim();
+  if (!desc) return alert("請填寫重新送審說明！");
+
+  const selectedType = document.querySelector('input[name="resubmit_type"]:checked')?.value || 'approval';
+  const isApplyCollab = (selectedType === 'collab');
+
+  const proj = allProjectsData.find(p => p.id === projId);
+  if (!proj) return;
+
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+  const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
+  const history = proj.approvalHistory || [];
+
+  history.push({
+    step: isApplyCollab ? '🔄 重新送審 (申請協作)' : '🔄 重新送審 (專案簽核)',
+    operatorName: myName,
+    operatorUid: auth.currentUser.uid,
+    role: roleNames[currentUserData.role] || currentUserData.role,
+    time: ts,
+    remark: desc,
+    targetRole: isApplyCollab ? '待最高級主管指派協作' : '待最高級主管簽核同意'
+  });
+
+  await updateDoc(doc(db, "projects", projId), {
+    status: 'pending_approval', // 🌟 重回審核中
+    approvalConfig: {
+      isNeedApproval: true,
+      isApplyCollab: isApplyCollab,
+      approvalDesc: desc,
+      currentStage: 'top_manager', // 重回最高主管第一道審核關卡
+      currentAssigneeUid: "",       // 清空之前退回的指派人
+      approvalStatus: isApplyCollab ? 'pending_collab_dispatch' : 'pending_top_approval'
+    },
+    approvalHistory: history
+  });
+
+  closeGeneralEditModal();
+  alert("🎉 專案已成功重新送審！已送交最高級主管。");
   renderProjects();
 };
