@@ -5685,6 +5685,7 @@ window.selfAcceptCollabProject = async (projId) => {
   renderProjects();
 };
 // 🌟 開啟「重新送審」彈窗（二選一：申請協作 / 簽核流程）
+// 🌟 開啟「重新送審」彈窗
 window.openResubmitModal = (projId) => {
   const proj = allProjectsData.find(p => p.id === projId);
   if (!proj) return;
@@ -5697,6 +5698,7 @@ window.openResubmitModal = (projId) => {
   
   const isPreviouslyCollab = proj.approvalConfig?.isApplyCollab || false;
 
+  // 🌟 修正：文字改為「協作流程」與「專案簽核」，並將 textarea 改為 Quill 編輯器容器，且移除底部重複按鈕
   form.innerHTML = `
     ${rejectReasonDisplay}
     <div class="form-group" style="margin-bottom:14px;">
@@ -5704,31 +5706,42 @@ window.openResubmitModal = (projId) => {
       <div style="display:flex; gap:20px; margin-top:6px;">
         <label style="cursor:pointer; display:flex; align-items:center; gap:6px;">
           <input type="radio" name="resubmit_type" value="collab" ${isPreviouslyCollab ? 'checked' : ''} style="cursor:pointer;">
-          <span>👥 申請協作 (由最高主管指派)</span>
+          <span>👥 協作流程</span>
         </label>
         <label style="cursor:pointer; display:flex; align-items:center; gap:6px;">
           <input type="radio" name="resubmit_type" value="approval" ${!isPreviouslyCollab ? 'checked' : ''} style="cursor:pointer;">
-          <span>📝 專案簽核 (簽核流程)</span>
+          <span>📝 專案簽核</span>
         </label>
       </div>
     </div>
     <div class="form-group">
       <label class="form-label" style="font-weight:bold;">送審說明 / 調整備註 (必填)：</label>
-      <textarea id="resubmit-desc" class="input-control" rows="4" placeholder="請說明已根據退回意見所做的修改，或重新送審的理由...">${proj.approvalConfig?.approvalDesc || ''}</textarea>
+      <div id="resubmit-quill-container" style="background:#fff; min-height:120px;"></div>
     </div>
     <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
       <button type="button" class="action-btn" onclick="closeGeneralEditModal()">取消</button>
-      <button type="button" class="btn-primary" style="width:auto; padding:6px 16px; background:#4f46e5;" onclick="submitProjectResubmit('${proj.id}')">確認重新送審</button>
+      <button type="button" class="btn-primary" style="width:auto; padding:6px 16px; background:#4f46e5;" onclick="submitProjectResubmit('${proj.id}')">重新送審</button>
     </div>
   `;
 
   document.getElementById("general-edit-modal").classList.add("active");
+
+  // 🌟 延遲初始化 Quill 編輯器並帶入原本的說明內容
+  setTimeout(() => {
+    window.resubmitQuill = new Quill('#resubmit-quill-container', {
+      modules: { toolbar: toolbarOptions },
+      theme: 'snow',
+      placeholder: '請說明已根據退回意見所做的修改，或重新送審的理由...'
+    });
+    window.resubmitQuill.root.innerHTML = proj.approvalConfig?.approvalDesc || '';
+  }, 100);
 };
 
 // 🌟 送出「重新送審」
 window.submitProjectResubmit = async (projId) => {
-  const desc = document.getElementById("resubmit-desc").value.trim();
-  if (!desc) return alert("請填寫重新送審說明！");
+  // 🌟 從 Quill 抓取 HTML 內容
+  const desc = window.resubmitQuill ? window.resubmitQuill.root.innerHTML.trim() : "";
+  if (!desc || desc === '<p><br></p>') return alert("請填寫送審說明！");
 
   const selectedType = document.querySelector('input[name="resubmit_type"]:checked')?.value || 'approval';
   const isApplyCollab = (selectedType === 'collab');
@@ -5741,7 +5754,7 @@ window.submitProjectResubmit = async (projId) => {
   const history = proj.approvalHistory || [];
 
   history.push({
-    step: isApplyCollab ? '🔄 重新送審 (申請協作)' : '🔄 重新送審 (專案簽核)',
+    step: isApplyCollab ? '🔄 重新送審 (協作流程)' : '🔄 重新送審 (專案簽核)',
     operatorName: myName,
     operatorUid: auth.currentUser.uid,
     role: roleNames[currentUserData.role] || currentUserData.role,
@@ -5751,13 +5764,13 @@ window.submitProjectResubmit = async (projId) => {
   });
 
   await updateDoc(doc(db, "projects", projId), {
-    status: 'pending_approval', // 🌟 重回審核中
+    status: 'pending_approval', 
     approvalConfig: {
       isNeedApproval: true,
       isApplyCollab: isApplyCollab,
       approvalDesc: desc,
-      currentStage: 'top_manager', // 重回最高主管第一道審核關卡
-      currentAssigneeUid: "",       // 清空之前退回的指派人
+      currentStage: 'top_manager', 
+      currentAssigneeUid: "",       
       approvalStatus: isApplyCollab ? 'pending_collab_dispatch' : 'pending_top_approval'
     },
     approvalHistory: history
