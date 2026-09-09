@@ -1580,7 +1580,39 @@ function renderProjects() {
       }
   });
 
+  // 🌟 尋找第一個 forEach（建立 subProjMap）：
   (activeProj.tasks || []).forEach((task, index) => {
+      // 👈 加入這行防呆：如果是系統通知，絕對不當成子專案！
+      if (task.name && task.name.includes("[系統通知]")) return;
+
+      if (task.isSubProjectTask && task.parentSubProject) {
+          if (!subProjMap[task.parentSubProject]) {
+              subProjMap[task.parentSubProject] = {
+                  isGroupHeader: true,
+                  parentSubProject: task.parentSubProject,
+                  tasks: [],
+                  originalIndexes: [],
+                  start: "9999-12-31",
+                  end: "0000-01-01",
+                  isCompleted: true,
+                  assigneeName: task.assigneeName || '原負責人'
+              };
+          }
+          const group = subProjMap[task.parentSubProject];
+          group.tasks.push(task);
+          group.originalIndexes.push(index);
+          
+          if (task.start && task.start !== "尚未建立細項" && task.start < group.start) group.start = task.start;
+          if (task.end && task.end !== "尚未建立細項" && task.end > group.end) group.end = task.end;
+          if (!task.isCompleted) group.isCompleted = false;
+      }
+  });
+
+  // 🌟 尋找第二個 forEach（推入 renderList）：
+  (activeProj.tasks || []).forEach((task, index) => {
+      // 👈 同樣加入這行防呆：系統通知絕不單獨渲染成子專案或細項
+      if (task.name && task.name.includes("[系統通知]")) return;
+
       if (task.isSubProjectTask && task.parentSubProject) {
           if (!handledGroups.has(task.parentSubProject)) {
               handledGroups.add(task.parentSubProject);
@@ -2267,7 +2299,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     approvalHistory: approvalHistory
   });
 
-  alert(isNeedApproval ? "🎉 專案已成功送出簽核！第一道關卡已送交最高級主管審核。" : "🎉 新專案已成功建立！開放 7 日自由編輯期。");
+  alert(isNeedApproval ? "🎉 專案已成功送出簽核！已送交最高級主管審核。" : "🎉 新專案已成功建立！開放 7 日自由編輯期。");
 
   const chkApproval = document.getElementById("chk-need-approval");
   if (chkApproval) {
@@ -5373,10 +5405,11 @@ window.approveProjectApproval = async (projId) => {
   });
 
   await updateDoc(doc(db, "projects", projId), {
-    status: 'active',
-    "approvalConfig.approvalStatus": 'approved',
-    approvalHistory: history,
-    tasks: tasks
+    "approvalConfig.currentStage": isStaff ? 'staff' : 'manager',
+    "approvalConfig.currentAssigneeUid": targetUser.uid,
+    "approvalConfig.currentAssigneeName": targetUser.name,
+    "approvalConfig.lastDispatchedByUid": auth.currentUser.uid,
+    approvalHistory: history
   });
 
   alert("已成功同意開案，專案已正式上線！");
