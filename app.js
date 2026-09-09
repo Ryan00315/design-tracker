@@ -4601,7 +4601,7 @@ window.initNotificationsUI = () => {
         tab.style.display = "none";
         tab.innerHTML = `
             <!-- 頂部分頁膠囊切換列 -->
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 14px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
                 <div style="display: flex; gap: 10px;">
                     <button type="button" id="tab-btn-sub-notifs" class="action-btn" onclick="window.switchNotifSubTab('notifs')" 
                         style="display: flex; align-items: center; gap: 6px; padding: 8px 18px; border-radius: 20px; font-size: 14px; font-weight: bold; background: var(--primary); color: #fff; border-color: var(--primary); transition: 0.2s;">
@@ -4621,8 +4621,8 @@ window.initNotificationsUI = () => {
             <!-- 區塊 A：指派與通知 -->
             <!-- ============================================================= -->
             <div id="sub-panel-notifs" style="display: block;">
-                <!-- 上半部：固定佔高 280px，確保下半部起點對齊 -->
-                <div style="min-height: 280px;">
+                <!-- 上半部：待處理清單 -->
+                <div style="min-height: 230px;">
                     <div class="panel" style="margin-bottom: 0;">
                         <div class="panel-head"><span>🔔 待處理的專案 / 子專案指派與回覆</span></div>
                         <div class="table-responsive" style="max-height: 220px; overflow-y: auto;">
@@ -4642,8 +4642,8 @@ window.initNotificationsUI = () => {
                     </div>
                 </div>
 
-                <!-- 🌟 歷史紀錄起點：統一下推 160px，落於畫面約 2/3 處 -->
-                <div style="margin-top: 160px; border-top: 1px dashed var(--border); padding-top: 24px;">
+                <!-- 🌟 向上回推：margin-top 調整為 90px -->
+                <div style="margin-top: 90px; border-top: 1px dashed var(--border); padding-top: 20px;">
                     <div class="panel" style="background: #fafafa; border: 1px solid var(--border-light);">
                         <div class="panel-head" style="color: #64748b; font-size: 14px;"><span>📜 指派與通知歷史紀錄</span></div>
                         <div class="table-responsive" style="max-height: 240px; overflow-y: auto;">
@@ -4668,8 +4668,8 @@ window.initNotificationsUI = () => {
             <!-- 區塊 B：主管待審核通知 -->
             <!-- ============================================================= -->
             <div id="sub-panel-approvals" style="display: none;">
-                <!-- 上半部：同樣固定佔高 280px，與分頁 A 完全對齊 -->
-                <div style="min-height: 280px;">
+                <!-- 上半部：待審核申請 -->
+                <div style="min-height: 230px;">
                     <div class="panel" style="margin-bottom: 0;">
                         <div class="panel-head" style="font-weight: bold; color: #0f172a;">
                             <span>👑 待審核的專案暫停 / 恢復申請</span>
@@ -4695,8 +4695,8 @@ window.initNotificationsUI = () => {
                     </div>
                 </div>
 
-                <!-- 🌟 歷史紀錄起點：與分頁 A 一模一樣的 margin-top: 160px，兩邊切換完全不跳動 -->
-                <div style="margin-top: 160px; border-top: 1px dashed var(--border); padding-top: 24px;">
+                <!-- 🌟 向上回推：與分頁 A 一致保持 margin-top: 90px -->
+                <div style="margin-top: 90px; border-top: 1px dashed var(--border); padding-top: 20px;">
                     <div class="panel" style="background: #fafafa; border: 1px solid var(--border-light);">
                         <div class="panel-head" style="color: #64748b; font-size: 14px;"><span>📝 主管審核與操作歷史紀錄</span></div>
                         <div class="table-responsive" style="max-height: 240px; overflow-y: auto;">
