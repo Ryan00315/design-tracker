@@ -58,16 +58,6 @@ const taiwanHolidayMap = {
   '10-25': '光復節', '10-26': '補假', '12-25': '行憲紀念日'
 };
 
-function isHolidayOrWeekend(dateObj) {
-  const day = dateObj.getDay();
-  if (day === 0 || day === 6) return true; // 週末 (六、日)
-  
-  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
-  const d = String(dateObj.getDate()).padStart(2, '0');
-  const mmdd = `${m}-${d}`;
-  return !!taiwanHolidayMap[mmdd]; // 國定假日
-}
-
 function getTodayStr() {
     const d = new Date();
     const y = d.getFullYear();
@@ -887,45 +877,11 @@ function getNextWorkingDayStr(dateStr) {
 window.checkWorkingDay = (input) => { 
   if (!input.value) return; 
   const d = new Date(input.value); 
-  if (isHolidayOrWeekend(d)) { 
-    alert("系統規定只能點選工作日喔！(已自動避開週末與國定假日)"); 
+  if (d.getDay() === 0 || d.getDay() === 6) { 
+    alert("系統規定只能點選工作日喔！"); 
     input.value = ''; 
   } 
 };
-
-function getNextWorkingDayStr(dateStr) {
-  if (!dateStr) return ''; 
-  let d = new Date(dateStr); 
-  d.setDate(d.getDate() + 1);
-  while (isHolidayOrWeekend(d)) {
-    d.setDate(d.getDate() + 1);
-  }
-  return formatDateSafe(d);
-}
-
-function getWorkingDays(startDate, endDate) {
-  let count = 0; 
-  let curDate = new Date(startDate); 
-  let end = new Date(endDate);
-  curDate.setHours(0,0,0,0); 
-  end.setHours(0,0,0,0);
-  while (curDate <= end) {
-    if (!isHolidayOrWeekend(curDate)) count++;
-    curDate.setDate(curDate.getDate() + 1);
-  }
-  return Math.max(1, count);
-}
-
-function calculateEndDateByDays(startDateStr, days) {
-  if (!startDateStr || isNaN(days) || days < 1) return startDateStr;
-  let curDate = new Date(startDateStr);
-  let added = 1;
-  while (added < days) {
-    curDate.setDate(curDate.getDate() + 1);
-    if (!isHolidayOrWeekend(curDate)) added++;
-  }
-  return formatDateSafe(curDate);
-}
 
 window.cascadeDatesIfSequential = (startRow) => {
     const container = document.getElementById("task-list-container");
@@ -1470,6 +1426,7 @@ function renderProjects() {
       row.className = "gantt-row";
 
       if (item.type === 'project') {
+        // 🌟 尋找原專案資料，判斷是否為「申請協作」或「子專案含審核」，決定圖示
         const origProj = allProjectsData.find(p => p.id === item.projId);
         const isCollabOrSubApproval = origProj?.approvalConfig?.isApplyCollab || 
                                       (origProj?.tasks || []).some(t => t.name?.includes("簽核流程") || t.parentSubProject?.includes("審核"));
@@ -1491,8 +1448,8 @@ function renderProjects() {
             badgeHtml = `<span style="background: rgba(239, 68, 68, 0.15); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 6px; flex-shrink: 0; white-space: nowrap;">🛑 暫停</span>`;
         }
 
-        // 🌟 已恢復 font-weight:700 粗體顯示
-        let titleDisplay = `${badgeHtml}<span style="color:#0f172a; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${projIcon} ${item.title}</span>`;
+        // 🌟 移除原本的 font-weight:700，專案名稱恢復正常粗細
+        let titleDisplay = `${badgeHtml}<span style="color:#0f172a; font-weight:normal; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${projIcon} ${item.title}</span>`;
           
         row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')" style="display:flex; align-items:center; overflow:hidden;">${titleDisplay}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span><span>~ ${item.end.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       } else {
@@ -1500,12 +1457,11 @@ function renderProjects() {
         if (item.hasDelay && !item.isDone) {
             statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
         }
-        // 🌟 事件紀錄也維持 font-weight:700 粗體
-        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger); font-weight:700;" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
+        // 🌟 移除原本的 font-weight:700，事件紀錄名稱恢復正常粗細
+        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger); font-weight:normal;" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       }
       if(sumLeftBody) sumLeftBody.appendChild(row);
     });
-    
     if (ganttTasksSum.length > 0) {
       document.getElementById("gantt-chart-summary-container").innerHTML = '<div id="gantt-chart-summary"></div>';
       setTimeout(() => {
