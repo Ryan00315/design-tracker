@@ -91,7 +91,27 @@
 
           <div id="create-project-section" class="section-panel" style="display:none; border: 2px solid var(--primary-soft);">
             <div class="panel-head">建立全新專案規劃 (建立後有 7 日自由編輯期)</div>
+            <!-- 放在 #create-project-section 內的主專案名稱上方 -->
+            <div style="background: #f8fafc; border: 1px solid var(--border); padding: 14px; border-radius: 8px; margin-bottom: 14px;">
+              <div style="display: flex; align-items: center; gap: 20px;">
+                <label style="display: flex; align-items: center; gap: 6px; font-weight: bold; cursor: pointer; color: #1e293b;">
+                  <input type="checkbox" id="chk-need-approval" onchange="window.toggleApprovalOptions(this.checked)">
+                  <span>需要簽核流程</span>
+                </label>
             
+                <div id="collab-apply-wrapper" style="display: none;">
+                  <label style="display: flex; align-items: center; gap: 6px; font-weight: bold; cursor: pointer; color: var(--primary);">
+                    <input type="checkbox" id="chk-apply-collab" onchange="window.toggleCollabApply(this.checked)">
+                    <span>申請協作 (轉由主管向下指派負責人)</span>
+                  </label>
+                </div>
+              </div>
+            
+              <div id="approval-reason-section" style="display: none; margin-top: 12px;">
+                <label class="form-label" style="font-weight: 600;">簽核說明 / 申請原因 (Enter 可換行)</label>
+                <div id="approval-quill-container" style="background: #fff; min-height: 100px;"></div>
+              </div>
+            </div>
             <div class="form-row" style="margin-bottom: 4px;">
               <div class="form-group" style="flex:2;">
                 <label class="form-label">主專案名稱</label>
