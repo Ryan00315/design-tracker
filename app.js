@@ -1182,8 +1182,8 @@ function renderProjects() {
 
   // 3. 有細項指派給自己的專案 (必須是「已同意承接」且非開案者，未同意前不列入專案列表)
   const assignedProjects = allProjectsData.filter(p => {
-    const hasMyTask = (p.tasks || []).some(t => t.assigneeId === viewingUserId && !t.name?.includes("[系統通知]") && !t.isPendingAcceptance);
-    return hasMyTask && p.ownerId !== viewingUserId;
+    const hasMyAcceptedTask = (p.tasks || []).some(t => t.assigneeId === viewingUserId && !t.name?.includes("[系統通知]") && !t.isPendingAcceptance);
+    return hasMyAcceptedTask && p.ownerId !== viewingUserId;
   });
 
   const allInvolvedProjectsMap = new Map();
@@ -4727,6 +4727,7 @@ window.submitAddSubProject = async () => {
     const todayStr = getTodayStr();
     const newTasks = [];
     
+    // 🌟 只要指派對象不是自己，就必須進入「待確認」狀態
     const isPending = (uidToAssign !== auth.currentUser.uid);
     const currentUserName = currentUserData.name || auth.currentUser.email.split('@')[0];
 
@@ -4766,7 +4767,7 @@ window.submitAddSubProject = async () => {
               assigneeName: assigneeName,
               isSubProjectTask: true,
               parentSubProject: subProjName, 
-              createdAt: Date.now(),
+              createdAt: Date.now(), 
               isPendingAcceptance: isPending,
               assignedByUid: auth.currentUser.uid,
               assignedByName: currentUserName,
@@ -4781,15 +4782,35 @@ window.submitAddSubProject = async () => {
     const proj = allProjectsData.find(p => p.id === selectedProjectId);
     if (!proj) return alert("找不到目前專案！");
     
+    // 🌟 關鍵修復：主動塞入一則系統通知任務給被指派的同仁，讓對方的通知紅點亮起
+    if (isPending) {
+        newTasks.push({
+            name: `[系統通知] 專案 [${proj.title}] 有新的子專案 [${subProjName}] 指派給您，請確認接收`,
+            start: todayStr,
+            end: todayStr,
+            progress: 100,
+            isCompleted: true,
+            isSubProjectTask: true,
+            parentSubProject: "專案指派確認",
+            assigneeId: uidToAssign,
+            assigneeName: assigneeName,
+            isPendingAcceptance: false,
+            isSystemNotifUnread: true, // 🌟 啟動紅點
+            assignedByUid: auth.currentUser.uid,
+            assignedByName: currentUserName,
+            assignedAt: ts,
+            history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: '指派子專案通知' }]
+        });
+    }
+
     const updatedTasks = [...proj.tasks, ...newTasks];
     updatedTasks.sort((a, b) => (a.start || "").localeCompare(b.start || ""));
 
     await updateDoc(doc(db, "projects", proj.id), { tasks: updatedTasks });
     
     closeAddSubProjectModal();
-    alert("🎉 子專案追加成功！");
+    alert("🎉 子專案追加成功！已向被指派人發送通知。");
 };
-
 window.syncSubTasksDate = (startInput) => {
     const container = startInput.closest('.sub-tasks-container');
     if (!container || !startInput.value) return;
@@ -4961,7 +4982,7 @@ window.renderNotifications = () => {
         (p.tasks || []).forEach((t, tIdx) => {
             const isSystemNotif = t.name && t.name.includes("[系統通知]");
 
-            // 待處理子專案細項指派
+            // 🌟 抓取所有指派給自己、且尚未同意的子專案（不論專案是審核中或 active）
             if (t.assigneeId === myUid && t.isPendingAcceptance === true && !isSystemNotif) {
                 const key = `${p.id}_${t.parentSubProject || t.name}`;
                 if (!groupMap.has(key)) {
@@ -4971,7 +4992,7 @@ window.renderNotifications = () => {
                         ownerId: p.ownerId,
                         ownerName: p.ownerName,
                         subProjName: t.parentSubProject || t.name,
-                        assignedByName: t.assignedByName || '未知',
+                        assignedByName: t.assignedByName || '主管',
                         assignedAt: t.assignedAt || '-'
                     });
                 }
