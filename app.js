@@ -1180,9 +1180,9 @@ function renderProjects() {
     return collabs.includes(targetDept) && p.ownerId !== viewingUserId;
   });
 
-  // 3. 有細項指派給自己的專案 (自己非開案者，但有負責的細項)
+  // 3. 有細項指派給自己的專案 (必須是「已同意承接」且非開案者，未同意前不列入專案列表)
   const assignedProjects = allProjectsData.filter(p => {
-    const hasMyTask = (p.tasks || []).some(t => t.assigneeId === viewingUserId && !t.name?.includes("[系統通知]"));
+    const hasMyTask = (p.tasks || []).some(t => t.assigneeId === viewingUserId && !t.name?.includes("[系統通知]") && !t.isPendingAcceptance);
     return hasMyTask && p.ownerId !== viewingUserId;
   });
 
@@ -1233,7 +1233,7 @@ function renderProjects() {
     if (isRealOwner) {
       relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
     } else {
-      relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId && !t.name?.includes("[系統通知]"));
+      relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId && !t.name?.includes("[系統通知]") && !t.isPendingAcceptance);
     }
 
     // 🌟 關鍵限制：如果不是開案者，且在該專案中「完全沒有指派給自己的細項」
@@ -1626,30 +1626,6 @@ function renderProjects() {
   const subProjMap = {};
   const handledGroups = new Set();
 
-  (activeProj.tasks || []).forEach((task, index) => {
-      if (task.isSubProjectTask && task.parentSubProject) {
-          if (!subProjMap[task.parentSubProject]) {
-              subProjMap[task.parentSubProject] = {
-                  isGroupHeader: true,
-                  parentSubProject: task.parentSubProject,
-                  tasks: [],
-                  originalIndexes: [],
-                  start: "9999-12-31",
-                  end: "0000-01-01",
-                  isCompleted: true,
-                  assigneeName: task.assigneeName || '原負責人'
-              };
-          }
-          const group = subProjMap[task.parentSubProject];
-          group.tasks.push(task);
-          group.originalIndexes.push(index);
-          
-          if (task.start && task.start !== "尚未建立細項" && task.start < group.start) group.start = task.start;
-          if (task.end && task.end !== "尚未建立細項" && task.end > group.end) group.end = task.end;
-          if (!task.isCompleted) group.isCompleted = false;
-      }
-  });
-
   // 🌟 尋找第一個 forEach（建立 subProjMap）：
   (activeProj.tasks || []).forEach((task, index) => {
       // 👈 加入這行防呆：如果是系統通知，絕對不當成子專案！
@@ -1838,7 +1814,8 @@ function renderProjects() {
 
             let displayName = task.name || '未命名任務';
             if (item.isChild && task.parentSubProject) {
-                displayName = displayName.replace(`[${task.parentSubProject}] `, '');
+                displayName = displayName.replace(`[${task.parentSubProject}] `, '').trim();
+                if (!displayName) displayName = '尚未命名細項'; // 🌟 防呆：避免名稱空白無字
             }
             const nameIndent = item.isChild ? 'padding-left: 22px; color: var(--text-muted);' : '';
 
@@ -5344,34 +5321,64 @@ window.acceptSubProjectAssignment = async (projId, subProjName) => {
 
 // 🌟 拒絕整個子專案的所有細項
 window.rejectSubProjectAssignment = async (projId, subProjName) => {
-    const reason = prompt(`請輸入拒絕子專案 [${subProjName}] 的原因：`, "");
+    const reason = prompt(`請輸入拒絕子專案 [${subProjName}] 的原因 (必填)：`, "");
     if (reason === null) return; 
+    if (!reason.trim()) return alert("⚠️ 拒絕指派必須填寫具體原因！");
+
     const p = allProjectsData.find(x => x.id === projId);
-    if(!p) return;
-    const tasks = [...p.tasks];
+    if (!p) return;
     
+    const tasks = [...p.tasks];
+    const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+    const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
+    
+    let targetAssignerId = p.ownerId;
+    let targetAssignerName = p.ownerName;
+
+    // 1. 將所有該子專案細項退回給指派人 / 開案者
     tasks.forEach(t => {
         if (t.isSubProjectTask && t.parentSubProject === subProjName && t.isPendingAcceptance) {
-            const assignerId = t.assignedByUid || p.ownerId;
-            const assignerName = t.assignedByName || p.ownerName;
+            targetAssignerId = t.assignedByUid || p.ownerId;
+            targetAssignerName = t.assignedByName || p.ownerName;
             
-            t.isPendingAcceptance = false; 
-            t.assigneeId = assignerId;
-            t.assigneeName = assignerName;
+            t.isPendingAcceptance = false; // 解除待確認狀態
+            t.assigneeId = targetAssignerId; // 退回給開案/指派人
+            t.assigneeName = targetAssignerName;
             
             if (!t.history) t.history = [];
             t.history.push({
-                timestamp: new Date().toLocaleString('zh-TW', { hour12: false }),
-                progress: t.progress, type: 'update', daysPassed: 0, delayReason: '',
-                remark: `❌ 退回指派 (原因: ${reason || '無'})`
+                timestamp: ts,
+                progress: t.progress, 
+                type: 'update', 
+                daysPassed: 0, 
+                delayReason: '',
+                remark: `❌ 退回指派 (原因: ${reason.trim()})`
             });
         }
     });
+
+    // 2. 🌟 新增系統通知任務，指派給申請人 (開案者)，讓他點選「我知道了」
+    tasks.push({
+        name: `[系統通知] 專案 [${p.title}] 的子專案 [${subProjName}] 指派已被【${myName}】❌ 拒絕退回 (原因: ${reason.trim()})`,
+        start: getTodayStr(),
+        end: getTodayStr(),
+        progress: 100,
+        isCompleted: true,
+        isSubProjectTask: true,
+        parentSubProject: "專案審核通知",
+        assigneeId: targetAssignerId,
+        assigneeName: targetAssignerName,
+        isPendingAcceptance: false,
+        isSystemNotifUnread: true, // 🌟 亮紅點提示
+        assignedByUid: auth.currentUser.uid,
+        assignedByName: myName,
+        assignedAt: ts,
+        history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: `子專案指派被退回: ${reason.trim()}` }]
+    });
     
     await updateDoc(doc(db, "projects", projId), { tasks });
-    alert(`已拒絕，子專案 [${subProjName}] 的細項已全數退回給開案者！`);
+    alert(`已拒絕子專案 [${subProjName}]！細項已退回給開案者，並已發送系統通知。`);
 };
-
 function loadProjects() {
   onSnapshot(query(collection(db, "projects")), (snapshot) => {
     allProjectsData = []; 
