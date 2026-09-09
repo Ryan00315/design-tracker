@@ -4604,17 +4604,15 @@ window.initNotificationsUI = () => {
         tab.id = "tab-notifications";
         tab.style.display = "none";
         tab.innerHTML = `
-            <!-- 🌟 精緻頂部分頁切換列 -->
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 14px;">
+            <!-- 🌟 頂部分頁膠囊切換列 -->
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 14px;">
                 <div style="display: flex; gap: 10px;">
-                    <!-- 分頁按鈕 1：個人系統通知 -->
                     <button type="button" id="tab-btn-sub-notifs" class="action-btn" onclick="window.switchNotifSubTab('notifs')" 
                         style="display: flex; align-items: center; gap: 6px; padding: 8px 18px; border-radius: 20px; font-size: 14px; font-weight: bold; background: var(--primary); color: #fff; border-color: var(--primary); transition: 0.2s;">
                         <span>🔔 指派與通知</span>
                         <span id="badge-sub-notifs" style="display:none; background: var(--danger); color: #fff; border-radius: 10px; padding: 1px 6px; font-size: 11px;">0</span>
                     </button>
 
-                    <!-- 分頁按鈕 2：主管待審核通知 (僅主管/管理員可見) -->
                     <button type="button" id="tab-btn-sub-approvals" class="action-btn" onclick="window.switchNotifSubTab('approvals')" 
                         style="display: none; align-items: center; gap: 6px; padding: 8px 18px; border-radius: 20px; font-size: 14px; font-weight: bold; background: var(--surface); color: var(--text-muted); border-color: var(--border); transition: 0.2s;">
                         <span>👑 待審核通知</span>
@@ -4623,16 +4621,16 @@ window.initNotificationsUI = () => {
                 </div>
             </div>
 
-            <!-- ------------------------------------------------------------- -->
-            <!-- 區塊 A：個人系統通知 (指派 + 審核回覆通知 + 歷史紀錄) -->
-            <!-- ------------------------------------------------------------- -->
-            <div id="sub-panel-notifs" style="display: block;">
-                <!-- 待處理指派與回覆 -->
+            <!-- ============================================================= -->
+            <!-- 區塊 A：指派與通知 -->
+            <!-- ============================================================= -->
+            <div id="sub-panel-notifs" style="display: block; min-height: 80vh;">
+                <!-- 1. 待處理清單 (主要焦點區) -->
                 <div class="panel" style="margin-bottom: 20px;">
                     <div class="panel-head"><span>🔔 待處理的專案 / 子專案指派與回覆</span></div>
-                    <div class="table-responsive">
+                    <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
                         <table style="width:100%;">
-                            <thead>
+                            <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 2;">
                                 <tr>
                                     <th style="width:25%">專案名稱</th>
                                     <th style="width:30%">任務/子專案名稱</th>
@@ -4646,38 +4644,41 @@ window.initNotificationsUI = () => {
                     </div>
                 </div>
 
-                <!-- 歷史紀錄 -->
-                <div class="panel">
-                    <div class="panel-head"><span>📜 指派與通知歷史紀錄</span></div>
-                    <div class="table-responsive">
-                        <table style="width:100%;">
-                            <thead>
-                                <tr>
-                                    <th style="width:25%">專案名稱</th>
-                                    <th style="width:30%">任務/子專案名稱</th>
-                                    <th style="width:15%">指派/發布人</th>
-                                    <th style="width:15%">處理時間</th>
-                                    <th style="width:15%; text-align:center;">狀態 / 結果</th>
-                                </tr>
-                            </thead>
-                            <tbody id="notif-history-tbody"></tbody>
-                        </table>
+                <!-- 🌟 留白區隔線，將次要的歷史紀錄推至頁面中下段 -->
+                <div style="margin-top: 50px; border-top: 1px dashed var(--border); padding-top: 24px;">
+                    <!-- 2. 歷史紀錄 (限制 5 筆高度約 260px，超過可滾動，表頭鎖定) -->
+                    <div class="panel" style="background: #fafafa; border: 1px solid var(--border-light);">
+                        <div class="panel-head" style="color: #64748b; font-size: 14px;"><span>📜 指派與通知歷史紀錄</span></div>
+                        <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
+                            <table style="width:100%;">
+                                <thead style="position: sticky; top: 0; background: #f1f5f9; z-index: 2;">
+                                    <tr>
+                                        <th style="width:25%">專案名稱</th>
+                                        <th style="width:30%">任務/子專案名稱</th>
+                                        <th style="width:15%">指派/發布人</th>
+                                        <th style="width:15%">處理時間</th>
+                                        <th style="width:15%; text-align:center;">狀態 / 結果</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="notif-history-tbody"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- ------------------------------------------------------------- -->
-            <!-- 區塊 B：主管待審核通知 (待審核案件 + 歷史審核操作紀錄) -->
-            <!-- ------------------------------------------------------------- -->
-            <div id="sub-panel-approvals" style="display: none;">
-                <!-- 待審核專案清單 -->
+            <!-- ============================================================= -->
+            <!-- 區塊 B：主管待審核通知 -->
+            <!-- ============================================================= -->
+            <div id="sub-panel-approvals" style="display: none; min-height: 80vh;">
+                <!-- 1. 待審核申請清單 (主要焦點區) -->
                 <div class="panel" style="margin-bottom: 20px; border: 1.5px solid #fca5a5;">
                     <div class="panel-head" style="color: var(--danger); font-weight: bold;">
                         <span>👑 待審核的專案暫停 / 恢復申請</span>
                     </div>
-                    <div class="table-responsive">
+                    <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
                         <table style="width: 100%;">
-                            <thead>
+                            <thead style="position: sticky; top: 0; background: #fff1f2; z-index: 2;">
                                 <tr>
                                     <th style="width: 20%;">專案名稱</th>
                                     <th style="width: 10%;">申請人</th>
@@ -4695,25 +4696,28 @@ window.initNotificationsUI = () => {
                     </div>
                 </div>
 
-                <!-- 主管審核操作歷史 -->
-                <div class="panel">
-                    <div class="panel-head"><span>📝 主管審核與操作歷史紀錄</span></div>
-                    <div class="table-responsive">
-                        <table style="width: 100%;">
-                            <thead>
-                                <tr>
-                                    <th style="width: 13%;">操作時間</th>
-                                    <th style="width: 15%;">專案名稱</th>
-                                    <th style="width: 14%;">執行動作</th>
-                                    <th style="width: 10%;">操作主管</th>
-                                    <th style="width: 14%;">申請人/時間</th>
-                                    <th style="width: 10%;">起始日</th>
-                                    <th style="width: 18%;">原因</th>
-                                    <th style="width: 6%; text-align: center;">操作</th>
-                                </tr>
-                            </thead>
-                            <tbody id="approval-history-tbody"></tbody>
-                        </table>
+                <!-- 🌟 留白區隔線，將次要的歷史紀錄推至頁面中下段 -->
+                <div style="margin-top: 50px; border-top: 1px dashed var(--border); padding-top: 24px;">
+                    <!-- 2. 主管審核操作歷史 (限制 5 筆高度約 260px，超過可滾動，表頭鎖定) -->
+                    <div class="panel" style="background: #fafafa; border: 1px solid var(--border-light);">
+                        <div class="panel-head" style="color: #64748b; font-size: 14px;"><span>📝 主管審核與操作歷史紀錄</span></div>
+                        <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
+                            <table style="width: 100%;">
+                                <thead style="position: sticky; top: 0; background: #f1f5f9; z-index: 2;">
+                                    <tr>
+                                        <th style="width: 13%;">操作時間</th>
+                                        <th style="width: 15%;">專案名稱</th>
+                                        <th style="width: 14%;">執行動作</th>
+                                        <th style="width: 10%;">操作主管</th>
+                                        <th style="width: 14%;">申請人/時間</th>
+                                        <th style="width: 10%;">起始日</th>
+                                        <th style="width: 18%;">原因</th>
+                                        <th style="width: 6%; text-align: center;">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="approval-history-tbody"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
