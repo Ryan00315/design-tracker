@@ -4065,6 +4065,7 @@ window.resumeProject = async (projId) => {
 window.renderApprovals = () => {
   const tbody = document.getElementById("approvals-list-tbody");
   const emptyState = document.getElementById("approvals-empty-state");
+  const tableContainer = document.getElementById("approvals-table-container");
   const historyTbody = document.getElementById("approval-history-tbody");
   
   if (!tbody) return;
@@ -4072,17 +4073,12 @@ window.renderApprovals = () => {
 
   const pendingProjects = allProjectsData.filter(p => p.status === 'pause_requested' || p.status === 'resume_requested');
 
-  const tableElement = tbody.closest('table');
-  const tableResponsive = tbody.closest('.table-responsive');
-
   if (pendingProjects.length === 0) {
     if (emptyState) emptyState.style.display = "block";
-    if (tableResponsive) tableResponsive.style.display = "none";
-    else if (tableElement) tableElement.style.display = "none";
+    if (tableContainer) tableContainer.style.display = "none";
   } else {
     if (emptyState) emptyState.style.display = "none";
-    if (tableResponsive) tableResponsive.style.display = "block";
-    if (tableElement) tableElement.style.display = "table";
+    if (tableContainer) tableContainer.style.display = "block";
     
     pendingProjects.forEach(p => {
       let isResume = (p.status === 'resume_requested');
@@ -4109,7 +4105,7 @@ window.renderApprovals = () => {
     });
   }
 
-  // 渲染主管歷史審核操作紀錄
+  // 渲染主管審核與操作歷史紀錄
   if (historyTbody) {
     historyTbody.innerHTML = "";
     let allLogs = [];
@@ -4604,8 +4600,8 @@ window.initNotificationsUI = () => {
         tab.id = "tab-notifications";
         tab.style.display = "none";
         tab.innerHTML = `
-            <!-- 🌟 頂部分頁膠囊切換列 -->
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 14px;">
+            <!-- 頂部分頁膠囊切換列 -->
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 14px;">
                 <div style="display: flex; gap: 10px;">
                     <button type="button" id="tab-btn-sub-notifs" class="action-btn" onclick="window.switchNotifSubTab('notifs')" 
                         style="display: flex; align-items: center; gap: 6px; padding: 8px 18px; border-radius: 20px; font-size: 14px; font-weight: bold; background: var(--primary); color: #fff; border-color: var(--primary); transition: 0.2s;">
@@ -4624,11 +4620,11 @@ window.initNotificationsUI = () => {
             <!-- ============================================================= -->
             <!-- 區塊 A：指派與通知 -->
             <!-- ============================================================= -->
-            <div id="sub-panel-notifs" style="display: block; min-height: 80vh;">
-                <!-- 1. 待處理清單 (主要焦點區) -->
+            <div id="sub-panel-notifs" style="display: block; min-height: 85vh;">
+                <!-- 待處理清單 (超過 5 筆固定高度 260px 自動內部滾動) -->
                 <div class="panel" style="margin-bottom: 20px;">
                     <div class="panel-head"><span>🔔 待處理的專案 / 子專案指派與回覆</span></div>
-                    <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
+                    <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
                         <table style="width:100%;">
                             <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 2;">
                                 <tr>
@@ -4644,9 +4640,9 @@ window.initNotificationsUI = () => {
                     </div>
                 </div>
 
-                <!-- 🌟 留白區隔線，將次要的歷史紀錄推至頁面中下段 -->
-                <div style="margin-top: 50px; border-top: 1px dashed var(--border); padding-top: 24px;">
-                    <!-- 2. 歷史紀錄 (限制 5 筆高度約 260px，超過可滾動，表頭鎖定) -->
+                <!-- 🌟 往下推移至頁面 2/3 處 -->
+                <div style="margin-top: 140px; border-top: 1px dashed var(--border); padding-top: 24px;">
+                    <!-- 歷史紀錄 (超過 5 筆固定高度 260px 自動內部滾動) -->
                     <div class="panel" style="background: #fafafa; border: 1px solid var(--border-light);">
                         <div class="panel-head" style="color: #64748b; font-size: 14px;"><span>📜 指派與通知歷史紀錄</span></div>
                         <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
@@ -4670,13 +4666,13 @@ window.initNotificationsUI = () => {
             <!-- ============================================================= -->
             <!-- 區塊 B：主管待審核通知 -->
             <!-- ============================================================= -->
-            <div id="sub-panel-approvals" style="display: none; min-height: 80vh;">
-                <!-- 1. 待審核申請清單 (主要焦點區) -->
+            <div id="sub-panel-approvals" style="display: none; min-height: 85vh;">
+                <!-- 待審核申請清單 (超過 5 筆固定高度 260px 自動內部滾動) -->
                 <div class="panel" style="margin-bottom: 20px; border: 1.5px solid #fca5a5;">
                     <div class="panel-head" style="color: var(--danger); font-weight: bold;">
                         <span>👑 待審核的專案暫停 / 恢復申請</span>
                     </div>
-                    <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
+                    <div id="approvals-table-container" class="table-responsive" style="max-height: 260px; overflow-y: auto;">
                         <table style="width: 100%;">
                             <thead style="position: sticky; top: 0; background: #fff1f2; z-index: 2;">
                                 <tr>
@@ -4696,9 +4692,9 @@ window.initNotificationsUI = () => {
                     </div>
                 </div>
 
-                <!-- 🌟 留白區隔線，將次要的歷史紀錄推至頁面中下段 -->
-                <div style="margin-top: 50px; border-top: 1px dashed var(--border); padding-top: 24px;">
-                    <!-- 2. 主管審核操作歷史 (限制 5 筆高度約 260px，超過可滾動，表頭鎖定) -->
+                <!-- 🌟 往下推移至頁面 2/3 處 -->
+                <div style="margin-top: 140px; border-top: 1px dashed var(--border); padding-top: 24px;">
+                    <!-- 主管審核操作歷史 (超過 5 筆固定高度 260px 自動內部滾動) -->
                     <div class="panel" style="background: #fafafa; border: 1px solid var(--border-light);">
                         <div class="panel-head" style="color: #64748b; font-size: 14px;"><span>📝 主管審核與操作歷史紀錄</span></div>
                         <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
