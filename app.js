@@ -1,31 +1,3 @@
-
-Symbols
-‎createUserWithEmailAndPassword‎
-Loading
-Skip to content
-Ryan00315
-design-tracker
-Repository navigation
-Code
-Issues
-Pull requests
-Agents
-Actions
-Projects
-Security and quality
-design-tracker
-/app.js
-Ryan00315
-Ryan00315
-Update app.js
-d35be96
- · 
-31 minutes ago
-5480 lines (4761 loc) · 253 KB
-
-Code
-
-Blame
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { 
   getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
@@ -5506,4 +5478,3 @@ window.submitDispatchProject = async (projId) => {
   closeGeneralEditModal();
   alert(`已成功指派給 ${targetUser.name}！系統已發送指派通知。`);
 };
- 
