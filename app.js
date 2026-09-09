@@ -1166,7 +1166,7 @@ function renderProjects() {
   allInvolvedProjects.forEach(p => {
     const isRealOwner = (p.ownerId === viewingUserId);
     
-    // 🌟 嚴格只有真正標記為簽核中的專案才跳過，舊專案 (無 status 或 status 為 active) 正常進入未完成
+    // 1. 簽核中專案判斷
     if (p.status === 'pending_approval') {
       if (isRealOwner || p.approvalConfig?.currentAssigneeUid === auth.currentUser.uid || currentUserData.role === 'admin' || currentUserData.role === 'top_manager') {
         countPendingApproval++;
@@ -1175,39 +1175,15 @@ function renderProjects() {
       return;
     }
 
-    let relevantTasks = [];
-    if (isRealOwner) {
-      relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
-    } else {
-      relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
-    }
+    // 2. 任務細項過濾（排除系統通知，僅宣告一次）
+    const relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
 
-    // 🌟 1. 過濾掉系統通知
-    let relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
-
-    // 🌟 2. 安全判斷：當沒有細項時，預設為「未完成」，且不算 Delay / 完成
-    let isAllDone = relevantTasks.length > 0 ? relevantTasks.every(t => t.isCompleted) : false;
-    let hasDelay = relevantTasks.length > 0 ? relevantTasks.some(t => !t.isCompleted && todayStr > t.end) : false;
+    // 3. 安全判斷：即使任務細項為空，專案也視為「未完成」，不會被踢除消失
+    const isAllDone = relevantTasks.length > 0 ? relevantTasks.every(t => t.isCompleted) : false;
+    const hasDelay = relevantTasks.length > 0 ? relevantTasks.some(t => !t.isCompleted && todayStr > t.end) : false;
     const inYear = spansYear(p, selectedYear);
 
-    // 🌟 3. 專案分類歸屬
-    if (!isAllDone) { 
-      countOngoing++; 
-      projectsOngoing.push(p); // 只要沒全部做完（或剛開案還沒有細項），一律留在「未完成」
-    }
-    if (hasDelay) { 
-      countDelayed++; 
-      projectsDelayed.push(p); 
-    }
-    if (isAllDone && inYear && relevantTasks.length > 0) {
-      countCompleted++;
-      projectsCompleted.push(p);
-    } 
-
-    let isAllDone = relevantTasks.every(t => t.isCompleted);
-    let hasDelay = relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
-    const inYear = spansYear(p, selectedYear);
-
+    // 4. 專案分類累計
     if (!isAllDone) { 
       countOngoing++; 
       projectsOngoing.push(p); 
@@ -1216,7 +1192,7 @@ function renderProjects() {
       countDelayed++; 
       projectsDelayed.push(p); 
     }
-    if (isAllDone && inYear) {
+    if (isAllDone && inYear && relevantTasks.length > 0) {
       countCompleted++;
       projectsCompleted.push(p);
     }
