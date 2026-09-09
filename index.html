@@ -95,15 +95,15 @@
             <!-- 放在 #create-project-section 內的主專案名稱上方 -->
             <div style="background: #f8fafc; border: 1px solid var(--border); padding: 14px; border-radius: 8px; margin-bottom: 14px;">
               <div style="display: flex; align-items: center; gap: 20px;">
-                <label style="display: flex; align-items: center; gap: 6px; font-weight: bold; cursor: pointer; color: #1e293b;">
-                  <input type="checkbox" id="chk-need-approval" onchange="window.toggleApprovalOptions(this.checked)">
-                  <span>需要簽核流程</span>
+                <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:12px;">
+                  <input type="checkbox" id="chk-need-approval" onchange="toggleApprovalOptions(this.checked)">
+                  <span>簽核流程</span>
                 </label>
             
                 <div id="collab-apply-wrapper" style="display: none;">
-                  <label style="display: flex; align-items: center; gap: 6px; font-weight: bold; cursor: pointer; color: var(--primary);">
-                    <input type="checkbox" id="chk-apply-collab" onchange="window.toggleCollabApply(this.checked)">
-                    <span>申請協作 (轉由主管向下指派負責人)</span>
+                  <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:12px;">
+                    <input type="checkbox" id="chk-apply-collab" onchange="toggleCollabApply(this.checked)">
+                    <span>申請協作</span>
                   </label>
                 </div>
               </div>
