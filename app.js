@@ -2117,15 +2117,13 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   const color = document.getElementById("proj-color").value;
   if (!title) return alert("請填寫主專案名稱！");
 
-  // 1. 抓取開放瀏覽部門 (原協作部門)
+  // 開放瀏覽部門 (原協作部門)
   const collabCheckboxes = document.querySelectorAll('input[name="collab_dept"]:checked');
   const collaborators = Array.from(collabCheckboxes).map(cb => cb.value);
 
-  // 🌟 2.【新增】抓取是否需要簽核與申請協作
   const isNeedApproval = document.getElementById("chk-need-approval")?.checked || false;
   const isApplyCollab = document.getElementById("chk-apply-collab")?.checked || false;
   
-  // 🌟 3.【新增】抓取簽核說明的 Quill 富文本內容
   let approvalDesc = approvalQuill ? approvalQuill.root.innerHTML.trim() : "";
   if (approvalDesc === '<p><br></p>') approvalDesc = "";
   if (isNeedApproval && !approvalDesc) return alert("請填寫簽核說明！");
@@ -2135,9 +2133,6 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
 
-  // -------------------------------------------------------------
-  // 任務打包（這段原本的 for 迴圈邏輯完全保留不用動）
-  // -------------------------------------------------------------
   const allRows = document.querySelectorAll('#task-list-container > .form-row');
 
   for (let row of allRows) {
@@ -2180,7 +2175,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
               isSubProjectTask: true,
               parentSubProject: subProjName, 
               createdAt: Date.now(), 
-              isPendingAcceptance: isPending,
+              isPendingAcceptance: isPending, 
               assignedByUid: auth.currentUser.uid,
               assignedByName: myName,
               assignedAt: ts,
@@ -2223,16 +2218,11 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, uid: auth.currentUser.uid };
   const ownerNameToSave = targetUser.name || currentUserData.name;
 
-  // 🌟 4.【新增】設定專案狀態與初始化第一筆簽核歷程
   let projectStatus = 'active';
   const approvalHistory = [];
 
-  // 🌟 1. 自動尋找系統中的「最高級主管」或「管理員」作為預設審核人
-  const topManagerUser = allUsersList.find(u => u.role === 'top_manager' || u.role === 'admin');
-  const targetTopManagerUid = topManagerUser ? topManagerUser.uid : auth.currentUser.uid;
-
   if (isNeedApproval) {
-    projectStatus = 'pending_approval';
+    projectStatus = 'pending_approval'; // 需簽核專案進入簽核狀態
 
     if (isApplyCollab) {
       approvalHistory.push({
@@ -2242,7 +2232,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
         role: roleNames[currentUserData.role] || currentUserData.role,
         time: ts,
         remark: approvalDesc,
-        targetRole: '待最高級主管審核指派'
+        targetRole: '第一道關卡：待最高級主管審核指派'
       });
     } else {
       approvalHistory.push({
@@ -2252,27 +2242,9 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
         role: roleNames[currentUserData.role] || currentUserData.role,
         time: ts,
         remark: approvalDesc,
-        targetRole: '待最高級主管同意'
+        targetRole: '第一道關卡：待最高級主管同意'
       });
     }
-
-    // 🌟 2. 同步在 tasks 裡面產生一筆專門給最高主管審核的系統通知任務
-    tasks.push({
-      name: `[系統通知] 收到來自【${myName}】的新專案簽核申請 [${title}]`,
-      start: todayStr,
-      end: todayStr,
-      progress: 0,
-      isCompleted: false,
-      isSubProjectTask: true,
-      parentSubProject: isApplyCollab ? "協作指派審核" : "專案開案簽核",
-      assigneeId: targetTopManagerUid, // 👈 直接指定給最高主管的 UID！
-      assigneeName: topManagerUser ? topManagerUser.name : "最高主管",
-      isPendingAcceptance: true, // 讓它直接跳在待處理通知中
-      assignedByUid: auth.currentUser.uid,
-      assignedByName: myName,
-      assignedAt: ts,
-      history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: 0, delayReason: '', remark: approvalDesc || '等待主管審核' }]
-    });
   }
 
   const docRef = await addDoc(collection(db, "projects"), { 
@@ -2288,16 +2260,15 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
       isNeedApproval,
       isApplyCollab,
       approvalDesc,
-      // 🌟 記錄當前審核人的 UID 與角色
-      currentAssigneeUid: targetTopManagerUid,
+      // 🌟 第一道關卡：明確鎖定由最高級主管審核
+      currentStage: isNeedApproval ? 'top_manager' : 'done',
       approvalStatus: isNeedApproval ? (isApplyCollab ? 'pending_collab_dispatch' : 'pending_top_approval') : 'none'
     },
     approvalHistory: approvalHistory
   });
 
-  alert(isNeedApproval ? "🎉 專案已成功送出簽核！" : "🎉 新專案已成功建立！開放 7 日自由編輯期。");
+  alert(isNeedApproval ? "🎉 專案已成功送出簽核！第一道關卡已送交最高級主管審核。" : "🎉 新專案已成功建立！開放 7 日自由編輯期。");
 
-  // 🌟 6.【新增】清空表單與還原簽核選項
   const chkApproval = document.getElementById("chk-need-approval");
   if (chkApproval) {
     chkApproval.checked = false;
@@ -2308,7 +2279,6 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   addTaskRow(); 
   document.getElementById('create-project-section').style.display = 'none';
   
-  // 🌟 7.【修改】自動切換到對應看版：需簽核就切到「簽核中」，不需簽核切到「未完成」
   if (isNeedApproval) {
     setProjectFilter('pending_approval');
   } else {
@@ -4876,27 +4846,31 @@ window.renderNotifications = () => {
     const systemNotifs = [];
     const historyList = [];
 
-    const isTopOrAdmin = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || currentUserData.role === 'senior_manager');
+    // 🌟 判定角色層級：最高主管與管理員負責第一道關卡
+    const isTopOrAdmin = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager');
+    const isSeniorManager = (currentUserData.role === 'senior_manager');
     const isDeptManager = (currentUserData.role === 'manager' || currentUserData.role === 'assistant_manager');
 
-    // 1. 收集個人指派、子專案、系統通知
+    // 1. 收集個人細項指派與系統通知
     allProjectsData.forEach(p => {
         (p.tasks || []).forEach((t, tIdx) => {
             const isSystemNotif = t.name && t.name.includes("[系統通知]");
 
-            if (t.assigneeId === myUid && t.isPendingAcceptance === true && t.isSubProjectTask && !isSystemNotif) {
-                const key = `${p.id}_${t.parentSubProject}`;
+            // 待同意的細項/子專案指派
+            if (t.assigneeId === myUid && t.isPendingAcceptance === true && !isSystemNotif) {
+                const key = `${p.id}_${t.parentSubProject || t.name}`;
                 if (!groupMap.has(key)) {
                     groupMap.set(key, {
                         projId: p.id,
                         projTitle: p.title,
-                        subProjName: t.parentSubProject,
+                        subProjName: t.parentSubProject || t.name,
                         assignedByName: t.assignedByName || '未知',
                         assignedAt: t.assignedAt || '-'
                     });
                 }
             }
             
+            // 審核結果系統通知 (未讀)
             if (t.assigneeId === myUid && isSystemNotif && t.isSystemNotifUnread !== false) {
                 systemNotifs.push({
                     projId: p.id,
@@ -4908,6 +4882,7 @@ window.renderNotifications = () => {
                 });
             }
 
+            // 歷史紀錄
             if (t.assigneeId === myUid && t.isSubProjectTask) {
                 if (t.isPendingAcceptance === false || isSystemNotif) {
                     const lastHist = (t.history && t.history.length > 0) ? t.history[t.history.length - 1] : null;
@@ -4947,7 +4922,7 @@ window.renderNotifications = () => {
         tbody.appendChild(tr);
     });
 
-    // 3. 渲染系統通知
+    // 3. 渲染個人系統通知
     systemNotifs.forEach(notif => {
         totalPendingCount++;
         const tr = document.createElement("tr");
@@ -4967,17 +4942,26 @@ window.renderNotifications = () => {
         tbody.appendChild(tr);
     });
 
-    // 4. 渲染主管待審核案件 (僅管理員與主管顯示)
-    if (isTopOrAdmin || isDeptManager) {
+    // 🌟 4. 主管待審核案件合流（第一道關卡核心邏輯）
+    if (isTopOrAdmin || isSeniorManager || isDeptManager) {
         if (historySection) historySection.style.display = 'block';
 
         const pendingApprovals = allProjectsData.filter(p => {
+          // 暫停與恢復申請：最高主管與管理員專屬
           if (p.status === 'pause_requested' || p.status === 'resume_requested') {
             return isTopOrAdmin;
           }
+          // 專案開案簽核與協作申請
           if (p.status === 'pending_approval') {
-            if (isTopOrAdmin) return true;
-            if (isDeptManager && p.approvalConfig?.currentAssigneeUid === myUid) return true;
+            const cfg = p.approvalConfig || {};
+            // 🌟 第一道關卡：若 currentStage 為 top_manager，最高主管與管理員 100% 必須看到！
+            if (isTopOrAdmin && (cfg.currentStage === 'top_manager' || !cfg.currentStage)) {
+              return true;
+            }
+            // 後續階層關卡：指派給特定主管時，該主管可看到
+            if (cfg.currentAssigneeUid === myUid) {
+              return true;
+            }
           }
           return false;
         });
@@ -5009,9 +4993,9 @@ window.renderNotifications = () => {
             `;
           } else if (isPendingApproval) {
             if (cfg.isApplyCollab) {
-              typeLabel = '<span class="pill" style="background:#dbeafe; color:#1e40af;">協作指派審核</span>';
+              typeLabel = '<span class="pill" style="background:#dbeafe; color:#1e40af; font-weight:bold;">👑 協作指派 (第一關)</span>';
             } else {
-              typeLabel = '<span class="pill" style="background:#fef3c7; color:#92400e;">專案開案簽核</span>';
+              typeLabel = '<span class="pill" style="background:#fef3c7; color:#92400e; font-weight:bold;">👑 開案簽核 (第一關)</span>';
             }
             reqReason = cfg.approvalDesc || (p.approvalHistory && p.approvalHistory[0]?.remark) || '無說明';
             
@@ -5023,14 +5007,14 @@ window.renderNotifications = () => {
 
             if (cfg.isApplyCollab) {
               actionButtons = `
-                <button class="action-btn" style="background:#3b82f6; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="openDispatchModal('${p.id}')">指派</button>
-                <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="selfAcceptCollabProject('${p.id}')">承接</button>
+                <button class="action-btn" style="background:#3b82f6; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="openDispatchModal('${p.id}')">👥 指派</button>
+                <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="selfAcceptCollabProject('${p.id}')">自行承接</button>
                 <button class="action-btn danger" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">退回</button>
               `;
             } else {
               actionButtons = `
-                <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="approveProjectApproval('${p.id}')">同意</button>
-                <button class="action-btn danger" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">退回</button>
+                <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="approveProjectApproval('${p.id}')">✅ 同意開案</button>
+                <button class="action-btn danger" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">❌ 退回</button>
               `;
             }
           }
@@ -5061,13 +5045,13 @@ window.renderNotifications = () => {
         tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:30px;">目前沒有任何待處理或待審核的事項。</td></tr>`;
     }
 
-    // 更新總紅點
+    // 更新選單紅點數字
     if (badge) {
         badge.innerText = totalPendingCount;
         badge.style.display = totalPendingCount > 0 ? "inline-block" : "none";
     }
 
-    // 歷史紀錄排序
+    // 歷史紀錄由新到舊排序
     historyList.sort((a, b) => b.sortTime - a.sortTime);
     if (historyTbody) {
         if (historyList.length === 0) {
@@ -5087,6 +5071,7 @@ window.renderNotifications = () => {
         }
     }
 };
+
 // 🌟 點擊「我知道了」把未讀狀態消除
 window.dismissSystemNotif = async (projId, taskIndex) => {
     const proj = allProjectsData.find(p => p.id === projId);
