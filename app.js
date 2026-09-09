@@ -1473,6 +1473,7 @@ function renderProjects() {
       }
       if(sumLeftBody) sumLeftBody.appendChild(row);
     });
+    
     if (ganttTasksSum.length > 0) {
       document.getElementById("gantt-chart-summary-container").innerHTML = '<div id="gantt-chart-summary"></div>';
       setTimeout(() => {
