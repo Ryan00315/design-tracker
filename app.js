@@ -3537,11 +3537,13 @@ window.onEditWeeklyProjChange = (idx) => {
 window.closeGeneralEditModal = () => {
     const modal = document.getElementById("general-edit-modal");
     modal.classList.remove("active");
-    
-    // 恢復彈窗底部預設按鈕區塊的顯示
-    const modalFooter = modal.querySelector('.modal-footer') || modal.querySelector('[style*="display: none"]');
-    if (modalFooter) {
-        modalFooter.style.display = modalFooter.dataset.origDisplay || '';
+
+    const defaultSaveBtn = Array.from(modal.querySelectorAll("button")).find(b => 
+      b.getAttribute("onclick")?.includes("saveGeneralEdit") || b.textContent.includes("儲存修改")
+    );
+    const defaultFooter = defaultSaveBtn ? defaultSaveBtn.closest("div") : null;
+    if (defaultFooter) {
+      defaultFooter.style.display = "";
     }
 
     const modalBox = modal.querySelector('.modal-box');
@@ -5086,18 +5088,12 @@ window.renderNotifications = () => {
     // 4. 🌟 主管審核與協作指派（核心修復：精確比對責任人）
     // ==========================================
     const pendingApprovals = allProjectsData.filter(p => {
-      // 1. 暫停與恢復申請：最高主管與管理員負責
+      // 暫停與恢復申請：最高主管與管理員負責
       if (p.status === 'pause_requested' || p.status === 'resume_requested') {
         return isTopOrAdmin;
       }
-    
-      // 2. 🌟 關鍵：開案者看自己被退回的專案（亮紅點並提供重新送審）
-      const isRejected = (p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
-      if (isRejected && p.ownerId === myUid) {
-        return true;
-      }
-    
-      // 3. 專案開案簽核與協作指派審核
+      
+      // 專案開案簽核與協作申請 (不放開案者自己的退回案件)
       if (p.status === 'pending_approval') {
         const cfg = p.approvalConfig || {};
         if (cfg.currentAssigneeUid) {
@@ -5107,11 +5103,8 @@ window.renderNotifications = () => {
           return true;
         }
       }
-    
       return false;
     });
-
-totalPendingCount += pendingApprovals.length;
 
     totalPendingCount += pendingApprovals.length;
 
@@ -5710,13 +5703,20 @@ window.openResubmitModal = (projId) => {
 
   const modal = document.getElementById("general-edit-modal");
   const form = document.getElementById("general-edit-form");
-  document.getElementById("general-edit-title").innerText = `🔄 專案重新送審 [${proj.title}]`;
+  const modalBox = modal.querySelector('.modal-box');
   
-  // 🌟 隱藏彈窗最外層底部的預設按鈕區塊 (通常是 modal-footer 或包含儲存修改的父容器)
-  const modalFooter = modal.querySelector('.modal-footer') || modal.querySelector('[style*="justify-content: flex-end"]') || modal.querySelector('div:last-child');
-  if (modalFooter && modalFooter !== form) {
-    modalFooter.dataset.origDisplay = modalFooter.style.display || '';
-    modalFooter.style.display = 'none';
+  // 🌟 確保彈窗本體絕對可見
+  if (modalBox) modalBox.style.display = '';
+
+  document.getElementById("general-edit-title").innerText = `🔄 專案重新送審 [${proj.title}]`;
+
+  // 🌟 精確鎖定並隱藏底部的「儲存修改」按鈕容器，絕不誤傷彈窗內容
+  const defaultSaveBtn = Array.from(modal.querySelectorAll("button")).find(b => 
+    b.getAttribute("onclick")?.includes("saveGeneralEdit") || b.textContent.includes("儲存修改")
+  );
+  const defaultFooter = defaultSaveBtn ? defaultSaveBtn.closest("div") : null;
+  if (defaultFooter && defaultFooter !== form && !form.contains(defaultFooter)) {
+    defaultFooter.style.display = "none";
   }
 
   const isPreviouslyCollab = proj.approvalConfig?.isApplyCollab || false;
@@ -5748,19 +5748,24 @@ window.openResubmitModal = (projId) => {
 
   modal.classList.add("active");
 
+  // 🌟 初始化 Quill 富文本編輯器，解析 HTML 格式
   setTimeout(() => {
-    window.resubmitQuill = new Quill('#resubmit-quill-container', {
-      modules: { toolbar: toolbarOptions },
-      theme: 'snow',
-      placeholder: '請說明已根據退回意見所做的修改，或重新送審的理由...'
-    });
-    window.resubmitQuill.root.innerHTML = proj.approvalConfig?.approvalDesc || '';
-  }, 100);
+    const editorContainer = document.getElementById('resubmit-quill-container');
+    if (editorContainer && !editorContainer.classList.contains('ql-container')) {
+      window.resubmitQuill = new Quill('#resubmit-quill-container', {
+        modules: { toolbar: toolbarOptions },
+        theme: 'snow',
+        placeholder: '請說明已根據退回意見所做的修改，或重新送審的理由...'
+      });
+    }
+    if (window.resubmitQuill) {
+      window.resubmitQuill.root.innerHTML = proj.approvalConfig?.approvalDesc || '';
+    }
+  }, 80);
 };
 
 // 🌟 送出「重新送審」
 window.submitProjectResubmit = async (projId) => {
-  // 🌟 從 Quill 抓取 HTML 內容
   const desc = window.resubmitQuill ? window.resubmitQuill.root.innerHTML.trim() : "";
   if (!desc || desc === '<p><br></p>') return alert("請填寫送審說明！");
 
@@ -5781,23 +5786,23 @@ window.submitProjectResubmit = async (projId) => {
     role: roleNames[currentUserData.role] || currentUserData.role,
     time: ts,
     remark: desc,
-    targetRole: isApplyCollab ? '待最高級主管指派協作' : '待最高級主管簽核同意'
+    targetRole: isApplyCollab ? '待主管指派協作' : '待主管簽核同意'
   });
 
   await updateDoc(doc(db, "projects", projId), {
-    status: 'pending_approval', 
+    status: 'pending_approval',
     approvalConfig: {
       isNeedApproval: true,
       isApplyCollab: isApplyCollab,
       approvalDesc: desc,
-      currentStage: 'top_manager', 
-      currentAssigneeUid: "",       
+      currentStage: 'top_manager',
+      currentAssigneeUid: "",
       approvalStatus: isApplyCollab ? 'pending_collab_dispatch' : 'pending_top_approval'
     },
     approvalHistory: history
   });
 
   closeGeneralEditModal();
-  alert("🎉 專案已成功重新送審！已送交最高級主管。");
+  alert("🎉 專案已成功重新送審！");
   renderProjects();
 };
