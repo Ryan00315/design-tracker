@@ -2205,11 +2205,15 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   const ownerNameToSave = targetUser.name || currentUserData.name;
 
   // 🌟 4.【新增】設定專案狀態與初始化第一筆簽核歷程
-  let projectStatus = 'active'; // 預設：不需簽核直接生效
+  let projectStatus = 'active';
   const approvalHistory = [];
 
+  // 🌟 1. 自動尋找系統中的「最高級主管」或「管理員」作為預設審核人
+  const topManagerUser = allUsersList.find(u => u.role === 'top_manager' || u.role === 'admin');
+  const targetTopManagerUid = topManagerUser ? topManagerUser.uid : auth.currentUser.uid;
+
   if (isNeedApproval) {
-    projectStatus = 'pending_approval'; // 需簽核者進入「簽核中」狀態
+    projectStatus = 'pending_approval';
 
     if (isApplyCollab) {
       approvalHistory.push({
@@ -2232,9 +2236,26 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
         targetRole: '待最高級主管同意'
       });
     }
+
+    // 🌟 2. 同步在 tasks 裡面產生一筆專門給最高主管審核的系統通知任務
+    tasks.push({
+      name: `[系統通知] 收到來自【${myName}】的新專案簽核申請 [${title}]`,
+      start: todayStr,
+      end: todayStr,
+      progress: 0,
+      isCompleted: false,
+      isSubProjectTask: true,
+      parentSubProject: isApplyCollab ? "協作指派審核" : "專案開案簽核",
+      assigneeId: targetTopManagerUid, // 👈 直接指定給最高主管的 UID！
+      assigneeName: topManagerUser ? topManagerUser.name : "最高主管",
+      isPendingAcceptance: true, // 讓它直接跳在待處理通知中
+      assignedByUid: auth.currentUser.uid,
+      assignedByName: myName,
+      assignedAt: ts,
+      history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: 0, delayReason: '', remark: approvalDesc || '等待主管審核' }]
+    });
   }
 
-  // 🌟 5.【修改】寫入 Firebase（加入了 approvalConfig 與 approvalHistory）
   const docRef = await addDoc(collection(db, "projects"), { 
     title, 
     color, 
@@ -2242,12 +2263,14 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     ownerId: viewingUserId, 
     ownerName: ownerNameToSave, 
     tasks: tasks, 
-    status: projectStatus, // 若需簽核會是 'pending_approval'，不需簽核會是 'active'
+    status: projectStatus,
     createdAt: serverTimestamp(),
     approvalConfig: {
       isNeedApproval,
       isApplyCollab,
       approvalDesc,
+      // 🌟 記錄當前審核人的 UID 與角色
+      currentAssigneeUid: targetTopManagerUid,
       approvalStatus: isNeedApproval ? (isApplyCollab ? 'pending_collab_dispatch' : 'pending_top_approval') : 'none'
     },
     approvalHistory: approvalHistory
@@ -4094,8 +4117,9 @@ window.renderApprovals = () => {
             return isTopOrAdmin;
           }
           if (p.status === 'pending_approval') {
+            // 🌟 只要身為最高主管/管理員，或被指定為當前審核人，就會顯示在通知列表裡
             if (isTopOrAdmin) return true;
-            if (isDeptManager && p.approvalConfig?.currentAssigneeUid === myUid) return true;
+            if (p.approvalConfig?.currentAssigneeUid === myUid) return true;
           }
           return false;
         });
