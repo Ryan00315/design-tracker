@@ -5584,8 +5584,23 @@ window.openDispatchModal = (projId) => {
     options += `<option value="${u.uid}">${u.name} (${u.dept || '設計部'} - ${roleNames[u.role] || u.role})</option>`;
   });
 
+  const modal = document.getElementById("general-edit-modal");
   const form = document.getElementById("general-edit-form");
+  const modalBox = modal.querySelector('.modal-box');
+  
+  if (modalBox) modalBox.style.display = '';
+
   document.getElementById("general-edit-title").innerText = `👥 階層協作指派 [${proj.title}]`;
+
+  // 🌟 精確隱藏彈窗底部原生的「儲存修改」與「取消」按鈕容器
+  const defaultSaveBtn = Array.from(modal.querySelectorAll("button")).find(b => 
+    b.getAttribute("onclick")?.includes("saveGeneralEdit") || b.textContent.includes("儲存修改")
+  );
+  const defaultFooter = defaultSaveBtn ? defaultSaveBtn.closest("div") : null;
+  if (defaultFooter && defaultFooter !== form && !form.contains(defaultFooter)) {
+    defaultFooter.style.display = "none";
+  }
+
   form.innerHTML = `
     <div class="form-group">
       <label class="form-label">選擇被指派主管 / 人員</label>
@@ -5601,7 +5616,7 @@ window.openDispatchModal = (projId) => {
     </div>
   `;
 
-  document.getElementById("general-edit-modal").classList.add("active");
+  modal.classList.add("active");
 };
 
 window.submitDispatchProject = async (projId) => {
