@@ -1,3 +1,31 @@
+
+Symbols
+‎createUserWithEmailAndPassword‎
+Loading
+Skip to content
+Ryan00315
+design-tracker
+Repository navigation
+Code
+Issues
+Pull requests
+Agents
+Actions
+Projects
+Security and quality
+design-tracker
+/app.js
+Ryan00315
+Ryan00315
+Update app.js
+d35be96
+ · 
+31 minutes ago
+5480 lines (4761 loc) · 253 KB
+
+Code
+
+Blame
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { 
   getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
@@ -1383,43 +1411,56 @@ function renderProjects() {
     combinedItems.forEach(item => {
       ganttTasksSum.push({ id: item.idStr, name: item.title, start: item.start, end: item.end, progress: item.progress, custom_class: item.custom_class });
       const row = document.createElement("div"); 
-            row.className = "gantt-row";
-            // 修正後的程式碼段落（補全 end of renderProjects）
-            row.innerHTML = `
-              <div class="col-name" title="${task.name || '未命名任務'}" style="${nameIndent}"><span style="overflow:hidden; text-overflow:ellipsis;">${displayName}</span>${editHtml}</div>
-              ${expectedDateHtml}
-              <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
-              <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="${progressInputStyle}"><span style="font-weight:bold; margin-left:2px;">%</span></div>
-              <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} style="${confirmBtnStyle}" onclick="confirmProgress('${activeProj.id}', ${index}, '${safeEnd}')">${task.isCompleted ? '完成' : '確認'}</button></div>
-              <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
-            `;
-            if (leftBody) leftBody.appendChild(row);
-          } catch (err) {
-            console.error("渲染任務列時出錯:", err, task);
-          }
-      }
-  });
+      row.className = "gantt-row";
+      if (item.type === 'project') {
+        let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : `<span style="font-weight:bold;">${item.progress}%</span>`;
+        if (item.status === 'pending_approval') {
+          statusText = '<span style="color:var(--warning); font-weight:700;">⏳ 簽核中</span>';
+        } else if (item.hasDelay && !item.isDone) {
+          statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
+        }
 
-  // 渲染右側甘特圖
-  if (ganttTasks.length > 0) {
-    document.getElementById("gantt-chart-container").innerHTML = '<div id="gantt-chart"></div>';
-    setTimeout(() => {
-      if (document.getElementById("tab-projects").style.display === "none") return;
-      ganttInstance = new Gantt("#gantt-chart", ganttTasks, {
-        view_mode: 'Day',
-        language: 'zh',
-        header_height: 50,
-        bar_height: 20,
-        padding: 18,
-        readonly: true
-      });
-      patchGanttVisuals(ganttInstance, '#gantt-chart-container', activeProj);
-      scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container');
-    }, 100);
-  } else {
-    document.getElementById("gantt-chart-container").innerHTML = '';
+        let badgeHtml = "";
+        if (item.status === 'pause_requested') {
+            badgeHtml = `<span style="background: rgba(245, 158, 11, 0.15); color: #b45309; border: 1px solid rgba(245, 158, 11, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 6px; flex-shrink: 0; white-space: nowrap;">🔔 待審核暫停</span>`;
+        } else if (item.status === 'paused') {
+            badgeHtml = `<span style="background: rgba(239, 68, 68, 0.15); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 6px; flex-shrink: 0; white-space: nowrap;">🛑 暫停</span>`;
+        }
+
+        let titleDisplay = `${badgeHtml}<span style="color:#0f172a; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🗂️ ${item.title}</span>`;
+          
+        row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')" style="display:flex; align-items:center; overflow:hidden;">${titleDisplay}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span><span>~ ${item.end.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
+      } else {
+        let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
+        if (item.hasDelay && !item.isDone) {
+            statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
+        }
+        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger); font-weight:700;" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
+      }
+      if(sumLeftBody) sumLeftBody.appendChild(row);
+    });
+
+    if (ganttTasksSum.length > 0) {
+      document.getElementById("gantt-chart-summary-container").innerHTML = '<div id="gantt-chart-summary"></div>';
+      setTimeout(() => {
+        if (document.getElementById("tab-projects").style.display === "none") return;
+        summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { 
+          view_mode: 'Day', 
+          language: 'zh', 
+          header_height: 50, 
+          bar_height: 20, 
+          padding: 18, 
+          readonly: true 
+        });
+        patchGanttVisuals(summaryGanttInstance, '#gantt-chart-summary-container');
+        scrollToTodayMinus2Days(summaryGanttInstance, '#gantt-chart-summary-container'); 
+      }, 100); 
+    } else { 
+      document.getElementById("gantt-chart-summary-container").innerHTML = ''; 
+    }
+    return;
   }
-}
+
   // ==========================================
   // 檢視 2：專案細部內容檢視
   // ==========================================
@@ -5465,3 +5506,4 @@ window.submitDispatchProject = async (projId) => {
   closeGeneralEditModal();
   alert(`已成功指派給 ${targetUser.name}！系統已發送指派通知。`);
 };
+ 
