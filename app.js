@@ -1189,8 +1189,6 @@ function renderProjects() {
       return;
     }
 
-    // 🌟 核心過濾邏輯：
-    // 開案者看專案全部任務；非開案者只看「指派給自己」的任務細項
     let relevantTasks = [];
     if (isRealOwner) {
       relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
@@ -1198,8 +1196,6 @@ function renderProjects() {
       relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId && !t.name?.includes("[系統通知]"));
     }
 
-    // 🌟 關鍵限制：如果不是開案者，且在該專案中「完全沒有指派給自己的細項」
-    // 表示這純粹是「開放瀏覽」的專案，絕對不能跑到未完成、已完成或 Delay！
     if (!isRealOwner && relevantTasks.length === 0) {
       return; 
     }
@@ -1237,7 +1233,7 @@ function renderProjects() {
   const elDelay = document.getElementById('stat-delay');
   if(elDelay) elDelay.innerText = countDelayed;
   const elCollab = document.getElementById('stat-collab');
-  if(elCollab) elCollab.innerText = viewOnlyProjects.length; // 開放瀏覽數量
+  if(elCollab) elCollab.innerText = viewOnlyProjects.length;
   const elPendingApp = document.getElementById('stat-pending-approval');
   if(elPendingApp) elPendingApp.innerText = countPendingApproval;
 
@@ -1254,7 +1250,7 @@ function renderProjects() {
       activeList = projectsDelayed;
       activeAdHocs = adHocsDelayed;
   } else if (currentFilter === 'collab') {
-      activeList = viewOnlyProjects; // 🌟 點選「開放瀏覽」只看開放瀏覽的專案
+      activeList = viewOnlyProjects;
       activeAdHocs = [];
   } else if (currentFilter === 'pending_approval') {
       activeList = projectsPendingApproval;
@@ -1473,7 +1469,10 @@ function renderProjects() {
   const collabList = Array.isArray(activeProj.collaborators) ? activeProj.collaborators : [];
   const hasViewOnly = collabList.length > 0;
   
-  // 核心控制權：只有開案者或全域管理員可以新增細項、新增子專案、刪除或修改專案主檔
+  // 🌟 1. 先在此處宣告 isRejected，避免 Temporal Dead Zone (TDZ) 報錯
+  const isRejected = (activeProj.status === 'pending_approval' && activeProj.approvalConfig?.approvalStatus === 'rejected');
+
+  // 核心控制權：退回狀態下開案者可編輯
   let canOperateProject = (isGlobalAdmin || isProjOwner);
   let canEditMainProj = (isGlobalAdmin && isEditMode) || (isProjOwner && (inGracePeriod || isRejected));
 
@@ -1490,42 +1489,17 @@ function renderProjects() {
   let pauseBtnHtml = "";
   const isAdminOrTop = currentUserData.role === 'admin' || currentUserData.role === 'top_manager';
 
-  // 🌟 1. 判斷專案是否處於「退回待修改」狀態
-  const isRejected = (activeProj.status === 'pending_approval' && activeProj.approvalConfig?.approvalStatus === 'rejected');
-
+  // 🌟 2. 乾淨且正確的單一 if-else 判定樹 (無重複程式碼與多餘括號)
   if (isRejected) {
       const rejectReason = activeProj.approvalConfig?.rejectReason || '請依主管要求調整後重新送審';
-      // 顯示紅色退回標籤與原因
       statusBadge = `<span class="pill pill-danger" style="margin-left:8px; white-space:nowrap;" title="退回原因：${rejectReason}">❌ 退回待修改 (原因: ${rejectReason})</span>`;
       
-      // 🌟 開案者專屬：顯示【🔄 重新送審】按鈕
       if (isProjOwner) {
           pauseBtnHtml = `<button class="action-btn" onclick="openResubmitModal('${activeProj.id}')" style="margin-left:8px; background:#4f46e5; color:#fff; border:none; padding:4px 12px; font-weight:bold; cursor:pointer;">🔄 重新送審</button>`;
       }
   } else if (activeProj.status === 'pending_approval') {
       statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏳ 簽核審查中</span>`;
   } else if (activeProj.status === 'pause_requested') {
-      statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏸️ 暫停審核中 (${activeProj.pauseRequestedBy || '有人'} 申請)</span>`;
-      if (isAdminOrTop) {
-          pauseBtnHtml = `<button class="action-btn" onclick="approvePause('${activeProj.id}')" style="margin-left:8px; background:var(--danger); color:#fff; border:none; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">同意暫停</button><button class="action-btn" onclick="rejectPause('${activeProj.id}')" style="margin-left:4px; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">退回</button>`;
-      }
-  } else if (activeProj.status === 'resume_requested') {
-      statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏳ 恢復審核中 (${activeProj.resumeRequestedBy || '有人'} 申請)</span>`;
-      if (isAdminOrTop) {
-          pauseBtnHtml = `<button class="action-btn" onclick="approvePause('${activeProj.id}')" style="margin-left:8px; background:var(--success); color:#fff; border:none; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">同意恢復</button><button class="action-btn" onclick="rejectPause('${activeProj.id}')" style="margin-left:4px; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">退回</button>`;
-      }
-  } else if (activeProj.status === 'paused') {
-      statusBadge = `<span class="pill pill-danger" style="margin-left:8px; white-space:nowrap;">🛑 專案已暫停</span>`;
-      if (isAdminOrTop) {
-          pauseBtnHtml = `<button class="action-btn" onclick="resumeProject('${activeProj.id}')" style="margin-left:8px; background:var(--success); color:#fff; border:none; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">▶️ 恢復執行</button>`;
-      } else if (canOperateProject) {
-          pauseBtnHtml = `<button class="action-btn" onclick="openResumeModal('${activeProj.id}')" style="margin-left:8px; border-color:var(--success); color:var(--success); padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">▶️ 申請恢復</button>`;
-      }
-  } else {
-      if (canOperateProject) {
-          pauseBtnHtml = `<button class="action-btn" onclick="openPauseModal('${activeProj.id}')" style="margin-left:8px; border-color:var(--danger); color:var(--danger); padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">⏸️ 申請暫停</button>`;
-      }
-  }
       statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏸️ 暫停審核中 (${activeProj.pauseRequestedBy || '有人'} 申請)</span>`;
       if (isAdminOrTop) {
           pauseBtnHtml = `<button class="action-btn" onclick="approvePause('${activeProj.id}')" style="margin-left:8px; background:var(--danger); color:#fff; border:none; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">同意暫停</button><button class="action-btn" onclick="rejectPause('${activeProj.id}')" style="margin-left:4px; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">退回</button>`;
@@ -1559,7 +1533,6 @@ function renderProjects() {
       </span>
   `;
   
-  // 🌟 嚴格控制：只有開案者或系統管理員可以看見新增細項/子專案按鈕
   const btnProjectAddTask = document.getElementById("btn-project-add-task");
   const btnProjectAddSubProject = document.getElementById("btn-project-add-subproject");
   const delProjBtn = document.getElementById("btn-project-del"); 
@@ -1597,33 +1570,8 @@ function renderProjects() {
   const subProjMap = {};
   const handledGroups = new Set();
 
+  // 🌟 3. 單一乾淨的子專案群組整理 (已排除系統通知)
   (activeProj.tasks || []).forEach((task, index) => {
-      if (task.isSubProjectTask && task.parentSubProject) {
-          if (!subProjMap[task.parentSubProject]) {
-              subProjMap[task.parentSubProject] = {
-                  isGroupHeader: true,
-                  parentSubProject: task.parentSubProject,
-                  tasks: [],
-                  originalIndexes: [],
-                  start: "9999-12-31",
-                  end: "0000-01-01",
-                  isCompleted: true,
-                  assigneeName: task.assigneeName || '原負責人'
-              };
-          }
-          const group = subProjMap[task.parentSubProject];
-          group.tasks.push(task);
-          group.originalIndexes.push(index);
-          
-          if (task.start && task.start !== "尚未建立細項" && task.start < group.start) group.start = task.start;
-          if (task.end && task.end !== "尚未建立細項" && task.end > group.end) group.end = task.end;
-          if (!task.isCompleted) group.isCompleted = false;
-      }
-  });
-
-  // 🌟 尋找第一個 forEach（建立 subProjMap）：
-  (activeProj.tasks || []).forEach((task, index) => {
-      // 👈 加入這行防呆：如果是系統通知，絕對不當成子專案！
       if (task.name && task.name.includes("[系統通知]")) return;
 
       if (task.isSubProjectTask && task.parentSubProject) {
@@ -1649,9 +1597,8 @@ function renderProjects() {
       }
   });
 
-  // 🌟 尋找第二個 forEach（推入 renderList）：
+  // 🌟 4. 推入排程清單 (單一迴圈)
   (activeProj.tasks || []).forEach((task, index) => {
-      // 👈 同樣加入這行防呆：系統通知絕不單獨渲染成子專案或細項
       if (task.name && task.name.includes("[系統通知]")) return;
 
       if (task.isSubProjectTask && task.parentSubProject) {
@@ -1777,7 +1724,6 @@ function renderProjects() {
                 isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
             }
 
-            // 🌟 只有開案者、管理員、或被指派該任務的負責人才能操作此細項
             const canOperateThisTask = (isGlobalAdmin || isProjOwner || isMyTask);
             const isProjectPaused = activeProj.status === 'paused' || activeProj.status === 'pause_requested' || activeProj.status === 'pending_approval';
             const isInputLocked = task.isCompleted || !canOperateThisTask || isProjectPaused; 
@@ -4158,6 +4104,38 @@ window.resumeProject = async (projId) => {
 };
 
 window.renderApprovals = () => {
+  const tbody = document.getElementById("sub-approvals-list-tbody") || document.getElementById("approvals-list-tbody");
+  const emptyState = document.getElementById("sub-approvals-empty-state") || document.getElementById("approvals-empty-state");
+  const tableContainer = document.getElementById("sub-approvals-table-container");
+  
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  const myUid = auth.currentUser?.uid;
+  const isTopOrAdmin = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || currentUserData.role === 'senior_manager');
+  const isDeptManager = (currentUserData.role === 'manager' || currentUserData.role === 'assistant_manager');
+
+  const pendingProjects = allProjectsData.filter(p => {
+    if (p.status === 'pause_requested' || p.status === 'resume_requested') {
+      return isTopOrAdmin;
+    }
+    if (p.status === 'pending_approval') {
+      const cfg = p.approvalConfig || {};
+      if (cfg.approvalStatus === 'rejected') return false;
+      if (cfg.currentAssigneeUid) return cfg.currentAssigneeUid === myUid;
+      if (isTopOrAdmin && (cfg.currentStage === 'top_manager' || !cfg.currentStage)) return true;
+    }
+    return false;
+  });
+
+  if (pendingProjects.length === 0) {
+    if (emptyState) emptyState.style.display = "block";
+    if (tableContainer) tableContainer.style.display = "none";
+  } else {
+    if (emptyState) emptyState.style.display = "none";
+    if (tableContainer) tableContainer.style.display = "block";
+  }
+};
   const tbody = document.getElementById("sub-approvals-list-tbody") || document.getElementById("approvals-list-tbody");
   const emptyState = document.getElementById("sub-approvals-empty-state") || document.getElementById("approvals-empty-state");
   const tableContainer = document.getElementById("sub-approvals-table-container");
