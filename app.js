@@ -1438,7 +1438,6 @@ function renderProjects() {
       row.className = "gantt-row";
 
       if (item.type === 'project') {
-        // 🌟 尋找原專案資料，判斷是否為「申請協作」或「子專案含審核」，決定圖示
         const origProj = allProjectsData.find(p => p.id === item.projId);
         const isCollabOrSubApproval = origProj?.approvalConfig?.isApplyCollab || 
                                       (origProj?.tasks || []).some(t => t.name?.includes("簽核流程") || t.parentSubProject?.includes("審核"));
@@ -1460,8 +1459,8 @@ function renderProjects() {
             badgeHtml = `<span style="background: rgba(239, 68, 68, 0.15); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 6px; flex-shrink: 0; white-space: nowrap;">🛑 暫停</span>`;
         }
 
-        // 🌟 移除原本的 font-weight:700，專案名稱恢復正常粗細
-        let titleDisplay = `${badgeHtml}<span style="color:#0f172a; font-weight:normal; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${projIcon} ${item.title}</span>`;
+        // 🌟 已恢復 font-weight:700 粗體顯示
+        let titleDisplay = `${badgeHtml}<span style="color:#0f172a; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${projIcon} ${item.title}</span>`;
           
         row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')" style="display:flex; align-items:center; overflow:hidden;">${titleDisplay}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span><span>~ ${item.end.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       } else {
@@ -1469,8 +1468,8 @@ function renderProjects() {
         if (item.hasDelay && !item.isDone) {
             statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
         }
-        // 🌟 移除原本的 font-weight:700，事件紀錄名稱恢復正常粗細
-        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger); font-weight:normal;" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
+        // 🌟 事件紀錄也維持 font-weight:700 粗體
+        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger); font-weight:700;" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       }
       if(sumLeftBody) sumLeftBody.appendChild(row);
     });
