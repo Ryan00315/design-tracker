@@ -74,25 +74,16 @@ function getUserDept(uid) {
 }
 
 function initDynamicUI() {
-  if (document.getElementById('filter-ongoing')) return;
+  // 🌟 避免重複注入 CSS 樣式
+  if (document.getElementById('custom-dynamic-ui-style')) return;
 
-  const kpiRow = document.querySelector('.kpi-row');
-  if (kpiRow) {
-    kpiRow.innerHTML = `
-      <div class="kpi-card active" id="filter-ongoing" onclick="setProjectFilter('ongoing')"><div class="kpi-title">未完成</div><div class="kpi-number" id="stat-ongoing">0</div></div>
-      <div class="kpi-card" id="filter-completed" onclick="setProjectFilter('completed')"><div class="kpi-title">完成</div><div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div></div>
-      <div class="kpi-card" id="filter-delayed" onclick="setProjectFilter('delayed')"><div class="kpi-title">Delay</div><div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div></div>
-      <div class="kpi-card" id="filter-collab" onclick="setProjectFilter('collab')"><div class="kpi-title">開放瀏覽</div><div class="kpi-number" id="stat-collab" style="color: var(--primary);">0</div></div>
-      <div class="kpi-card" id="filter-pending-approval" onclick="setProjectFilter('pending_approval')"><div class="kpi-title">簽核中</div><div class="kpi-number" id="stat-pending-approval" style="color: var(--warning);">0</div></div>
-    `;
-  }
-  
   const style = document.createElement('style');
+  style.id = 'custom-dynamic-ui-style';
   style.innerHTML = `
     :root { --font-scale: 1.2; }
     .tab-pane { zoom: var(--font-scale, 1.2); }
-    body.font-md { --font-scale: 1.5; }
-    body.font-lg { --font-scale: 1.8; }
+    body.font-md { --font-scale: 1.5 !important; }
+    body.font-lg { --font-scale: 1.8 !important; }
     .kpi-card { padding: 8px 12px !important; min-height: unset !important; }
     .kpi-title { font-size: 11.5px !important; margin-bottom: 2px !important; }
     .kpi-number { font-size: 18px !important; }
@@ -110,7 +101,7 @@ function initDynamicUI() {
     .col-prog { flex: 0.4 !important; min-width: 55px !important; text-align: center; display: flex; justify-content: center; align-items: center; }
     .col-act { flex: 0.4 !important; min-width: 45px !important; text-align: center; display: flex; justify-content: center; align-items: center; }
     .col-owner { flex: 0.5 !important; min-width: 50px !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .mobile-fixed-dropdown { position: fixed !important; top: 60px !important; left: 0 !important; width: 100vw !important; height: calc(100vh - 60px) !important; background: #f1f5f9 !important; z-index: 999999 !important; display: flex !important; flex-direction: column; overflow-y: auto !important; padding: 20px !important; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    .mobile-fixed-dropdown { position: fixed !important; top: 60px !important; left: 0 !important; width: 100vw !important; height: calc(100vh - 60px) !important; background: #ffffff !important; z-index: 999999 !important; display: flex !important; flex-direction: column; overflow-y: auto !important; padding: 20px !important; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
     .hide-on-mobile { display: flex !important; }
     .font-btn { transition: 0.2s; }
     .font-btn.active { background: #4f46e5 !important; color: #fff !important; border-color: #4f46e5 !important; }
@@ -123,58 +114,14 @@ function initDynamicUI() {
       .gantt-left-panel, .gantt-left-panel-summary { flex: 0 0 100% !important; max-width: 100% !important; margin-bottom: 16px !important; overflow-x: auto !important; }
       .gantt-right-panel, .gantt-right-panel-summary { display: block !important; flex: 0 0 100% !important; max-width: 100% !important; }
       .hide-on-mobile { display: none !important; }
-    /* 🌟 修復手機版人員選單：強制改為深色文字與清楚的背景底色 */
-.mobile-fixed-dropdown {
-  background: #ffffff !important; /* 底色改為純白 */
-}
-
-/* 部門標題：改為深灰藍色、粗體、加淺底色區隔 */
-.mobile-fixed-dropdown .nav-sub-dept-header {
-  color: #1e293b !important;
-  background: #e2e8f0 !important;
-  font-size: 14px !important;
-  padding: 10px 14px !important;
-  border-radius: 6px !important;
-  margin-top: 8px !important;
-}
-
-.mobile-fixed-dropdown .nav-sub-dept-header span {
-  color: #1e293b !important;
-}
-
-.mobile-fixed-dropdown .dept-count-badge {
-  background: #cbd5e1 !important;
-  color: #0f172a !important;
-}
-
-.mobile-fixed-dropdown .dept-arrow {
-  color: #475569 !important;
-}
-
-/* 人員名稱：改為深色文字，避免看不到 */
-.mobile-fixed-dropdown .nav-sub-item {
-  color: #0f172a !important;
-  font-size: 15px !important;
-  padding: 10px 16px !important;
-  border-bottom: 1px solid #f1f5f9 !important;
-}
-
-/* 人員職稱小字（如：設計部、人員等） */
-.mobile-fixed-dropdown .nav-sub-item small {
-  color: #64748b !important;
-}
-
-/* 當前選中或點擊時的高亮效果 */
-.mobile-fixed-dropdown .nav-sub-item:hover,
-.mobile-fixed-dropdown .nav-sub-item.active {
-  background: #eff6ff !important;
-  color: #2563eb !important;
-  font-weight: 700 !important;
-}
-
-.mobile-fixed-dropdown .nav-sub-item.active small {
-  color: #3b82f6 !important;
-}
+      .mobile-fixed-dropdown .nav-sub-dept-header { color: #1e293b !important; background: #e2e8f0 !important; font-size: 14px !important; padding: 10px 14px !important; border-radius: 6px !important; margin-top: 8px !important; }
+      .mobile-fixed-dropdown .nav-sub-dept-header span { color: #1e293b !important; }
+      .mobile-fixed-dropdown .dept-count-badge { background: #cbd5e1 !important; color: #0f172a !important; }
+      .mobile-fixed-dropdown .dept-arrow { color: #475569 !important; }
+      .mobile-fixed-dropdown .nav-sub-item { color: #0f172a !important; font-size: 15px !important; padding: 10px 16px !important; border-bottom: 1px solid #f1f5f9 !important; }
+      .mobile-fixed-dropdown .nav-sub-item small { color: #64748b !important; }
+      .mobile-fixed-dropdown .nav-sub-item:hover, .mobile-fixed-dropdown .nav-sub-item.active { background: #eff6ff !important; color: #2563eb !important; font-weight: 700 !important; }
+      .mobile-fixed-dropdown .nav-sub-item.active small { color: #3b82f6 !important; }
     }
   `;
   document.head.appendChild(style);
@@ -202,10 +149,10 @@ function initDynamicUI() {
          renderProjects();
       }
     };
-    
     btnWrapper.insertBefore(sel, btnWrapper.firstChild);
   }
 }
+
 initDynamicUI();
 
 // 🌟🌟🌟 Quill 富文本編輯器初始化 (用於「事件紀錄」的原因說明) 🌟🌟🌟
