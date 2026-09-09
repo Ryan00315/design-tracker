@@ -2333,21 +2333,50 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
 
   const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, uid: auth.currentUser.uid };
   const ownerNameToSave = targetUser.name || currentUserData.name;
+  const myDept = currentUserData.dept || "設計部";
+
+  // 🌟 1. 自動檢查：專案內是否有任何子專案指派給「不同部門」的人員
+  let hasCrossDeptSubProject = false;
+  let crossDeptTargetInfo = [];
+
+  tasks.forEach(t => {
+      if (t.isSubProjectTask && t.assigneeId && t.assigneeId !== auth.currentUser.uid) {
+          const u = allUsersList.find(x => x.uid === t.assigneeId);
+          const uDept = u ? (u.dept || "設計部") : myDept;
+          if (uDept !== myDept) {
+              hasCrossDeptSubProject = true;
+              const infoStr = `${uDept}-${t.assigneeName}`;
+              if (!crossDeptTargetInfo.includes(infoStr)) {
+                  crossDeptTargetInfo.push(infoStr);
+              }
+          }
+      }
+  });
+
+  // 🌟 2. 判斷最終流程：只要含跨部門子專案，強制判定為需要簽核與申請協作
+  const finalIsNeedApproval = isNeedApproval || hasCrossDeptSubProject;
+  const finalIsApplyCollab = isApplyCollab || hasCrossDeptSubProject;
 
   let projectStatus = 'active';
   const approvalHistory = [];
 
-  if (isNeedApproval) {
-    projectStatus = 'pending_approval'; // 需簽核專案進入簽核狀態
+  if (finalIsNeedApproval) {
+    projectStatus = 'pending_approval'; // 轉入審核中
 
-    if (isApplyCollab) {
+    if (finalIsApplyCollab) {
+      // 若是因為跨部門子專案自動升級，給予明確說明
+      let finalDesc = approvalDesc;
+      if (hasCrossDeptSubProject && !finalDesc) {
+        finalDesc = `專案內包含跨部門協作子專案 (指派至：${crossDeptTargetInfo.join('、')})，申請轉由最高主管指派負責人。`;
+      }
+
       approvalHistory.push({
-        step: '提出申請協作',
+        step: hasCrossDeptSubProject ? '提出申請協作 (含跨部門子專案)' : '提出申請協作',
         operatorName: myName,
         operatorUid: auth.currentUser.uid,
         role: roleNames[currentUserData.role] || currentUserData.role,
         time: ts,
-        remark: approvalDesc,
+        remark: finalDesc || '申請協作流程',
         targetRole: '第一道關卡：待最高級主管審核指派'
       });
     } else {
@@ -2357,12 +2386,13 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
         operatorUid: auth.currentUser.uid,
         role: roleNames[currentUserData.role] || currentUserData.role,
         time: ts,
-        remark: approvalDesc,
+        remark: approvalDesc || '專案開案簽核',
         targetRole: '第一道關卡：待最高級主管同意'
       });
     }
   }
 
+  // 🌟 3. 寫入 Firebase (注意欄位變更為 finalIsNeedApproval 與 finalIsApplyCollab)
   const docRef = await addDoc(collection(db, "projects"), { 
     title, 
     color, 
@@ -2373,15 +2403,24 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     status: projectStatus,
     createdAt: serverTimestamp(),
     approvalConfig: {
-      isNeedApproval,
-      isApplyCollab,
-      approvalDesc,
-      // 🌟 第一道關卡：明確鎖定由最高級主管審核
-      currentStage: isNeedApproval ? 'top_manager' : 'done',
-      approvalStatus: isNeedApproval ? (isApplyCollab ? 'pending_collab_dispatch' : 'pending_top_approval') : 'none'
+      isNeedApproval: finalIsNeedApproval,
+      isApplyCollab: finalIsApplyCollab,
+      approvalDesc: approvalDesc || (hasCrossDeptSubProject ? `跨部門子專案協作：${crossDeptTargetInfo.join('、')}` : ''),
+      currentStage: finalIsNeedApproval ? 'top_manager' : 'done', // 進入第一關：最高主管
+      currentAssigneeUid: "",                                     // 清空待指派
+      approvalStatus: finalIsNeedApproval ? (finalIsApplyCollab ? 'pending_collab_dispatch' : 'pending_top_approval') : 'none'
     },
     approvalHistory: approvalHistory
   });
+
+  // 🌟 4. 提示訊息分流
+  if (hasCrossDeptSubProject) {
+    alert(`🎉 專案內包含跨部門子專案（指派至：${crossDeptTargetInfo.join('、')}）！\n系統已自動升級為【協作流程】，送交最高級主管進行第一道關卡審核指派。`);
+  } else if (isNeedApproval) {
+    alert("🎉 專案已成功送出簽核！已送交最高級主管審核。");
+  } else {
+    alert("🎉 新專案已成功建立！開放 7 日自由編輯期。");
+  }
 
   alert(isNeedApproval ? "🎉 專案已成功送出簽核！已送交最高級主管審核。" : "🎉 新專案已成功建立！開放 7 日自由編輯期。");
 
@@ -4731,9 +4770,21 @@ window.submitAddSubProject = async () => {
     const todayStr = getTodayStr();
     const newTasks = [];
     
-    // 🌟 只要指派對象不是自己，就必須進入「待確認」狀態
-    const isPending = (uidToAssign !== auth.currentUser.uid);
     const currentUserName = currentUserData.name || auth.currentUser.email.split('@')[0];
+    const myDept = currentUserData.dept || "設計部";
+
+    // 🌟 核心判斷：是否為跨部門指派
+    let isCrossDept = false;
+    let targetDept = myDept;
+    if (uidToAssign && uidToAssign !== auth.currentUser.uid) {
+        const targetUser = allUsersList.find(u => u.uid === uidToAssign);
+        targetDept = targetUser ? (targetUser.dept || "設計部") : myDept;
+        if (targetDept !== myDept) {
+            isCrossDept = true;
+        }
+    }
+
+    const isPending = (uidToAssign !== auth.currentUser.uid);
 
     const taskItems = container.querySelectorAll('.sub-task-item');
     if (taskItems.length === 0) {
@@ -4771,7 +4822,7 @@ window.submitAddSubProject = async () => {
               assigneeName: assigneeName,
               isSubProjectTask: true,
               parentSubProject: subProjName, 
-              createdAt: Date.now(), 
+              createdAt: Date.now(),
               isPendingAcceptance: isPending,
               assignedByUid: auth.currentUser.uid,
               assignedByName: currentUserName,
@@ -4785,10 +4836,50 @@ window.submitAddSubProject = async () => {
 
     const proj = allProjectsData.find(p => p.id === selectedProjectId);
     if (!proj) return alert("找不到目前專案！");
-    
-    // 🌟 關鍵修復：主動塞入一則系統通知任務給被指派的同仁，讓對方的通知紅點亮起
+
+    const updatedTasks = [...proj.tasks, ...newTasks];
+    updatedTasks.sort((a, b) => (a.start || "").localeCompare(b.start || ""));
+
+    // ========================================================
+    // 分流 1：跨部門指派 ➔ 強制啟動「協作流程」，送交「第一關卡：最高主管」
+    // ========================================================
+    if (isCrossDept) {
+        const history = proj.approvalHistory || [];
+        history.push({
+            step: `提出申請協作 (跨部門子專案: ${subProjName})`,
+            operatorName: currentUserName,
+            operatorUid: auth.currentUser.uid,
+            role: roleNames[currentUserData.role] || currentUserData.role,
+            time: ts,
+            remark: `申請將子專案【${subProjName}】跨部門協作至【${targetDept} - ${assigneeName}】`,
+            targetRole: '第一道關卡：待主管審核指派'
+        });
+
+        await updateDoc(doc(db, "projects", proj.id), {
+            status: 'pending_approval', // 進入簽核狀態
+            tasks: updatedTasks,
+            approvalConfig: {
+                isNeedApproval: true,
+                isApplyCollab: true, // 標記為協作流程
+                approvalDesc: `跨部門申請協作子專案【${subProjName}】(由 ${myDept} 的 ${currentUserName} 申請，預計指派至 ${targetDept} - ${assigneeName})`,
+                currentStage: 'top_manager', // 🌟 第一關：鎖定最高主管
+                currentAssigneeUid: "",      // 等待最高主管指派
+                approvalStatus: 'pending_collab_dispatch'
+            },
+            approvalHistory: history
+        });
+
+        closeAddSubProjectModal();
+        alert(`🎉 偵測到跨部門指派（${myDept} ➔ ${targetDept}）！\n專案已自動進入【協作流程】，送交主管進行第一道關卡審核指派。`);
+        setProjectFilter('pending_approval');
+        return;
+    }
+
+    // ========================================================
+    // 分流 2：同部門指派 ➔ 不進審核，直接發通知給該同仁點【同意】/【拒絕】
+    // ========================================================
     if (isPending) {
-        newTasks.push({
+        updatedTasks.push({
             name: `[系統通知] 專案 [${proj.title}] 有新的子專案 [${subProjName}] 指派給您，請確認接收`,
             start: todayStr,
             end: todayStr,
@@ -4799,7 +4890,7 @@ window.submitAddSubProject = async () => {
             assigneeId: uidToAssign,
             assigneeName: assigneeName,
             isPendingAcceptance: false,
-            isSystemNotifUnread: true, // 🌟 啟動紅點
+            isSystemNotifUnread: true,
             assignedByUid: auth.currentUser.uid,
             assignedByName: currentUserName,
             assignedAt: ts,
@@ -4807,13 +4898,10 @@ window.submitAddSubProject = async () => {
         });
     }
 
-    const updatedTasks = [...proj.tasks, ...newTasks];
-    updatedTasks.sort((a, b) => (a.start || "").localeCompare(b.start || ""));
-
     await updateDoc(doc(db, "projects", proj.id), { tasks: updatedTasks });
-    
     closeAddSubProjectModal();
-    alert("🎉 子專案追加成功！已向被指派人發送通知。");
+    alert(`🎉 子專案已成功指派給同部門同仁【${assigneeName}】！已發送確認通知。`);
+    renderProjects();
 };
 window.syncSubTasksDate = (startInput) => {
     const container = startInput.closest('.sub-tasks-container');
@@ -5602,32 +5690,48 @@ window.rejectProjectApproval = async (projId) => {
 
 // 🌟 3. 主管自行承接協作專案
 window.selfAcceptCollabProject = async (projId) => {
-  if (!confirm("確定要自行承接此協作專案嗎？\n承接後專案將轉入您的【未完成】清單。")) return;
+  if (!confirm("確定要承接此協作專案嗎？\n承接後專案將正式生效，並加入您的【未完成】專案清單中。")) return;
   const proj = allProjectsData.find(p => p.id === projId);
   if (!proj) return;
 
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
-  const myName = currentUserData.name || "主管";
+  const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
   const history = proj.approvalHistory || [];
 
   history.push({
-    step: '💼 主管自行承接專案',
+    step: '💼 承接專案',
     operatorName: myName,
     operatorUid: auth.currentUser.uid,
     role: roleNames[currentUserData.role] || currentUserData.role,
     time: ts,
-    remark: `${myName} 已親自承接此協作專案`
+    remark: `${myName} 已確認承接此協作專案`
+  });
+
+  // 將所有待確認的協作/子專案細項正式移交給當前承接者，並消除通知
+  const tasks = (proj.tasks || []).map(t => {
+    if (t.name && t.name.includes("[系統通知]")) {
+      return { ...t, isSystemNotifUnread: false };
+    }
+    if (t.isSubProjectTask && t.isPendingAcceptance) {
+      return {
+        ...t,
+        isPendingAcceptance: false, // 🌟 解除鎖定
+        assigneeId: auth.currentUser.uid, // 移交給承接人
+        assigneeName: myName
+      };
+    }
+    return t;
   });
 
   await updateDoc(doc(db, "projects", projId), {
-    status: 'active',
-    ownerId: auth.currentUser.uid,
-    ownerName: myName,
+    status: 'active', // 專案正式生效
     "approvalConfig.approvalStatus": 'approved',
-    approvalHistory: history
+    approvalHistory: history,
+    tasks: tasks
   });
 
-  alert("您已成功承接此專案！專案已移至您的未完成清單中。");
+  alert("🎉 您已成功承接此專案！專案已正式加入您的【未完成】專案清單。");
+  renderProjects();
 };
 
 // 🌟 4. 階層指派彈窗與執行
