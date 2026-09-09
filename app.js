@@ -1161,10 +1161,19 @@ function renderProjects() {
   userProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
   viewOnlyProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
   assignedProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
+
+  // 🌟 修復核心漏洞 1：若為管理員/主管，或專案當前審核人是自己，將所有簽核中與退回中的專案納入檢視
+  allProjectsData.forEach(p => {
+    const isApprovalOrReject = (p.status === 'pending_approval' || p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
+    if (isApprovalOrReject) {
+      if (p.ownerId === viewingUserId || p.approvalConfig?.currentAssigneeUid === auth.currentUser.uid || currentUserData.role === 'admin' || currentUserData.role === 'top_manager') {
+        allInvolvedProjectsMap.set(p.id, p);
+      }
+    }
+  });
   
   const allInvolvedProjects = Array.from(allInvolvedProjectsMap.values()).map(p => {
       const shiftedTasks = getDynamicallyShiftedTasks(p, todayStr);
-      // 🌟 在最源頭徹底過濾：排除所有假通知細項與通知建立的幽靈子專案
       const cleanTasks = shiftedTasks.filter(t => {
           if (!t || !t.name) return false;
           if (t.name.includes("[系統通知]")) return false;
@@ -1180,8 +1189,9 @@ function renderProjects() {
   allInvolvedProjects.forEach(p => {
     const isRealOwner = (p.ownerId === viewingUserId);
     
-    // 🌟 簽核中與被退回專案判斷（納入 rejected）
-    if (p.status === 'pending_approval' || p.status === 'rejected') {
+    // 🌟 修復核心漏洞 2：兼容舊資料 (含 approvalStatus: 'rejected')
+    const isApprovalOrRejected = (p.status === 'pending_approval' || p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
+    if (isApprovalOrRejected) {
       if (isRealOwner || p.approvalConfig?.currentAssigneeUid === auth.currentUser.uid || currentUserData.role === 'admin' || currentUserData.role === 'top_manager') {
         countPendingApproval++;
         projectsPendingApproval.push(p);
@@ -1293,6 +1303,7 @@ function renderProjects() {
     const isPendingPause = (p.status === 'pause_requested');
     const isPaused = (p.status === 'paused');
     const isApproval = (p.status === 'pending_approval');
+    const isRejected = (p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
     
     const btn = document.createElement("button"); 
     btn.className = `proj-tab ${p.id === selectedProjectId ? 'active' : ''}`;
@@ -1300,6 +1311,7 @@ function renderProjects() {
     
     let tabText = p.title || '未命名專案';
     if (isApproval) tabText = `⏳ ` + tabText;
+    if (isRejected) tabText = `❌ ` + tabText; // 🌟 標註退回圖示
     if (isPendingPause) tabText += ` 🔔`;
     if (isPaused) tabText += ` 🛑`;
     
@@ -1308,6 +1320,9 @@ function renderProjects() {
     if (isApproval) {
       btn.style.border = "2px solid #f59e0b";
       btn.style.color = "#b45309";
+    } else if (isRejected) {
+      btn.style.border = "2px solid #ef4444";
+      btn.style.color = "#b91c1c";
     }
     btn.onclick = () => selectProject(p.id); 
     if(tabsContainer) tabsContainer.appendChild(btn);
@@ -1413,6 +1428,9 @@ function renderProjects() {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : `<span style="font-weight:bold;">${item.progress}%</span>`;
         if (item.status === 'pending_approval') {
           statusText = '<span style="color:var(--warning); font-weight:700;">⏳ 簽核中</span>';
+        } else if (item.status === 'rejected' || item.approvalStatus === 'rejected') {
+          // 🌟 補齊退回文字，不顯示為 0%
+          statusText = '<span style="color:var(--danger); font-weight:700;">❌ 已退回</span>';
         } else if (item.hasDelay && !item.isDone) {
           statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
         }
@@ -4147,17 +4165,36 @@ window.renderApprovals = () => {
     if (isTopOrAdmin || isDeptManager) {
         if (btnApprovals) btnApprovals.style.display = 'inline-flex';
         
-        const pendingApprovals = allProjectsData.filter(p => {
-          if (p.status === 'pause_requested' || p.status === 'resume_requested') {
-            return isTopOrAdmin;
-          }
-          if (p.status === 'pending_approval') {
-            // 🌟 只要身為最高主管/管理員，或被指定為當前審核人，就會顯示在通知列表裡
-            if (isTopOrAdmin) return true;
-            if (p.approvalConfig?.currentAssigneeUid === myUid) return true;
-          }
-          return false;
-        });
+    // ==========================================
+    // 4. 🌟 主管審核、協作指派與退回重審事項 (資料過濾)
+    // ==========================================
+    const pendingApprovals = allProjectsData.filter(p => {
+      // 1. 暫停與恢復申請：最高主管與管理員負責
+      if (p.status === 'pause_requested' || p.status === 'resume_requested') {
+        return isTopOrAdmin;
+      }
+      
+      // 2. 🌟 開案者看自己被退回的專案（提示重新送審）
+      const isRejected = (p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
+      if (isRejected && p.ownerId === myUid) {
+        return true;
+      }
+
+      // 3. 專案開案簽核與協作指派審核
+      if (p.status === 'pending_approval') {
+        const cfg = p.approvalConfig || {};
+        if (cfg.currentAssigneeUid) {
+          return cfg.currentAssigneeUid === myUid;
+        }
+        if (isTopOrAdmin && (cfg.currentStage === 'top_manager' || !cfg.currentStage)) {
+          return true;
+        }
+      }
+
+      return false;
+    });
+
+    totalPendingCount += pendingApprovals.length;
         approvalPendingCount = pendingApprovals.length;
     } else {
         if (btnApprovals) btnApprovals.style.display = 'none';
@@ -5068,6 +5105,7 @@ window.renderNotifications = () => {
     pendingApprovals.forEach(p => {
       const isPauseResume = (p.status === 'pause_requested' || p.status === 'resume_requested');
       const isPendingApproval = (p.status === 'pending_approval');
+      const isRejected = (p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
       const cfg = p.approvalConfig || {};
 
       let noticeMsg = '';
@@ -5077,7 +5115,17 @@ window.renderNotifications = () => {
       let reqReason = '';
       let actionButtons = '';
 
-      if (isPauseResume) {
+      // 🌟 1. 被退回專案的卡片顯示與重新送審按鈕
+      if (isRejected && p.ownerId === myUid) {
+        noticeMsg = `<span style="color:var(--danger); font-weight:bold;">❌ 專案已被退回，請修改後重新送審</span>`;
+        typeLabel = '<span class="pill pill-danger">專案被退回</span>';
+        reqBy = p.approvalHistory?.slice(-1)[0]?.operatorName || '主管';
+        reqReason = p.approvalConfig?.rejectReason || p.approvalHistory?.slice(-1)[0]?.remark || '無備註原因';
+        reqAt = p.approvalHistory?.slice(-1)[0]?.time || '-';
+        actionButtons = `<button class="action-btn" style="background:#4f46e5; color:#fff; border:none; padding:4px 10px; font-size:12px; width:auto;" onclick="openResubmitModal('${p.id}')">🔄 重新送審</button>`;
+      } 
+      // 🌟 2. 暫停與恢復申請
+      else if (isPauseResume) {
         let isResume = (p.status === 'resume_requested');
         noticeMsg = isResume ? '⏳ 專案恢復執行審核' : '⏸️ 專案暫停申請審核';
         typeLabel = isResume ? '<span class="pill" style="background:#dcfce7; color:#166534;">專案恢復申請</span>' : '<span class="pill" style="background:#fee2e2; color:#991b1b;">專案暫停申請</span>';
@@ -5089,7 +5137,9 @@ window.renderNotifications = () => {
           <button class="btn-primary" style="background:var(--danger); border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="approvePause('${p.id}')">同意</button>
           <button class="action-btn" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectPause('${p.id}')">退回</button>
         `;
-      } else if (isPendingApproval) {
+      } 
+      // 🌟 3. 專案簽核中
+      else if (isPendingApproval) {
         if (cfg.isApplyCollab) {
           noticeMsg = `<span style="color:var(--danger); font-weight:600;">🚨 您已被指派協作專案，請確認接收。</span>`;
           typeLabel = '<span class="pill" style="background:#dbeafe; color:#1e40af; font-weight:bold;">👑 協作指派審核</span>';
@@ -5108,7 +5158,6 @@ window.renderNotifications = () => {
         }
 
         if (cfg.isApplyCollab) {
-          // 若當前使用者是基層人員，不顯示「指派」按鈕，只允許「承接」或「退回」
           const dispatchBtn = (currentUserData.role !== 'staff') 
             ? `<button class="action-btn" style="background:#3b82f6; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="openDispatchModal('${p.id}')">指派</button>` 
             : '';
@@ -5126,9 +5175,10 @@ window.renderNotifications = () => {
         }
       }
 
+      // 產生表格行 (tr) 保持原樣
       const tr = document.createElement("tr");
       tr.style.borderBottom = "1px solid #f1f5f9";
-      tr.style.backgroundColor = "#fffbfb";
+      tr.style.backgroundColor = isRejected ? "#fff5f5" : "#fffbfb";
       tr.innerHTML = `
         <td style="padding: 12px 8px;">
             <span style="color:var(--primary); font-weight:bold; cursor:pointer; text-decoration:underline;" 
@@ -5562,10 +5612,10 @@ window.submitDispatchProject = async (projId) => {
   alert(`✅ 已成功指派給 ${targetUser.name}！該專案已自您的待辦清單移出。`);
   renderProjects();
 };
-// 🌟 點擊專案名稱直接前往專案看細項
+// 🌟 點擊專案名稱直接前往專案看細項 (修正退回專案跳轉至 pending_approval)
 window.viewProjectFromNotif = (ownerId, ownerName, projId, status) => {
     switchViewingUser(ownerId, ownerName);
-    if (status === 'pending_approval') {
+    if (status === 'pending_approval' || status === 'rejected') {
         setProjectFilter('pending_approval');
     } else {
         setProjectFilter('ongoing');
