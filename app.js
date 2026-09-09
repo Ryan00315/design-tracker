@@ -1384,33 +1384,23 @@ function renderProjects() {
       ganttTasksSum.push({ id: item.idStr, name: item.title, start: item.start, end: item.end, progress: item.progress, custom_class: item.custom_class });
       const row = document.createElement("div"); 
             row.className = "gantt-row";
+            // 修正後的程式碼段落（補全 end of renderProjects）
             row.innerHTML = `
               <div class="col-name" title="${task.name || '未命名任務'}" style="${nameIndent}"><span style="overflow:hidden; text-overflow:ellipsis;">${displayName}</span>${editHtml}</div>
               ${expectedDateHtml}
               <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
               <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="${progressInputStyle}"><span style="font-weight:bold; margin-left:2px;">%</span></div>
-              <div class="col-act"><button type="button" class="action-btn" onclick="updateTaskProgress('${activeProj.id}', ${index})" style="${confirmBtnStyle}" ${isInputLocked ? 'disabled' : ''}>確認</button></div>
+              <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} style="${confirmBtnStyle}" onclick="confirmProgress('${activeProj.id}', ${index}, '${safeEnd}')">${task.isCompleted ? '完成' : '確認'}</button></div>
               <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
             `;
-            if(leftBody) leftBody.appendChild(row);
-
-            if (listBody) {
-              const tr = document.createElement("tr");
-              tr.innerHTML = `
-                <td style="padding:6px 4px;">${displayName}</td>
-                <td style="padding:6px 4px; text-align:center;">${safeStart} ~ ${safeEnd}</td>
-                <td style="padding:6px 4px; text-align:center;">${currentProgress}%</td>
-                <td style="padding:6px 4px; text-align:center;">${taskAssigneeName}</td>
-              `;
-              listBody.appendChild(tr);
-            }
-          } catch (e) {
-            console.error("渲染任務列時發生錯誤:", e);
+            if (leftBody) leftBody.appendChild(row);
+          } catch (err) {
+            console.error("渲染任務列時出錯:", err, task);
           }
       }
   });
 
-  // 渲染甘特圖（Gantt Chart）
+  // 渲染右側甘特圖
   if (ganttTasks.length > 0) {
     document.getElementById("gantt-chart-container").innerHTML = '<div id="gantt-chart"></div>';
     setTimeout(() => {
