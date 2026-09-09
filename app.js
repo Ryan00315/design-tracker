@@ -1424,12 +1424,18 @@ function renderProjects() {
       ganttTasksSum.push({ id: item.idStr, name: item.title, start: item.start, end: item.end, progress: item.progress, custom_class: item.custom_class });
       const row = document.createElement("div"); 
       row.className = "gantt-row";
+
       if (item.type === 'project') {
-        let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : `<span style="font-weight:bold;">${item.progress}%</span>`;
+        // 🌟 尋找原專案資料，判斷是否為「申請協作」或「子專案含審核」，決定圖示
+        const origProj = allProjectsData.find(p => p.id === item.projId);
+        const isCollabOrSubApproval = origProj?.approvalConfig?.isApplyCollab || 
+                                      (origProj?.tasks || []).some(t => t.name?.includes("簽核流程") || t.parentSubProject?.includes("審核"));
+        const projIcon = isCollabOrSubApproval ? "👥" : "🗂️";
+
+        let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : `<span>${item.progress}%</span>`;
         if (item.status === 'pending_approval') {
           statusText = '<span style="color:var(--warning); font-weight:700;">⏳ 簽核中</span>';
-        } else if (item.status === 'rejected' || item.approvalStatus === 'rejected') {
-          // 🌟 補齊退回文字，不顯示為 0%
+        } else if (item.status === 'rejected' || origProj?.approvalConfig?.approvalStatus === 'rejected') {
           statusText = '<span style="color:var(--danger); font-weight:700;">❌ 已退回</span>';
         } else if (item.hasDelay && !item.isDone) {
           statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
@@ -1442,7 +1448,8 @@ function renderProjects() {
             badgeHtml = `<span style="background: rgba(239, 68, 68, 0.15); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 6px; flex-shrink: 0; white-space: nowrap;">🛑 暫停</span>`;
         }
 
-        let titleDisplay = `${badgeHtml}<span style="color:#0f172a; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🗂️ ${item.title}</span>`;
+        // 🌟 移除原本的 font-weight:700，專案名稱恢復正常粗細
+        let titleDisplay = `${badgeHtml}<span style="color:#0f172a; font-weight:normal; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${projIcon} ${item.title}</span>`;
           
         row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')" style="display:flex; align-items:center; overflow:hidden;">${titleDisplay}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span><span>~ ${item.end.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       } else {
@@ -1450,11 +1457,11 @@ function renderProjects() {
         if (item.hasDelay && !item.isDone) {
             statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
         }
-        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger); font-weight:700;" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
+        // 🌟 移除原本的 font-weight:700，事件紀錄名稱恢復正常粗細
+        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger); font-weight:normal;" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       }
       if(sumLeftBody) sumLeftBody.appendChild(row);
     });
-
     if (ganttTasksSum.length > 0) {
       document.getElementById("gantt-chart-summary-container").innerHTML = '<div id="gantt-chart-summary"></div>';
       setTimeout(() => {
@@ -3257,8 +3264,8 @@ window.openGeneralEdit = (type, id, extra) => {
 
   if (type === 'project') {
     const p = allProjectsData.find(x => x.id === id);
-    document.getElementById("general-edit-title").innerText = "編輯主專案名稱與協作部門";
-    let collabHtml = `<div class="form-group" style="margin-top:12px;"><label class="form-label">協作部門 (可複選)</label><div style="display:flex; flex-direction:column; gap:6px;">`;
+    document.getElementById("general-edit-title").innerText = "編輯主專案名稱與瀏覽部門";
+    let collabHtml = `<div class="form-group" style="margin-top:12px;"><label class="form-label">瀏覽部門 (可複選)</label><div style="display:flex; flex-direction:column; gap:6px;">`;
     departmentList.forEach(dept => {
       const isChecked = (p.collaborators || []).includes(dept) ? 'checked' : '';
       collabHtml += `<label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" name="edit_collab" value="${dept}" ${isChecked}> <span>${dept}</span></label>`;
