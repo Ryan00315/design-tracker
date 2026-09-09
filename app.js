@@ -4620,28 +4620,30 @@ window.initNotificationsUI = () => {
             <!-- ============================================================= -->
             <!-- 區塊 A：指派與通知 -->
             <!-- ============================================================= -->
-            <div id="sub-panel-notifs" style="display: flex; flex-direction: column; min-height: calc(100vh - 220px);">
-                <!-- 上半部：待處理清單 (超過 5 筆高度 240px 自動滾動) -->
-                <div class="panel" style="margin-bottom: 20px;">
-                    <div class="panel-head"><span>🔔 待處理的專案 / 子專案指派與回覆</span></div>
-                    <div class="table-responsive" style="max-height: 240px; overflow-y: auto;">
-                        <table style="width:100%;">
-                            <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 2;">
-                                <tr>
-                                    <th style="width:25%">專案名稱</th>
-                                    <th style="width:30%">任務/子專案名稱</th>
-                                    <th style="width:15%">指派/發布人</th>
-                                    <th style="width:15%">時間</th>
-                                    <th style="width:15%; text-align:center;">操作</th>
-                                </tr>
-                            </thead>
-                            <tbody id="notif-list-tbody"></tbody>
-                        </table>
+            <div id="sub-panel-notifs" style="display: block;">
+                <!-- 上半部：固定佔高 280px，確保下半部起點對齊 -->
+                <div style="min-height: 280px;">
+                    <div class="panel" style="margin-bottom: 0;">
+                        <div class="panel-head"><span>🔔 待處理的專案 / 子專案指派與回覆</span></div>
+                        <div class="table-responsive" style="max-height: 220px; overflow-y: auto;">
+                            <table style="width:100%;">
+                                <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 2;">
+                                    <tr>
+                                        <th style="width:25%">專案名稱</th>
+                                        <th style="width:30%">任務/子專案名稱</th>
+                                        <th style="width:15%">指派/發布人</th>
+                                        <th style="width:15%">時間</th>
+                                        <th style="width:15%; text-align:center;">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="notif-list-tbody"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
-                <!-- 🌟 彈性留白：強制將歷史紀錄沉到畫面下半部 2/3 處 -->
-                <div style="margin-top: auto; padding-top: 50px; border-top: 1px dashed var(--border);">
+                <!-- 🌟 歷史紀錄起點：統一下推 160px，落於畫面約 2/3 處 -->
+                <div style="margin-top: 160px; border-top: 1px dashed var(--border); padding-top: 24px;">
                     <div class="panel" style="background: #fafafa; border: 1px solid var(--border-light);">
                         <div class="panel-head" style="color: #64748b; font-size: 14px;"><span>📜 指派與通知歷史紀錄</span></div>
                         <div class="table-responsive" style="max-height: 240px; overflow-y: auto;">
@@ -4665,35 +4667,36 @@ window.initNotificationsUI = () => {
             <!-- ============================================================= -->
             <!-- 區塊 B：主管待審核通知 -->
             <!-- ============================================================= -->
-            <div id="sub-panel-approvals" style="display: none; flex-direction: column; min-height: calc(100vh - 220px);">
-                <!-- 上半部：待審核申請清單 (無紅框，超過 5 筆高度 240px 自動滾動) -->
-                <div class="panel" style="margin-bottom: 20px;">
-                    <div class="panel-head" style="font-weight: bold; color: #0f172a;">
-                        <span>👑 待審核的專案暫停 / 恢復申請</span>
-                    </div>
-                    <div id="sub-approvals-table-container" class="table-responsive" style="max-height: 240px; overflow-y: auto;">
-                        <table style="width: 100%;">
-                            <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 2;">
-                                <tr>
-                                    <th style="width: 20%;">專案名稱</th>
-                                    <th style="width: 10%;">申請人</th>
-                                    <th style="width: 15%;">申請時間</th>
-                                    <th style="width: 15%;">暫停/恢復日</th>
-                                    <th style="width: 25%;">原因</th>
-                                    <th style="width: 15%; text-align: center;">操作</th>
-                                </tr>
-                            </thead>
-                            <!-- 🌟 使用專屬全新 ID，絕不與 HTML 衝突 -->
-                            <tbody id="sub-approvals-list-tbody"></tbody>
-                        </table>
-                    </div>
-                    <div id="sub-approvals-empty-state" style="text-align: center; padding: 30px; color: var(--text-muted); display: none;">
-                        目前沒有待審核的申請。
+            <div id="sub-panel-approvals" style="display: none;">
+                <!-- 上半部：同樣固定佔高 280px，與分頁 A 完全對齊 -->
+                <div style="min-height: 280px;">
+                    <div class="panel" style="margin-bottom: 0;">
+                        <div class="panel-head" style="font-weight: bold; color: #0f172a;">
+                            <span>👑 待審核的專案暫停 / 恢復申請</span>
+                        </div>
+                        <div id="sub-approvals-table-container" class="table-responsive" style="max-height: 220px; overflow-y: auto;">
+                            <table style="width: 100%;">
+                                <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 2;">
+                                    <tr>
+                                        <th style="width: 20%;">專案名稱</th>
+                                        <th style="width: 10%;">申請人</th>
+                                        <th style="width: 15%;">申請時間</th>
+                                        <th style="width: 15%;">暫停/恢復日</th>
+                                        <th style="width: 25%;">原因</th>
+                                        <th style="width: 15%; text-align: center;">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sub-approvals-list-tbody"></tbody>
+                            </table>
+                        </div>
+                        <div id="sub-approvals-empty-state" style="text-align: center; padding: 40px; color: var(--text-muted); display: none;">
+                            目前沒有待審核的申請。
+                        </div>
                     </div>
                 </div>
 
-                <!-- 🌟 彈性留白：強制將歷史紀錄沉到畫面下半部 2/3 處 -->
-                <div style="margin-top: auto; padding-top: 50px; border-top: 1px dashed var(--border);">
+                <!-- 🌟 歷史紀錄起點：與分頁 A 一模一樣的 margin-top: 160px，兩邊切換完全不跳動 -->
+                <div style="margin-top: 160px; border-top: 1px dashed var(--border); padding-top: 24px;">
                     <div class="panel" style="background: #fafafa; border: 1px solid var(--border-light);">
                         <div class="panel-head" style="color: #64748b; font-size: 14px;"><span>📝 主管審核與操作歷史紀錄</span></div>
                         <div class="table-responsive" style="max-height: 240px; overflow-y: auto;">
@@ -4710,7 +4713,6 @@ window.initNotificationsUI = () => {
                                         <th style="width: 6%; text-align: center;">操作</th>
                                     </tr>
                                 </thead>
-                                <!-- 🌟 使用專屬全新 ID，絕不與 HTML 衝突 -->
                                 <tbody id="sub-approval-history-tbody"></tbody>
                             </table>
                         </div>
@@ -4722,7 +4724,6 @@ window.initNotificationsUI = () => {
     }
 };
 
-// 🌟 子分頁切換函式
 window.switchNotifSubTab = (type) => {
     const btnNotifs = document.getElementById("tab-btn-sub-notifs");
     const btnApprovals = document.getElementById("tab-btn-sub-approvals");
@@ -4730,7 +4731,7 @@ window.switchNotifSubTab = (type) => {
     const panelApprovals = document.getElementById("sub-panel-approvals");
 
     if (type === 'notifs') {
-        panelNotifs.style.display = 'flex';
+        panelNotifs.style.display = 'block';
         panelApprovals.style.display = 'none';
 
         btnNotifs.style.background = 'var(--primary)';
@@ -4742,7 +4743,7 @@ window.switchNotifSubTab = (type) => {
         btnApprovals.style.borderColor = 'var(--border)';
     } else {
         panelNotifs.style.display = 'none';
-        panelApprovals.style.display = 'flex';
+        panelApprovals.style.display = 'block';
 
         btnApprovals.style.background = 'var(--primary)';
         btnApprovals.style.color = '#fff';
