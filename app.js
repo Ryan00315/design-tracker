@@ -1469,10 +1469,10 @@ function renderProjects() {
   const collabList = Array.isArray(activeProj.collaborators) ? activeProj.collaborators : [];
   const hasViewOnly = collabList.length > 0;
   
-  // 🌟 1. 先在此處宣告 isRejected，避免 Temporal Dead Zone (TDZ) 報錯
+  // 🌟 核心修正 1：先宣告 isRejected，避免未定義錯誤
   const isRejected = (activeProj.status === 'pending_approval' && activeProj.approvalConfig?.approvalStatus === 'rejected');
 
-  // 核心控制權：退回狀態下開案者可編輯
+  // 核心控制權：退回狀態下開案者可自由修改細項
   let canOperateProject = (isGlobalAdmin || isProjOwner);
   let canEditMainProj = (isGlobalAdmin && isEditMode) || (isProjOwner && (inGracePeriod || isRejected));
 
@@ -1489,11 +1489,10 @@ function renderProjects() {
   let pauseBtnHtml = "";
   const isAdminOrTop = currentUserData.role === 'admin' || currentUserData.role === 'top_manager';
 
-  // 🌟 2. 乾淨且正確的單一 if-else 判定樹 (無重複程式碼與多餘括號)
+  // 🌟 核心修正 2：單一、完全閉合的 if-else 邏輯樹
   if (isRejected) {
       const rejectReason = activeProj.approvalConfig?.rejectReason || '請依主管要求調整後重新送審';
       statusBadge = `<span class="pill pill-danger" style="margin-left:8px; white-space:nowrap;" title="退回原因：${rejectReason}">❌ 退回待修改 (原因: ${rejectReason})</span>`;
-      
       if (isProjOwner) {
           pauseBtnHtml = `<button class="action-btn" onclick="openResubmitModal('${activeProj.id}')" style="margin-left:8px; background:#4f46e5; color:#fff; border:none; padding:4px 12px; font-weight:bold; cursor:pointer;">🔄 重新送審</button>`;
       }
@@ -1570,7 +1569,7 @@ function renderProjects() {
   const subProjMap = {};
   const handledGroups = new Set();
 
-  // 🌟 3. 單一乾淨的子專案群組整理 (已排除系統通知)
+  // 🌟 核心修正 3：移除重複的子專案整理迴圈，只保留單一乾淨迴圈
   (activeProj.tasks || []).forEach((task, index) => {
       if (task.name && task.name.includes("[系統通知]")) return;
 
@@ -1597,7 +1596,6 @@ function renderProjects() {
       }
   });
 
-  // 🌟 4. 推入排程清單 (單一迴圈)
   (activeProj.tasks || []).forEach((task, index) => {
       if (task.name && task.name.includes("[系統通知]")) return;
 
@@ -4103,38 +4101,9 @@ window.resumeProject = async (projId) => {
   }
 };
 
+// 🌟 已整合進 renderNotifications，此處保留做安全相容轉發，避免殘留呼叫報錯
 window.renderApprovals = () => {
-  const tbody = document.getElementById("sub-approvals-list-tbody") || document.getElementById("approvals-list-tbody");
-  const emptyState = document.getElementById("sub-approvals-empty-state") || document.getElementById("approvals-empty-state");
-  const tableContainer = document.getElementById("sub-approvals-table-container");
-  
-  if (!tbody) return;
-  tbody.innerHTML = "";
-
-  const myUid = auth.currentUser?.uid;
-  const isTopOrAdmin = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || currentUserData.role === 'senior_manager');
-  const isDeptManager = (currentUserData.role === 'manager' || currentUserData.role === 'assistant_manager');
-
-  const pendingProjects = allProjectsData.filter(p => {
-    if (p.status === 'pause_requested' || p.status === 'resume_requested') {
-      return isTopOrAdmin;
-    }
-    if (p.status === 'pending_approval') {
-      const cfg = p.approvalConfig || {};
-      if (cfg.approvalStatus === 'rejected') return false;
-      if (cfg.currentAssigneeUid) return cfg.currentAssigneeUid === myUid;
-      if (isTopOrAdmin && (cfg.currentStage === 'top_manager' || !cfg.currentStage)) return true;
-    }
-    return false;
-  });
-
-  if (pendingProjects.length === 0) {
-    if (emptyState) emptyState.style.display = "block";
-    if (tableContainer) tableContainer.style.display = "none";
-  } else {
-    if (emptyState) emptyState.style.display = "none";
-    if (tableContainer) tableContainer.style.display = "block";
-  }
+  if (window.renderNotifications) window.renderNotifications();
 };
   const tbody = document.getElementById("sub-approvals-list-tbody") || document.getElementById("approvals-list-tbody");
   const emptyState = document.getElementById("sub-approvals-empty-state") || document.getElementById("approvals-empty-state");
