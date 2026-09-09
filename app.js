@@ -1145,9 +1145,9 @@ function renderProjects() {
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
-  // 2. 抓取開放瀏覽或有細項指派給自己的專案
+  // 2. 抓取開放瀏覽或有細項指派給自己的專案 (加入防呆，確保 collaborators 一定是陣列)
   const viewOnlyProjects = allProjectsData.filter(p => {
-    const collabs = p.collaborators || [];
+    const collabs = Array.isArray(p.collaborators) ? p.collaborators : [];
     const hasMyTask = (p.tasks || []).some(t => t.assigneeId === viewingUserId);
     return (collabs.includes(targetDept) || hasMyTask) && p.ownerId !== viewingUserId;
   });
@@ -1166,7 +1166,7 @@ function renderProjects() {
   allInvolvedProjects.forEach(p => {
     const isRealOwner = (p.ownerId === viewingUserId);
     
-    // 1. 簽核中專案判斷
+    // 簽核中專案判斷
     if (p.status === 'pending_approval') {
       if (isRealOwner || p.approvalConfig?.currentAssigneeUid === auth.currentUser.uid || currentUserData.role === 'admin' || currentUserData.role === 'top_manager') {
         countPendingApproval++;
@@ -1175,15 +1175,13 @@ function renderProjects() {
       return;
     }
 
-    // 2. 任務細項過濾（排除系統通知，僅宣告一次）
+    // 排除系統通知
     const relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
 
-    // 3. 安全判斷：即使任務細項為空，專案也視為「未完成」，不會被踢除消失
     const isAllDone = relevantTasks.length > 0 ? relevantTasks.every(t => t.isCompleted) : false;
     const hasDelay = relevantTasks.length > 0 ? relevantTasks.some(t => !t.isCompleted && todayStr > t.end) : false;
     const inYear = spansYear(p, selectedYear);
 
-    // 4. 專案分類累計
     if (!isAllDone) { 
       countOngoing++; 
       projectsOngoing.push(p); 
@@ -1206,7 +1204,6 @@ function renderProjects() {
   countCompleted += adHocsCompleted.length;
   countDelayed += adHocsDelayed.length;
 
-  // 更新看板數字
   const elOngoing = document.getElementById('stat-ongoing');
   if(elOngoing) elOngoing.innerText = countOngoing; 
   const elCompleted = document.getElementById('stat-completed');
@@ -1214,11 +1211,10 @@ function renderProjects() {
   const elDelay = document.getElementById('stat-delay');
   if(elDelay) elDelay.innerText = countDelayed;
   const elCollab = document.getElementById('stat-collab');
-  if(elCollab) elCollab.innerText = viewOnlyProjects.length; // 開放瀏覽數量
+  if(elCollab) elCollab.innerText = viewOnlyProjects.length;
   const elPendingApp = document.getElementById('stat-pending-approval');
-  if(elPendingApp) elPendingApp.innerText = countPendingApproval; // 簽核中數量
+  if(elPendingApp) elPendingApp.innerText = countPendingApproval;
 
-  // 根據點選的卡片進行分流
   let activeList = [];
   let activeAdHocs = [];
 
@@ -1232,10 +1228,10 @@ function renderProjects() {
       activeList = projectsDelayed;
       activeAdHocs = adHocsDelayed;
   } else if (currentFilter === 'collab') {
-      activeList = viewOnlyProjects; // 🌟 點選「開放瀏覽」只看外部開放的專案
+      activeList = viewOnlyProjects;
       activeAdHocs = [];
   } else if (currentFilter === 'pending_approval') {
-      activeList = projectsPendingApproval; // 🌟 點選「簽核中」
+      activeList = projectsPendingApproval;
       activeAdHocs = [];
   }
   activeList = Array.from(new Set(activeList)); 
@@ -1275,9 +1271,9 @@ function renderProjects() {
     
     const btn = document.createElement("button"); 
     btn.className = `proj-tab ${p.id === selectedProjectId ? 'active' : ''}`;
-    btn.title = p.title;
+    btn.title = p.title || '未命名專案';
     
-    let tabText = p.title;
+    let tabText = p.title || '未命名專案';
     if (isApproval) tabText = `⏳ ` + tabText;
     if (isPendingPause) tabText += ` 🔔`;
     if (isPaused) tabText += ` 🛑`;
@@ -1295,7 +1291,7 @@ function renderProjects() {
   if(emptyState) emptyState.style.display = "none"; 
 
   // ==========================================
-  // 檢視 1：列表檢視 (SUMMARY)
+  // 檢視 1：列表總覽 (SUMMARY)
   // ==========================================
   if (selectedProjectId === 'SUMMARY') {
     if(detailView) detailView.style.display = "none"; 
@@ -1326,9 +1322,11 @@ function renderProjects() {
           maxEnd = getTodayStr();
       } else {
           tasksForTimeline.forEach(t => { 
-            if (t.start < minStart) minStart = t.start; 
-            if (t.end > maxEnd) maxEnd = t.end; 
+            if (t.start && t.start < minStart) minStart = t.start; 
+            if (t.end && t.end > maxEnd) maxEnd = t.end; 
           });
+          if (minStart === "9999-12-31") minStart = getTodayStr();
+          if (maxEnd === "0000-01-01") maxEnd = getTodayStr();
       }
 
       let avgProg = 0;
@@ -1345,10 +1343,10 @@ function renderProjects() {
       
       combinedItems.push({
         type: 'project', 
-        sortDate: new Date(minStart).getTime(), 
+        sortDate: new Date(minStart.replace(/-/g, '/')).getTime() || 0, 
         idStr: `s_p_${sIdx++}`,
         projId: p.id,
-        title: p.title,
+        title: p.title || '未命名專案',
         start: minStart, 
         end: maxEnd, 
         progress: avgProg, 
@@ -1367,9 +1365,9 @@ function renderProjects() {
       
       combinedItems.push({
         type: 'adhoc', 
-        sortDate: new Date(eDate).getTime(), 
+        sortDate: new Date(eDate.replace(/-/g, '/')).getTime() || 0, 
         idStr: `s_e_${sIdx++}`,
-        title: evt.title, 
+        title: evt.title || '未命名事件', 
         start: eDate, 
         end: eDate, 
         progress: prog, 
@@ -1436,7 +1434,7 @@ function renderProjects() {
   }
 
   // ==========================================
-  // 檢視 2：專案詳細時程檢視
+  // 檢視 2：專案細部內容檢視
   // ==========================================
   if(summaryView) summaryView.style.display = "none"; 
   if(detailView) detailView.style.display = "block";
@@ -1446,19 +1444,18 @@ function renderProjects() {
   const isProjOwner = (activeProj.ownerId === auth.currentUser.uid);
   const isGlobalAdmin = (currentUserData.role === 'admin');
   const inGracePeriod = isWithin7DaysGracePeriod(activeProj);
-  const hasViewOnly = (activeProj.collaborators && activeProj.collaborators.length > 0);
-  const isViewOnlyMember = hasViewOnly && activeProj.collaborators.includes(currentUserData.dept) && !isProjOwner && !isGlobalAdmin;
+  const collabList = Array.isArray(activeProj.collaborators) ? activeProj.collaborators : [];
+  const hasViewOnly = collabList.length > 0;
+  const isViewOnlyMember = hasViewOnly && collabList.includes(currentUserData.dept) && !isProjOwner && !isGlobalAdmin;
 
-  // 🌟 核心權限：只有開案者或系統管理員可以編輯/新增/刪除；開放瀏覽成員完全唯讀
   let canOperateProject = (isGlobalAdmin || isProjOwner);
   let canEditMainProj = (isGlobalAdmin && isEditMode) || (isProjOwner && inGracePeriod);
 
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px;">✏️ 編輯主資訊</button>` : '';
-  let viewOnlyBadge = hasViewOnly ? `<span class="pill" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; margin-left:8px;">👁️ 開放瀏覽：<span style="color:#0f172a; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
+  let viewOnlyBadge = hasViewOnly ? `<span class="pill" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; margin-left:8px;">👁️ 開放瀏覽：<span style="color:#0f172a; font-weight:600;">${collabList.join(', ')}</span></span>` : '';
   let graceBadge = (inGracePeriod && canOperateProject) ? `<span class="pill pill-success" style="margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
-  let titleDisplayName = `<span style="color:#2563eb; font-weight:700; word-break: break-all;">${activeProj.title}</span>`;
+  let titleDisplayName = `<span style="color:#2563eb; font-weight:700; word-break: break-all;">${activeProj.title || '未命名專案'}</span>`;
   
-  // 🌟 專案右側「📜 簽核紀錄」按鈕
   let approvalLogBtn = (activeProj.approvalHistory && activeProj.approvalHistory.length > 0)
     ? `<button class="action-btn" onclick="openApprovalLogModal('${activeProj.id}')" style="margin-left:8px; border-color:#818cf8; color:#4f46e5; font-weight:bold; padding:2px 8px;">📜 簽核紀錄</button>`
     : '';
@@ -1470,12 +1467,12 @@ function renderProjects() {
   if (activeProj.status === 'pending_approval') {
       statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏳ 簽核審查中</span>`;
   } else if (activeProj.status === 'pause_requested') {
-      statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏸️ 暫停審核中 (${activeProj.pauseRequestedBy} 申請)</span>`;
+      statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏸️ 暫停審核中 (${activeProj.pauseRequestedBy || '有人'} 申請)</span>`;
       if (isAdminOrTop) {
           pauseBtnHtml = `<button class="action-btn" onclick="approvePause('${activeProj.id}')" style="margin-left:8px; background:var(--danger); color:#fff; border:none; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">同意暫停</button><button class="action-btn" onclick="rejectPause('${activeProj.id}')" style="margin-left:4px; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">退回</button>`;
       }
   } else if (activeProj.status === 'resume_requested') {
-      statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏳ 恢復審核中 (${activeProj.resumeRequestedBy} 申請)</span>`;
+      statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏳ 恢復審核中 (${activeProj.resumeRequestedBy || '有人'} 申請)</span>`;
       if (isAdminOrTop) {
           pauseBtnHtml = `<button class="action-btn" onclick="approvePause('${activeProj.id}')" style="margin-left:8px; background:var(--success); color:#fff; border:none; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">同意恢復</button><button class="action-btn" onclick="rejectPause('${activeProj.id}')" style="margin-left:4px; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">退回</button>`;
       }
@@ -1495,16 +1492,14 @@ function renderProjects() {
   let canDeleteProj = (isProjOwner && inGracePeriod) || (isGlobalAdmin && isEditMode);
   let inlineDelBtn = canDeleteProj ? `<button class="action-btn danger" onclick="deleteCurrentProject()" style="padding:2px 8px; font-size:12px; margin-left:4px; font-weight:bold;">🗑️ 刪除專案</button>` : '';
 
-  // 組合標題
   const currentTitleEl = document.getElementById("current-gantt-title");
   if (currentTitleEl) currentTitleEl.innerHTML = `
       <span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} 
       <span style="display:inline-flex; flex-wrap:wrap; align-items:center; gap:4px; margin-top:2px;">
-          ${collabBadge} ${statusBadge} ${graceBadge} ${approvalLogBtn} ${pauseBtnHtml} ${editProjBtn} ${inlineDelBtn}
+          ${viewOnlyBadge} ${statusBadge} ${graceBadge} ${approvalLogBtn} ${pauseBtnHtml} ${editProjBtn} ${inlineDelBtn}
       </span>
   `;
   
-  // 🌟 控制按鈕權限：開放瀏覽人員全部隱藏
   const btnProjectAddTask = document.getElementById("btn-project-add-task");
   const btnProjectAddSubProject = document.getElementById("btn-project-add-subproject");
   const delProjBtn = document.getElementById("btn-project-del"); 
@@ -1543,7 +1538,7 @@ function renderProjects() {
   const handledGroups = new Set();
 
   (activeProj.tasks || []).forEach((task, index) => {
-      if (task.isSubProjectTask) {
+      if (task.isSubProjectTask && task.parentSubProject) {
           if (!subProjMap[task.parentSubProject]) {
               subProjMap[task.parentSubProject] = {
                   isGroupHeader: true,
@@ -1567,7 +1562,7 @@ function renderProjects() {
   });
 
   (activeProj.tasks || []).forEach((task, index) => {
-      if (task.isSubProjectTask) {
+      if (task.isSubProjectTask && task.parentSubProject) {
           if (!handledGroups.has(task.parentSubProject)) {
               handledGroups.add(task.parentSubProject);
               const group = subProjMap[task.parentSubProject];
@@ -1608,14 +1603,13 @@ function renderProjects() {
               custom_class: item.isCompleted ? 'bar-success' : 'bar-warning' 
           });
 
-          const sDate = new Date(item.start.replace(/-/g, '/'));
-          const eDate = new Date(item.end.replace(/-/g, '/'));
+          const sDate = new Date((item.start || getTodayStr()).replace(/-/g, '/'));
+          const eDate = new Date((item.end || getTodayStr()).replace(/-/g, '/'));
           const sMonth = !isNaN(sDate.getMonth()) ? sDate.getMonth() + 1 : '-';
           const sDay = !isNaN(sDate.getDate()) ? sDate.getDate() : '-';
           const eMonth = !isNaN(eDate.getMonth()) ? eDate.getMonth() + 1 : '-';
           const eDay = !isNaN(eDate.getDate()) ? eDate.getDate() : '-';
 
-          // 🌟 若為開放瀏覽，隱藏子專案的編輯按鈕
           const subProjEditBtn = canOperateProject
             ? `<button class="action-btn" onclick="event.stopPropagation(); openEditSubProjectModal('${activeProj.id}', '${item.parentSubProject}')" style="padding:2px 6px; font-size:11px;" title="編輯子專案名稱與負責人">✏️</button>`
             : '';
@@ -1681,7 +1675,7 @@ function renderProjects() {
             }
 
             let isTaskInGrace = true;
-            if (task.isSubProjectTask && !task.name.includes("簽核流程")) {
+            if (task.isSubProjectTask && !task.name?.includes("簽核流程")) {
                 if (task.datesSetAt) {
                     isTaskInGrace = ((Date.now() - task.datesSetAt) / (1000 * 60 * 60 * 24)) <= 14;
                 } else {
@@ -1691,7 +1685,6 @@ function renderProjects() {
                 isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
             }
 
-            // 🌟 開放瀏覽人員完全不能操作細項
             const canOperateThisTask = !isViewOnlyMember && (isGlobalAdmin || isMyTask || isProjOwner);
             const isProjectPaused = activeProj.status === 'paused' || activeProj.status === 'pause_requested' || activeProj.status === 'pending_approval';
             const isInputLocked = task.isCompleted || !canOperateThisTask || isProjectPaused; 
@@ -1721,8 +1714,9 @@ function renderProjects() {
 
             const confirmBtnStyle = (task.isCompleted || isInputLocked) ? 'opacity: 0.4; cursor: not-allowed;' : '';
 
+            // 🌟 修正：使用正規 replace 移除子專案標籤，不再使用出錯的 startsWith 參數
             let displayName = task.name || '未命名任務';
-            if (item.isChild && displayName.startsWith(`[${task.parentSubProject}] `)) {
+            if (item.isChild && task.parentSubProject) {
                 displayName = displayName.replace(`[${task.parentSubProject}] `, '');
             }
             const nameIndent = item.isChild ? 'padding-left: 22px; color: var(--text-muted);' : '';
@@ -1854,7 +1848,6 @@ function renderProjects() {
       }
   }
 }
-
 window.moveActiveProjectTask = async (projId, index, direction) => {
   const proj = allProjectsData.find(p => p.id === projId);
   if (!proj || !proj.tasks) return;
