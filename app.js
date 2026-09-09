@@ -1141,14 +1141,15 @@ function renderProjects() {
   const selectedYear = yearFilterVal === 'all' ? 'all' : parseInt(yearFilterVal);
   const todayStr = getTodayStr();
 
-  // 1. 專案分類抓取
+  // 1. 抓取開案者是自己的專案
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
-  // 🌟 開放瀏覽專案：被列在 collaborators 中的專案 (純瀏覽)
+  // 2. 抓取開放瀏覽或有細項指派給自己的專案
   const viewOnlyProjects = allProjectsData.filter(p => {
     const collabs = p.collaborators || [];
-    return collabs.includes(targetDept) && p.ownerId !== viewingUserId;
+    const hasMyTask = (p.tasks || []).some(t => t.assigneeId === viewingUserId);
+    return (collabs.includes(targetDept) || hasMyTask) && p.ownerId !== viewingUserId;
   });
 
   const allInvolvedProjectsMap = new Map();
@@ -1165,13 +1166,13 @@ function renderProjects() {
   allInvolvedProjects.forEach(p => {
     const isRealOwner = (p.ownerId === viewingUserId);
     
-    // 🌟 簽核中判定：如果專案狀態為 pending_approval，歸入「簽核中」，不進未完成
+    // 🌟 嚴格只有真正標記為簽核中的專案才跳過，舊專案 (無 status 或 status 為 active) 正常進入未完成
     if (p.status === 'pending_approval') {
-      if (isRealOwner || p.approvalConfig?.currentAssigneeUid === auth.currentUser.uid) {
+      if (isRealOwner || p.approvalConfig?.currentAssigneeUid === auth.currentUser.uid || currentUserData.role === 'admin' || currentUserData.role === 'top_manager') {
         countPendingApproval++;
         projectsPendingApproval.push(p);
       }
-      return; // 跳過後續未完成/完成計算
+      return;
     }
 
     let relevantTasks = [];
@@ -1181,7 +1182,27 @@ function renderProjects() {
       relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
     }
 
-    if (relevantTasks.length === 0) return; 
+    // 🌟 1. 過濾掉系統通知
+    let relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
+
+    // 🌟 2. 安全判斷：當沒有細項時，預設為「未完成」，且不算 Delay / 完成
+    let isAllDone = relevantTasks.length > 0 ? relevantTasks.every(t => t.isCompleted) : false;
+    let hasDelay = relevantTasks.length > 0 ? relevantTasks.some(t => !t.isCompleted && todayStr > t.end) : false;
+    const inYear = spansYear(p, selectedYear);
+
+    // 🌟 3. 專案分類歸屬
+    if (!isAllDone) { 
+      countOngoing++; 
+      projectsOngoing.push(p); // 只要沒全部做完（或剛開案還沒有細項），一律留在「未完成」
+    }
+    if (hasDelay) { 
+      countDelayed++; 
+      projectsDelayed.push(p); 
+    }
+    if (isAllDone && inYear && relevantTasks.length > 0) {
+      countCompleted++;
+      projectsCompleted.push(p);
+    } 
 
     let isAllDone = relevantTasks.every(t => t.isCompleted);
     let hasDelay = relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
