@@ -58,6 +58,16 @@ const taiwanHolidayMap = {
   '10-25': '光復節', '10-26': '補假', '12-25': '行憲紀念日'
 };
 
+function isHolidayOrWeekend(dateObj) {
+  const day = dateObj.getDay();
+  if (day === 0 || day === 6) return true; // 週末 (六、日)
+  
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const d = String(dateObj.getDate()).padStart(2, '0');
+  const mmdd = `${m}-${d}`;
+  return !!taiwanHolidayMap[mmdd]; // 國定假日
+}
+
 function getTodayStr() {
     const d = new Date();
     const y = d.getFullYear();
@@ -487,7 +497,7 @@ function getWorkingDays(startDate, endDate) {
   curDate.setHours(0,0,0,0); 
   end.setHours(0,0,0,0);
   while (curDate <= end) {
-    if (curDate.getDay() !== 0 && curDate.getDay() !== 6) count++;
+    if (!isHolidayOrWeekend(curDate)) count++;
     curDate.setDate(curDate.getDate() + 1);
   }
   return Math.max(1, count);
@@ -499,7 +509,7 @@ function calculateEndDateByDays(startDateStr, days) {
   let added = 1;
   while (added < days) {
     curDate.setDate(curDate.getDate() + 1);
-    if (curDate.getDay() !== 0 && curDate.getDay() !== 6) added++;
+    if (!isHolidayOrWeekend(curDate)) added++;
   }
   return formatDateSafe(curDate);
 }
@@ -870,15 +880,17 @@ function getNextWorkingDayStr(dateStr) {
   if (!dateStr) return ''; 
   let d = new Date(dateStr); 
   d.setDate(d.getDate() + 1);
-  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
-  return d.toISOString().split('T')[0];
+  while (isHolidayOrWeekend(d)) {
+    d.setDate(d.getDate() + 1);
+  }
+  return formatDateSafe(d);
 }
 
 window.checkWorkingDay = (input) => { 
   if (!input.value) return; 
   const d = new Date(input.value); 
-  if (d.getDay() === 0 || d.getDay() === 6) { 
-    alert("系統規定只能點選工作日喔！"); 
+  if (isHolidayOrWeekend(d)) { 
+    alert("系統只能點選工作日！(已自動避開週末與國定假日)"); 
     input.value = ''; 
   } 
 };
