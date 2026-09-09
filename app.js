@@ -4836,13 +4836,13 @@ window.renderNotifications = () => {
     const canApproveAny = isTopOrAdmin || isSeniorManager || isDeptManager;
 
     // ==========================================
-    // 1. 收集個人指派與通知
+    // 1. 收集個人指派與操作歷史
     // ==========================================
     allProjectsData.forEach(p => {
         (p.tasks || []).forEach((t, tIdx) => {
             const isSystemNotif = t.name && t.name.includes("[系統通知]");
 
-            // 待處理子專案指派
+            // 待處理子專案細項指派
             if (t.assigneeId === myUid && t.isPendingAcceptance === true && !isSystemNotif) {
                 const key = `${p.id}_${t.parentSubProject || t.name}`;
                 if (!groupMap.has(key)) {
@@ -4858,9 +4858,8 @@ window.renderNotifications = () => {
                 }
             }
             
-            // 一般系統知悉通知
+            // 系統知悉通知 (過濾掉協作指派，由專案主層級統一顯示)
             if (t.assigneeId === myUid && isSystemNotif && t.isSystemNotifUnread !== false) {
-                // 🌟 過濾掉協作指派通知，由下方審核列統一呈現，避免重複成兩列！
                 if (t.name.includes("您已被指派協作專案") || t.name.includes("收到來自")) {
                     return;
                 }
@@ -4935,7 +4934,7 @@ window.renderNotifications = () => {
     });
     
     // ==========================================
-    // 2. 渲染個人子專案指派 (點專案名稱可跳轉看細項)
+    // 2. 渲染個人子專案指派
     // ==========================================
     groupMap.forEach(group => {
         totalPendingCount++;
@@ -4963,7 +4962,7 @@ window.renderNotifications = () => {
     });
 
     // ==========================================
-    // 3. 渲染一般系統通知 (點專案名稱可跳轉看細項)
+    // 3. 渲染個人系統通知
     // ==========================================
     systemNotifs.forEach(notif => {
         totalPendingCount++;
@@ -4991,111 +4990,118 @@ window.renderNotifications = () => {
     });
 
     // ==========================================
-    // 4. 🌟 主管審核與協作指派 (完全整合為單一列)
+    // 4. 🌟 主管審核與協作指派（核心修復：精確比對責任人）
     // ==========================================
-    if (canApproveAny) {
-        const pendingApprovals = allProjectsData.filter(p => {
-          if (p.status === 'pause_requested' || p.status === 'resume_requested') {
-            return isTopOrAdmin;
-          }
-          if (p.status === 'pending_approval') {
-            const cfg = p.approvalConfig || {};
-            // 第一關：最高主管與管理員
-            if (isTopOrAdmin && (cfg.currentStage === 'top_manager' || !cfg.currentStage)) return true;
-            // 階層指派關卡：當前被指派的對象
-            if (cfg.currentAssigneeUid === myUid) return true;
-          }
-          return false;
-        });
+    const pendingApprovals = allProjectsData.filter(p => {
+      // 暫停與恢復申請：最高主管與管理員負責
+      if (p.status === 'pause_requested' || p.status === 'resume_requested') {
+        return isTopOrAdmin;
+      }
+      
+      // 專案開案簽核與協作申請
+      if (p.status === 'pending_approval') {
+        const cfg = p.approvalConfig || {};
 
-        totalPendingCount += pendingApprovals.length;
+        // 🌟 關鍵修正 1：如果已經指派給某人（currentAssigneeUid 存在），則「只有被指派者本人」才能看到！
+        // 發出指派的主管（即使是最高主管/管理員）絕對不會再看到！
+        if (cfg.currentAssigneeUid) {
+          return cfg.currentAssigneeUid === myUid;
+        }
 
-        pendingApprovals.forEach(p => {
-          const isPauseResume = (p.status === 'pause_requested' || p.status === 'resume_requested');
-          const isPendingApproval = (p.status === 'pending_approval');
-          const cfg = p.approvalConfig || {};
+        // 🌟 關鍵修正 2：如果尚未指派（第一道關卡，currentStage === 'top_manager' 且 currentAssigneeUid 為空）
+        // 則由最高主管與管理員審核
+        if (isTopOrAdmin && (cfg.currentStage === 'top_manager' || !cfg.currentStage)) {
+          return true;
+        }
+      }
+      return false;
+    });
 
-          let noticeMsg = '';
-          let reqBy = p.ownerName || '未知';
-          let reqAt = '-';
-          let typeLabel = '';
-          let reqReason = '';
-          let actionButtons = '';
+    totalPendingCount += pendingApprovals.length;
 
-          if (isPauseResume) {
-            let isResume = (p.status === 'resume_requested');
-            noticeMsg = isResume ? '⏳ 專案恢復執行審核' : '⏸️ 專案暫停申請審核';
-            typeLabel = isResume ? '<span class="pill" style="background:#dcfce7; color:#166534;">專案恢復申請</span>' : '<span class="pill" style="background:#fee2e2; color:#991b1b;">專案暫停申請</span>';
-            reqReason = isResume ? '預計恢復執行' : (p.pauseReason || '');
-            reqBy = isResume ? p.resumeRequestedBy : p.pauseRequestedBy;
-            reqAt = isResume ? p.resumeRequestedAt : p.pauseRequestedAt;
+    pendingApprovals.forEach(p => {
+      const isPauseResume = (p.status === 'pause_requested' || p.status === 'resume_requested');
+      const isPendingApproval = (p.status === 'pending_approval');
+      const cfg = p.approvalConfig || {};
 
-            actionButtons = `
-              <button class="btn-primary" style="background:var(--danger); border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="approvePause('${p.id}')">同意</button>
-              <button class="action-btn" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectPause('${p.id}')">退回</button>
-            `;
-          } else if (isPendingApproval) {
-            // 🌟 依照需求客製化協作指派內容
-            if (cfg.isApplyCollab) {
-              noticeMsg = `<span style="color:var(--danger); font-weight:600;">🚨 您已被指派協作專案，請確認接收。</span>`;
-              typeLabel = '<span class="pill" style="background:#dbeafe; color:#1e40af; font-weight:bold;">👑 協作指派審核</span>';
-            } else {
-              noticeMsg = `<span style="color:#d97706; font-weight:600;">👑 專案開案簽核申請</span>`;
-              typeLabel = '<span class="pill" style="background:#fef3c7; color:#92400e; font-weight:bold;">👑 專案開案簽核</span>';
-            }
+      let noticeMsg = '';
+      let reqBy = p.ownerName || '未知';
+      let reqAt = '-';
+      let typeLabel = '';
+      let reqReason = '';
+      let actionButtons = '';
 
-            reqBy = p.ownerName || '未知';
-            reqReason = cfg.approvalDesc || (p.approvalHistory && p.approvalHistory[0]?.remark) || p.title || '無說明';
-            
-            if (p.createdAt?.toDate) {
-              reqAt = p.createdAt.toDate().toLocaleString('zh-TW', { hour12: false });
-            } else {
-              reqAt = p.approvalHistory && p.approvalHistory[0]?.time ? p.approvalHistory[0].time : '-';
-            }
+      if (isPauseResume) {
+        let isResume = (p.status === 'resume_requested');
+        noticeMsg = isResume ? '⏳ 專案恢復執行審核' : '⏸️ 專案暫停申請審核';
+        typeLabel = isResume ? '<span class="pill" style="background:#dcfce7; color:#166534;">專案恢復申請</span>' : '<span class="pill" style="background:#fee2e2; color:#991b1b;">專案暫停申請</span>';
+        reqReason = isResume ? '預計恢復執行' : (p.pauseReason || '');
+        reqBy = isResume ? p.resumeRequestedBy : p.pauseRequestedBy;
+        reqAt = isResume ? p.resumeRequestedAt : p.pauseRequestedAt;
 
-            if (cfg.isApplyCollab) {
-              // 🌟 動作按鈕：指派、承接、退回 (若是基層人員則不顯示指派)
-              const dispatchBtn = (currentUserData.role !== 'staff') 
-                ? `<button class="action-btn" style="background:#3b82f6; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="openDispatchModal('${p.id}')">指派</button>` 
-                : '';
+        actionButtons = `
+          <button class="btn-primary" style="background:var(--danger); border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="approvePause('${p.id}')">同意</button>
+          <button class="action-btn" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectPause('${p.id}')">退回</button>
+        `;
+      } else if (isPendingApproval) {
+        if (cfg.isApplyCollab) {
+          noticeMsg = `<span style="color:var(--danger); font-weight:600;">🚨 您已被指派協作專案，請確認接收。</span>`;
+          typeLabel = '<span class="pill" style="background:#dbeafe; color:#1e40af; font-weight:bold;">👑 協作指派審核</span>';
+        } else {
+          noticeMsg = `<span style="color:#d97706; font-weight:600;">👑 專案開案簽核申請</span>`;
+          typeLabel = '<span class="pill" style="background:#fef3c7; color:#92400e; font-weight:bold;">👑 專案開案簽核</span>';
+        }
 
-              actionButtons = `
-                ${dispatchBtn}
-                <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="selfAcceptCollabProject('${p.id}')">承接</button>
-                <button class="action-btn danger" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">退回</button>
-              `;
-            } else {
-              actionButtons = `
-                <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="approveProjectApproval('${p.id}')">同意</button>
-                <button class="action-btn danger" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">退回</button>
-              `;
-            }
-          }
+        reqBy = p.ownerName || '未知';
+        reqReason = cfg.approvalDesc || (p.approvalHistory && p.approvalHistory[0]?.remark) || p.title || '無說明';
+        
+        if (p.createdAt?.toDate) {
+          reqAt = p.createdAt.toDate().toLocaleString('zh-TW', { hour12: false });
+        } else {
+          reqAt = p.approvalHistory && p.approvalHistory[0]?.time ? p.approvalHistory[0].time : '-';
+        }
 
-          const tr = document.createElement("tr");
-          tr.style.borderBottom = "1px solid #f1f5f9";
-          tr.style.backgroundColor = "#fffbfb";
-          tr.innerHTML = `
-            <td style="padding: 12px 8px;">
-                <!-- 🌟 專案名稱加入超連結，點擊直接前往看專案細項 -->
-                <span style="color:var(--primary); font-weight:bold; cursor:pointer; text-decoration:underline;" 
-                      onclick="window.viewProjectFromNotif('${p.ownerId}', '${p.ownerName || '人員'}', '${p.id}', '${p.status}')" 
-                      title="點擊前往查看專案細項">
-                    ${p.title}
-                </span>
-            </td>
-            <td style="padding: 12px 8px;">${noticeMsg}</td>
-            <td style="padding: 12px 8px;"><span class="pill" style="background:#eff6ff; color:#1e40af;">${reqBy}</span></td>
-            <td style="padding: 12px 8px;">${typeLabel}</td>
-            <td style="padding: 12px 8px;"><span style="font-size:12px; color:var(--text-muted);">${reqAt}</span></td>
-            <td style="padding: 12px 8px; word-break: break-all; color: var(--text-muted);">${reqReason}</td>
-            <td style="padding: 12px 8px; text-align: center; white-space: nowrap;">
-              ${actionButtons}
-            </td>
+        if (cfg.isApplyCollab) {
+          // 若當前使用者是基層人員，不顯示「指派」按鈕，只允許「承接」或「退回」
+          const dispatchBtn = (currentUserData.role !== 'staff') 
+            ? `<button class="action-btn" style="background:#3b82f6; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="openDispatchModal('${p.id}')">指派</button>` 
+            : '';
+
+          actionButtons = `
+            ${dispatchBtn}
+            <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="selfAcceptCollabProject('${p.id}')">承接</button>
+            <button class="action-btn danger" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">退回</button>
           `;
-          tbody.appendChild(tr);
-        });
-    }
+        } else {
+          actionButtons = `
+            <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="approveProjectApproval('${p.id}')">同意</button>
+            <button class="action-btn danger" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">退回</button>
+          `;
+        }
+      }
+
+      const tr = document.createElement("tr");
+      tr.style.borderBottom = "1px solid #f1f5f9";
+      tr.style.backgroundColor = "#fffbfb";
+      tr.innerHTML = `
+        <td style="padding: 12px 8px;">
+            <span style="color:var(--primary); font-weight:bold; cursor:pointer; text-decoration:underline;" 
+                  onclick="window.viewProjectFromNotif('${p.ownerId}', '${p.ownerName || '人員'}', '${p.id}', '${p.status}')" 
+                  title="點擊前往查看專案細項">
+                ${p.title}
+            </span>
+        </td>
+        <td style="padding: 12px 8px;">${noticeMsg}</td>
+        <td style="padding: 12px 8px;"><span class="pill" style="background:#eff6ff; color:#1e40af;">${reqBy}</span></td>
+        <td style="padding: 12px 8px;">${typeLabel}</td>
+        <td style="padding: 12px 8px;"><span style="font-size:12px; color:var(--text-muted);">${reqAt}</span></td>
+        <td style="padding: 12px 8px; word-break: break-all; color: var(--text-muted);">${reqReason}</td>
+        <td style="padding: 12px 8px; text-align: center; white-space: nowrap;">
+          ${actionButtons}
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
 
     // 若無待處理事項
     if (totalPendingCount === 0 && tbody.children.length === 0) {
@@ -5108,7 +5114,7 @@ window.renderNotifications = () => {
         badge.style.display = totalPendingCount > 0 ? "inline-block" : "none";
     }
 
-    // 渲染歷史清單
+    // 渲染歷史紀錄清單
     allHistoryList.sort((a, b) => b.sortTime - a.sortTime);
     if (historyTbody) {
         if (allHistoryList.length === 0) {
@@ -5140,7 +5146,6 @@ window.renderNotifications = () => {
         }
     }
 };
-
 // 🌟 點擊「我知道了」把未讀狀態消除
 window.dismissSystemNotif = async (projId, taskIndex) => {
     const proj = allProjectsData.find(p => p.id === projId);
@@ -5379,27 +5384,35 @@ window.approveProjectApproval = async (projId) => {
 
 // 🌟 2. 退回專案簽核
 window.rejectProjectApproval = async (projId) => {
-  const reason = prompt("請輸入退回專案簽核的原因：", "");
-  if (reason === null) return;
+  const reason = prompt("【退回審核】請輸入退回原因 (必填)：", "");
+  
+  // 點取消不動作
+  if (reason === null) return; 
+  
+  // 🌟 強制檢查：未填寫原因直接擋下
+  if (!reason.trim()) {
+    return alert("⚠️ 退回必須填寫具體原因，請重新操作！");
+  }
+
   const proj = allProjectsData.find(p => p.id === projId);
   if (!proj) return;
 
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
-  const myName = currentUserData.name || "主管";
+  const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
   const history = proj.approvalHistory || [];
   
   history.push({
-    step: '❌ 退回專案簽核',
+    step: '❌ 退回審核',
     operatorName: myName,
     operatorUid: auth.currentUser.uid,
     role: roleNames[currentUserData.role] || currentUserData.role,
     time: ts,
-    remark: reason || '退回申請'
+    remark: `退回原因: ${reason.trim()}`
   });
 
   const tasks = [...(proj.tasks || [])];
   tasks.push({
-    name: `[系統通知] 您的專案 [${proj.title}] 簽核已被【${myName}】❌ 退回 (原因: ${reason || '無'})`,
+    name: `[系統通知] 您的專案 [${proj.title}] 審核已被【${myName}】❌ 退回 (原因: ${reason.trim()})`,
     start: getTodayStr(),
     end: getTodayStr(),
     progress: 100,
@@ -5413,17 +5426,18 @@ window.rejectProjectApproval = async (projId) => {
     assignedByUid: auth.currentUser.uid,
     assignedByName: myName,
     assignedAt: ts,
-    history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: `退回原因: ${reason || '無'}` }]
+    history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: `退回原因: ${reason.trim()}` }]
   });
 
   await updateDoc(doc(db, "projects", projId), {
-    status: 'active', // 退回後讓開案人可在自己清單看見並修改
+    status: 'active', // 退回後恢復為 active 讓開案者可修改重送
     "approvalConfig.approvalStatus": 'rejected',
     approvalHistory: history,
     tasks: tasks
   });
 
-  alert("已退回專案簽核！");
+  alert("✅ 已成功退回，並已發送通知告知申請人！");
+  renderProjects();
 };
 
 // 🌟 3. 主管自行承接協作專案
@@ -5463,15 +5477,24 @@ window.openDispatchModal = (projId) => {
 
   const myRole = currentUserData.role;
   const myDept = currentUserData.dept || "設計部";
-  const isTopOrSenior = (myRole === 'admin' || myRole === 'top_manager' || myRole === 'senior_manager');
+  const isTopOrAdmin = (myRole === 'admin' || myRole === 'top_manager');
+  const isSenior = (myRole === 'senior_manager');
 
   let eligibleUsers = [];
-  if (isTopOrSenior) {
-    // 最高主管與高級主管：可向下指派所有人（排除自己）
+
+  if (isTopOrAdmin) {
+    // 第一關：最高主管 & 管理員 -> 可指派所有人 (排除自己)
     eligibleUsers = allUsersList.filter(u => u.uid !== auth.currentUser.uid);
+  } else if (isSenior) {
+    // 第二關：高級主管 -> 可指派主管與人員
+    eligibleUsers = allUsersList.filter(u => u.uid !== auth.currentUser.uid && u.role !== 'top_manager' && u.role !== 'admin');
   } else {
-    // 部門主管：只能指派同部門成員
-    eligibleUsers = allUsersList.filter(u => (u.dept || "設計部") === myDept && u.uid !== auth.currentUser.uid);
+    // 第三關：部門主管 -> 只能指派同單位人員
+    eligibleUsers = allUsersList.filter(u => (u.dept || "設計部") === myDept && u.uid !== auth.currentUser.uid && (u.role === 'staff' || u.role === 'assistant_manager'));
+  }
+
+  if (eligibleUsers.length === 0) {
+    return alert("目前沒有可供指派的下屬名單！若需執行請直接點選【承接】。");
   }
 
   let options = '<option value="">-- 請選擇指派對象 --</option>';
@@ -5518,38 +5541,22 @@ window.submitDispatchProject = async (projId) => {
     operatorUid: auth.currentUser.uid,
     role: roleNames[currentUserData.role] || currentUserData.role,
     time: ts,
-    remark: note || `指派給 ${targetUser.name}`
+    remark: note ? `${note} (指派給 ${targetUser.name})` : `指派給 ${targetUser.name}`
   });
 
-  const tasks = [...(proj.tasks || [])];
-  // 若指派給最終執行人員，自動發出系統通知要求對方確認
-  tasks.push({
-    name: `[系統通知] 您已被指派協作專案 [${proj.title}]，請確認接收。`,
-    start: getTodayStr(),
-    end: getTodayStr(),
-    progress: 0,
-    isCompleted: false,
-    isSubProjectTask: true,
-    parentSubProject: "專案指派確認",
-    assigneeId: targetUser.uid,
-    assigneeName: targetUser.name,
-    isPendingAcceptance: true,
-    assignedByUid: auth.currentUser.uid,
-    assignedByName: myName,
-    assignedAt: ts,
-    history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: 0, delayReason: '', remark: '等待人員確認接收' }]
-  });
-
+  // 🌟 將原先已完成審核/指派的通知關閉，並將新的指派責任移交給 targetUser
   await updateDoc(doc(db, "projects", projId), {
-    "approvalConfig.currentAssigneeUid": targetUser.uid,
-    approvalHistory: history,
-    tasks: tasks
+    "approvalConfig.currentStage": isStaff ? 'staff' : 'manager', // 推進關卡
+    "approvalConfig.currentAssigneeUid": targetUser.uid,          // 移交責任人給下一個人
+    "approvalConfig.currentAssigneeName": targetUser.name,
+    "approvalConfig.lastDispatchedByUid": auth.currentUser.uid,
+    approvalHistory: history
   });
 
   closeGeneralEditModal();
-  alert(`已成功指派給 ${targetUser.name}！系統已發送指派通知。`);
+  alert(`✅ 已成功指派給 ${targetUser.name}！該專案已自您的待辦清單移出。`);
+  renderProjects();
 };
-
 // 🌟 點擊專案名稱直接前往專案看細項
 window.viewProjectFromNotif = (ownerId, ownerName, projId, status) => {
     switchViewingUser(ownerId, ownerName);
