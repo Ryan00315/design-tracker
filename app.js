@@ -74,7 +74,7 @@ function getUserDept(uid) {
 }
 
 function initDynamicUI() {
-  if(document.getElementById('filter-all')) return; 
+  if (document.getElementById('filter-ongoing')) return;
 
   const kpiRow = document.querySelector('.kpi-row');
   if (kpiRow) {
@@ -82,8 +82,8 @@ function initDynamicUI() {
       <div class="kpi-card active" id="filter-ongoing" onclick="setProjectFilter('ongoing')"><div class="kpi-title">未完成</div><div class="kpi-number" id="stat-ongoing">0</div></div>
       <div class="kpi-card" id="filter-completed" onclick="setProjectFilter('completed')"><div class="kpi-title">完成</div><div class="kpi-number" id="stat-completed" style="color: var(--success);">0</div></div>
       <div class="kpi-card" id="filter-delayed" onclick="setProjectFilter('delayed')"><div class="kpi-title">Delay</div><div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div></div>
-      <div class="kpi-card" id="filter-collab" onclick="setProjectFilter('collab')"><div class="kpi-title">協作專案</div><div class="kpi-number" id="stat-collab" style="color: var(--primary);">0</div></div>
-      <div class="kpi-card" id="filter-all" onclick="setProjectFilter('all')"><div class="kpi-title">專案總覽</div><div class="kpi-number" id="stat-all" style="color: var(--warning);">0</div></div>
+      <div class="kpi-card" id="filter-collab" onclick="setProjectFilter('collab')"><div class="kpi-title">開放瀏覽</div><div class="kpi-number" id="stat-collab" style="color: var(--primary);">0</div></div>
+      <div class="kpi-card" id="filter-pending-approval" onclick="setProjectFilter('pending_approval')"><div class="kpi-title">簽核中</div><div class="kpi-number" id="stat-pending-approval" style="color: var(--warning);">0</div></div>
     `;
   }
   
@@ -209,7 +209,9 @@ function initDynamicUI() {
 initDynamicUI();
 
 // 🌟🌟🌟 Quill 富文本編輯器初始化 (用於「事件紀錄」的原因說明) 🌟🌟🌟
-let adhocQuill; // 全域變數，讓「新增」與「編輯」都能存取
+// 🌟🌟🌟 Quill 富文本編輯器初始化 🌟🌟🌟
+let adhocQuill;      // 用於「事件紀錄」的原因說明
+let approvalQuill;   // 👈 新增：用於「專案簽核說明」
 
 // 工具列只顯示需要的功能
 const toolbarOptions = [
@@ -229,11 +231,44 @@ setTimeout(() => {
       theme: 'snow',
       placeholder: '請填寫事件原因說明 (Enter 換行)'
     });
-  } else {
-    console.warn('⚠️ 找不到 #adhoc-editor-container，請確認 HTML 中已將原本的 <textarea id="adhoc-reason"> 換成 <div id="adhoc-editor-container"></div>，且已載入 Quill 的 JS 與 CSS (quill.snow.css)。');
   }
 }, 500);
-// 🌟🌟🌟 Quill 初始化結束 🌟🌟🌟
+
+// 🌟🌟🌟 新增：專案簽核流程開關與 Quill 初始化控制邏輯 🌟🌟🌟
+window.toggleApprovalOptions = (isNeed) => {
+  const collabWrapper = document.getElementById("collab-apply-wrapper");
+  const reasonSec = document.getElementById("approval-reason-section");
+  const chkCollab = document.getElementById("chk-apply-collab");
+
+  if (isNeed) {
+    if (collabWrapper) collabWrapper.style.display = "block";
+    if (reasonSec) reasonSec.style.display = "block";
+    
+    // 延遲確保 DOM 渲染出來後再初始化 Quill，避免抓不到容器
+    if (!approvalQuill) {
+      setTimeout(() => {
+        const approvalEl = document.getElementById('approval-quill-container');
+        if (approvalEl && !approvalEl.classList.contains('ql-container')) {
+          approvalQuill = new Quill('#approval-quill-container', {
+            modules: { toolbar: toolbarOptions },
+            theme: 'snow',
+            placeholder: '請填寫簽核說明或申請協作原因 (Enter 換行)...'
+          });
+        }
+      }, 50);
+    }
+  } else {
+    if (collabWrapper) collabWrapper.style.display = "none";
+    if (reasonSec) reasonSec.style.display = "none";
+    if (chkCollab) chkCollab.checked = false;
+    if (approvalQuill) approvalQuill.root.innerHTML = "";
+  }
+};
+
+window.toggleCollabApply = (isChecked) => {
+  // 保持開關狀態即可
+};
+// 🌟🌟🌟 Quill 初始化與開關設定結束 🌟🌟🌟
 
 function fixHeaders() {
   const sumHeader = document.querySelector('#project-summary-view .gantt-row-header');
@@ -1159,35 +1194,44 @@ function renderProjects() {
   const selectedYear = yearFilterVal === 'all' ? 'all' : parseInt(yearFilterVal);
   const todayStr = getTodayStr();
 
+  // 1. 專案分類抓取
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
-  const collabProjects = allProjectsData.filter(p => {
+  // 🌟 開放瀏覽專案：被列在 collaborators 中的專案 (純瀏覽)
+  const viewOnlyProjects = allProjectsData.filter(p => {
     const collabs = p.collaborators || [];
-    const hasMyAssignedTask = (p.tasks || []).some(t => t.assigneeId === viewingUserId && t.isPendingAcceptance !== true);
-    if (collabs.length === 0 && !hasMyAssignedTask) return false;
-    return collabs.includes(targetDept) || p.ownerId === viewingUserId || hasMyAssignedTask;
+    return collabs.includes(targetDept) && p.ownerId !== viewingUserId;
   });
 
   const allInvolvedProjectsMap = new Map();
-        userProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
-        collabProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
-        
-        const allInvolvedProjects = Array.from(allInvolvedProjectsMap.values()).map(p => {
-            return { ...p, tasks: getDynamicallyShiftedTasks(p, todayStr) };
-        });
+  userProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
+  viewOnlyProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
+  
+  const allInvolvedProjects = Array.from(allInvolvedProjectsMap.values()).map(p => {
+      return { ...p, tasks: getDynamicallyShiftedTasks(p, todayStr) };
+  });
 
-  let countOngoing = 0, countCompleted = 0, countDelayed = 0, countAllInYear = 0;
-  let projectsOngoing = [], projectsCompleted = [], projectsDelayed = [], projectsAll = [];
+  let countOngoing = 0, countCompleted = 0, countDelayed = 0, countPendingApproval = 0;
+  let projectsOngoing = [], projectsCompleted = [], projectsDelayed = [], projectsPendingApproval = [];
 
   allInvolvedProjects.forEach(p => {
-    let relevantTasks = [];
     const isRealOwner = (p.ownerId === viewingUserId);
+    
+    // 🌟 簽核中判定：如果專案狀態為 pending_approval，歸入「簽核中」，不進未完成
+    if (p.status === 'pending_approval') {
+      if (isRealOwner || p.approvalConfig?.currentAssigneeUid === auth.currentUser.uid) {
+        countPendingApproval++;
+        projectsPendingApproval.push(p);
+      }
+      return; // 跳過後續未完成/完成計算
+    }
 
+    let relevantTasks = [];
     if (isRealOwner) {
       relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
     } else {
-      relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId && t.isPendingAcceptance !== true && (!t.name || !t.name.includes("[系統通知]")));
+      relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
     }
 
     if (relevantTasks.length === 0) return; 
@@ -1196,34 +1240,29 @@ function renderProjects() {
     let hasDelay = relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
     const inYear = spansYear(p, selectedYear);
 
-    if (isRealOwner) {
-       if (!isAllDone) { countOngoing++; projectsOngoing.push(p); }
-       if (hasDelay) { countDelayed++; projectsDelayed.push(p); }
-    } else {
-       if (!isAllDone) { countOngoing++; projectsOngoing.push(p); }
-       if (hasDelay) { countDelayed++; projectsDelayed.push(p); }
+    if (!isAllDone) { 
+      countOngoing++; 
+      projectsOngoing.push(p); 
     }
-
+    if (hasDelay) { 
+      countDelayed++; 
+      projectsDelayed.push(p); 
+    }
     if (isAllDone && inYear) {
-       countCompleted++;
-       projectsCompleted.push(p);
-    }
-    if (inYear) {
-       countAllInYear++;
-       projectsAll.push(p);
+      countCompleted++;
+      projectsCompleted.push(p);
     }
   });
 
   let adHocsOngoing = userAdHocs.filter(e => !e.isCompleted);
   let adHocsDelayed = userAdHocs.filter(e => !e.isCompleted && e.startDate < todayStr);
   let adHocsCompleted = userAdHocs.filter(e => e.isCompleted && (selectedYear === 'all' || parseInt(getAdHocDateStr(e).substring(0,4)) === selectedYear));
-  let adHocsAll = userAdHocs.filter(e => selectedYear === 'all' || parseInt(getAdHocDateStr(e).substring(0,4)) === selectedYear);
 
   countOngoing += adHocsOngoing.length;
   countCompleted += adHocsCompleted.length;
   countDelayed += adHocsDelayed.length;
-  countAllInYear += adHocsAll.length;
 
+  // 更新看板數字
   const elOngoing = document.getElementById('stat-ongoing');
   if(elOngoing) elOngoing.innerText = countOngoing; 
   const elCompleted = document.getElementById('stat-completed');
@@ -1231,10 +1270,11 @@ function renderProjects() {
   const elDelay = document.getElementById('stat-delay');
   if(elDelay) elDelay.innerText = countDelayed;
   const elCollab = document.getElementById('stat-collab');
-  if(elCollab) elCollab.innerText = collabProjects.length;
-  const elAll = document.getElementById('stat-all');
-  if(elAll) elAll.innerText = countAllInYear;
+  if(elCollab) elCollab.innerText = viewOnlyProjects.length; // 開放瀏覽數量
+  const elPendingApp = document.getElementById('stat-pending-approval');
+  if(elPendingApp) elPendingApp.innerText = countPendingApproval; // 簽核中數量
 
+  // 根據點選的卡片進行分流
   let activeList = [];
   let activeAdHocs = [];
 
@@ -1248,11 +1288,11 @@ function renderProjects() {
       activeList = projectsDelayed;
       activeAdHocs = adHocsDelayed;
   } else if (currentFilter === 'collab') {
-      activeList = collabProjects; 
+      activeList = viewOnlyProjects; // 🌟 點選「開放瀏覽」只看外部開放的專案
       activeAdHocs = [];
-  } else if (currentFilter === 'all') {
-      activeList = projectsAll;
-      activeAdHocs = adHocsAll;
+  } else if (currentFilter === 'pending_approval') {
+      activeList = projectsPendingApproval; // 🌟 點選「簽核中」
+      activeAdHocs = [];
   }
   activeList = Array.from(new Set(activeList)); 
 
@@ -1279,55 +1319,52 @@ function renderProjects() {
     summaryBtn.style.border = "2px solid #8b5cf6"; 
     summaryBtn.style.color = "#8b5cf6";            
     summaryBtn.style.fontWeight = "bold";          
-    summaryBtn.innerText = "🔙 返回總覽"; 
+    summaryBtn.innerText = "🔙 返回列表"; 
     summaryBtn.onclick = () => selectProject('SUMMARY'); 
     tabsContainer.appendChild(summaryBtn);
   }
 
   activeList.forEach(p => {
-    const hasCollab = (p.collaborators && p.collaborators.length > 0);
     const isPendingPause = (p.status === 'pause_requested');
     const isPaused = (p.status === 'paused');
+    const isApproval = (p.status === 'pending_approval');
     
     const btn = document.createElement("button"); 
-    btn.className = `proj-tab ${hasCollab ? 'is-collab' : ''} ${p.id === selectedProjectId ? 'active' : ''}`;
+    btn.className = `proj-tab ${p.id === selectedProjectId ? 'active' : ''}`;
     btn.title = p.title;
     
     let tabText = p.title;
-    if (hasCollab) tabText = `👥 ` + tabText;
+    if (isApproval) tabText = `⏳ ` + tabText;
     if (isPendingPause) tabText += ` 🔔`;
     if (isPaused) tabText += ` 🛑`;
     
     btn.innerHTML = `<span>${tabText}</span>`;
     
-    if (isPendingPause) {
-        btn.style.border = "2px solid var(--warning)";
-        btn.style.backgroundColor = "#fffbeb";
-        btn.style.color = "#b45309";
-    } else if (isPaused) {
-        btn.style.border = "2px solid var(--danger)";
-        btn.style.backgroundColor = "#fef2f2";
-        btn.style.color = "#b91c1c";
+    if (isApproval) {
+      btn.style.border = "2px solid #f59e0b";
+      btn.style.color = "#b45309";
     }
-    
     btn.onclick = () => selectProject(p.id); 
     if(tabsContainer) tabsContainer.appendChild(btn);
   });
 
   if(emptyState) emptyState.style.display = "none"; 
 
+  // ==========================================
+  // 檢視 1：列表檢視 (SUMMARY)
+  // ==========================================
   if (selectedProjectId === 'SUMMARY') {
     if(detailView) detailView.style.display = "none"; 
     if(summaryView) summaryView.style.display = "block";
     
-    let summaryLabel = "所有專案";
-    if (currentFilter === 'ongoing') summaryLabel = "未完成";
-    else if (currentFilter === 'completed') summaryLabel = "已完成";
+    let summaryLabel = "未完成";
+    if (currentFilter === 'completed') summaryLabel = "已完成";
     else if (currentFilter === 'delayed') summaryLabel = "Delay";
-    else if (currentFilter === 'collab') summaryLabel = "協作專案";
+    else if (currentFilter === 'collab') summaryLabel = "開放瀏覽";
+    else if (currentFilter === 'pending_approval') summaryLabel = "簽核中";
     
     const panelHeadSpan = document.querySelector('#project-summary-view .panel-head span');
-    if (panelHeadSpan) panelHeadSpan.innerText = `⭐ 專案與事件總覽排程 (${summaryLabel}清單)`;
+    if (panelHeadSpan) panelHeadSpan.innerText = `⭐ 專案清單 (${summaryLabel})`;
 
     const sumLeftBody = document.getElementById("gantt-summary-left-body");
     if(sumLeftBody) sumLeftBody.innerHTML = "";
@@ -1337,11 +1374,7 @@ function renderProjects() {
     let sIdx = 0;
 
     activeList.forEach(p => {
-      const ownerDept = getUserDept(p.ownerId);
-      const isOwnerDept = (targetDept === ownerDept); 
-      let relevantTasks = isOwnerDept ? (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]")) : (p.tasks || []).filter(t => t.assigneeId === viewingUserId && !t.name?.includes("[系統通知]"));
-      let tasksForTimeline = relevantTasks.length > 0 ? relevantTasks : (p.tasks || []); 
-      
+      let tasksForTimeline = p.tasks || []; 
       let minStart = "9999-12-31"; 
       let maxEnd = "0000-01-01"; 
       if (tasksForTimeline.length === 0) {
@@ -1358,15 +1391,13 @@ function renderProjects() {
       let isDone = false;
       let hasDelay = false;
 
-      if (relevantTasks.length > 0) {
+      if (tasksForTimeline.length > 0) {
         let totalProg = 0;
-        relevantTasks.forEach(t => totalProg += (t.progress || 0));
-        avgProg = Math.round(totalProg / relevantTasks.length);
-        isDone = relevantTasks.every(t => t.isCompleted);
-        hasDelay = relevantTasks.some(t => !t.isCompleted && todayStr > t.end);
+        tasksForTimeline.forEach(t => totalProg += (t.progress || 0));
+        avgProg = Math.round(totalProg / tasksForTimeline.length);
+        isDone = tasksForTimeline.every(t => t.isCompleted);
+        hasDelay = tasksForTimeline.some(t => !t.isCompleted && todayStr > t.end);
       }
-      
-      const hasCollab = (p.collaborators && p.collaborators.length > 0);
       
       combinedItems.push({
         type: 'project', 
@@ -1379,7 +1410,6 @@ function renderProjects() {
         progress: avgProg, 
         isDone: isDone, 
         hasDelay: hasDelay, 
-        isCollab: hasCollab,
         status: p.status,
         custom_class: isDone ? 'bar-success' : (p.color || 'bar-primary'),
         ownerName: p.ownerName || '未知'
@@ -1400,8 +1430,7 @@ function renderProjects() {
         end: eDate, 
         progress: prog, 
         isDone: evt.isCompleted, 
-        hasDelay: hasDelay,
-        isCollab: false, 
+        hasDelay: hasDelay, 
         custom_class: 'bar-danger',
         ownerName: evt.ownerName || '未知'
       });
@@ -1415,8 +1444,10 @@ function renderProjects() {
       row.className = "gantt-row";
       if (item.type === 'project') {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : `<span style="font-weight:bold;">${item.progress}%</span>`;
-        if (item.hasDelay && !item.isDone) {
-            statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
+        if (item.status === 'pending_approval') {
+          statusText = '<span style="color:var(--warning); font-weight:700;">⏳ 簽核中</span>';
+        } else if (item.hasDelay && !item.isDone) {
+          statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
         }
 
         let badgeHtml = "";
@@ -1426,9 +1457,7 @@ function renderProjects() {
             badgeHtml = `<span style="background: rgba(239, 68, 68, 0.15); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 6px; flex-shrink: 0; white-space: nowrap;">🛑 暫停</span>`;
         }
 
-        let titleDisplay = item.isCollab 
-          ? `${badgeHtml}<span style="color:#2563eb; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><span style="color:#2563eb; margin-right:4px;">👥</span>${item.title}</span>`
-          : `${badgeHtml}<span style="color:#0f172a; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🗂️ ${item.title}</span>`;
+        let titleDisplay = `${badgeHtml}<span style="color:#0f172a; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🗂️ ${item.title}</span>`;
           
         row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')" style="display:flex; align-items:center; overflow:hidden;">${titleDisplay}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span><span>~ ${item.end.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       } else {
@@ -1462,32 +1491,41 @@ function renderProjects() {
     return;
   }
 
+  // ==========================================
+  // 檢視 2：專案詳細時程檢視
+  // ==========================================
   if(summaryView) summaryView.style.display = "none"; 
   if(detailView) detailView.style.display = "block";
   const activeProj = activeList.find(p => p.id === selectedProjectId);
   if(!activeProj) return; 
 
   const isProjOwner = (activeProj.ownerId === auth.currentUser.uid);
-  const hasCollab = (activeProj.collaborators && activeProj.collaborators.length > 0);
-  const isCollabMember = hasCollab && activeProj.collaborators.includes(currentUserData.dept);
-  
-  const hasGlobalEdit = (currentUserData.role === 'admin' || currentUserData.canEdit === true);
+  const isGlobalAdmin = (currentUserData.role === 'admin');
   const inGracePeriod = isWithin7DaysGracePeriod(activeProj);
-  
-  let canEditMainProj = (hasGlobalEdit && isEditMode) || (isProjOwner && inGracePeriod);
-  let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px;">✏️ 編輯主資訊</button>` : '';
-  
-  let collabBadge = hasCollab ? `<span class="pill" style="background:#eff6ff; color:#0f172a; border:1px solid #cbd5e1; margin-left:8px;">👥 協作：<span style="color:#ea580c; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
-  let graceBadge = inGracePeriod ? `<span class="pill pill-success" style="margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
+  const hasViewOnly = (activeProj.collaborators && activeProj.collaborators.length > 0);
+  const isViewOnlyMember = hasViewOnly && activeProj.collaborators.includes(currentUserData.dept) && !isProjOwner && !isGlobalAdmin;
 
-  let titlePrefixIcon = hasCollab ? '<span style="color:#2563eb; margin-right:4px;">👥</span>' : '';
-  let titleDisplayName = `<span style="color:#2563eb; font-weight:700; word-break: break-all;">${titlePrefixIcon}${activeProj.title}</span>`;
+  // 🌟 核心權限：只有開案者或系統管理員可以編輯/新增/刪除；開放瀏覽成員完全唯讀
+  let canOperateProject = (isGlobalAdmin || isProjOwner);
+  let canEditMainProj = (isGlobalAdmin && isEditMode) || (isProjOwner && inGracePeriod);
+
+  let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px;">✏️ 編輯主資訊</button>` : '';
+  let viewOnlyBadge = hasViewOnly ? `<span class="pill" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; margin-left:8px;">👁️ 開放瀏覽：<span style="color:#0f172a; font-weight:600;">${activeProj.collaborators.join(', ')}</span></span>` : '';
+  let graceBadge = (inGracePeriod && canOperateProject) ? `<span class="pill pill-success" style="margin-left:8px;">🟢 自由編輯期 (剩餘 ${getGraceDaysLeft(activeProj)} 天)</span>` : '';
+  let titleDisplayName = `<span style="color:#2563eb; font-weight:700; word-break: break-all;">${activeProj.title}</span>`;
   
+  // 🌟 專案右側「📜 簽核紀錄」按鈕
+  let approvalLogBtn = (activeProj.approvalHistory && activeProj.approvalHistory.length > 0)
+    ? `<button class="action-btn" onclick="openApprovalLogModal('${activeProj.id}')" style="margin-left:8px; border-color:#818cf8; color:#4f46e5; font-weight:bold; padding:2px 8px;">📜 簽核紀錄</button>`
+    : '';
+
   let statusBadge = "";
   let pauseBtnHtml = "";
   const isAdminOrTop = currentUserData.role === 'admin' || currentUserData.role === 'top_manager';
 
-  if (activeProj.status === 'pause_requested') {
+  if (activeProj.status === 'pending_approval') {
+      statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏳ 簽核審查中</span>`;
+  } else if (activeProj.status === 'pause_requested') {
       statusBadge = `<span class="pill pill-warning" style="margin-left:8px; white-space:nowrap;">⏸️ 暫停審核中 (${activeProj.pauseRequestedBy} 申請)</span>`;
       if (isAdminOrTop) {
           pauseBtnHtml = `<button class="action-btn" onclick="approvePause('${activeProj.id}')" style="margin-left:8px; background:var(--danger); color:#fff; border:none; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">同意暫停</button><button class="action-btn" onclick="rejectPause('${activeProj.id}')" style="margin-left:4px; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">退回</button>`;
@@ -1501,47 +1539,40 @@ function renderProjects() {
       statusBadge = `<span class="pill pill-danger" style="margin-left:8px; white-space:nowrap;">🛑 專案已暫停</span>`;
       if (isAdminOrTop) {
           pauseBtnHtml = `<button class="action-btn" onclick="resumeProject('${activeProj.id}')" style="margin-left:8px; background:var(--success); color:#fff; border:none; padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">▶️ 恢復執行</button>`;
-      } else if (hasGlobalEdit || isProjOwner || isCollabMember) {
+      } else if (canOperateProject) {
           pauseBtnHtml = `<button class="action-btn" onclick="openResumeModal('${activeProj.id}')" style="margin-left:8px; border-color:var(--success); color:var(--success); padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">▶️ 申請恢復</button>`;
       }
   } else {
-      if (hasGlobalEdit || isProjOwner) {
+      if (canOperateProject) {
           pauseBtnHtml = `<button class="action-btn" onclick="openPauseModal('${activeProj.id}')" style="margin-left:8px; border-color:var(--danger); color:var(--danger); padding:4px 10px; width:auto; display:inline-block; font-weight:bold;">⏸️ 申請暫停</button>`;
       }
   }
   
-  // 🌟 只要是 7 天內擁有者，或者 (管理員 + 開啟編輯模式)，就直接生成刪除按鈕 HTML
-  let canDeleteProj = (isProjOwner && inGracePeriod) || (hasGlobalEdit && isEditMode);
+  let canDeleteProj = (isProjOwner && inGracePeriod) || (isGlobalAdmin && isEditMode);
   let inlineDelBtn = canDeleteProj ? `<button class="action-btn danger" onclick="deleteCurrentProject()" style="padding:2px 8px; font-size:12px; margin-left:4px; font-weight:bold;">🗑️ 刪除專案</button>` : '';
 
+  // 組合標題
   const currentTitleEl = document.getElementById("current-gantt-title");
-  if(currentTitleEl) currentTitleEl.innerHTML = `
+  if (currentTitleEl) currentTitleEl.innerHTML = `
       <span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} 
       <span style="display:inline-flex; flex-wrap:wrap; align-items:center; gap:4px; margin-top:2px;">
-          ${collabBadge} ${statusBadge} ${graceBadge} ${pauseBtnHtml} ${editProjBtn} ${inlineDelBtn}
+          ${collabBadge} ${statusBadge} ${graceBadge} ${approvalLogBtn} ${pauseBtnHtml} ${editProjBtn} ${inlineDelBtn}
       </span>
   `;
   
+  // 🌟 控制按鈕權限：開放瀏覽人員全部隱藏
   const btnProjectAddTask = document.getElementById("btn-project-add-task");
   const btnProjectAddSubProject = document.getElementById("btn-project-add-subproject");
-  
-  let canAddTask = hasGlobalEdit || isProjOwner;
   const delProjBtn = document.getElementById("btn-project-del"); 
 
   if (btnProjectAddTask) {
-    if (canAddTask) {
-      btnProjectAddTask.style.display = "inline-block";
-      btnProjectAddTask.innerText = hasCollab ? "➕ 協作細項" : "➕ 新增細項";
-      if (btnProjectAddSubProject) btnProjectAddSubProject.style.display = "inline-block";
-    } else {
-      btnProjectAddTask.style.display = "none";
-      if (btnProjectAddSubProject) btnProjectAddSubProject.style.display = "none";
-    }
+    btnProjectAddTask.style.display = canOperateProject ? "inline-block" : "none";
+    btnProjectAddTask.innerText = "➕ 新增細項";
   }
-
+  if (btnProjectAddSubProject) {
+    btnProjectAddSubProject.style.display = canOperateProject ? "inline-block" : "none";
+  }
   if (delProjBtn) {
-    // 🌟 修正：只要是 7 天內擁有者，或者 (管理員 + 開啟編輯模式)，刪除按鈕就會顯示
-    let canDeleteProj = (isProjOwner && inGracePeriod) || (hasGlobalEdit && isEditMode);
     delProjBtn.style.display = canDeleteProj ? "inline-block" : "none";
   }
 
@@ -1550,16 +1581,11 @@ function renderProjects() {
   if(leftBody) leftBody.innerHTML = ""; 
   if(listBody) listBody.innerHTML = "";
 
-  // 🌟 1. 註冊全域的子專案展開/收合切換函式與狀態記憶
-  // 🌟 預設讓所有子專案處於摺疊狀態 (true)
   if (!window.collapsedSubProjects) window.collapsedSubProjects = {};
   
-  // 註冊一個輔助函式用來檢查狀態，若該子專案還沒有被手動點擊過，預設回傳 true (摺疊)
   window.isSubProjCollapsed = (projId, subProjName) => {
       const key = `${projId}_${subProjName}`;
-      if (window.collapsedSubProjects[key] === undefined) {
-          window.collapsedSubProjects[key] = true; // 預設摺疊
-      }
+      if (window.collapsedSubProjects[key] === undefined) window.collapsedSubProjects[key] = true;
       return window.collapsedSubProjects[key];
   };
   window.toggleSubProject = (projId, subProjName) => {
@@ -1568,7 +1594,6 @@ function renderProjects() {
       renderProjects(); 
   };
 
-  // 🌟 2. 預處理：將相同名稱的子專案細項彙整成「群組標頭」
   const renderList = [];
   const subProjMap = {};
   const handledGroups = new Set();
@@ -1593,12 +1618,10 @@ function renderProjects() {
           
           if (task.start && task.start !== "尚未建立細項" && task.start < group.start) group.start = task.start;
           if (task.end && task.end !== "尚未建立細項" && task.end > group.end) group.end = task.end;
-          
           if (!task.isCompleted) group.isCompleted = false;
       }
   });
 
-  // 🌟 3. 將群組標頭與子細項塞入新的 renderList (控制展開與收合)
   (activeProj.tasks || []).forEach((task, index) => {
       if (task.isSubProjectTask) {
           if (!handledGroups.has(task.parentSubProject)) {
@@ -1625,7 +1648,6 @@ function renderProjects() {
       }
   });
 
-  // 🌟 4. 根據 renderList 畫出左側列表與收集甘特圖資料
   const ganttTasks = [];
   renderList.forEach((item, displayIndex) => {
       if (item.isGroupHeader) {
@@ -1649,6 +1671,11 @@ function renderProjects() {
           const eMonth = !isNaN(eDate.getMonth()) ? eDate.getMonth() + 1 : '-';
           const eDay = !isNaN(eDate.getDate()) ? eDate.getDate() : '-';
 
+          // 🌟 若為開放瀏覽，隱藏子專案的編輯按鈕
+          const subProjEditBtn = canOperateProject
+            ? `<button class="action-btn" onclick="event.stopPropagation(); openEditSubProjectModal('${activeProj.id}', '${item.parentSubProject}')" style="padding:2px 6px; font-size:11px;" title="編輯子專案名稱與負責人">✏️</button>`
+            : '';
+
           const row = document.createElement("div"); 
           row.className = "gantt-row";
           row.style.backgroundColor = "#fffbeb";
@@ -1660,9 +1687,7 @@ function renderProjects() {
               <div class="col-expected-date" style="color: #64748b; font-size:12px;"><span>${sMonth}/${sDay}</span><span>~ ${eMonth}/${eDay}</span></div>
               <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
               <div class="col-prog"><span style="font-weight:bold;">${item.progress}%</span></div>
-              <div class="col-act">
-                  <button class="action-btn" onclick="event.stopPropagation(); openEditSubProjectModal('${activeProj.id}', '${item.parentSubProject}')" style="padding:2px 6px; font-size:11px;" title="編輯子專案名稱與負責人">✏️</button>
-              </div>
+              <div class="col-act">${subProjEditBtn}</div>
               <div class="col-owner" title="${item.assigneeName}">${item.assigneeName}</div>
           `;
           if(leftBody) leftBody.appendChild(row);
@@ -1689,24 +1714,19 @@ function renderProjects() {
             const safeEnd = task.end || getTodayStr();
             const workDays = getWorkingDays(safeStart, safeEnd);
             
-            const isCollabTask = task.assigneeId && (task.assigneeId !== activeProj.ownerId);
-            let projColorClass = isCollabTask ? 'bar-pink' : (activeProj.color || 'bar-primary');
-
             ganttTasks.push({ 
               id: `t_${index}`, 
               name: task.name || '未命名任務', 
               start: safeStart, 
               end: safeEnd, 
               progress: currentProgress, 
-              custom_class: task.isCompleted ? 'bar-success' : projColorClass 
+              custom_class: task.isCompleted ? 'bar-success' : (activeProj.color || 'bar-primary')
             });
 
             const taskAssigneeId = task.assigneeId || activeProj.ownerId;
             let taskAssigneeName = task.assigneeName || activeProj.ownerName || '原負責人';
             
-            if (task.isPendingAcceptance) {
-                taskAssigneeName = `⏳ ${taskAssigneeName}(待同意)`;
-            }
+            if (task.isPendingAcceptance) taskAssigneeName = `⏳ ${taskAssigneeName}(待同意)`;
             const isMyTask = (auth.currentUser.uid === taskAssigneeId);
 
             let taskCreatedTime = Date.now();
@@ -1727,22 +1747,12 @@ function renderProjects() {
                 isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
             }
 
-            const canOperateThisTask = (hasGlobalEdit || isMyTask || isProjOwner);
-            const isProjectPaused = activeProj.status === 'paused' || activeProj.status === 'pause_requested';
+            // 🌟 開放瀏覽人員完全不能操作細項
+            const canOperateThisTask = !isViewOnlyMember && (isGlobalAdmin || isMyTask || isProjOwner);
+            const isProjectPaused = activeProj.status === 'paused' || activeProj.status === 'pause_requested' || activeProj.status === 'pending_approval';
             const isInputLocked = task.isCompleted || !canOperateThisTask || isProjectPaused; 
 
-            let lastUpdateMs = taskCreatedTime;
-            if (task.history && task.history.length > 0) {
-                const lastHist = task.history[task.history.length - 1];
-                if (lastHist && lastHist.timestamp && typeof lastHist.timestamp === 'string') {
-                    let parsedTime = new Date(lastHist.timestamp.replace(/-/g, '/')).getTime();
-                    if (!isNaN(parsedTime)) lastUpdateMs = parsedTime;
-                }
-            }
-            const isWithin2Days = (Date.now() - lastUpdateMs) <= (2 * 24 * 60 * 60 * 1000);
-            const canEditRemark = canOperateThisTask && isWithin2Days;
-
-            let canEditTask = (hasGlobalEdit && isEditMode) || ((isProjOwner || isMyTask) && isTaskInGrace);
+            let canEditTask = canOperateThisTask && ((isGlobalAdmin && isEditMode) || ((isProjOwner || isMyTask) && isTaskInGrace));
             
             let editHtml = canEditTask ? `
               <div style="display:inline-flex; align-items:center; gap:2px; margin-left:auto; flex-shrink:0;">
@@ -1765,7 +1775,7 @@ function renderProjects() {
               ? 'width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold; color:var(--success);' 
               : 'width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold;';
 
-            const confirmBtnStyle = task.isCompleted ? 'opacity: 0.4; cursor: not-allowed;' : '';
+            const confirmBtnStyle = (task.isCompleted || isInputLocked) ? 'opacity: 0.4; cursor: not-allowed;' : '';
 
             let displayName = task.name || '未命名任務';
             if (item.isChild && displayName.startsWith(`[${task.parentSubProject}] `)) {
@@ -1872,6 +1882,7 @@ function renderProjects() {
     }
   }
 
+  // 暫停紀錄
   const pauseRecordsContainer = document.getElementById("project-pause-records");
   if (pauseRecordsContainer) {
       if (activeProj.pauseHistory && activeProj.pauseHistory.length > 0) {
@@ -2150,14 +2161,27 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   const color = document.getElementById("proj-color").value;
   if (!title) return alert("請填寫主專案名稱！");
 
+  // 1. 抓取開放瀏覽部門 (原協作部門)
   const collabCheckboxes = document.querySelectorAll('input[name="collab_dept"]:checked');
   const collaborators = Array.from(collabCheckboxes).map(cb => cb.value);
+
+  // 🌟 2.【新增】抓取是否需要簽核與申請協作
+  const isNeedApproval = document.getElementById("chk-need-approval")?.checked || false;
+  const isApplyCollab = document.getElementById("chk-apply-collab")?.checked || false;
+  
+  // 🌟 3.【新增】抓取簽核說明的 Quill 富文本內容
+  let approvalDesc = approvalQuill ? approvalQuill.root.innerHTML.trim() : "";
+  if (approvalDesc === '<p><br></p>') approvalDesc = "";
+  if (isNeedApproval && !approvalDesc) return alert("請填寫簽核說明！");
 
   const tasks = [];
   const todayStr = getTodayStr(); 
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
 
+  // -------------------------------------------------------------
+  // 任務打包（這段原本的 for 迴圈邏輯完全保留不用動）
+  // -------------------------------------------------------------
   const allRows = document.querySelectorAll('#task-list-container > .form-row');
 
   for (let row of allRows) {
@@ -2188,9 +2212,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
         const assigneeId = assigneeSelect.value;
         const assigneeName = assigneeId ? assigneeSelect.options[assigneeSelect.selectedIndex].text.split(' ')[0] : myName;
         const uidToAssign = assigneeId || auth.currentUser.uid;
-        
         const isPending = (uidToAssign !== auth.currentUser.uid); 
-
         const subTasks = row.querySelectorAll('.sub-task-item');
         
         if (subTasks.length === 0) {
@@ -2229,7 +2251,7 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
                   isSubProjectTask: true,
                   parentSubProject: subProjName, 
                   createdAt: Date.now(), 
-                  isPendingAcceptance: isPending,
+                  isPendingAcceptance: isPending, 
                   assignedByUid: auth.currentUser.uid,
                   assignedByName: myName,
                   assignedAt: ts,
@@ -2245,23 +2267,74 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name, uid: auth.currentUser.uid };
   const ownerNameToSave = targetUser.name || currentUserData.name;
 
+  // 🌟 4.【新增】設定專案狀態與初始化第一筆簽核歷程
+  let projectStatus = 'active'; // 預設：不需簽核直接生效
+  const approvalHistory = [];
+
+  if (isNeedApproval) {
+    projectStatus = 'pending_approval'; // 需簽核者進入「簽核中」狀態
+
+    if (isApplyCollab) {
+      approvalHistory.push({
+        step: '提出申請協作',
+        operatorName: myName,
+        operatorUid: auth.currentUser.uid,
+        role: roleNames[currentUserData.role] || currentUserData.role,
+        time: ts,
+        remark: approvalDesc,
+        targetRole: '待最高級主管審核指派'
+      });
+    } else {
+      approvalHistory.push({
+        step: '送出專案簽核',
+        operatorName: myName,
+        operatorUid: auth.currentUser.uid,
+        role: roleNames[currentUserData.role] || currentUserData.role,
+        time: ts,
+        remark: approvalDesc,
+        targetRole: '待最高級主管同意'
+      });
+    }
+  }
+
+  // 🌟 5.【修改】寫入 Firebase（加入了 approvalConfig 與 approvalHistory）
   const docRef = await addDoc(collection(db, "projects"), { 
-    title, color, collaborators, ownerId: viewingUserId, ownerName: ownerNameToSave, 
-    tasks: tasks, createdAt: serverTimestamp() 
+    title, 
+    color, 
+    collaborators, 
+    ownerId: viewingUserId, 
+    ownerName: ownerNameToSave, 
+    tasks: tasks, 
+    status: projectStatus, // 若需簽核會是 'pending_approval'，不需簽核會是 'active'
+    createdAt: serverTimestamp(),
+    approvalConfig: {
+      isNeedApproval,
+      isApplyCollab,
+      approvalDesc,
+      approvalStatus: isNeedApproval ? (isApplyCollab ? 'pending_collab_dispatch' : 'pending_top_approval') : 'none'
+    },
+    approvalHistory: approvalHistory
   });
 
-  alert("🎉 新專案與子專案已成功建立！開放 7 日自由編輯期。");
+  alert(isNeedApproval ? "🎉 專案已成功送出簽核！" : "🎉 新專案已成功建立！開放 7 日自由編輯期。");
 
+  // 🌟 6.【新增】清空表單與還原簽核選項
+  const chkApproval = document.getElementById("chk-need-approval");
+  if (chkApproval) {
+    chkApproval.checked = false;
+    window.toggleApprovalOptions(false);
+  }
   document.getElementById("proj-name").value = ""; 
   document.getElementById("task-list-container").innerHTML = ""; 
   addTaskRow(); 
   document.getElementById('create-project-section').style.display = 'none';
   
-  currentFilter = 'ongoing';
-  document.getElementById('filter-ongoing').classList.add('active');
-  document.getElementById('filter-completed').classList.remove('active');
-  document.getElementById('filter-delayed').classList.remove('active');
-  document.getElementById('filter-collab').classList.remove('active');
+  // 🌟 7.【修改】自動切換到對應看版：需簽核就切到「簽核中」，不需簽核切到「未完成」
+  if (isNeedApproval) {
+    setProjectFilter('pending_approval');
+  } else {
+    setProjectFilter('ongoing');
+  }
   selectedProjectId = docRef.id;
   renderProjects(); 
 });
@@ -5047,5 +5120,68 @@ window.openEditSubProjectModal = (projId, subProjName) => {
     document.getElementById("general-edit-modal").classList.add("active");
 };
 
-// 🌟 覆寫或擴充原本的 saveGeneralEdit 結尾，使其支援子專案編輯儲存
-// (請在 saveGeneralEdit 函式的 try 區塊內，加入以下 else if 判斷)
+window.openApprovalLogModal = (projId) => {
+  const proj = allProjectsData.find(p => p.id === projId);
+  if (!proj || !proj.approvalHistory) return alert("此專案尚無簽核歷程！");
+
+  let html = `
+    <div class="panel-head" style="margin-bottom:12px;"><span>📜 專案簽核與指派歷程 [${proj.title}]</span></div>
+    <div class="table-responsive" style="max-height:350px; overflow-y:auto;">
+      <table style="width:100%;">
+        <thead>
+          <tr>
+            <th style="width:20%">階段動作</th>
+            <th style="width:18%">操作人員</th>
+            <th style="width:22%">時間</th>
+            <th style="width:40%">說明 / 備註</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  proj.approvalHistory.forEach(h => {
+    html += `
+      <tr>
+        <td style="font-weight:bold; color:var(--primary);">${h.step}</td>
+        <td>${h.operatorName} <small style="color:#64748b;">(${h.role})</small></td>
+        <td style="font-size:12px; color:#64748b;">${h.time}</td>
+        <td style="word-break:break-all;">${h.remark || '-'}</td>
+      </tr>
+    `;
+  });
+
+  html += `</tbody></table></div>`;
+
+  const form = document.getElementById("general-edit-form");
+  document.getElementById("general-edit-title").innerText = "專案簽核歷程";
+  form.innerHTML = html;
+  document.getElementById("general-edit-modal").classList.add("active");
+};
+
+window.assignCollabProject = async (projId, nextAssigneeUid, note) => {
+  const proj = allProjectsData.find(p => p.id === projId);
+  const targetUser = allUsersList.find(u => u.uid === nextAssigneeUid);
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+  const myName = currentUserData.name || "主管";
+
+  const isTargetStaff = (targetUser.role === 'staff');
+  const nextStatus = isTargetStaff ? 'pending_staff_accept' : 'pending_collab_dispatch';
+
+  const history = proj.approvalHistory || [];
+  history.push({
+    step: isTargetStaff ? '指派至執行人員 (待確認)' : '轉交指派',
+    operatorName: myName,
+    operatorUid: auth.currentUser.uid,
+    role: roleNames[currentUserData.role],
+    time: ts,
+    remark: note || `指派給 ${targetUser.name}`
+  });
+
+  await updateDoc(doc(db, "projects", projId), {
+    "approvalConfig.approvalStatus": nextStatus,
+    "approvalConfig.currentAssigneeUid": targetUser.uid,
+    approvalHistory: history
+  });
+
+  alert(`已成功指派給 ${targetUser.name}！`);
+};
