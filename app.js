@@ -1439,9 +1439,12 @@ function renderProjects() {
 
       if (item.type === 'project') {
         const origProj = allProjectsData.find(p => p.id === item.projId);
-        const isCollabOrSubApproval = origProj?.approvalConfig?.isApplyCollab || 
-                                      (origProj?.tasks || []).some(t => t.name?.includes("簽核流程") || t.parentSubProject?.includes("審核"));
-        const projIcon = isCollabOrSubApproval ? "👥" : "🗂️";
+        const isCollab = origProj?.approvalConfig?.isApplyCollab || 
+                         (origProj?.tasks || []).some(t => t.name?.includes("簽核流程") || t.parentSubProject?.includes("審核"));
+        const projIcon = isCollab ? "👥" : "🗂️";
+        
+        // 🌟 協作專案字體設為藍色 (#2563eb)，一般專案維持原深色 (#0f172a)
+        const titleColor = isCollab ? "#2563eb" : "#0f172a";
 
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : `<span>${item.progress}%</span>`;
         if (item.status === 'pending_approval') {
@@ -1459,8 +1462,8 @@ function renderProjects() {
             badgeHtml = `<span style="background: rgba(239, 68, 68, 0.15); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 6px; flex-shrink: 0; white-space: nowrap;">🛑 暫停</span>`;
         }
 
-        // 🌟 已恢復 font-weight:700 粗體顯示
-        let titleDisplay = `${badgeHtml}<span style="color:#0f172a; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${projIcon} ${item.title}</span>`;
+        // 🌟 依 titleColor 套用字體顏色
+        let titleDisplay = `${badgeHtml}<span style="color:${titleColor}; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${projIcon} ${item.title}</span>`;
           
         row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')" style="display:flex; align-items:center; overflow:hidden;">${titleDisplay}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span><span>~ ${item.end.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       } else {
@@ -1468,7 +1471,6 @@ function renderProjects() {
         if (item.hasDelay && !item.isDone) {
             statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
         }
-        // 🌟 事件紀錄也維持 font-weight:700 粗體
         row.innerHTML = `<div class="col-sum-name" style="color:var(--danger); font-weight:700;" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       }
       if(sumLeftBody) sumLeftBody.appendChild(row);
