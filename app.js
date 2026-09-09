@@ -1383,56 +1383,53 @@ function renderProjects() {
     combinedItems.forEach(item => {
       ganttTasksSum.push({ id: item.idStr, name: item.title, start: item.start, end: item.end, progress: item.progress, custom_class: item.custom_class });
       const row = document.createElement("div"); 
-      row.className = "gantt-row";
-      if (item.type === 'project') {
-        let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : `<span style="font-weight:bold;">${item.progress}%</span>`;
-        if (item.status === 'pending_approval') {
-          statusText = '<span style="color:var(--warning); font-weight:700;">⏳ 簽核中</span>';
-        } else if (item.hasDelay && !item.isDone) {
-          statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
-        }
+            row.className = "gantt-row";
+            row.innerHTML = `
+              <div class="col-name" title="${task.name || '未命名任務'}" style="${nameIndent}"><span style="overflow:hidden; text-overflow:ellipsis;">${displayName}</span>${editHtml}</div>
+              ${expectedDateHtml}
+              <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
+              <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="${progressInputStyle}"><span style="font-weight:bold; margin-left:2px;">%</span></div>
+              <div class="col-act"><button type="button" class="action-btn" onclick="updateTaskProgress('${activeProj.id}', ${index})" style="${confirmBtnStyle}" ${isInputLocked ? 'disabled' : ''}>確認</button></div>
+              <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
+            `;
+            if(leftBody) leftBody.appendChild(row);
 
-        let badgeHtml = "";
-        if (item.status === 'pause_requested') {
-            badgeHtml = `<span style="background: rgba(245, 158, 11, 0.15); color: #b45309; border: 1px solid rgba(245, 158, 11, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 6px; flex-shrink: 0; white-space: nowrap;">🔔 待審核暫停</span>`;
-        } else if (item.status === 'paused') {
-            badgeHtml = `<span style="background: rgba(239, 68, 68, 0.15); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 6px; flex-shrink: 0; white-space: nowrap;">🛑 暫停</span>`;
-        }
-
-        let titleDisplay = `${badgeHtml}<span style="color:#0f172a; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🗂️ ${item.title}</span>`;
-          
-        row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')" style="display:flex; align-items:center; overflow:hidden;">${titleDisplay}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span><span>~ ${item.end.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
-      } else {
-        let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
-        if (item.hasDelay && !item.isDone) {
-            statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
-        }
-        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger); font-weight:700;" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
+            if (listBody) {
+              const tr = document.createElement("tr");
+              tr.innerHTML = `
+                <td style="padding:6px 4px;">${displayName}</td>
+                <td style="padding:6px 4px; text-align:center;">${safeStart} ~ ${safeEnd}</td>
+                <td style="padding:6px 4px; text-align:center;">${currentProgress}%</td>
+                <td style="padding:6px 4px; text-align:center;">${taskAssigneeName}</td>
+              `;
+              listBody.appendChild(tr);
+            }
+          } catch (e) {
+            console.error("渲染任務列時發生錯誤:", e);
+          }
       }
-      if(sumLeftBody) sumLeftBody.appendChild(row);
-    });
+  });
 
-    if (ganttTasksSum.length > 0) {
-      document.getElementById("gantt-chart-summary-container").innerHTML = '<div id="gantt-chart-summary"></div>';
-      setTimeout(() => {
-        if (document.getElementById("tab-projects").style.display === "none") return;
-        summaryGanttInstance = new Gantt("#gantt-chart-summary", ganttTasksSum, { 
-          view_mode: 'Day', 
-          language: 'zh', 
-          header_height: 50, 
-          bar_height: 20, 
-          padding: 18, 
-          readonly: true 
-        });
-        patchGanttVisuals(summaryGanttInstance, '#gantt-chart-summary-container');
-        scrollToTodayMinus2Days(summaryGanttInstance, '#gantt-chart-summary-container'); 
-      }, 100); 
-    } else { 
-      document.getElementById("gantt-chart-summary-container").innerHTML = ''; 
-    }
-    return;
+  // 渲染甘特圖（Gantt Chart）
+  if (ganttTasks.length > 0) {
+    document.getElementById("gantt-chart-container").innerHTML = '<div id="gantt-chart"></div>';
+    setTimeout(() => {
+      if (document.getElementById("tab-projects").style.display === "none") return;
+      ganttInstance = new Gantt("#gantt-chart", ganttTasks, {
+        view_mode: 'Day',
+        language: 'zh',
+        header_height: 50,
+        bar_height: 20,
+        padding: 18,
+        readonly: true
+      });
+      patchGanttVisuals(ganttInstance, '#gantt-chart-container', activeProj);
+      scrollToTodayMinus2Days(ganttInstance, '#gantt-chart-container');
+    }, 100);
+  } else {
+    document.getElementById("gantt-chart-container").innerHTML = '';
   }
-
+}
   // ==========================================
   // 檢視 2：專案細部內容檢視
   // ==========================================
