@@ -4955,7 +4955,7 @@ window.renderNotifications = () => {
             
             // 系統知悉通知 (過濾掉協作指派，由專案主層級統一顯示)
             if (t.assigneeId === myUid && isSystemNotif && t.isSystemNotifUnread !== false) {
-                if (t.name.includes("您已被指派協作專案") || t.name.includes("收到來自") || t.name.includes("簽核已被退回")) {
+                if (t.name.includes("您已被指派協作專案") || t.name.includes("收到來自")) {
                     return;
                 }
                 systemNotifs.push({
@@ -4964,6 +4964,7 @@ window.renderNotifications = () => {
                     projTitle: p.title,
                     ownerId: p.ownerId,
                     ownerName: p.ownerName,
+                    status: p.status, // 🌟 帶入 status
                     msg: t.name.replace("[系統通知] ", ""),
                     assignedByName: t.assignedByName || '主管',
                     assignedAt: t.assignedAt || '-'
@@ -5037,20 +5038,19 @@ window.renderNotifications = () => {
         tr.style.borderBottom = "1px solid #f1f5f9";
         tr.innerHTML = `
             <td style="padding: 12px 8px;">
-                <span style="color:var(--primary); font-weight:bold; cursor:pointer; text-decoration:underline;" 
-                      onclick="window.viewProjectFromNotif('${group.ownerId}', '${group.ownerName || '人員'}', '${group.projId}', 'active')" 
+                <span style="color:var(--danger); font-weight:bold; cursor:pointer; text-decoration:underline;" 
+                      onclick="window.viewProjectFromNotif('${notif.ownerId}', '${notif.ownerName || '人員'}', '${notif.projId}', '${notif.status}')" 
                       title="點擊前往查看專案細項">
-                    ${group.projTitle}
+                    ${notif.projTitle}
                 </span>
             </td>
-            <td style="padding: 12px 8px;">📦 ${group.subProjName}</td>
-            <td style="padding: 12px 8px;"><span class="pill" style="background:#eff6ff; color:#1e40af;">${group.assignedByName}</span></td>
-            <td style="padding: 12px 8px;"><span class="pill" style="background:#e0e7ff; color:#3730a3;">子專案指派</span></td>
-            <td style="padding: 12px 8px;"><span style="font-size:12px; color:var(--text-muted);">${group.assignedAt}</span></td>
-            <td style="padding: 12px 8px; color:var(--text-muted);">等待確認接收</td>
-            <td style="padding: 12px 8px; text-align:center; white-space:nowrap;">
-                <button class="action-btn" style="background:#10b981; color:#fff; border:none; margin-right:4px; padding:4px 8px;" onclick="acceptSubProjectAssignment('${group.projId}', '${group.subProjName}')">同意</button>
-                <button class="action-btn danger" style="padding:4px 8px;" onclick="rejectSubProjectAssignment('${group.projId}', '${group.subProjName}')">拒絕</button>
+            <td style="padding: 12px 8px; color:var(--danger); font-weight:600;">🚨 ${notif.msg}</td>
+            <td style="padding: 12px 8px;"><span class="pill" style="background:#fee2e2; color:#b91c1c;">${notif.assignedByName}</span></td>
+            <td style="padding: 12px 8px;"><span class="pill" style="background:#fecaca; color:#991b1b;">系統通知</span></td>
+            <td style="padding: 12px 8px;"><span style="font-size:12px; color:var(--text-muted);">${notif.assignedAt}</span></td>
+            <td style="padding: 12px 8px; color:var(--text-muted);">請確認知悉</td>
+            <td style="padding: 12px 8px; text-align:center;">
+                <button class="action-btn" style="background:var(--danger); color:#fff; border:none; padding:4px 8px;" onclick="dismissSystemNotif('${notif.projId}', ${notif.taskIndex})">我知道了</button>
             </td>
         `;
         tbody.appendChild(tr);
@@ -5489,7 +5489,7 @@ window.rejectProjectApproval = async (projId) => {
     remark: `退回原因: ${reason.trim()}`
   });
 
-  // 🌟 新增：產生系統通知任務，指派給專案申請人 (開案者)
+  // 🌟 關鍵：將「系統通知任務」指派給開案者 (proj.ownerId)，讓申請者的通知紅點亮起
   const tasks = [...(proj.tasks || [])];
   tasks.push({
     name: `[系統通知] 您的專案 [${proj.title}] 簽核已被退回 (原因: ${reason.trim()})`,
@@ -5500,16 +5500,16 @@ window.rejectProjectApproval = async (projId) => {
     isSubProjectTask: true,
     parentSubProject: "專案審核通知",
     assigneeId: proj.ownerId,
-    assigneeName: proj.ownerName,
+    assigneeName: proj.ownerName || '開案人',
     isPendingAcceptance: false,
-    isSystemNotifUnread: true,
+    isSystemNotifUnread: true, // 標記為未讀，通知紅點才會出現
     assignedByUid: auth.currentUser.uid,
     assignedByName: myName,
     assignedAt: ts,
     history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: `專案簽核被退回: ${reason.trim()}` }]
   });
 
-  // 🌟 將 status 設為 'rejected'，並將通知任務寫入 Firebase
+  // 寫入 Firebase
   await updateDoc(doc(db, "projects", projId), {
     status: 'rejected',
     tasks: tasks,
