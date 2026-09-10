@@ -5125,27 +5125,6 @@ window.submitAddSubProject = async () => {
       return;
     }
 
-    // 已生效專案或同部門指派：直接發送通知並寫入
-    if (isPending) {
-      updatedTasks.push({
-        name: `[系統通知] 專案 [${proj.title}] 有新的子專案 [${subProjName}] 指派給您，請確認接收`,
-        start: todayStr,
-        end: todayStr,
-        progress: 100,
-        isCompleted: true,
-        isSubProjectTask: true,
-        parentSubProject: "專案指派確認",
-        assigneeId: assigneeId,
-        assigneeName: assigneeName,
-        isPendingAcceptance: false,
-        isSystemNotifUnread: true,
-        assignedByUid: auth.currentUser?.uid || "",
-        assignedByName: currentUserName,
-        assignedAt: ts,
-        history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: '指派子專案通知' }]
-      });
-    }
-
     await updateDoc(doc(db, "projects", proj.id), {
       tasks: updatedTasks,
       collaboratorUids: collabUids
@@ -5359,7 +5338,11 @@ window.renderNotifications = () => {
             
             // 系統知悉通知 (過濾掉協作指派，由專案主層級統一顯示)
             if (t.assigneeId === myUid && isSystemNotif && t.isSystemNotifUnread !== false) {
-                if (t.name.includes("您已被指派協作專案") || t.name.includes("收到來自")) {
+                // 🌟 在這裡加入判斷：過濾掉「有新的子專案」或「專案指派確認」，只保留上方的同意/拒絕
+                if (t.name.includes("您已被指派協作專案") || 
+                    t.name.includes("收到來自") || 
+                    t.name.includes("有新的子專案") || 
+                    t.parentSubProject === "專案指派確認") {
                     return;
                 }
                 systemNotifs.push({
@@ -5368,7 +5351,7 @@ window.renderNotifications = () => {
                     projTitle: p.title,
                     ownerId: p.ownerId,
                     ownerName: p.ownerName,
-                    status: p.status, // 🌟 帶入 status
+                    status: p.status,
                     msg: t.name.replace("[系統通知] ", ""),
                     assignedByName: t.assignedByName || '主管',
                     assignedAt: t.assignedAt || '-'
