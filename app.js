@@ -1189,10 +1189,27 @@ function renderProjects() {
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
-  // 2. 開放瀏覽專案 (部門被開放瀏覽，且自己不是開案者)
+  // 2. 開放瀏覽專案：部門被開放瀏覽，或透過「協作成員管理(👥)」指定加入者 (非開案者)
   const viewOnlyProjects = allProjectsData.filter(p => {
+    if (p.ownerId === viewingUserId) return false;
+
     const collabs = Array.isArray(p.collaborators) ? p.collaborators : [];
-    return collabs.includes(targetDept) && p.ownerId !== viewingUserId;
+    const isDeptCollab = collabs.includes(targetDept);
+    // 🌟 判定是否由開案者手動加入協作成員名單
+    const isDirectCollab = Array.isArray(p.collaboratorUids) && p.collaboratorUids.includes(viewingUserId);
+
+    if (!isDeptCollab && !isDirectCollab) return false;
+
+    // 🌟 核心過濾：檢查該人員在此專案中是否「已有進行中的任務」
+    const hasMyOngoingTasks = (p.tasks || []).some(t => 
+      t.assigneeId === viewingUserId && 
+      !t.name?.includes("[系統通知]") && 
+      !t.isPendingAcceptance && 
+      !t.isCompleted
+    );
+
+    // 若名下已有未完成任務，專案自動移至「未完成」，不再留在「開放瀏覽」
+    return !hasMyOngoingTasks;
   });
 
   // 3. 有細項指派給自己的專案 (必須是「已同意承接」且非開案者，未同意前不列入專案列表)
@@ -1543,8 +1560,11 @@ function renderProjects() {
   const collabList = Array.isArray(activeProj.collaborators) ? activeProj.collaborators : [];
   const hasViewOnly = collabList.length > 0;
   
-  // 核心控制權：只有開案者或全域管理員可以新增細項、新增子專案、刪除或修改專案主檔
-  let canOperateProject = (isGlobalAdmin || isProjOwner);
+  // 🌟 協作成員判定：已被開案者加入名單者
+  const isCollabMember = Array.isArray(activeProj.collaboratorUids) && activeProj.collaboratorUids.includes(auth.currentUser.uid);
+
+  // 🌟 控制權限：開案者、管理員、或是受邀的協作成員，皆可新增細項與子專案
+  let canOperateProject = (isGlobalAdmin || isProjOwner || isCollabMember);
   let canEditMainProj = (isGlobalAdmin && isEditMode) || (isProjOwner && inGracePeriod);
 
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px;">✏️ 編輯主資訊</button>` : '';
@@ -2102,7 +2122,11 @@ window.submitAddProjectTask = async () => {
 
   await updateDoc(doc(db, "projects", proj.id), { tasks: updatedTasks });
   closeAddProjectTaskModal();
-  alert("🎉 任務細項追加成功！(已自動依日期排序)");
+  alert("🎉 任務細項追加成功！專案已正式移入您的【未完成】清單。");
+  
+  // 🌟 自動切換至未完成檢視並鎖定該專案
+  setProjectFilter('ongoing');
+  selectProject(proj.id);
 };
 
 let resolveDelayPrompt = null;
@@ -5096,8 +5120,17 @@ window.submitAddSubProject = async () => {
 
     await updateDoc(doc(db, "projects", proj.id), { tasks: updatedTasks });
     closeGeneralEditModal();
-    alert(`🎉 子專案已成功指派給同部門同仁【${assigneeName}】！已發送確認通知。`);
-    renderProjects();
+
+    // 🌟 判斷是建立給自己，還是指派給其他同仁
+    if (assigneeId === auth.currentUser.uid) {
+      alert(`🎉 子專案【${subProjName}】新增成功！專案已正式移入您的【未完成】清單。`);
+      // 🌟 自動切換至「未完成」並鎖定展開此專案
+      setProjectFilter('ongoing');
+      selectProject(proj.id);
+    } else {
+      alert(`🎉 子專案【${subProjName}】已成功指派給同部門同仁【${assigneeName}】！已發送確認通知。`);
+      renderProjects();
+    }
 };
 window.syncSubTasksDate = (startInput) => {
     const container = startInput.closest('.sub-tasks-container');
