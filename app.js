@@ -4642,7 +4642,7 @@ window.addInnerSubTask = window.addSubTaskItem = function(btn) {
   try {
     // 1. 尋找目標容器
     const modalContainer = document.getElementById("add-subproject-container");
-    const parentRow = btn.closest('.subproject-row') || btn.closest('.tpl-subproject-row') || modalContainer;
+    const parentRow = btn.closest('#add-subproject-container') || btn.closest('.subproject-row') || btn.closest('.tpl-subproject-row');
     let tasksContainer = parentRow ? parentRow.querySelector('.sub-tasks-container') : null;
 
     // 若找不到容器，自動在按鈕前動態建立一個
@@ -4728,27 +4728,6 @@ window.updateSubTaskNumbers = function(containerOrChild) {
       numSpan.innerText = `${count++}.`;
     }
   });
-};
-
-window.addInnerSubTask = (btn) => {
-   const container = btn.previousElementSibling;
-   let defaultStart = "";
-   const existingApproval = container.querySelector('.is-approval-task .sub-task-start');
-   if (existingApproval && existingApproval.value) defaultStart = existingApproval.value;
-
-   const div = document.createElement('div');
-   div.className = "sub-task-item normal-sub-task";
-   div.style.cssText = "display:flex; gap:6px; align-items:center;";
-   div.innerHTML = `
-      <span style="font-size:12px; font-weight:bold; width:20px;"></span>
-      <input type="text" class="input-control sub-task-name" placeholder="子細項名稱" style="flex:2;">
-      <input type="date" class="input-control sub-task-start" value="${defaultStart}" style="flex:1;" onchange="onTaskStartChange(this, null)">
-      <input type="number" class="input-control sub-task-days" placeholder="天" style="width:60px;" oninput="onTaskDaysChange(this, null, null)">
-      <input type="date" class="input-control sub-task-end" value="${defaultStart}" style="flex:1;" onchange="onTaskEndChange(this, null, null)">
-      <button type="button" class="btn-close" style="font-size:14px; color:var(--danger);" onclick="const c = this.closest('.sub-tasks-container'); this.parentElement.remove(); window.updateSubTaskNumbers(c);">×</button>
-   `;
-   container.appendChild(div);
-   window.updateSubTaskNumbers(container);
 };
 
 window.addTemplateSubProjectRow = (defaultName = "", defaultAssignee = "", subTasks = []) => {
