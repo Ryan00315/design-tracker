@@ -1,0 +1,8 @@
+{
+  "name": "kingtex-pm-system",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "nodemailer": "^6.9.13"
+  }
+}
