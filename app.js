@@ -83,15 +83,19 @@ function getUserDept(uid) {
     return u ? (u.dept || "設計部") : "設計部";
 }
 
-// 🌟 產生全體同仁的指派下拉選單 (依部門分組)
+// 🌟 產生全體同仁選單（未傳入指定人員時，預設選中當前操作者）
 function getSubProjectAssigneeOptions(selectedUid = "") {
-  let options = '<option value="">-- 指派給 (選填) --</option>';
+  const currentUid = auth.currentUser?.uid || "";
+  // 若未傳入或為空，預設選取操作者本人
+  const activeUid = selectedUid || currentUid;
+
+  let options = '<option value="">-- 請選擇負責人 (預設操作者) --</option>';
   departmentList.forEach(dept => {
     const deptUsers = allUsersList.filter(u => (u.dept || "設計部") === dept);
     if (deptUsers.length > 0) {
       options += `<optgroup label="🏢 ${dept}">`;
       deptUsers.forEach(u => {
-        const isSelected = (u.uid === selectedUid) ? "selected" : "";
+        const isSelected = (u.uid === activeUid) ? "selected" : "";
         options += `<option value="${u.uid}" ${isSelected}>${u.name} (${dept})</option>`;
       });
       options += `</optgroup>`;
@@ -4569,45 +4573,40 @@ window.addPreFilledInnerSubTask = (container, name, start, days, end, isApproval
    window.updateSubTaskNumbers(container);
 };
 
-window.addSubProjectRow = (defaultName = "", defaultAssignee = "", subTasks = [], mode = "sequential") => {
-  const container = document.getElementById("task-list-container"); 
-  
-  let assigneeOptions = getSubProjectAssigneeOptions(defaultAssignee);
+window.addSubProjectRow = (defaultName = "", defaultAssignee = "") => {
+    const container = document.getElementById("subprojects-container");
+    const row = document.createElement("div");
+    row.className = "subproject-row";
+    row.style.cssText = "background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:10px; margin-bottom:10px;";
+    
+    // 預設為當前操作者
+    const targetAssignee = defaultAssignee || auth.currentUser?.uid || "";
+    let assigneeOptions = getSubProjectAssigneeOptions(targetAssignee);
 
-  const div = document.createElement('div'); 
-  div.className = "form-row subproject-row"; 
-  div.style.cssText = "margin-bottom: 8px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px; flex-direction: column; gap: 8px;";
-  
-  div.innerHTML = `
-    <div style="display:flex; gap:8px; align-items:center;">
-      <span style="font-weight:bold; color:#d97706;">📦 子專案</span>
-      <div class="form-group" style="margin:0; flex:2;">
-        <input type="text" class="input-control task-name subproject-name" placeholder="子專案名稱 (例: 零件採購)" value="${defaultName}">
-      </div>
-      <div class="form-group" style="margin:0; flex:1;">
-        <select class="input-control subproject-assignee" onchange="onSubProjectAssigneeChange(this)">
-           ${assigneeOptions}
+    row.innerHTML = `
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+        <span style="font-weight:bold; color:var(--primary); font-size:14px; white-space:nowrap;">📦 子專案</span>
+        <input type="text" class="input-control subproject-name" placeholder="子專案名稱 (例: 零件採購)" value="${defaultName}" style="flex:1;">
+        
+        <!-- 🌟 可勾選採購 -->
+        <label style="display:inline-flex; align-items:center; gap:4px; font-size:13px; font-weight:bold; color:#b45309; cursor:pointer; white-space:nowrap; background:#fef3c7; padding:4px 8px; border-radius:4px; border:1px solid #fde68a;">
+          <input type="checkbox" class="subproject-is-procure" onchange="window.toggleSubProjectProcure(this)" style="cursor:pointer;">
+          🛒 採購
+        </label>
+
+        <select class="input-control subproject-assignee" style="width:160px;">
+          ${assigneeOptions}
         </select>
+        <button type="button" class="btn-sort" onclick="moveSubProjectRow(this, -1)" title="上移">↑</button>
+        <button type="button" class="btn-sort" onclick="moveSubProjectRow(this, 1)" title="下移">↓</button>
+        <button type="button" class="action-btn danger" onclick="this.closest('.subproject-row').remove()" style="padding:2px 6px;">✕</button>
       </div>
-      <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
-        <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
-        <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
-        <button type="button" class="action-btn danger" onclick="this.closest('.subproject-row').remove()" style="padding:8px 10px;">X</button>
+      <div class="sub-tasks-container" style="padding-left:14px; border-left:2px solid #fde68a; margin-left:8px;"></div>
+      <div style="margin-top:6px; padding-left:14px;">
+        <button type="button" class="action-btn" onclick="window.addSubTaskItem(this)" style="padding:3px 8px; font-size:12px; background:#fff;">+ 追加子細項</button>
       </div>
-    </div>
-    <div class="sub-tasks-container" style="margin-left: 20px; border-left: 2px solid #fcd34d; padding-left: 10px; display:flex; flex-direction:column; gap:6px;">
-    </div>
-    <button type="button" class="action-btn" onclick="window.addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項</button>
-  `;
-  container.appendChild(div);
-  
-  const tasksContainer = div.querySelector('.sub-tasks-container');
-  if (subTasks && subTasks.length > 0) {
-      subTasks.forEach(st => {
-         let sDays = mode === 'free' ? 1 : (st.days || 1);
-         window.addPreFilledInnerSubTask(tasksContainer, st.name, "", sDays, "", st.isApproval);
-      });
-  }
+    `;
+    container.appendChild(row);
 };
 
 window.addInnerSubTask = (btn) => {
@@ -4671,47 +4670,70 @@ window.addTemplateSubProjectRow = (defaultName = "", defaultAssignee = "", subTa
     }
 };
 
-window.onSubProjectAssigneeChange = (selectElem) => {
-    const uid = selectElem.value;
-    const row = selectElem.closest('.subproject-row') || selectElem.closest('.tpl-subproject-row');
+// 🌟 1. 停用選人自動塞細項（選擇任何人員都不再自動產生「協作流程」）
+window.onSubProjectAssigneeChange = () => {};
+
+// 🌟 2. 勾選「採購」時的強制「簽核送審」邏輯
+window.toggleSubProjectProcure = (checkbox) => {
+    const row = checkbox.closest('.subproject-row') || checkbox.closest('.tpl-subproject-row') || checkbox.closest('#add-subproject-container');
+    if (!row) return;
     const tasksContainer = row.querySelector('.sub-tasks-container');
+    if (!tasksContainer) return;
+
     const existingApproval = tasksContainer.querySelector('.is-approval-task');
 
-    // 🌟 取得開案人部門與被指派人部門
-    const myDept = currentUserData.dept || "設計部";
-    let isCrossDept = false;
-
-    if (uid) {
-        const targetUser = allUsersList.find(u => u.uid === uid);
-        const targetDept = targetUser ? (targetUser.dept || "設計部") : myDept;
-        // 若部門不同，即為跨部門指派
-        if (targetDept !== myDept) {
-            isCrossDept = true;
-        }
-    }
-
-    if (isCrossDept) {
-        // 🌟 跨部門：自動加入「協作流程」細項
+    if (checkbox.checked) {
+        // 勾選：強制在第一項插入「簽核送審」
         if (!existingApproval) {
             let defaultStart = getTodayStr();
+            const projStartInput = document.getElementById("p-start");
+            if (projStartInput && projStartInput.value) defaultStart = projStartInput.value;
+
             const div = document.createElement('div');
             div.className = "sub-task-item is-approval-task";
-            div.style.cssText = "display:flex; gap:6px; align-items:center;";
+            div.style.cssText = "display:flex; gap:6px; align-items:center; margin-bottom:6px;";
             div.innerHTML = `
               <span style="font-size:12px; color:var(--danger); font-weight:bold; width:20px;"></span>
-              <input type="text" class="input-control sub-task-name" value="協作流程" readonly style="flex:2; background:#fef2f2; color:var(--danger); font-weight:bold; border-color:#fca5a5;">
+              <input type="text" class="input-control sub-task-name" value="簽核送審" readonly style="flex:2; background:#fef2f2; color:var(--danger); font-weight:bold; border-color:#fca5a5;">
               <input type="date" class="input-control sub-task-start" value="${defaultStart}" onchange="onTaskStartChange(this, null); window.syncSubTasksDate(this)" style="flex:1;">
-              <input type="number" class="input-control sub-task-days" value="1" placeholder="天數" oninput="onTaskDaysChange(this, null, null)" style="width:60px;">
-              <input type="date" class="input-control sub-task-end" value="${defaultStart}" onchange="onTaskEndChange(this, null, null)" style="flex:1;">
+              <input type="number" class="input-control sub-task-days" value="1" min="1" placeholder="天數" oninput="onTaskDaysChange(this, null, null); window.syncSubTasksDate(this)" style="width:60px;">
+              <input type="date" class="input-control sub-task-end" value="${defaultStart}" onchange="onTaskEndChange(this, null, null); window.syncSubTasksDate(this)" style="flex:1;">
             `;
             tasksContainer.insertBefore(div, tasksContainer.firstChild);
-            window.syncSubTasksDate(div.querySelector('.sub-task-start'));
+            window.syncSubTasksDate(div.querySelector('.sub-task-end'));
         }
     } else {
-        // 🌟 同部門（或未指派）：不進入審核流程，移除流程細項
-        if (existingApproval) existingApproval.remove();
+        // 取消勾選：移除「簽核送審」
+        if (existingApproval) {
+            existingApproval.remove();
+        }
     }
     window.updateSubTaskNumbers(tasksContainer);
+};
+
+// 🌟 3. 採購「簽核送審」完成日連動後續細項起始日
+window.syncSubTasksDate = (triggerInput) => {
+    const container = triggerInput.closest('.sub-tasks-container');
+    if (!container) return;
+    const approvalTask = container.querySelector('.is-approval-task');
+    if (!approvalTask) return;
+    const approvalEndInput = approvalTask.querySelector('.sub-task-end');
+    if (!approvalEndInput || !approvalEndInput.value) return;
+
+    const nextWorkDay = getNextWorkingDayStr(approvalEndInput.value);
+    const taskRows = container.querySelectorAll('.sub-task-item:not(.is-approval-task)');
+    taskRows.forEach(row => {
+        const startInput = row.querySelector('.sub-task-start');
+        const daysInput = row.querySelector('.sub-task-days');
+        const endInput = row.querySelector('.sub-task-end');
+        if (startInput) {
+            startInput.value = nextWorkDay;
+            if (daysInput && endInput) {
+                const days = parseInt(daysInput.value) || 1;
+                endInput.value = addWorkingDays(nextWorkDay, days - 1);
+            }
+        }
+    });
 };
 
 window.updateSubTaskNumbers = (container) => {
@@ -4726,43 +4748,51 @@ window.updateSubTaskNumbers = (container) => {
     });
 };
 
+// 🌟 追加子專案彈窗
 window.openAddSubProjectModal = () => {
-    const proj = allProjectsData.find(p => p.id === selectedProjectId);
-    if (!proj) return;
-    
-    const container = document.getElementById("add-subproject-container");
-    container.innerHTML = ""; 
-    
-    const titleHeader = document.createElement('div');
-    titleHeader.style.cssText = "margin-bottom: 15px; font-size: 15px; font-weight: bold; color: var(--primary); background: #e0e7ff; padding: 8px 12px; border-radius: 6px; border: 1px solid #c7d2fe;";
-    titleHeader.innerHTML = `📝 目前主專案：<span style="color: #312e81;">${proj.title}</span>`;
-    container.appendChild(titleHeader);
-    
-    let assigneeOptions = getSubProjectAssigneeOptions("");
+    const modal = document.getElementById("general-edit-modal");
+    const form = document.getElementById("general-edit-form");
+    document.getElementById("general-edit-title").innerText = `📦 追加新子專案`;
 
-    const div = document.createElement('div'); 
-    div.className = "form-row subproject-row"; 
-    div.style.cssText = "background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px; flex-direction: column; gap: 8px;";
-    
-    div.innerHTML = `
-      <div style="display:flex; gap:8px; align-items:center;">
-        <span style="font-weight:bold; color:#d97706;">📦 子專案</span>
-        <div class="form-group" style="margin:0; flex:2;">
-          <input type="text" class="input-control task-name subproject-name" placeholder="子專案名稱 (例: 零件採購)">
-        </div>
-        <div class="form-group" style="margin:0; flex:1;">
-          <select class="input-control subproject-assignee" onchange="onSubProjectAssigneeChange(this)">
-             ${assigneeOptions}
+    // 預設為當前操作者
+    const assigneeOptions = getSubProjectAssigneeOptions(auth.currentUser?.uid || "");
+
+    form.innerHTML = `
+      <div id="add-subproject-container" style="background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:12px;">
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+          <span style="font-weight:bold; color:var(--primary); font-size:14px; white-space:nowrap;">📦 子專案</span>
+          <input type="text" class="input-control subproject-name" placeholder="子專案名稱 (必填)" style="flex:1;" required>
+          
+          <label style="display:inline-flex; align-items:center; gap:4px; font-size:13px; font-weight:bold; color:#b45309; cursor:pointer; white-space:nowrap; background:#fef3c7; padding:4px 8px; border-radius:4px; border:1px solid #fde68a;">
+            <input type="checkbox" class="subproject-is-procure" onchange="window.toggleSubProjectProcure(this)" style="cursor:pointer;">
+            🛒 採購
+          </label>
+
+          <select class="input-control subproject-assignee" style="width:160px;">
+            ${assigneeOptions}
           </select>
         </div>
+        <div class="sub-tasks-container" style="padding-left:14px; border-left:2px solid #fde68a; margin-left:8px;"></div>
+        <div style="margin-top:8px; padding-left:14px;">
+          <button type="button" class="action-btn" onclick="window.addSubTaskItem(this)" style="padding:3px 8px; font-size:12px; background:#fff;">+ 追加子細項</button>
+        </div>
       </div>
-      <div class="sub-tasks-container" style="margin-top: 10px; margin-left: 20px; border-left: 2px solid #fcd34d; padding-left: 10px; display:flex; flex-direction:column; gap:6px;">
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+        <button type="button" class="action-btn" onclick="closeGeneralEditModal()">取消</button>
+        <button type="button" class="btn-primary" style="width:auto; padding:6px 16px;" onclick="submitAddSubProject()">確認新增</button>
       </div>
-      <button type="button" class="action-btn" onclick="window.addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項</button>
     `;
-    
-    container.appendChild(div);
-    document.getElementById("project-subproject-modal").classList.add("active");
+
+    // 隱藏原生底層按鈕
+    const defaultSaveBtn = Array.from(modal.querySelectorAll("button")).find(b => 
+      b.getAttribute("onclick")?.includes("saveGeneralEdit") || b.textContent.includes("儲存修改")
+    );
+    const defaultFooter = defaultSaveBtn ? defaultSaveBtn.closest("div") : null;
+    if (defaultFooter && defaultFooter !== form && !form.contains(defaultFooter)) {
+      defaultFooter.style.display = "none";
+    }
+
+    modal.classList.add("active");
 };
 
 window.closeAddSubProjectModal = () => {
@@ -4771,80 +4801,68 @@ window.closeAddSubProjectModal = () => {
 
 window.submitAddSubProject = async () => {
     const container = document.getElementById("add-subproject-container");
-    const subProjName = container.querySelector('.subproject-name').value.trim() || "未命名子專案";
+    const subProjName = container.querySelector('.subproject-name').value.trim();
+    if (!subProjName) return alert("請輸入子專案名稱！");
     
+    // 🌟 1. 預設負責人：若未選，直接綁定操作者本人
     const assigneeSelect = container.querySelector('.subproject-assignee');
-    const assigneeId = assigneeSelect.value;
-    const assigneeName = assigneeId ? assigneeSelect.options[assigneeSelect.selectedIndex].text.split(' ')[0] : (currentUserData.name || auth.currentUser.email.split('@')[0]);
-    const uidToAssign = assigneeId || auth.currentUser.uid;
-    
+    const assigneeId = assigneeSelect.value || auth.currentUser.uid;
+    const assigneeName = assigneeSelect.value 
+      ? assigneeSelect.options[assigneeSelect.selectedIndex].text.split(' ')[0] 
+      : (currentUserData.name || auth.currentUser.email.split('@')[0]);
+
     const ts = new Date().toLocaleString('zh-TW', { hour12: false });
     const todayStr = getTodayStr();
     const newTasks = [];
-    
     const currentUserName = currentUserData.name || auth.currentUser.email.split('@')[0];
     const myDept = currentUserData.dept || "設計部";
 
-    // 🌟 核心判斷：是否為跨部門指派
+    // 🌟 2. 跨部門判斷
     let isCrossDept = false;
     let targetDept = myDept;
-    if (uidToAssign && uidToAssign !== auth.currentUser.uid) {
-        const targetUser = allUsersList.find(u => u.uid === uidToAssign);
+    if (assigneeId && assigneeId !== auth.currentUser.uid) {
+        const targetUser = allUsersList.find(u => u.uid === assigneeId);
         targetDept = targetUser ? (targetUser.dept || "設計部") : myDept;
         if (targetDept !== myDept) {
             isCrossDept = true;
         }
     }
 
-    const isPending = (uidToAssign !== auth.currentUser.uid);
+    const isPending = (assigneeId !== auth.currentUser.uid);
 
+    // 🌟 3. 收集細項（徹底移除「尚未建立細項」廢資料，未命名的細項直接跳過）
     const taskItems = container.querySelectorAll('.sub-task-item');
-    if (taskItems.length === 0) {
-        newTasks.push({ 
-            name: `[${subProjName}] 尚未建立細項`, 
-            start: todayStr, end: todayStr, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
-            assigneeId: uidToAssign,
-            assigneeName: assigneeName,
-            isSubProjectTask: true,
-            parentSubProject: subProjName, 
-            createdAt: Date.now(), 
-            isPendingAcceptance: isPending,
-            assignedByUid: auth.currentUser.uid,
-            assignedByName: currentUserName,
-            assignedAt: ts,
-            history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: 0, delayReason: '', remark: '追加空子專案' }] 
-        });
-    } else {
-        for (let subRow of taskItems) {
-            const sName = subRow.querySelector('.sub-task-name').value.trim();
-            const sStart = subRow.querySelector('.sub-task-start').value;
-            const sEnd = subRow.querySelector('.sub-task-end').value;
-            
-            if (!sName) continue;
-            if (!sStart || !sEnd) return alert(`子細項不可有空白日期！`);
-            if (sStart > sEnd) return alert(`子細項 [${sName}] 的起始日不可大於完成日！`);
-            
-            let passedDays = 0; 
-            if (todayStr >= sStart) passedDays = getWorkingDays(sStart, todayStr);
+    for (let subRow of taskItems) {
+        const sName = subRow.querySelector('.sub-task-name').value.trim();
+        const sStart = subRow.querySelector('.sub-task-start').value;
+        const sEnd = subRow.querySelector('.sub-task-end').value;
+        
+        if (!sName) continue; // 忽略未命名的空白行
+        if (!sStart || !sEnd) return alert(`子細項 [${sName}] 不可有空白日期！`);
+        if (sStart > sEnd) return alert(`子細項 [${sName}] 的起始日不可大於完成日！`);
+        
+        let passedDays = (todayStr >= sStart) ? getWorkingDays(sStart, todayStr) : 0;
 
-            newTasks.push({ 
-              name: `[${subProjName}] ${sName}`, 
-              start: sStart, end: sEnd, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
-              assigneeId: uidToAssign,
-              assigneeName: assigneeName,
-              isSubProjectTask: true,
-              parentSubProject: subProjName, 
-              createdAt: Date.now(),
-              isPendingAcceptance: isPending,
-              assignedByUid: auth.currentUser.uid,
-              assignedByName: currentUserName,
-              assignedAt: ts,
-              history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '追加子專案細項' }] 
-            });
-        }
+        newTasks.push({ 
+          name: `[${subProjName}] ${sName}`, 
+          start: sStart, end: sEnd, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
+          assigneeId: assigneeId,
+          assigneeName: assigneeName,
+          isSubProjectTask: true,
+          parentSubProject: subProjName, 
+          createdAt: Date.now(),
+          isPendingAcceptance: isPending,
+          assignedByUid: auth.currentUser.uid,
+          assignedByName: currentUserName,
+          assignedAt: ts,
+          history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '追加子專案細項' }] 
+        });
     }
     
-    if (newTasks.length === 0) return alert("沒有有效的新增細項！");
+    // 🌟 4. 防呆攔截：若完全沒有有效細項，主動提示，絕不產生空任務
+    if (newTasks.length === 0) {
+        return alert("請至少為此子專案建立一個細項（請點擊「+ 追加子細項」並填寫名稱，或勾選「採購」）！");
+    }
 
     const proj = allProjectsData.find(p => p.id === selectedProjectId);
     if (!proj) return alert("找不到目前專案！");
@@ -4853,7 +4871,7 @@ window.submitAddSubProject = async () => {
     updatedTasks.sort((a, b) => (a.start || "").localeCompare(b.start || ""));
 
     // ========================================================
-    // 分流 1：跨部門指派 ➔ 強制啟動「協作流程」，送交「第一關卡：最高主管」
+    // 分流 1：跨部門指派 ➔ 強制啟動「協作流程關卡」，送交「第一關卡：最高主管」
     // ========================================================
     if (isCrossDept) {
         const history = proj.approvalHistory || [];
@@ -4868,27 +4886,27 @@ window.submitAddSubProject = async () => {
         });
 
         await updateDoc(doc(db, "projects", proj.id), {
-            status: 'pending_approval', // 進入簽核狀態
+            status: 'pending_approval',
             tasks: updatedTasks,
             approvalConfig: {
                 isNeedApproval: true,
-                isApplyCollab: true, // 標記為協作流程
+                isApplyCollab: true,
                 approvalDesc: `跨部門申請協作子專案【${subProjName}】(由 ${myDept} 的 ${currentUserName} 申請，預計指派至 ${targetDept} - ${assigneeName})`,
-                currentStage: 'top_manager', // 🌟 第一關：鎖定最高主管
-                currentAssigneeUid: "",      // 等待最高主管指派
+                currentStage: 'top_manager', // 🌟 鎖定最高主管關卡
+                currentAssigneeUid: "",
                 approvalStatus: 'pending_collab_dispatch'
             },
             approvalHistory: history
         });
 
-        closeAddSubProjectModal();
+        closeGeneralEditModal();
         alert(`🎉 偵測到跨部門指派（${myDept} ➔ ${targetDept}）！\n專案已自動進入【協作流程】，送交主管進行第一道關卡審核指派。`);
         setProjectFilter('pending_approval');
         return;
     }
 
     // ========================================================
-    // 分流 2：同部門指派 ➔ 不進審核，直接發通知給該同仁點【同意】/【拒絕】
+    // 分流 2：同部門指派 ➔ 不跑審核關卡，直接發送通知給對方確認接收
     // ========================================================
     if (isPending) {
         updatedTasks.push({
@@ -4899,7 +4917,7 @@ window.submitAddSubProject = async () => {
             isCompleted: true,
             isSubProjectTask: true,
             parentSubProject: "專案指派確認",
-            assigneeId: uidToAssign,
+            assigneeId: assigneeId,
             assigneeName: assigneeName,
             isPendingAcceptance: false,
             isSystemNotifUnread: true,
@@ -4911,7 +4929,7 @@ window.submitAddSubProject = async () => {
     }
 
     await updateDoc(doc(db, "projects", proj.id), { tasks: updatedTasks });
-    closeAddSubProjectModal();
+    closeGeneralEditModal();
     alert(`🎉 子專案已成功指派給同部門同仁【${assigneeName}】！已發送確認通知。`);
     renderProjects();
 };
