@@ -4990,148 +4990,188 @@ window.closeAddSubProjectModal = () => {
 };
 
 window.submitAddSubProject = async () => {
+  try {
     const container = document.getElementById("add-subproject-container");
-    const subProjName = container.querySelector('.subproject-name').value.trim();
+    if (!container) return alert("找不到子專案表單容器，請重新開啟彈窗！");
+
+    const nameInput = container.querySelector('.subproject-name');
+    const subProjName = nameInput ? nameInput.value.trim() : "";
     if (!subProjName) return alert("請輸入子專案名稱！");
-    
-    // 🌟 1. 預設負責人：若未選，直接綁定操作者本人
+
+    // 🌟 1. 取得指派負責人資訊 (加入防呆，避免選單索引拋錯)
     const assigneeSelect = container.querySelector('.subproject-assignee');
-    const assigneeId = assigneeSelect.value || auth.currentUser.uid;
-    const assigneeName = assigneeSelect.value 
-      ? assigneeSelect.options[assigneeSelect.selectedIndex].text.split(' ')[0] 
-      : (currentUserData.name || auth.currentUser.email.split('@')[0]);
+    let assigneeId = auth.currentUser?.uid || "";
+    let assigneeName = currentUserData.name || auth.currentUser?.email?.split('@')[0] || "本人";
+
+    if (assigneeSelect && assigneeSelect.value) {
+      assigneeId = assigneeSelect.value;
+      const opt = assigneeSelect.options[assigneeSelect.selectedIndex];
+      assigneeName = opt ? opt.text.split(' ')[0] : assigneeName;
+    }
 
     const ts = new Date().toLocaleString('zh-TW', { hour12: false });
     const todayStr = getTodayStr();
-    const newTasks = [];
-    const currentUserName = currentUserData.name || auth.currentUser.email.split('@')[0];
+    const currentUserName = currentUserData.name || auth.currentUser?.email?.split('@')[0] || "人員";
     const myDept = currentUserData.dept || "設計部";
 
     // 🌟 2. 跨部門判斷
     let isCrossDept = false;
     let targetDept = myDept;
-    if (assigneeId && assigneeId !== auth.currentUser.uid) {
-        const targetUser = allUsersList.find(u => u.uid === assigneeId);
-        targetDept = targetUser ? (targetUser.dept || "設計部") : myDept;
-        if (targetDept !== myDept) {
-            isCrossDept = true;
-        }
+    if (assigneeId && assigneeId !== auth.currentUser?.uid) {
+      const targetUser = allUsersList.find(u => u.uid === assigneeId);
+      targetDept = targetUser ? (targetUser.dept || "設計部") : myDept;
+      if (targetDept !== myDept) {
+        isCrossDept = true;
+      }
     }
 
-    const isPending = (assigneeId !== auth.currentUser.uid);
+    const isPending = (assigneeId !== auth.currentUser?.uid);
 
-    // 🌟 3. 收集細項（徹底移除「尚未建立細項」廢資料，未命名的細項直接跳過）
+    // 🌟 3. 收集細項 (安全讀取 DOM 節點)
+    const newTasks = [];
     const taskItems = container.querySelectorAll('.sub-task-item');
     for (let subRow of taskItems) {
-        const sName = subRow.querySelector('.sub-task-name').value.trim();
-        const sStart = subRow.querySelector('.sub-task-start').value;
-        const sEnd = subRow.querySelector('.sub-task-end').value;
-        
-        if (!sName) continue; // 忽略未命名的空白行
-        if (!sStart || !sEnd) return alert(`子細項 [${sName}] 不可有空白日期！`);
-        if (sStart > sEnd) return alert(`子細項 [${sName}] 的起始日不可大於完成日！`);
-        
-        let passedDays = (todayStr >= sStart) ? getWorkingDays(sStart, todayStr) : 0;
+      const nameEl = subRow.querySelector('.sub-task-name');
+      const startEl = subRow.querySelector('.sub-task-start');
+      const endEl = subRow.querySelector('.sub-task-end');
 
-        newTasks.push({ 
-          name: `[${subProjName}] ${sName}`, 
-          start: sStart, end: sEnd, progress: 0, isCompleted: false, completedAt: null, delayReason: "", lastUpdatedAt: ts, reportedCompleted: false, 
-          assigneeId: assigneeId,
-          assigneeName: assigneeName,
-          isSubProjectTask: true,
-          parentSubProject: subProjName, 
-          createdAt: Date.now(),
-          isPendingAcceptance: isPending,
-          assignedByUid: auth.currentUser.uid,
-          assignedByName: currentUserName,
-          assignedAt: ts,
-          history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '追加子專案細項' }] 
-        });
+      const sName = nameEl ? nameEl.value.trim() : "";
+      const sStart = startEl ? startEl.value : "";
+      const sEnd = endEl ? endEl.value : "";
+
+      if (!sName) continue; // 忽略未命名的空白行
+      if (!sStart || !sEnd) return alert(`子細項 [${sName}] 不可有空白日期！`);
+      if (sStart > sEnd) return alert(`子細項 [${sName}] 的起始日不可大於完成日！`);
+
+      let passedDays = (todayStr >= sStart) ? getWorkingDays(sStart, todayStr) : 0;
+
+      newTasks.push({
+        name: `[${subProjName}] ${sName}`,
+        start: sStart,
+        end: sEnd,
+        progress: 0,
+        isCompleted: false,
+        completedAt: null,
+        delayReason: "",
+        lastUpdatedAt: ts,
+        reportedCompleted: false,
+        assigneeId: assigneeId,
+        assigneeName: assigneeName,
+        isSubProjectTask: true,
+        parentSubProject: subProjName,
+        createdAt: Date.now(),
+        isPendingAcceptance: isPending,
+        assignedByUid: auth.currentUser?.uid || "",
+        assignedByName: currentUserName,
+        assignedAt: ts,
+        history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '追加子專案細項' }]
+      });
     }
-    
-    // 🌟 4. 防呆攔截：若完全沒有有效細項，主動提示，絕不產生空任務
+
+    // 🌟 4. 至少需建立一個有效細項
     if (newTasks.length === 0) {
-        return alert("請至少為此子專案建立一個細項（請點擊「+ 追加子細項」並填寫名稱，或勾選「採購」）！");
+      return alert("請至少為此子專案建立一個細項（請點擊「+ 追加子細項」並填寫名稱，或勾選「採購」）！");
     }
 
     const proj = allProjectsData.find(p => p.id === selectedProjectId);
     if (!proj) return alert("找不到目前專案！");
 
-    const updatedTasks = [...proj.tasks, ...newTasks];
+    // 容錯展開既有任務
+    const updatedTasks = [...(proj.tasks || []), ...newTasks];
     updatedTasks.sort((a, b) => (a.start || "").localeCompare(b.start || ""));
 
-    // ========================================================
-    // 分流 1：跨部門指派 ➔ 強制啟動「協作流程關卡」，送交「第一關卡：最高主管」
-    // ========================================================
-    if (isCrossDept) {
-        const history = proj.approvalHistory || [];
-        history.push({
-            step: `提出申請協作 (跨部門子專案: ${subProjName})`,
-            operatorName: currentUserName,
-            operatorUid: auth.currentUser.uid,
-            role: roleNames[currentUserData.role] || currentUserData.role,
-            time: ts,
-            remark: `申請將子專案【${subProjName}】跨部門協作至【${targetDept} - ${assigneeName}】`,
-            targetRole: '第一道關卡：待主管審核指派'
-        });
-
-        await updateDoc(doc(db, "projects", proj.id), {
-            status: 'pending_approval',
-            tasks: updatedTasks,
-            approvalConfig: {
-                isNeedApproval: true,
-                isApplyCollab: true,
-                approvalDesc: `跨部門申請協作子專案【${subProjName}】(由 ${myDept} 的 ${currentUserName} 申請，預計指派至 ${targetDept} - ${assigneeName})`,
-                currentStage: 'top_manager', // 🌟 鎖定最高主管關卡
-                currentAssigneeUid: "",
-                approvalStatus: 'pending_collab_dispatch'
-            },
-            approvalHistory: history
-        });
-
-        closeGeneralEditModal();
-        alert(`🎉 偵測到跨部門指派（${myDept} ➔ ${targetDept}）！\n專案已自動進入【協作流程】，送交主管進行第一道關卡審核指派。`);
-        setProjectFilter('pending_approval');
-        return;
+    // 🌟 5. 自動將被指派人納入協作成員白名單 (確保對方能看到專案)
+    let collabUids = Array.isArray(proj.collaboratorUids) ? [...proj.collaboratorUids] : [];
+    if (isPending && !collabUids.includes(assigneeId)) {
+      collabUids.push(assigneeId);
     }
 
     // ========================================================
-    // 分流 2：同部門指派 ➔ 不跑審核關卡，直接發送通知給對方確認接收
+    // 🌟 核心分流：
+    // 若專案已經審核通過生效 (status === 'active')，
+    // 新增子專案指派屬於執行期的任務分派，絕對不重新打回 pending_approval！
+    // ========================================================
+    const isAlreadyApprovedProj = (proj.status === 'active');
+
+    if (isCrossDept && !isAlreadyApprovedProj) {
+      // 僅在「初次草稿開案」跨部門指派時，才送交最高主管簽核
+      const history = proj.approvalHistory || [];
+      history.push({
+        step: `提出申請協作 (跨部門子專案: ${subProjName})`,
+        operatorName: currentUserName,
+        operatorUid: auth.currentUser?.uid || "",
+        role: roleNames[currentUserData.role] || currentUserData.role,
+        time: ts,
+        remark: `申請將子專案【${subProjName}】跨部門協作至【${targetDept} - ${assigneeName}】`,
+        targetRole: '第一道關卡：待主管審核指派'
+      });
+
+      await updateDoc(doc(db, "projects", proj.id), {
+        status: 'pending_approval',
+        tasks: updatedTasks,
+        collaboratorUids: collabUids,
+        approvalConfig: {
+          isNeedApproval: true,
+          isApplyCollab: true,
+          approvalDesc: `跨部門申請協作子專案【${subProjName}】(由 ${myDept} 的 ${currentUserName} 申請，預計指派至 ${targetDept} - ${assigneeName})`,
+          currentStage: 'top_manager',
+          currentAssigneeUid: "",
+          approvalStatus: 'pending_collab_dispatch'
+        },
+        approvalHistory: history
+      });
+
+      closeGeneralEditModal();
+      alert(`🎉 偵測到跨部門指派（${myDept} ➔ ${targetDept}）！\n專案已送交主管進行協作審核指派。`);
+      setProjectFilter('pending_approval');
+      return;
+    }
+
+    // ========================================================
+    // 已通過簽核之專案（直接寫入任務並向被指派人發送接收通知）
     // ========================================================
     if (isPending) {
-        updatedTasks.push({
-            name: `[系統通知] 專案 [${proj.title}] 有新的子專案 [${subProjName}] 指派給您，請確認接收`,
-            start: todayStr,
-            end: todayStr,
-            progress: 100,
-            isCompleted: true,
-            isSubProjectTask: true,
-            parentSubProject: "專案指派確認",
-            assigneeId: assigneeId,
-            assigneeName: assigneeName,
-            isPendingAcceptance: false,
-            isSystemNotifUnread: true,
-            assignedByUid: auth.currentUser.uid,
-            assignedByName: currentUserName,
-            assignedAt: ts,
-            history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: '指派子專案通知' }]
-        });
+      updatedTasks.push({
+        name: `[系統通知] 專案 [${proj.title}] 有新的子專案 [${subProjName}] 指派給您，請確認接收`,
+        start: todayStr,
+        end: todayStr,
+        progress: 100,
+        isCompleted: true,
+        isSubProjectTask: true,
+        parentSubProject: "專案指派確認",
+        assigneeId: assigneeId,
+        assigneeName: assigneeName,
+        isPendingAcceptance: false,
+        isSystemNotifUnread: true,
+        assignedByUid: auth.currentUser?.uid || "",
+        assignedByName: currentUserName,
+        assignedAt: ts,
+        history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: '指派子專案通知' }]
+      });
     }
 
-    await updateDoc(doc(db, "projects", proj.id), { tasks: updatedTasks });
+    await updateDoc(doc(db, "projects", proj.id), {
+      tasks: updatedTasks,
+      collaboratorUids: collabUids
+    });
+
     closeGeneralEditModal();
 
-    // 🌟 判斷是建立給自己，還是指派給其他同仁
-    if (assigneeId === auth.currentUser.uid) {
+    if (assigneeId === auth.currentUser?.uid) {
       alert(`🎉 子專案【${subProjName}】新增成功！專案已正式移入您的【未完成】清單。`);
-      // 🌟 自動切換至「未完成」並鎖定展開此專案
       setProjectFilter('ongoing');
       selectProject(proj.id);
     } else {
-      alert(`🎉 子專案【${subProjName}】已成功指派給同部門同仁【${assigneeName}】！已發送確認通知。`);
+      alert(`🎉 子專案【${subProjName}】已成功指派給【${assigneeName}】！已發送確認通知。`);
       renderProjects();
     }
+
+  } catch (err) {
+    console.error("提交子專案失敗:", err);
+    alert("⚠️ 新增子專案時發生錯誤: " + err.message);
+  }
 };
+
 window.syncSubTasksDate = (startInput) => {
     const container = startInput.closest('.sub-tasks-container');
     if (!container || !startInput.value) return;
