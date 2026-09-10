@@ -6178,7 +6178,7 @@ window.rejectProjectApproval = async (projId) => {
   renderProjects();
 };
 
-// 🌟 3. 主管自行承接協作專案
+// 🌟 承接協作專案：保持母專案原開案者不變，僅將 B 納入協作成員並生效
 window.selfAcceptCollabProject = async (projId) => {
   if (!confirm("確定要承接此協作專案嗎？\n承接後專案將正式生效，並加入您的【未完成】專案清單中。")) return;
   const proj = allProjectsData.find(p => p.id === projId);
@@ -6197,7 +6197,7 @@ window.selfAcceptCollabProject = async (projId) => {
     remark: `${myName} 已確認承接此協作專案`
   });
 
-  // 將所有待確認的協作/子專案細項正式移交給當前承接者，並消除通知
+  // 1. 將相關通知任務標記為已讀，並解除指派細項的鎖定
   const tasks = (proj.tasks || []).map(t => {
     if (t.name && t.name.includes("[系統通知]")) {
       return { ...t, isSystemNotifUnread: false };
@@ -6205,16 +6205,22 @@ window.selfAcceptCollabProject = async (projId) => {
     if (t.isSubProjectTask && t.isPendingAcceptance) {
       return {
         ...t,
-        isPendingAcceptance: false, // 🌟 解除鎖定
-        assigneeId: auth.currentUser.uid, // 移交給承接人
-        assigneeName: myName
+        isPendingAcceptance: false // 🌟 解除鎖定
       };
     }
     return t;
   });
 
+  // 2. 將承接人 B 自動納入協作成員名單 (白名單)
+  let collabUids = Array.isArray(proj.collaboratorUids) ? [...proj.collaboratorUids] : [];
+  if (!collabUids.includes(auth.currentUser.uid)) {
+    collabUids.push(auth.currentUser.uid);
+  }
+
+  // 3. 更新 Firebase：嚴格保留 proj.ownerId 與 proj.ownerName，絕不改動！
   await updateDoc(doc(db, "projects", projId), {
-    status: 'active', // 專案正式生效
+    status: 'active',
+    collaboratorUids: collabUids,
     "approvalConfig.approvalStatus": 'approved',
     approvalHistory: history,
     tasks: tasks
