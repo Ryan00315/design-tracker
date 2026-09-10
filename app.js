@@ -3700,52 +3700,55 @@ window.saveGeneralEdit = async () => {
 
       const updateData = { title, collaborators };
 
-      // 🌟 檢查是否有主管/管理員專用的更換負責人選單
+      // 🌟 檢查更換專案負責人
       const ownerSelect = document.getElementById("edit-val-proj-owner");
       if (ownerSelect) {
         const newOwnerUid = ownerSelect.value;
         const newOwnerUser = allUsersList.find(u => u.uid === newOwnerUid);
-        if (newOwnerUser) {
+        const proj = allProjectsData.find(p => p.id === id);
+
+        // 若開案負責人有變動 (例如 A 轉交給 B)
+        if (newOwnerUser && proj && proj.ownerId !== newOwnerUid) {
+          const oldOwnerUid = proj.ownerId;
           updateData.ownerId = newOwnerUid;
           updateData.ownerName = newOwnerUser.name;
+
+          if (Array.isArray(proj.tasks)) {
+            updateData.tasks = proj.tasks.map(t => {
+              const isTaskDone = (t.isCompleted === true || t.progress >= 100);
+              const isOldOwnerTask = (t.assigneeId === oldOwnerUid || !t.assigneeId);
+
+              // 🌟 1. 已 100% 完成的工作：維持原負責人，保留歷史執行紀錄
+              if (isTaskDone) {
+                return t;
+              }
+
+              // 🌟 2. 屬於原開案者 (A) 且「尚未完成」的工作：直接切換至新負責人 (B)
+              if (isOldOwnerTask) {
+                return {
+                  ...t,
+                  assigneeId: newOwnerUid,
+                  assigneeName: newOwnerUser.name
+                };
+              }
+
+              // 🌟 3. 若協作者為其他同仁：完整保留，不變動其指派
+              return t;
+            });
+          }
+
+          // 確保新負責人 (B) 納入專案成員清單
+          let collabUids = Array.isArray(proj.collaboratorUids) ? [...proj.collaboratorUids] : [];
+          if (!collabUids.includes(newOwnerUid)) collabUids.push(newOwnerUid);
+          updateData.collaboratorUids = collabUids;
         }
       }
 
       await updateDoc(doc(db, "projects", id), updateData);
-      
-    } else if (type === 'subproject_edit') {
-      const newName = document.getElementById("edit-subproj-name").value.trim();
-      const newAssigneeId = document.getElementById("edit-subproj-assignee").value;
-      const assigneeSelect = document.getElementById("edit-subproj-assignee");
-      const newAssigneeName = newAssigneeId ? assigneeSelect.options[assigneeSelect.selectedIndex].text.split(' ')[0] : currentUserData.name;
-
-      if (!newName) return alert("子專案名稱不可空白！");
-
-      const proj = allProjectsData.find(p => p.id === currentEditData.projId);
-      if (!proj) return alert("找不到專案！");
-
-      const tasks = [...proj.tasks];
-      const oldName = currentEditData.oldSubProjName;
-      const isPending = (newAssigneeId !== proj.ownerId && newAssigneeId !== auth.currentUser.uid);
-
-      tasks.forEach(t => {
-          if (t.isSubProjectTask && t.parentSubProject === oldName) {
-              t.parentSubProject = newName;
-              t.name = t.name.replace(`[${oldName}]`, `[${newName}]`);
-              if (newAssigneeId) {
-                  t.assigneeId = newAssigneeId;
-                  t.assigneeName = newAssigneeName;
-                  t.isPendingAcceptance = isPending; 
-              }
-          }
-      });
-
-      await updateDoc(doc(db, "projects", proj.id), { tasks });
       closeGeneralEditModal();
-      alert("✅ 子專案資訊修改成功！");
+      alert("✅ 專案負責人已變更！未完成細項已移交，已完成與其他同仁之項目皆已保留。");
       renderProjects();
       return;
-      
     } else if (type === 'task') {
       const proj = allProjectsData.find(p => p.id === id); 
       const tasks = [...proj.tasks];
