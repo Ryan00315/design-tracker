@@ -3379,7 +3379,33 @@ window.openGeneralEdit = (type, id, extra) => {
 
   if (type === 'project') {
     const p = allProjectsData.find(x => x.id === id);
-    document.getElementById("general-edit-title").innerText = "編輯主專案名稱與瀏覽部門";
+    document.getElementById("general-edit-title").innerText = "編輯主專案資訊";
+
+    // 🌟 1. 權限判斷：只有「系統管理員」與「最高級主管」才可更換負責人
+    const isAdminOrTop = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager');
+    let ownerSelectHtml = "";
+
+    // 🌟 2. 若為主管/管理員，動態產生負責人下拉選單
+    if (isAdminOrTop) {
+      let ownerOptions = "";
+      allUsersList.forEach(u => {
+        // 預設選中專案目前的開案者
+        const isSel = (u.uid === p.ownerId) ? "selected" : "";
+        ownerOptions += `<option value="${u.uid}" ${isSel}>${u.name} (${u.dept || '設計部'} - ${roleNames[u.role] || u.role})</option>`;
+      });
+
+      ownerSelectHtml = `
+        <div class="form-group" style="margin-top:12px; background:#eff6ff; padding:10px 12px; border-radius:6px; border:1px solid #bfdbfe;">
+          <label class="form-label" style="font-weight:bold; color:#1d4ed8; margin-bottom:4px;">👑 變更專案負責人 (開案者 - 主管專用)</label>
+          <select id="edit-val-proj-owner" class="input-control" style="font-weight:bold; background:#fff; cursor:pointer;">
+            ${ownerOptions}
+          </select>
+          <div style="font-size:11px; color:#3b82f6; margin-top:4px;">* 變更後此專案之開案人擁有權將正式移交至該同仁名下。</div>
+        </div>
+      `;
+    }
+
+    // 🌟 3. 產生瀏覽部門勾選框清單
     let collabHtml = `<div class="form-group" style="margin-top:12px;"><label class="form-label">瀏覽部門 (可複選)</label><div style="display:flex; flex-direction:column; gap:6px;">`;
     departmentList.forEach(dept => {
       const isChecked = (p.collaborators || []).includes(dept) ? 'checked' : '';
@@ -3387,8 +3413,13 @@ window.openGeneralEdit = (type, id, extra) => {
     });
     collabHtml += `</div></div>`;
 
+    // 🌟 4. 組裝注入彈窗表單
     form.innerHTML = `
-      <div class="form-group"><label class="form-label">專案名稱</label><input type="text" id="edit-val-proj-title" class="input-control" value="${p.title}"></div>
+      <div class="form-group">
+        <label class="form-label">專案名稱</label>
+        <input type="text" id="edit-val-proj-title" class="input-control" value="${p.title}">
+      </div>
+      ${ownerSelectHtml}
       ${collabHtml}
     `;
   } else if (type === 'task') {
@@ -3665,8 +3696,22 @@ window.saveGeneralEdit = async () => {
       const checkboxes = document.querySelectorAll('input[name="edit_collab"]:checked');
       const collaborators = Array.from(checkboxes).map(cb => cb.value);
 
-      if(title) await updateDoc(doc(db, "projects", id), { title, collaborators });
-      else return alert("專案名稱不可為空！");
+      if (!title) return alert("專案名稱不可為空！");
+
+      const updateData = { title, collaborators };
+
+      // 🌟 檢查是否有主管/管理員專用的更換負責人選單
+      const ownerSelect = document.getElementById("edit-val-proj-owner");
+      if (ownerSelect) {
+        const newOwnerUid = ownerSelect.value;
+        const newOwnerUser = allUsersList.find(u => u.uid === newOwnerUid);
+        if (newOwnerUser) {
+          updateData.ownerId = newOwnerUid;
+          updateData.ownerName = newOwnerUser.name;
+        }
+      }
+
+      await updateDoc(doc(db, "projects", id), updateData);
       
     } else if (type === 'subproject_edit') {
       const newName = document.getElementById("edit-subproj-name").value.trim();
