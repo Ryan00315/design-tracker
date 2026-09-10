@@ -1,6 +1,15 @@
-import nodemailer from 'nodemailer';
+const nodemailer = require('nodemailer');
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
+  // 設定 CORS
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
@@ -8,21 +17,30 @@ export default async function handler(req, res) {
   const { toEmail, projTitle, reason, applyUser, subject } = req.body;
 
   if (!toEmail) {
-    return res.status(400).json({ error: 'Missing toEmail' });
+    return res.status(400).json({ error: '缺少收件人信箱 (toEmail)' });
   }
 
-  // 建立 Gmail 發信連線
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+
+  // 檢查環境變數是否存在
+  if (!user || !pass) {
+    return res.status(500).json({ 
+      error: `Vercel 環境變數未讀取到！(GMAIL_USER: ${user ? 'OK' : '缺少'}, GMAIL_APP_PASSWORD: ${pass ? 'OK' : '缺少'})。請至 Vercel 點擊 Redeploy。` 
+    });
+  }
+
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD
+      user: user,
+      pass: pass.replace(/\s+/g, '') // 自動去除空格
     }
   });
 
   try {
     await transporter.sendMail({
-      from: `"專案管理系統" <${process.env.GMAIL_USER}>`,
+      from: `"專案管理系統" <${user}>`,
       to: toEmail,
       subject: subject || `簽核通知：${projTitle}`,
       html: `
@@ -49,4 +67,4 @@ export default async function handler(req, res) {
     console.error("發信失敗:", err);
     return res.status(500).json({ error: err.message });
   }
-}
+};
