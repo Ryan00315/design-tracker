@@ -219,6 +219,47 @@ setTimeout(() => {
   }
 }, 500);
 
+// 🌟 通用 Email 通知發送函式 (非同步發信，絕不影響畫面流暢度)
+window.sendNotificationEmail = async ({ targetUid = "", targetRole = "", projTitle = "", type = "專案通知", reason = "", senderName = "" }) => {
+  try {
+    const sender = senderName || currentUserData.name || auth.currentUser?.email?.split('@')[0] || "系統同仁";
+    let recipientEmails = [];
+
+    // 1. 若指定角色（例如：送交最高主管簽核，通知所有 top_manager）
+    if (targetRole) {
+      recipientEmails = allUsersList
+        .filter(u => u.role === targetRole && u.email)
+        .map(u => u.email);
+    } 
+    // 2. 若指定特定人員 UID
+    else if (targetUid) {
+      const targetUser = allUsersList.find(u => u.uid === targetUid);
+      if (targetUser && targetUser.email) {
+        recipientEmails.push(targetUser.email);
+      }
+    }
+
+    if (recipientEmails.length === 0) return;
+
+    // 3. 呼叫後端 API 發送信件
+    for (const email of recipientEmails) {
+      fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toEmail: email,
+          projTitle: projTitle,
+          reason: reason || '無特別說明',
+          applyUser: sender,
+          subject: `${type}：${projTitle}`
+        })
+      }).catch(e => console.warn(`[Email] 發信失敗至 ${email}:`, e));
+    }
+  } catch (err) {
+    console.error("[Email Notification Error]", err);
+  }
+};
+
 // 🌟🌟🌟 新增：專案簽核流程開關與 Quill 初始化控制邏輯 🌟🌟🌟
 window.toggleApprovalOptions = (isNeed) => {
   const collabWrapper = document.getElementById("collab-apply-wrapper");
@@ -5145,7 +5186,16 @@ window.submitAddSubProject = async () => {
       approvalHistory: history
     });
 
-    closeGeneralEditModal();
+    // 🌟 [新增] 若為指派他人，發送 Email 通知
+    if (isPending && assigneeId !== auth.currentUser?.uid) {
+      sendNotificationEmail({
+        targetUid: assigneeId,
+        projTitle: proj.title,
+        type: '子專案指派通知',
+        reason: `同仁【${currentUserName}】指派了新子專案【${subProjName}】給您，請至系統待處理事項確認是否接收。`,
+        senderName: currentUserName
+      });
+    }
 
     closeGeneralEditModal();
 
@@ -5772,6 +5822,15 @@ window.rejectSubProjectAssignment = async (projId, subProjName) => {
     });
 
     await updateDoc(doc(db, "projects", projId), { tasks, approvalHistory: history });
+    // 🌟 [新增] 發送 Email 給當初發起指派的人
+    sendNotificationEmail({
+      targetUid: targetAssignerId,
+      projTitle: p.title,
+      type: '子專案指派退回通知',
+      reason: `同仁【${myName}】拒絕了子專案【${subProjName}】的指派。退回原因：${reason.trim()}`,
+      senderName: myName
+    });
+  
     alert(`已拒絕子專案 [${subProjName}]！細項已退回給開案者。`);
     renderProjects();
     if (window.renderNotifications) window.renderNotifications();
@@ -6108,6 +6167,14 @@ window.addCollaboratorToProject = async (projId) => {
     collaboratorUids: collabUids,
     approvalHistory: history
   });
+
+  // 🌟 [新增] 發送協作邀請通知
+    sendNotificationEmail({
+      targetUid: selectedUid,
+      projTitle: proj.title,
+      type: '專案協作邀請',
+      reason: `同仁【${currentUserData.name}】已將您加入專案【${proj.title}】的協作成員，可至系統「開放瀏覽」檢視進度。`
+    });
 
   alert(`🎉 已將【${targetName}】加入協作成員！`);
   openCollaboratorsModal(projId);
@@ -6625,6 +6692,14 @@ window.submitProjectResubmit = async (projId) => {
     },
     approvalHistory: history
   });
+
+  // 🌟 [新增] 發送 Email 給所有最高主管進行審查
+    sendNotificationEmail({
+      targetRole: 'top_manager',
+      projTitle: proj.title || title,
+      type: '專案簽核審查通知',
+      reason: approvalDesc || '專案已送交簽核，請撥冗至系統審查指派。'
+    });
 
   closeGeneralEditModal();
   alert("🎉 專案已成功重新送審！");
