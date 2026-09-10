@@ -1711,8 +1711,14 @@ function renderProjects() {
           const eMonth = !isNaN(eDate.getMonth()) ? eDate.getMonth() + 1 : '-';
           const eDay = !isNaN(eDate.getDate()) ? eDate.getDate() : '-';
 
-          const subProjEditBtn = canOperateProject
-            ? `<button class="action-btn" onclick="event.stopPropagation(); openEditSubProjectModal('${activeProj.id}', '${item.parentSubProject}')" style="padding:2px 6px; font-size:11px;" title="編輯子專案名稱與負責人">✏️</button>`
+          // 🌟 升級操作按鈕群：【➕ 加細項】、【✏️ 編輯】、【🗑️ 刪除整組】
+          // 加上 onclick="event.stopPropagation()" 防止觸發子專案收合
+          const subProjActionBtns = canOperateProject
+            ? `<div style="display:inline-flex; align-items:center; gap:3px; margin-left:auto; flex-shrink:0;" onclick="event.stopPropagation();">
+                 <button type="button" class="action-btn" onclick="openAddSubTaskToSubProjModal('${activeProj.id}', '${item.parentSubProject}')" style="padding:2px 6px; font-size:11px; background:#2563eb; color:#fff; border:none; border-radius:3px; cursor:pointer;" title="為此子專案追加新細項">➕ 加細項</button>
+                 <button type="button" class="action-btn" onclick="openEditSubProjectModal('${activeProj.id}', '${item.parentSubProject}')" style="padding:2px 6px; font-size:11px; border-radius:3px; cursor:pointer;" title="編輯子專案名稱與負責人">✏️</button>
+                 <button type="button" class="action-btn danger" onclick="deleteEntireSubProject('${activeProj.id}', '${item.parentSubProject}')" style="padding:2px 6px; font-size:11px; border-radius:3px; cursor:pointer;" title="刪除整個子專案與所有細項">🗑️</button>
+               </div>`
             : '';
 
           const row = document.createElement("div"); 
@@ -1722,11 +1728,12 @@ function renderProjects() {
               <div class="col-name" style="cursor:pointer; font-weight:bold; color:#d97706; flex:1.8; display:flex; align-items:center;" onclick="window.toggleSubProject('${activeProj.id}', '${item.parentSubProject}')">
                   <span>📦 ${item.parentSubProject}</span>
                   <span style="margin-left: 8px; font-size: 11px;">${chevron}</span>
+                  ${subProjActionBtns}
               </div>
               <div class="col-expected-date" style="color: #64748b; font-size:12px;"><span>${sMonth}/${sDay}</span><span>~ ${eMonth}/${eDay}</span></div>
               <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
               <div class="col-prog"><span style="font-weight:bold;">${item.progress}%</span></div>
-              <div class="col-act">${subProjEditBtn}</div>
+              <div class="col-act"></div>
               <div class="col-owner" title="${item.assigneeName}">${item.assigneeName}</div>
           `;
           if(leftBody) leftBody.appendChild(row);
@@ -5536,6 +5543,130 @@ window.openEditSubProjectModal = (projId, subProjName) => {
     `;
 
     document.getElementById("general-edit-modal").classList.add("active");
+};
+
+// 🌟 1. 一鍵刪除整組子專案 (包含底下所有細項)
+window.deleteEntireSubProject = async (projId, subProjName) => {
+  if (!confirm(`確定要刪除整個子專案【${subProjName}】嗎？\n底下所有的任務細項將會被全部清除！`)) return;
+
+  const proj = allProjectsData.find(p => p.id === projId);
+  if (!proj) return;
+
+  // 過濾掉該子專案的所有細項與相關指派通知
+  const remainingTasks = (proj.tasks || []).filter(t => 
+    t.parentSubProject !== subProjName && 
+    !(t.name && t.name.includes(`[${subProjName}]`))
+  );
+
+  await updateDoc(doc(db, "projects", projId), { tasks: remainingTasks });
+  alert(`✅ 已成功刪除子專案【${subProjName}】及所有細項！`);
+  renderProjects();
+};
+
+// 🌟 2. 開啟「為現有子專案追加細項」彈窗
+window.openAddSubTaskToSubProjModal = (projId, subProjName) => {
+  const proj = allProjectsData.find(p => p.id === projId);
+  if (!proj) return;
+
+  // 取得該子專案既有的負責人與開案人
+  const firstSubTask = (proj.tasks || []).find(t => t.parentSubProject === subProjName);
+  const assigneeId = firstSubTask?.assigneeId || proj.ownerId;
+  const assigneeName = firstSubTask?.assigneeName || proj.ownerName;
+
+  const todayStr = getTodayStr();
+  const modal = document.getElementById("general-edit-modal");
+  const form = document.getElementById("general-edit-form");
+  const modalBox = modal.querySelector('.modal-box');
+  if (modalBox) modalBox.style.display = '';
+
+  document.getElementById("general-edit-title").innerText = `➕ 追加細項至子專案 [${subProjName}]`;
+
+  // 隱藏原生底層儲存按鈕
+  const defaultSaveBtn = Array.from(modal.querySelectorAll("button")).find(b => 
+    b.getAttribute("onclick")?.includes("saveGeneralEdit") || b.textContent.includes("儲存修改")
+  );
+  const defaultFooter = defaultSaveBtn ? defaultSaveBtn.closest("div") : null;
+  if (defaultFooter && defaultFooter !== form && !form.contains(defaultFooter)) {
+    defaultFooter.style.display = "none";
+  }
+
+  form.innerHTML = `
+    <div class="form-group">
+      <label class="form-label">細項名稱 (必填)</label>
+      <input type="text" id="new-subtask-name" class="input-control" placeholder="請輸入細項工作名稱..." required>
+    </div>
+    <div style="display:flex; gap:10px; margin-bottom:12px;">
+      <div style="flex:1;">
+        <label class="form-label">起始日</label>
+        <input type="date" id="new-subtask-start" class="input-control" value="${todayStr}" onchange="onTaskStartChange(this, null)">
+      </div>
+      <div style="width:70px;">
+        <label class="form-label">天數</label>
+        <input type="number" id="new-subtask-days" class="input-control" value="1" min="1" oninput="onTaskDaysChange(this, null, null)">
+      </div>
+      <div style="flex:1;">
+        <label class="form-label">預計完成日</label>
+        <input type="date" id="new-subtask-end" class="input-control" value="${todayStr}" onchange="onTaskEndChange(this, null, null)">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">負責人 (預設承接該子專案負責人)</label>
+      <input type="text" class="input-control" value="${assigneeName}" readonly style="background:#f1f5f9;">
+    </div>
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+      <button type="button" class="action-btn" onclick="closeGeneralEditModal()">取消</button>
+      <button type="button" class="btn-primary" style="width:auto; padding:6px 16px;" onclick="submitAddSubTaskToSubProj('${projId}', '${subProjName}', '${assigneeId}', '${assigneeName}')">確認追加</button>
+    </div>
+  `;
+
+  modal.classList.add("active");
+};
+
+// 🌟 3. 送出追加細項
+window.submitAddSubTaskToSubProj = async (projId, subProjName, assigneeId, assigneeName) => {
+  const nameInput = document.getElementById("new-subtask-name");
+  const taskName = nameInput ? nameInput.value.trim() : "";
+  const start = document.getElementById("new-subtask-start").value;
+  const end = document.getElementById("new-subtask-end").value;
+
+  if (!taskName) return alert("請輸入細項名稱！");
+  if (!start || !end) return alert("起始日與完成日不可空白！");
+  if (start > end) return alert("起始日不可大於完成日！");
+
+  const proj = allProjectsData.find(p => p.id === projId);
+  if (!proj) return;
+
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+  const tasks = [...(proj.tasks || [])];
+
+  // 移除原本暫存的「尚未建立細項」
+  const cleanedTasks = tasks.filter(t => !(t.parentSubProject === subProjName && t.name.includes("尚未建立細項")));
+
+  cleanedTasks.push({
+    name: `[${subProjName}] ${taskName}`,
+    start: start,
+    end: end,
+    progress: 0,
+    isCompleted: false,
+    completedAt: null,
+    delayReason: "",
+    lastUpdatedAt: ts,
+    reportedCompleted: false,
+    assigneeId: assigneeId,
+    assigneeName: assigneeName,
+    isSubProjectTask: true,
+    parentSubProject: subProjName,
+    createdAt: Date.now(),
+    isPendingAcceptance: false, // 已在該專案內追加，不需再次等待接收
+    history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: 0, delayReason: '', remark: '追加子專案細項' }]
+  });
+
+  cleanedTasks.sort((a, b) => (a.start || "").localeCompare(b.start || ""));
+
+  await updateDoc(doc(db, "projects", projId), { tasks: cleanedTasks });
+  closeGeneralEditModal();
+  alert(`🎉 已成功向子專案【${subProjName}】追加細項！`);
+  renderProjects();
 };
 
 window.openApprovalLogModal = (projId) => {
