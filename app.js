@@ -4928,7 +4928,7 @@ window.updateSubTaskNumbers = (container) => {
     });
 };
 
-// 🌟 1. 追加子專案彈窗（尺寸加倍：寬度提升至 960px，高度可容納更多欄位）
+// 🌟 追加子專案彈窗（為輸入框加上專屬 ID，杜絕 DOM 抓取衝突）
 window.openAddSubProjectModal = () => {
     const modal = document.getElementById("general-edit-modal");
     const form = document.getElementById("general-edit-form");
@@ -4949,14 +4949,16 @@ window.openAddSubProjectModal = () => {
       <div id="add-subproject-container" class="subproject-row" style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:16px;">
         <div style="display:flex; gap:12px; align-items:center; margin-bottom:14px; flex-wrap:wrap;">
           <span style="font-weight:bold; color:var(--primary); font-size:15px; white-space:nowrap;">📦 子專案名稱</span>
-          <input type="text" class="input-control subproject-name" placeholder="請輸入子專案名稱 (必填)" style="flex:2; min-width:180px; font-size:14px;" required>
+          <!-- 🌟 賦予專屬 ID: modal-subproject-name -->
+          <input type="text" id="modal-subproject-name" class="input-control subproject-name" placeholder="請輸入子專案名稱 (必填)" style="flex:2; min-width:180px; font-size:14px;" required>
           
           <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:bold; color:#b45309; cursor:pointer; white-space:nowrap; background:#fef3c7; padding:6px 12px; border-radius:4px; border:1px solid #fde68a;">
-            <input type="checkbox" class="subproject-is-procure" onchange="window.toggleSubProjectProcure(this)" style="cursor:pointer; width:16px; height:16px;">
+            <input type="checkbox" id="modal-subproject-procure" class="subproject-is-procure" onchange="window.toggleSubProjectProcure(this)" style="cursor:pointer; width:16px; height:16px;">
             🛒 採購
           </label>
 
-          <select class="input-control subproject-assignee" style="flex:1; min-width:180px; font-size:14px;">
+          <!-- 🌟 賦予專屬 ID: modal-subproject-assignee -->
+          <select id="modal-subproject-assignee" class="input-control subproject-assignee" style="flex:1; min-width:180px; font-size:14px;">
             ${assigneeOptions}
           </select>
         </div>
@@ -4991,15 +4993,16 @@ window.closeAddSubProjectModal = () => {
 
 window.submitAddSubProject = async () => {
   try {
-    const container = document.getElementById("add-subproject-container");
-    if (!container) return alert("找不到子專案表單容器，請重新開啟彈窗！");
-
-    const nameInput = container.querySelector('.subproject-name');
+    // 🌟 1. 優先精準鎖定彈窗內專屬 ID，抓取當前輸入的文字
+    const nameInput = document.getElementById("modal-subproject-name") || 
+                      document.querySelector("#general-edit-form .subproject-name");
     const subProjName = nameInput ? nameInput.value.trim() : "";
+    
     if (!subProjName) return alert("請輸入子專案名稱！");
 
-    // 🌟 1. 取得指派負責人資訊 (加入防呆，避免選單索引拋錯)
-    const assigneeSelect = container.querySelector('.subproject-assignee');
+    // 🌟 2. 取得指派負責人
+    const assigneeSelect = document.getElementById("modal-subproject-assignee") || 
+                           document.querySelector("#general-edit-form .subproject-assignee");
     let assigneeId = auth.currentUser?.uid || "";
     let assigneeName = currentUserData.name || auth.currentUser?.email?.split('@')[0] || "本人";
 
@@ -5014,7 +5017,7 @@ window.submitAddSubProject = async () => {
     const currentUserName = currentUserData.name || auth.currentUser?.email?.split('@')[0] || "人員";
     const myDept = currentUserData.dept || "設計部";
 
-    // 🌟 2. 跨部門判斷
+    // 🌟 3. 跨部門判斷
     let isCrossDept = false;
     let targetDept = myDept;
     if (assigneeId && assigneeId !== auth.currentUser?.uid) {
@@ -5027,9 +5030,11 @@ window.submitAddSubProject = async () => {
 
     const isPending = (assigneeId !== auth.currentUser?.uid);
 
-    // 🌟 3. 收集細項 (安全讀取 DOM 節點)
+    // 🌟 4. 鎖定當前彈窗內的細項容器
+    const formModal = document.getElementById("general-edit-form");
+    const taskItems = formModal ? formModal.querySelectorAll('.sub-task-item') : [];
     const newTasks = [];
-    const taskItems = container.querySelectorAll('.sub-task-item');
+
     for (let subRow of taskItems) {
       const nameEl = subRow.querySelector('.sub-task-name');
       const startEl = subRow.querySelector('.sub-task-start');
@@ -5039,7 +5044,7 @@ window.submitAddSubProject = async () => {
       const sStart = startEl ? startEl.value : "";
       const sEnd = endEl ? endEl.value : "";
 
-      if (!sName) continue; // 忽略未命名的空白行
+      if (!sName) continue; // 忽略空白細項
       if (!sStart || !sEnd) return alert(`子細項 [${sName}] 不可有空白日期！`);
       if (sStart > sEnd) return alert(`子細項 [${sName}] 的起始日不可大於完成日！`);
 
@@ -5068,7 +5073,6 @@ window.submitAddSubProject = async () => {
       });
     }
 
-    // 🌟 4. 至少需建立一個有效細項
     if (newTasks.length === 0) {
       return alert("請至少為此子專案建立一個細項（請點擊「+ 追加子細項」並填寫名稱，或勾選「採購」）！");
     }
@@ -5076,25 +5080,19 @@ window.submitAddSubProject = async () => {
     const proj = allProjectsData.find(p => p.id === selectedProjectId);
     if (!proj) return alert("找不到目前專案！");
 
-    // 容錯展開既有任務
     const updatedTasks = [...(proj.tasks || []), ...newTasks];
     updatedTasks.sort((a, b) => (a.start || "").localeCompare(b.start || ""));
 
-    // 🌟 5. 自動將被指派人納入協作成員白名單 (確保對方能看到專案)
+    // 🌟 5. 自動將被指派人納入協作成員白名單
     let collabUids = Array.isArray(proj.collaboratorUids) ? [...proj.collaboratorUids] : [];
     if (isPending && !collabUids.includes(assigneeId)) {
       collabUids.push(assigneeId);
     }
 
-    // ========================================================
-    // 🌟 核心分流：
-    // 若專案已經審核通過生效 (status === 'active')，
-    // 新增子專案指派屬於執行期的任務分派，絕對不重新打回 pending_approval！
-    // ========================================================
+    // 🌟 6. 分流：已審核通過生效的專案 (status === 'active')，不打回審核狀態
     const isAlreadyApprovedProj = (proj.status === 'active');
 
     if (isCrossDept && !isAlreadyApprovedProj) {
-      // 僅在「初次草稿開案」跨部門指派時，才送交最高主管簽核
       const history = proj.approvalHistory || [];
       history.push({
         step: `提出申請協作 (跨部門子專案: ${subProjName})`,
@@ -5127,9 +5125,7 @@ window.submitAddSubProject = async () => {
       return;
     }
 
-    // ========================================================
-    // 已通過簽核之專案（直接寫入任務並向被指派人發送接收通知）
-    // ========================================================
+    // 已生效專案或同部門指派：直接發送通知並寫入
     if (isPending) {
       updatedTasks.push({
         name: `[系統通知] 專案 [${proj.title}] 有新的子專案 [${subProjName}] 指派給您，請確認接收`,
