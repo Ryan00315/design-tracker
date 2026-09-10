@@ -1595,14 +1595,12 @@ function renderProjects() {
   let canDeleteProj = (isProjOwner && inGracePeriod) || (isGlobalAdmin && isEditMode);
   let inlineDelBtn = canDeleteProj ? `<button class="action-btn danger" onclick="deleteCurrentProject()" style="padding:2px 8px; font-size:12px; margin-left:4px; font-weight:bold;">🗑️ 刪除專案</button>` : '';
   // 🌟 判斷是否為「已審核通過且生效」的協作專案
-  // 條件 1：專案狀態必須為 active (已生效，非 pending_approval 或 rejected)
-  // 條件 2：必須具備協作屬性 (isApplyCollab: true)
   const isApprovedCollabProject = (activeProj.status === 'active') && 
                                   (activeProj.approvalConfig?.isApplyCollab === true);
 
-  // 🌟 只有「開案者/管理員」且「已審核通過的協作專案」才會顯示【👥 協作成員】
-  let collabManageBtn = (canOperateProject && isApprovedCollabProject)
-    ? `<button class="action-btn" onclick="openCollaboratorsModal('${activeProj.id}')" style="margin-left:8px; border-color:#3b82f6; color:#2563eb; font-weight:bold; padding:2px 8px;" title="管理協作成員">👥 協作成員</button>`
+  // 🌟 改為純圖示「👥」：只要是已生效協作專案，相關人員皆可點擊查看名單
+  let collabManageBtn = isApprovedCollabProject
+    ? `<button class="action-btn" onclick="openCollaboratorsModal('${activeProj.id}')" style="margin-left:8px; border-color:#3b82f6; color:#2563eb; font-weight:bold; padding:2px 6px;" title="查看/管理協作成員">👥</button>`
     : '';
 
   const currentTitleEl = document.getElementById("current-gantt-title");
@@ -5819,55 +5817,72 @@ window.submitAddSubTaskToSubProj = async (projId, subProjName, assigneeId, assig
   renderProjects();
 };
 
-// 🌟 1. 開啟協作成員管理彈窗
+// 🌟 1. 協作成員彈窗 (建立者可管理，其他協作者僅供檢視)
 window.openCollaboratorsModal = (projId) => {
   const proj = allProjectsData.find(p => p.id === projId);
   if (!proj) return;
 
-  const excludedUids = Array.isArray(proj.excludedUids) ? proj.excludedUids : [];
-  const explicitCollabs = Array.isArray(proj.collaboratorUids) ? proj.collaboratorUids : [];
+  // 核心權限判斷：只有主專案建立者 (或系統管理員) 才能增刪成員
+  const isOwnerOrAdmin = (proj.ownerId === auth.currentUser?.uid || currentUserData.role === 'admin');
 
-  // 統計目前專案中所有相關成員 (包含任務被指派者與主動加入者，排除開案者與已被剔除者)
-  const memberUidSet = new Set(explicitCollabs);
-  (proj.tasks || []).forEach(t => {
-    if (t.assigneeId && t.assigneeId !== proj.ownerId) {
-      memberUidSet.add(t.assigneeId);
-    }
-  });
-
-  // 過濾掉黑名單
-  excludedUids.forEach(uid => memberUidSet.delete(uid));
+  let memberUidSet = new Set(Array.isArray(proj.collaboratorUids) ? proj.collaboratorUids : []);
+  if (!proj.collaboratorUids) {
+    (proj.tasks || []).forEach(t => {
+      if (t.assigneeId && t.assigneeId !== proj.ownerId) {
+        memberUidSet.add(t.assigneeId);
+      }
+    });
+  }
 
   const activeMembers = Array.from(memberUidSet).map(uid => {
     return allUsersList.find(u => u.uid === uid) || { uid, name: "未知人員", dept: "未知" };
   });
 
-  // 產生現有成員表格列
+  const colSpan = isOwnerOrAdmin ? 4 : 3;
   let membersHtml = "";
   if (activeMembers.length === 0) {
-    membersHtml = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:16px;">目前暫無其他協作成員</td></tr>`;
+    membersHtml = `<tr><td colspan="${colSpan}" style="text-align:center; color:var(--text-muted); padding:16px;">目前暫無其他協作成員 (僅開案者本人)</td></tr>`;
   } else {
     activeMembers.forEach(m => {
       const taskCount = (proj.tasks || []).filter(t => t.assigneeId === m.uid && !t.name?.includes("[系統通知]")).length;
+      
+      // 只有建立者看得到「🚫 剔除」按鈕
+      const actionTd = isOwnerOrAdmin
+        ? `<td style="padding:10px 8px; text-align:center;">
+            <button type="button" class="action-btn danger" style="padding:2px 8px; font-size:11px;" onclick="removeCollaboratorFromProject('${proj.id}', '${m.uid}', '${m.name}')">🚫 剔除</button>
+           </td>`
+        : '';
+
       membersHtml += `
         <tr style="border-bottom: 1px solid var(--border-light);">
           <td style="padding:10px 8px; font-weight:bold;">${m.name}</td>
           <td style="padding:10px 8px;"><span class="pill" style="background:#f1f5f9; color:#334155;">${m.dept || '設計部'}</span></td>
-          <td style="padding:10px 8px; font-size:12px; color:var(--text-muted);">${taskCount} 項任務</td>
-          <td style="padding:10px 8px; text-align:center;">
-            <button type="button" class="action-btn danger" style="padding:2px 8px; font-size:11px;" onclick="removeCollaboratorFromProject('${proj.id}', '${m.uid}', '${m.name}')">🚫 剔除</button>
-          </td>
+          <td style="padding:10px 8px; font-size:12px; color:var(--text-muted);">${taskCount} 項工作</td>
+          ${actionTd}
         </tr>
       `;
     });
   }
 
-  // 產生可新增成員的下拉選單 (排除開案者與當前成員)
-  const candidateUsers = allUsersList.filter(u => u.uid !== proj.ownerId && !memberUidSet.has(u.uid));
-  let candidateOptions = '<option value="">-- 請選擇要加入的同仁 --</option>';
-  candidateUsers.forEach(u => {
-    candidateOptions += `<option value="${u.uid}">${u.name} (${u.dept || '設計部'})</option>`;
-  });
+  // 只有建立者才產生成員下拉選單
+  let addSectionHtml = "";
+  if (isOwnerOrAdmin) {
+    const candidateUsers = allUsersList.filter(u => u.uid !== proj.ownerId && !memberUidSet.has(u.uid));
+    let candidateOptions = '<option value="">-- 請選擇要加入的同仁 --</option>';
+    candidateUsers.forEach(u => {
+      candidateOptions += `<option value="${u.uid}">${u.name} (${u.dept || '設計部'})</option>`;
+    });
+
+    addSectionHtml = `
+      <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-bottom:16px; display:flex; gap:10px; align-items:center;">
+        <span style="font-weight:bold; font-size:13px; color:var(--primary); white-space:nowrap;">➕ 加入成員：</span>
+        <select id="new-collab-user-select" class="input-control" style="flex:1; padding:6px 10px; font-size:13px;">
+          ${candidateOptions}
+        </select>
+        <button type="button" class="btn-primary" style="width:auto; padding:6px 16px; font-size:13px;" onclick="addCollaboratorToProject('${proj.id}')">加入協作</button>
+      </div>
+    `;
+  }
 
   const modal = document.getElementById("general-edit-modal");
   const form = document.getElementById("general-edit-form");
@@ -5877,9 +5892,8 @@ window.openCollaboratorsModal = (projId) => {
     modalBox.style.width = "85vw";
   }
 
-  document.getElementById("general-edit-title").innerText = `👥 協作成員管理 [${proj.title}]`;
+  document.getElementById("general-edit-title").innerText = `👥 專案協作成員 [${proj.title}]`;
 
-  // 隱藏原彈窗底部的儲存按鈕
   const defaultSaveBtn = Array.from(modal.querySelectorAll("button")).find(b => 
     b.getAttribute("onclick")?.includes("saveGeneralEdit") || b.textContent.includes("儲存修改")
   );
@@ -5888,28 +5902,23 @@ window.openCollaboratorsModal = (projId) => {
     defaultFooter.style.display = "none";
   }
 
-  form.innerHTML = `
-    <!-- 新增成員區塊 -->
-    <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-bottom:16px; display:flex; gap:10px; align-items:center;">
-      <span style="font-weight:bold; font-size:13px; color:var(--primary); white-space:nowrap;">➕ 加入成員：</span>
-      <select id="new-collab-user-select" class="input-control" style="flex:1; padding:6px 10px; font-size:13px;">
-        ${candidateOptions}
-      </select>
-      <button type="button" class="btn-primary" style="width:auto; padding:6px 16px; font-size:13px;" onclick="addCollaboratorToProject('${proj.id}')">加入協作</button>
-    </div>
+  const thAction = isOwnerOrAdmin ? `<th style="width:20%; text-align:center;">操作</th>` : '';
+  const viewOnlyHint = !isOwnerOrAdmin ? `<span style="font-size:12px; color:var(--text-muted); font-weight:normal; margin-left:6px;">(唯讀檢視)</span>` : '';
 
-    <!-- 現有成員清單 -->
+  form.innerHTML = `
+    ${addSectionHtml}
+
     <div class="panel-head" style="margin-bottom:8px;">
-      <span style="font-size:14px;">📋 目前協作成員清單 (開案者：${proj.ownerName || '本人'})</span>
+      <span style="font-size:14px;">📋 協作成員名單 (開案者：${proj.ownerName || '未知'})${viewOnlyHint}</span>
     </div>
     <div class="table-responsive" style="max-height:280px; overflow-y:auto; border:1px solid var(--border-light); border-radius:6px;">
       <table style="width:100%; margin:0;">
         <thead style="position:sticky; top:0; background:#f8fafc;">
           <tr>
-            <th style="width:30%;">姓名</th>
-            <th style="width:25%;">部門</th>
-            <th style="width:25%;">負責工作</th>
-            <th style="width:20%; text-align:center;">操作</th>
+            <th style="width:${isOwnerOrAdmin ? '30%' : '35%'};">姓名</th>
+            <th style="width:${isOwnerOrAdmin ? '25%' : '35%'};">部門</th>
+            <th style="width:${isOwnerOrAdmin ? '25%' : '30%'};">負責工作</th>
+            ${thAction}
           </tr>
         </thead>
         <tbody>
@@ -5926,23 +5935,31 @@ window.openCollaboratorsModal = (projId) => {
   modal.classList.add("active");
 };
 
-// 🌟 2. 執行新增成員
+// 🌟 2. 新增成員 (加上主專案建立者身分驗證)
 window.addCollaboratorToProject = async (projId) => {
+  const proj = allProjectsData.find(p => p.id === projId);
+  if (!proj) return;
+
+  if (proj.ownerId !== auth.currentUser?.uid && currentUserData.role !== 'admin') {
+    return alert("⚠️ 權限不足！只有主專案建立者才可以新增協作成員。");
+  }
+
   const select = document.getElementById("new-collab-user-select");
   const uid = select ? select.value : "";
   if (!uid) return alert("請選擇要加入的同仁！");
 
-  const proj = allProjectsData.find(p => p.id === projId);
-  if (!proj) return;
-
   const targetUser = allUsersList.find(u => u.uid === uid);
   const targetName = targetUser ? targetUser.name : "同仁";
 
-  const collabUids = Array.isArray(proj.collaboratorUids) ? [...proj.collaboratorUids] : [];
+  let collabUids = Array.isArray(proj.collaboratorUids) ? [...proj.collaboratorUids] : [];
+  if (!proj.collaboratorUids) {
+    (proj.tasks || []).forEach(t => {
+      if (t.assigneeId && t.assigneeId !== proj.ownerId && !collabUids.includes(t.assigneeId)) {
+        collabUids.push(t.assigneeId);
+      }
+    });
+  }
   if (!collabUids.includes(uid)) collabUids.push(uid);
-
-  // 若曾被列入剔除名單，自動移出黑名單
-  const excluded = (proj.excludedUids || []).filter(id => id !== uid);
 
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
@@ -5958,46 +5975,53 @@ window.addCollaboratorToProject = async (projId) => {
 
   await updateDoc(doc(db, "projects", projId), {
     collaboratorUids: collabUids,
-    excludedUids: excluded,
     approvalHistory: history
   });
 
-  alert(`🎉 已成功將【${targetName}】加入協作成員！`);
+  alert(`🎉 已將【${targetName}】加入協作成員！`);
   openCollaboratorsModal(projId);
   renderProjects();
 };
 
-// 🌟 3. 執行剔除成員（列入黑名單，使其永久看不見）
+// 🌟 3. 剔除成員 (加上主專案建立者身分驗證)
 window.removeCollaboratorFromProject = async (projId, uid, name) => {
-  if (!confirm(`⚠️ 確定要將【${name}】從此專案剔除嗎？\n\n剔除後該同仁將【完全看不見此專案】（即便名下有未完成細項或子專案也一樣看不到）。`)) return;
-
   const proj = allProjectsData.find(p => p.id === projId);
   if (!proj) return;
 
-  const excluded = Array.isArray(proj.excludedUids) ? [...proj.excludedUids] : [];
-  if (!excluded.includes(uid)) excluded.push(uid);
+  if (proj.ownerId !== auth.currentUser?.uid && currentUserData.role !== 'admin') {
+    return alert("⚠️ 權限不足！只有主專案建立者才可以剔除成員。");
+  }
 
-  const collabUids = (proj.collaboratorUids || []).filter(id => id !== uid);
+  if (!confirm(`⚠️ 確定要將【${name}】從此專案移出嗎？\n\n移出後該同仁將看不到此專案。\n（其原先負責的細項仍會妥善保留，日後隨時可再加入回來）`)) return;
+
+  let collabUids = Array.isArray(proj.collaboratorUids) ? [...proj.collaboratorUids] : [];
+  if (!proj.collaboratorUids) {
+    (proj.tasks || []).forEach(t => {
+      if (t.assigneeId && t.assigneeId !== proj.ownerId && !collabUids.includes(t.assigneeId)) {
+        collabUids.push(t.assigneeId);
+      }
+    });
+  }
+  collabUids = collabUids.filter(id => id !== uid);
 
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
   const history = proj.approvalHistory || [];
   history.push({
-    step: '🚫 剔除協作成員',
+    step: '🚫 移出協作成員',
     operatorName: myName,
     operatorUid: auth.currentUser.uid,
     role: roleNames[currentUserData.role] || currentUserData.role,
     time: ts,
-    remark: `將【${name}】從協作成員名單中剔除並封鎖檢視`
+    remark: `將【${name}】移出協作成員名單`
   });
 
   await updateDoc(doc(db, "projects", projId), {
-    excludedUids: excluded,
     collaboratorUids: collabUids,
     approvalHistory: history
   });
 
-  alert(`🚫 已將【${name}】剔除！該同仁已無法檢視此專案。`);
+  alert(`✅ 已將【${name}】移出專案協作名單！`);
   openCollaboratorsModal(projId);
   renderProjects();
 };
