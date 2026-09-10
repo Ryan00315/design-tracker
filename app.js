@@ -4639,41 +4639,75 @@ window.addSubProjectRow = (defaultName = "", defaultAssignee = "", subTasks = []
 
 // 🌟 萬用追加子細項函式 (同時相容彈窗與頁面容器)
 window.addInnerSubTask = window.addSubTaskItem = function(btn) {
-  // 1. 同時支援彈窗與各類子專案容器
-  const parentContainer = btn.closest('#add-subproject-container') || 
-                          btn.closest('.subproject-row') || 
-                          btn.closest('.tpl-subproject-row');
-  if (!parentContainer) return console.error("找不到子專案容器！");
+  try {
+    // 1. 尋找目標容器
+    const modalContainer = document.getElementById("add-subproject-container");
+    const parentRow = btn.closest('.subproject-row') || btn.closest('.tpl-subproject-row') || modalContainer;
+    let tasksContainer = parentRow ? parentRow.querySelector('.sub-tasks-container') : null;
 
-  const tasksContainer = parentContainer.querySelector('.sub-tasks-container');
-  if (!tasksContainer) return console.error("找不到 sub-tasks-container！");
-
-  // 2. 計算起始日 (若前面有項目或簽核送審，自動銜接下一工作日)
-  let defaultStart = getTodayStr();
-  const existingItems = tasksContainer.querySelectorAll('.sub-task-item');
-  if (existingItems.length > 0) {
-    const lastItem = existingItems[existingItems.length - 1];
-    const lastEndInput = lastItem.querySelector('.sub-task-end');
-    if (lastEndInput && lastEndInput.value) {
-      defaultStart = getNextWorkingDayStr(lastEndInput.value);
+    // 若找不到容器，自動在按鈕前動態建立一個
+    if (!tasksContainer) {
+      tasksContainer = document.createElement('div');
+      tasksContainer.className = 'sub-tasks-container';
+      tasksContainer.style.cssText = "padding-left:14px; border-left:3px solid #fde68a; margin:10px 0 10px 8px; display:flex; flex-direction:column; gap:8px;";
+      btn.parentNode.insertBefore(tasksContainer, btn);
     }
+
+    // 2. 計算預設起始日（純原生 JS 計算，避免外部函式未定義）
+    let defaultStart = (typeof getTodayStr === 'function') ? getTodayStr() : new Date().toISOString().split('T')[0];
+    const existingItems = tasksContainer.querySelectorAll('.sub-task-item');
+    if (existingItems.length > 0) {
+      const lastItem = existingItems[existingItems.length - 1];
+      const lastEndInput = lastItem.querySelector('.sub-task-end');
+      if (lastEndInput && lastEndInput.value) {
+        const nextD = new Date(lastEndInput.value.replace(/-/g, '/'));
+        nextD.setDate(nextD.getDate() + 1);
+        const y = nextD.getFullYear();
+        const m = String(nextD.getMonth() + 1).padStart(2, '0');
+        const d = String(nextD.getDate()).padStart(2, '0');
+        defaultStart = `${y}-${m}-${d}`;
+      }
+    }
+
+    // 3. 建立細項 DOM 元素
+    const div = document.createElement('div');
+    div.className = "sub-task-item";
+    div.style.cssText = "display:flex; gap:8px; align-items:center; margin-bottom:8px;";
+    div.innerHTML = `
+      <span class="sub-task-num" style="font-size:13px; color:#b45309; font-weight:bold; width:22px; text-align:center;"></span>
+      <input type="text" class="input-control sub-task-name" placeholder="請輸入細項工作名稱..." style="flex:2; padding:6px 10px; font-size:13px;" required>
+      <input type="date" class="input-control sub-task-start" value="${defaultStart}" style="flex:1; padding:6px 8px; font-size:13px;" 
+             onchange="if(typeof onTaskStartChange==='function') onTaskStartChange(this, null)">
+      <input type="number" class="input-control sub-task-days" value="1" min="1" placeholder="天數" style="width:65px; padding:6px 6px; font-size:13px; text-align:center;" 
+             oninput="if(typeof onTaskDaysChange==='function') onTaskDaysChange(this, null, null)">
+      <input type="date" class="input-control sub-task-end" value="${defaultStart}" style="flex:1; padding:6px 8px; font-size:13px;" 
+             onchange="if(typeof onTaskEndChange==='function') onTaskEndChange(this, null, null)">
+      <button type="button" class="action-btn danger" onclick="this.closest('.sub-task-item').remove(); window.recalcSubTaskNumbers();" style="padding:4px 8px; font-size:11px; cursor:pointer;">✕</button>
+    `;
+
+    tasksContainer.appendChild(div);
+    window.recalcSubTaskNumbers();
+  } catch (err) {
+    console.error("追加子細項執行失敗:", err);
+    alert("追加細項時發生錯誤: " + err.message);
   }
+};
 
-  // 3. 建立細項元素
-  const div = document.createElement('div');
-  div.className = "sub-task-item";
-  div.style.cssText = "display:flex; gap:6px; align-items:center; margin-bottom:6px;";
-  div.innerHTML = `
-    <span class="sub-task-num" style="font-size:12px; color:#64748b; font-weight:bold; width:22px; text-align:center;"></span>
-    <input type="text" class="input-control sub-task-name" placeholder="請輸入細項工作名稱..." style="flex:2; padding:6px 10px; font-size:13px;" required>
-    <input type="date" class="input-control sub-task-start" value="${defaultStart}" onchange="onTaskStartChange(this, null)" style="flex:1; padding:6px 8px; font-size:13px;">
-    <input type="number" class="input-control sub-task-days" value="1" min="1" placeholder="天數" oninput="onTaskDaysChange(this, null, null)" style="width:65px; padding:6px 6px; font-size:13px; text-align:center;">
-    <input type="date" class="input-control sub-task-end" value="${defaultStart}" onchange="onTaskEndChange(this, null, null)" style="flex:1; padding:6px 8px; font-size:13px;">
-    <button type="button" class="action-btn danger" onclick="this.closest('.sub-task-item').remove(); window.updateSubTaskNumbers(this);" style="padding:4px 8px; font-size:11px;">✕</button>
-  `;
-
-  tasksContainer.appendChild(div);
-  window.updateSubTaskNumbers(tasksContainer);
+// 🌟 自動編號輔助工具
+window.recalcSubTaskNumbers = function() {
+  document.querySelectorAll('.sub-tasks-container').forEach(container => {
+    let count = 1;
+    container.querySelectorAll('.sub-task-item').forEach(item => {
+      const numSpan = item.querySelector('.sub-task-num');
+      if (numSpan) {
+        if (item.classList.contains('is-approval-task')) {
+          numSpan.innerText = '★';
+        } else {
+          numSpan.innerText = `${count++}.`;
+        }
+      }
+    });
+  });
 };
 
 // 🌟 子細項序號自動重編 (防呆工具)
@@ -4841,7 +4875,6 @@ window.openAddSubProjectModal = () => {
     const form = document.getElementById("general-edit-form");
     const modalBox = modal.querySelector('.modal-box');
     
-    // 彈窗長寬加倍
     if (modalBox) {
         modalBox.style.maxWidth = "960px";
         modalBox.style.width = "90vw";
@@ -4853,11 +4886,10 @@ window.openAddSubProjectModal = () => {
     document.getElementById("general-edit-title").innerText = `📦 追加新子專案`;
     const assigneeOptions = getSubProjectAssigneeOptions(auth.currentUser?.uid || "");
 
-    // 🌟 外層容器加入 subproject-row class，按鈕呼叫 window.addInnerSubTask(this)
     form.innerHTML = `
       <div id="add-subproject-container" class="subproject-row" style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:16px;">
         <div style="display:flex; gap:12px; align-items:center; margin-bottom:14px; flex-wrap:wrap;">
-          <span style="font-weight:bold; color:var(--primary); font-size:16px; white-space:nowrap;">📦 子專案名稱</span>
+          <span style="font-weight:bold; color:var(--primary); font-size:15px; white-space:nowrap;">📦 子專案名稱</span>
           <input type="text" class="input-control subproject-name" placeholder="請輸入子專案名稱 (必填)" style="flex:2; min-width:180px; font-size:14px;" required>
           
           <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:bold; color:#b45309; cursor:pointer; white-space:nowrap; background:#fef3c7; padding:6px 12px; border-radius:4px; border:1px solid #fde68a;">
@@ -4869,9 +4901,12 @@ window.openAddSubProjectModal = () => {
             ${assigneeOptions}
           </select>
         </div>
-        <div class="sub-tasks-container" style="padding-left:16px; border-left:3px solid #fde68a; margin-left:8px;"></div>
-        <div style="margin-top:12px; padding-left:16px;">
-          <button type="button" class="action-btn" onclick="window.addInnerSubTask(this)" style="padding:6px 14px; font-size:13px; background:#fff; font-weight:bold; cursor:pointer;">+ 追加子細項</button>
+        
+        <!-- 細項掛載容器 -->
+        <div class="sub-tasks-container" style="padding-left:14px; border-left:3px solid #fde68a; margin-left:8px; display:flex; flex-direction:column; gap:8px;"></div>
+        
+        <div style="margin-top:12px; padding-left:14px;">
+          <button type="button" class="action-btn" onclick="window.addInnerSubTask(this)" style="padding:6px 14px; font-size:13px; background:#fff; font-weight:bold; cursor:pointer; border:1px solid #cbd5e1;">+ 追加子細項</button>
         </div>
       </div>
       <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
