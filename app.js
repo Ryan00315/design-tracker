@@ -219,16 +219,22 @@ setTimeout(() => {
   }
 }, 500);
 
-// 🌟 通用 Email 通知發送函式 (非同步發信，絕不影響畫面流暢度)
+// 🌟 通用 Email 通知發送函式 (包含 admin 廣播、除錯日誌與錯誤捕獲)
 window.sendNotificationEmail = async ({ targetUid = "", targetRole = "", projTitle = "", type = "專案通知", reason = "", senderName = "" }) => {
   try {
     const sender = senderName || currentUserData.name || auth.currentUser?.email?.split('@')[0] || "系統同仁";
     let recipientEmails = [];
 
-    // 1. 若指定角色（例如：送交最高主管簽核，通知所有 top_manager）
+    // 1. 若指定角色 (若為最高主管審核，系統管理員 admin 同步接收)
     if (targetRole) {
       recipientEmails = allUsersList
-        .filter(u => u.role === targetRole && u.email)
+        .filter(u => {
+          if (!u.email) return false;
+          if (targetRole === 'top_manager') {
+            return u.role === 'top_manager' || u.role === 'admin';
+          }
+          return u.role === targetRole;
+        })
         .map(u => u.email);
     } 
     // 2. 若指定特定人員 UID
@@ -239,9 +245,15 @@ window.sendNotificationEmail = async ({ targetUid = "", targetRole = "", projTit
       }
     }
 
-    if (recipientEmails.length === 0) return;
+    // 🌟 若找不到收件人，在 Console 明確印出警告，方便排查
+    if (recipientEmails.length === 0) {
+      console.warn(`[Email 略過] 找不到收件人信箱！條件: targetRole=${targetRole}, targetUid=${targetUid}`);
+      return;
+    }
 
-    // 3. 呼叫後端 API 發送信件
+    console.log(`[Email 準備發送] 預計寄送給:`, recipientEmails);
+
+    // 3. 逐一發送並攔截 400/500 錯誤日誌
     for (const email of recipientEmails) {
       fetch('/api/send-email', {
         method: 'POST',
@@ -253,7 +265,16 @@ window.sendNotificationEmail = async ({ targetUid = "", targetRole = "", projTit
           applyUser: sender,
           subject: `${type}：${projTitle}`
         })
-      }).catch(e => console.warn(`[Email] 發信失敗至 ${email}:`, e));
+      })
+      .then(async res => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          console.error(`❌ [Email 伺服器錯誤 ${res.status}] 寄給 ${email} 失敗:`, data.error || data);
+        } else {
+          console.log(`✅ [Email 發送成功] 已送達 ${email}`);
+        }
+      })
+      .catch(e => console.error(`❌ [Email 連線失敗]`, e));
     }
   } catch (err) {
     console.error("[Email Notification Error]", err);
