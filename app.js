@@ -83,15 +83,22 @@ function getUserDept(uid) {
     return u ? (u.dept || "設計部") : "設計部";
 }
 
-// 🌟 產生全體同仁選單（未傳入指定人員時，預設選中當前操作者）
+// 🌟 產生全體同仁選單（具備部門動態提取與防呆，絕不拋錯卡死）
 function getSubProjectAssigneeOptions(selectedUid = "") {
   const currentUid = auth.currentUser?.uid || "";
-  // 若未傳入或為空，預設選取操作者本人
   const activeUid = selectedUid || currentUid;
+  const userList = (typeof allUsersList !== 'undefined' && Array.isArray(allUsersList)) ? allUsersList : [];
 
-  let options = '<option value="">-- 請選擇負責人 (預設操作者) --</option>';
-  departmentList.forEach(dept => {
-    const deptUsers = allUsersList.filter(u => (u.dept || "設計部") === dept);
+  // 動態提取所有存在的使用者部門，避免 departmentList 未宣告拋錯
+  let deptArr = (typeof departmentList !== 'undefined' && Array.isArray(departmentList))
+    ? departmentList
+    : [...new Set(userList.map(u => u.dept || "未指定部門"))];
+
+  if (deptArr.length === 0) deptArr = ["企劃部", "設計部", "採購部", "品保部", "管理部"];
+
+  let options = '<option value="">-- 請選擇負責人 (預設本人) --</option>';
+  deptArr.forEach(dept => {
+    const deptUsers = userList.filter(u => (u.dept || "未指定部門") === dept);
     if (deptUsers.length > 0) {
       options += `<optgroup label="🏢 ${dept}">`;
       deptUsers.forEach(u => {
@@ -4573,40 +4580,61 @@ window.addPreFilledInnerSubTask = (container, name, start, days, end, isApproval
    window.updateSubTaskNumbers(container);
 };
 
-window.addSubProjectRow = (defaultName = "", defaultAssignee = "") => {
-    const container = document.getElementById("subprojects-container");
-    const row = document.createElement("div");
-    row.className = "subproject-row";
-    row.style.cssText = "background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:10px; margin-bottom:10px;";
-    
-    // 預設為當前操作者
-    const targetAssignee = defaultAssignee || auth.currentUser?.uid || "";
-    let assigneeOptions = getSubProjectAssigneeOptions(targetAssignee);
+window.addSubProjectRow = (defaultName = "", defaultAssignee = "", subTasks = [], mode = "sequential") => {
+  if (typeof defaultName !== 'string') defaultName = "";
+  if (typeof defaultAssignee !== 'string') defaultAssignee = "";
 
-    row.innerHTML = `
-      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
-        <span style="font-weight:bold; color:var(--primary); font-size:14px; white-space:nowrap;">📦 子專案</span>
-        <input type="text" class="input-control subproject-name" placeholder="子專案名稱 (例: 零件採購)" value="${defaultName}" style="flex:1;">
-        
-        <!-- 🌟 可勾選採購 -->
-        <label style="display:inline-flex; align-items:center; gap:4px; font-size:13px; font-weight:bold; color:#b45309; cursor:pointer; white-space:nowrap; background:#fef3c7; padding:4px 8px; border-radius:4px; border:1px solid #fde68a;">
-          <input type="checkbox" class="subproject-is-procure" onchange="window.toggleSubProjectProcure(this)" style="cursor:pointer;">
-          🛒 採購
-        </label>
+  // 雙重容器容錯：不論頁面容器叫哪一個都能正常掛載
+  const container = document.getElementById("task-list-container") || document.getElementById("subprojects-container"); 
+  if (!container) {
+    console.error("找不到子專案容器元素！");
+    return alert("⚠️ 找不到子專案掛載容器 (task-list-container / subprojects-container)");
+  }
 
-        <select class="input-control subproject-assignee" style="width:160px;">
-          ${assigneeOptions}
+  let assigneeOptions = getSubProjectAssigneeOptions(defaultAssignee);
+
+  const div = document.createElement('div'); 
+  div.className = "form-row subproject-row"; 
+  div.style.cssText = "margin-bottom: 8px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px; flex-direction: column; gap: 8px;";
+  
+  div.innerHTML = `
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <span style="font-weight:bold; color:#d97706; white-space:nowrap;">📦 子專案</span>
+      <div class="form-group" style="margin:0; flex:2; min-width:140px;">
+        <input type="text" class="input-control task-name subproject-name" placeholder="子專案名稱 (例: 零件採購)" value="${defaultName}">
+      </div>
+      
+      <label style="display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:bold; color:#b45309; cursor:pointer; white-space:nowrap; background:#fef3c7; padding:4px 8px; border-radius:4px; border:1px solid #fde68a;">
+        <input type="checkbox" class="subproject-is-procure" onchange="window.toggleSubProjectProcure(this)" style="cursor:pointer;">
+        🛒 採購
+      </label>
+
+      <div class="form-group" style="margin:0; flex:1; min-width:140px;">
+        <select class="input-control subproject-assignee">
+           ${assigneeOptions}
         </select>
-        <button type="button" class="btn-sort" onclick="moveSubProjectRow(this, -1)" title="上移">↑</button>
-        <button type="button" class="btn-sort" onclick="moveSubProjectRow(this, 1)" title="下移">↓</button>
-        <button type="button" class="action-btn danger" onclick="this.closest('.subproject-row').remove()" style="padding:2px 6px;">✕</button>
       </div>
-      <div class="sub-tasks-container" style="padding-left:14px; border-left:2px solid #fde68a; margin-left:8px;"></div>
-      <div style="margin-top:6px; padding-left:14px;">
-        <button type="button" class="action-btn" onclick="window.addSubTaskItem(this)" style="padding:3px 8px; font-size:12px; background:#fff;">+ 追加子細項</button>
+      <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
+        <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
+        <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
+        <button type="button" class="action-btn danger" onclick="this.closest('.subproject-row').remove()" style="padding:6px 10px;">X</button>
       </div>
-    `;
-    container.appendChild(row);
+    </div>
+    <div class="sub-tasks-container" style="margin-left: 20px; border-left: 2px solid #fcd34d; padding-left: 10px; display:flex; flex-direction:column; gap:6px;">
+    </div>
+    <button type="button" class="action-btn" onclick="window.addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項</button>
+  `;
+  container.appendChild(div);
+  
+  const tasksContainer = div.querySelector('.sub-tasks-container');
+  if (Array.isArray(subTasks) && subTasks.length > 0) {
+      subTasks.forEach(st => {
+         let sDays = mode === 'free' ? 1 : (st.days || 1);
+         if (window.addPreFilledInnerSubTask) {
+           window.addPreFilledInnerSubTask(tasksContainer, st.name, "", sDays, "", st.isApproval);
+         }
+      });
+  }
 };
 
 window.addInnerSubTask = (btn) => {
@@ -4748,42 +4776,50 @@ window.updateSubTaskNumbers = (container) => {
     });
 };
 
-// 🌟 追加子專案彈窗
+// 🌟 1. 追加子專案彈窗（尺寸加倍：寬度提升至 960px，高度可容納更多欄位）
 window.openAddSubProjectModal = () => {
     const modal = document.getElementById("general-edit-modal");
     const form = document.getElementById("general-edit-form");
-    document.getElementById("general-edit-title").innerText = `📦 追加新子專案`;
+    const modalBox = modal.querySelector('.modal-box');
+    
+    // 🌟 強制放大彈窗長寬
+    if (modalBox) {
+        modalBox.style.maxWidth = "960px";
+        modalBox.style.width = "90vw";
+        modalBox.style.minHeight = "480px";
+        modalBox.style.maxHeight = "85vh";
+        modalBox.style.overflowY = "auto";
+    }
 
-    // 預設為當前操作者
+    document.getElementById("general-edit-title").innerText = `📦 追加新子專案`;
     const assigneeOptions = getSubProjectAssigneeOptions(auth.currentUser?.uid || "");
 
     form.innerHTML = `
-      <div id="add-subproject-container" style="background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:12px;">
-        <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
-          <span style="font-weight:bold; color:var(--primary); font-size:14px; white-space:nowrap;">📦 子專案</span>
-          <input type="text" class="input-control subproject-name" placeholder="子專案名稱 (必填)" style="flex:1;" required>
+      <div id="add-subproject-container" style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:16px;">
+        <div style="display:flex; gap:12px; align-items:center; margin-bottom:14px;">
+          <span style="font-weight:bold; color:var(--primary); font-size:16px; white-space:nowrap;">📦 子專案名稱</span>
+          <input type="text" class="input-control subproject-name" placeholder="請輸入子專案名稱 (必填)" style="flex:2; font-size:14px;" required>
           
-          <label style="display:inline-flex; align-items:center; gap:4px; font-size:13px; font-weight:bold; color:#b45309; cursor:pointer; white-space:nowrap; background:#fef3c7; padding:4px 8px; border-radius:4px; border:1px solid #fde68a;">
-            <input type="checkbox" class="subproject-is-procure" onchange="window.toggleSubProjectProcure(this)" style="cursor:pointer;">
+          <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:bold; color:#b45309; cursor:pointer; white-space:nowrap; background:#fef3c7; padding:6px 12px; border-radius:4px; border:1px solid #fde68a;">
+            <input type="checkbox" class="subproject-is-procure" onchange="window.toggleSubProjectProcure(this)" style="cursor:pointer; width:16px; height:16px;">
             🛒 採購
           </label>
 
-          <select class="input-control subproject-assignee" style="width:160px;">
+          <select class="input-control subproject-assignee" style="flex:1; min-width:180px; font-size:14px;">
             ${assigneeOptions}
           </select>
         </div>
-        <div class="sub-tasks-container" style="padding-left:14px; border-left:2px solid #fde68a; margin-left:8px;"></div>
-        <div style="margin-top:8px; padding-left:14px;">
-          <button type="button" class="action-btn" onclick="window.addSubTaskItem(this)" style="padding:3px 8px; font-size:12px; background:#fff;">+ 追加子細項</button>
+        <div class="sub-tasks-container" style="padding-left:16px; border-left:3px solid #fde68a; margin-left:8px;"></div>
+        <div style="margin-top:12px; padding-left:16px;">
+          <button type="button" class="action-btn" onclick="window.addSubTaskItem(this)" style="padding:6px 14px; font-size:13px; background:#fff; font-weight:bold;">+ 追加子細項</button>
         </div>
       </div>
-      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
-        <button type="button" class="action-btn" onclick="closeGeneralEditModal()">取消</button>
-        <button type="button" class="btn-primary" style="width:auto; padding:6px 16px;" onclick="submitAddSubProject()">確認新增</button>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+        <button type="button" class="action-btn" style="padding:8px 20px; font-size:14px;" onclick="closeGeneralEditModal()">取消</button>
+        <button type="button" class="btn-primary" style="width:auto; padding:8px 24px; font-size:14px;" onclick="submitAddSubProject()">確認新增</button>
       </div>
     `;
 
-    // 隱藏原生底層按鈕
     const defaultSaveBtn = Array.from(modal.querySelectorAll("button")).find(b => 
       b.getAttribute("onclick")?.includes("saveGeneralEdit") || b.textContent.includes("儲存修改")
     );
@@ -5591,20 +5627,25 @@ window.openAddSubTaskToSubProjModal = (projId, subProjName) => {
   const proj = allProjectsData.find(p => p.id === projId);
   if (!proj) return;
 
-  // 取得該子專案既有的負責人與開案人
   const firstSubTask = (proj.tasks || []).find(t => t.parentSubProject === subProjName);
   const assigneeId = firstSubTask?.assigneeId || proj.ownerId;
   const assigneeName = firstSubTask?.assigneeName || proj.ownerName;
-
   const todayStr = getTodayStr();
+
   const modal = document.getElementById("general-edit-modal");
   const form = document.getElementById("general-edit-form");
   const modalBox = modal.querySelector('.modal-box');
-  if (modalBox) modalBox.style.display = '';
+  
+  if (modalBox) {
+      modalBox.style.maxWidth = "800px";
+      modalBox.style.width = "85vw";
+      modalBox.style.minHeight = "400px";
+      modalBox.style.maxHeight = "85vh";
+      modalBox.style.overflowY = "auto";
+  }
 
   document.getElementById("general-edit-title").innerText = `➕ 追加細項至子專案 [${subProjName}]`;
 
-  // 隱藏原生底層儲存按鈕
   const defaultSaveBtn = Array.from(modal.querySelectorAll("button")).find(b => 
     b.getAttribute("onclick")?.includes("saveGeneralEdit") || b.textContent.includes("儲存修改")
   );
@@ -5614,31 +5655,33 @@ window.openAddSubTaskToSubProjModal = (projId, subProjName) => {
   }
 
   form.innerHTML = `
-    <div class="form-group">
-      <label class="form-label">細項名稱 (必填)</label>
-      <input type="text" id="new-subtask-name" class="input-control" placeholder="請輸入細項工作名稱..." required>
-    </div>
-    <div style="display:flex; gap:10px; margin-bottom:12px;">
-      <div style="flex:1;">
-        <label class="form-label">起始日</label>
-        <input type="date" id="new-subtask-start" class="input-control" value="${todayStr}" onchange="onTaskStartChange(this, null)">
+    <div style="padding:10px 0;">
+      <div class="form-group" style="margin-bottom:16px;">
+        <label class="form-label" style="font-size:14px; font-weight:bold;">細項工作名稱 (必填)</label>
+        <input type="text" id="new-subtask-name" class="input-control" placeholder="請輸入細項工作名稱..." style="font-size:14px; padding:8px 12px;" required>
       </div>
-      <div style="width:70px;">
-        <label class="form-label">天數</label>
-        <input type="number" id="new-subtask-days" class="input-control" value="1" min="1" oninput="onTaskDaysChange(this, null, null)">
+      <div style="display:flex; gap:12px; margin-bottom:16px;">
+        <div style="flex:1.2;">
+          <label class="form-label" style="font-size:14px; font-weight:bold;">起始日</label>
+          <input type="date" id="new-subtask-start" class="input-control" value="${todayStr}" onchange="onTaskStartChange(this, null)" style="font-size:14px; padding:8px 10px;">
+        </div>
+        <div style="width:100px;">
+          <label class="form-label" style="font-size:14px; font-weight:bold;">天數</label>
+          <input type="number" id="new-subtask-days" class="input-control" value="1" min="1" oninput="onTaskDaysChange(this, null, null)" style="font-size:14px; padding:8px 10px;">
+        </div>
+        <div style="flex:1.2;">
+          <label class="form-label" style="font-size:14px; font-weight:bold;">預計完成日</label>
+          <input type="date" id="new-subtask-end" class="input-control" value="${todayStr}" onchange="onTaskEndChange(this, null, null)" style="font-size:14px; padding:8px 10px;">
+        </div>
       </div>
-      <div style="flex:1;">
-        <label class="form-label">預計完成日</label>
-        <input type="date" id="new-subtask-end" class="input-control" value="${todayStr}" onchange="onTaskEndChange(this, null, null)">
+      <div class="form-group" style="margin-bottom:16px;">
+        <label class="form-label" style="font-size:14px; font-weight:bold;">負責人</label>
+        <input type="text" class="input-control" value="${assigneeName} (自動承接該子專案負責人)" readonly style="background:#f1f5f9; font-size:14px; padding:8px 12px;">
       </div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">負責人 (預設承接該子專案負責人)</label>
-      <input type="text" class="input-control" value="${assigneeName}" readonly style="background:#f1f5f9;">
-    </div>
-    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
-      <button type="button" class="action-btn" onclick="closeGeneralEditModal()">取消</button>
-      <button type="button" class="btn-primary" style="width:auto; padding:6px 16px;" onclick="submitAddSubTaskToSubProj('${projId}', '${subProjName}', '${assigneeId}', '${assigneeName}')">確認追加</button>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px;">
+        <button type="button" class="action-btn" style="padding:8px 20px; font-size:14px;" onclick="closeGeneralEditModal()">取消</button>
+        <button type="button" class="btn-primary" style="width:auto; padding:8px 24px; font-size:14px;" onclick="submitAddSubTaskToSubProj('${projId}', '${subProjName}', '${assigneeId}', '${assigneeName}')">確認追加</button>
+      </div>
     </div>
   `;
 
