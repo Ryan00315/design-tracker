@@ -1711,13 +1711,18 @@ function renderProjects() {
           const eMonth = !isNaN(eDate.getMonth()) ? eDate.getMonth() + 1 : '-';
           const eDay = !isNaN(eDate.getDate()) ? eDate.getDate() : '-';
 
-          // 🌟 升級操作按鈕群：【➕ 加細項】、【✏️ 編輯】、【🗑️ 刪除整組】
-          // 加上 onclick="event.stopPropagation()" 防止觸發子專案收合
-          const subProjActionBtns = canOperateProject
-            ? `<div style="display:inline-flex; align-items:center; gap:3px; margin-left:auto; flex-shrink:0;" onclick="event.stopPropagation();">
-                 <button type="button" class="action-btn" onclick="openAddSubTaskToSubProjModal('${activeProj.id}', '${item.parentSubProject}')" style="padding:2px 6px; font-size:11px; background:#2563eb; color:#fff; border:none; border-radius:3px; cursor:pointer;" title="為此子專案追加新細項">➕ 加細項</button>
-                 <button type="button" class="action-btn" onclick="openEditSubProjectModal('${activeProj.id}', '${item.parentSubProject}')" style="padding:2px 6px; font-size:11px; border-radius:3px; cursor:pointer;" title="編輯子專案名稱與負責人">✏️</button>
-                 <button type="button" class="action-btn danger" onclick="deleteEntireSubProject('${activeProj.id}', '${item.parentSubProject}')" style="padding:2px 6px; font-size:11px; border-radius:3px; cursor:pointer;" title="刪除整個子專案與所有細項">🗑️</button>
+          // 🌟 1. 【➕】無底色按鈕，靠右對齊放於名稱欄尾端
+          const addSubTaskBtn = canOperateProject
+            ? `<button type="button" onclick="event.stopPropagation(); openAddSubTaskToSubProjModal('${activeProj.id}', '${item.parentSubProject}')" 
+                       style="margin-left:auto; background:transparent; border:none; font-size:14px; cursor:pointer; padding:2px 6px; line-height:1;" 
+                       title="追加細項">➕</button>`
+            : '';
+
+          // 🌟 2. 【✏️】與【🗑️】移至 % 數後面的操作欄 (col-act)
+          const subProjActBtns = canOperateProject
+            ? `<div style="display:inline-flex; align-items:center; gap:3px;" onclick="event.stopPropagation();">
+                 <button type="button" class="action-btn" onclick="openEditSubProjectModal('${activeProj.id}', '${item.parentSubProject}')" style="padding:2px 5px; font-size:10px;" title="編輯子專案名稱與負責人">✏️</button>
+                 <button type="button" class="action-btn danger" onclick="deleteEntireSubProject('${activeProj.id}', '${item.parentSubProject}')" style="padding:2px 5px; font-size:10px;" title="刪除整個子專案與所有細項">🗑️</button>
                </div>`
             : '';
 
@@ -1728,12 +1733,12 @@ function renderProjects() {
               <div class="col-name" style="cursor:pointer; font-weight:bold; color:#d97706; flex:1.8; display:flex; align-items:center;" onclick="window.toggleSubProject('${activeProj.id}', '${item.parentSubProject}')">
                   <span>📦 ${item.parentSubProject}</span>
                   <span style="margin-left: 8px; font-size: 11px;">${chevron}</span>
-                  ${subProjActionBtns}
+                  ${addSubTaskBtn}
               </div>
               <div class="col-expected-date" style="color: #64748b; font-size:12px;"><span>${sMonth}/${sDay}</span><span>~ ${eMonth}/${eDay}</span></div>
               <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
               <div class="col-prog"><span style="font-weight:bold;">${item.progress}%</span></div>
-              <div class="col-act"></div>
+              <div class="col-act">${subProjActBtns}</div>
               <div class="col-owner" title="${item.assigneeName}">${item.assigneeName}</div>
           `;
           if(leftBody) leftBody.appendChild(row);
