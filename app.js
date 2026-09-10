@@ -2509,6 +2509,17 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     approvalHistory: approvalHistory
   });
 
+  // 🌟 [補上] 若專案需審核或跨部門協作，即時寄信通知所有最高主管
+  if (finalIsNeedApproval) {
+    sendNotificationEmail({
+      targetRole: 'top_manager',
+      projTitle: title,
+      type: finalIsApplyCollab ? '跨部門協作審核通知' : '專案開案簽核通知',
+      reason: approvalDesc || (hasCrossDeptSubProject ? `跨部門子專案協作：${crossDeptTargetInfo.join('、')}` : '專案申請開案審核'),
+      senderName: myName
+    });
+  }
+
   // 🌟 4. 提示訊息分流
   if (hasCrossDeptSubProject) {
     alert(`🎉 專案內包含跨部門子專案（指派至：${crossDeptTargetInfo.join('、')}）！\n系統已自動升級為【協作流程】，送交最高級主管進行第一道關卡審核指派。`);
@@ -5160,7 +5171,17 @@ window.submitAddSubProject = async () => {
         approvalHistory: history
       });
 
+      // 🌟 [補上] 跨部門子專案送審通知主管
+      sendNotificationEmail({
+        targetRole: 'top_manager',
+        projTitle: proj.title,
+        type: '跨部門協作審核通知',
+        reason: `跨部門申請協作子專案【${subProjName}】(由 ${myDept} 的 ${currentUserName} 申請，預計指派至 ${targetDept} - ${assigneeName})`,
+        senderName: currentUserName
+      });
+
       closeGeneralEditModal();
+
       alert(`🎉 偵測到跨部門指派（${myDept} ➔ ${targetDept}）！\n專案已送交主管進行協作審核指派。`);
       setProjectFilter('pending_approval');
       return;
@@ -6168,13 +6189,13 @@ window.addCollaboratorToProject = async (projId) => {
     approvalHistory: history
   });
 
-  // 🌟 [新增] 發送協作邀請通知
-    sendNotificationEmail({
-      targetUid: selectedUid,
-      projTitle: proj.title,
-      type: '專案協作邀請',
-      reason: `同仁【${currentUserData.name}】已將您加入專案【${proj.title}】的協作成員，可至系統「開放瀏覽」檢視進度。`
-    });
+  // 🌟 將原本的 selectedUid 改為 uid
+  sendNotificationEmail({
+    targetUid: uid,
+    projTitle: proj.title,
+    type: '專案協作邀請',
+    reason: `同仁【${currentUserData.name}】已將您加入專案【${proj.title}】的協作成員，可至系統「開放瀏覽」檢視進度。`
+  });
 
   alert(`🎉 已將【${targetName}】加入協作成員！`);
   openCollaboratorsModal(projId);
@@ -6372,6 +6393,15 @@ window.rejectProjectApproval = async (projId) => {
     approvalHistory: history
   });
 
+  // 🌟 [補上] 發信通知開案申請人專案已被退回
+  sendNotificationEmail({
+    targetUid: proj.ownerId,
+    projTitle: proj.title,
+    type: '專案簽核退回通知',
+    reason: `專案簽核已被退回。退回原因：${reason.trim()}`,
+    senderName: myName
+  });
+
   alert("✅ 已退回專案簽核，並已發送通知給開案申請人！");
   renderProjects();
 };
@@ -6524,6 +6554,15 @@ window.submitDispatchProject = async (projId) => {
     "approvalConfig.currentAssigneeName": targetUser.name,
     "approvalConfig.lastDispatchedByUid": auth.currentUser.uid,
     approvalHistory: history
+  });
+
+  // 🌟 [補上] 發信通知被主管指派的對象
+  sendNotificationEmail({
+    targetUid: targetUid,
+    projTitle: proj.title,
+    type: '專案指派審核通知',
+    reason: note ? `主管指派專案【${proj.title}】予您。指派備註：${note}` : `主管已核准專案【${proj.title}】並指派由您負責，請至系統待處理事項確認承接。`,
+    senderName: myName
   });
 
   closeGeneralEditModal();
@@ -6693,14 +6732,15 @@ window.submitProjectResubmit = async (projId) => {
     approvalHistory: history
   });
 
-  // 🌟 [新增] 發送 Email 給所有最高主管進行審查
-    sendNotificationEmail({
-      targetRole: 'top_manager',
-      projTitle: proj.title || title,
-      type: '專案簽核審查通知',
-      reason: approvalDesc || '專案已送交簽核，請撥冗至系統審查指派。'
-    });
-
+  // 🌟 將 approvalDesc 修正為該函式定義的 desc
+  sendNotificationEmail({
+    targetRole: 'top_manager',
+    projTitle: proj.title,
+    type: '專案簽核審查通知',
+    reason: desc || '專案已重新送交簽核，請撥冗至系統審查指派。',
+    senderName: myName
+  });
+  
   closeGeneralEditModal();
   alert("🎉 專案已成功重新送審！");
   renderProjects();
