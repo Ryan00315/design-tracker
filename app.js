@@ -167,32 +167,28 @@ function initDynamicUI() {
     .gantt-right-panel, .gantt-right-panel-summary { 
       flex: 1 1 420px !important; 
       min-width: 420px !important; 
-      padding-left: 8px !important; /* 👈 甘特圖左側微調空隙，防止圖形貼住分隔線 */
+      padding-left: 4px !important; /* 👈 甘特圖左側微調空隙，防止圖形貼住分隔線 */
     }
 
-    /* 🌟 2. 欄位寬度重配：多出來的 80px 全數灌入「細項名稱 (.col-name)」 */
+    /* 🌟 縮緊「預計日期、預計天數、進度」，多餘空間全數補給「細項名稱」 */
     .col-name { 
-      flex: 5.5 !important;        /* 👈 權重加大，名稱欄大幅變寬 */
+      flex: 6.2 !important;         /* 👈 空間擴大，細項名稱能塞更多字 */
       min-width: 220px !important; 
     }
     .col-expected-date { 
-      flex: 1 !important; 
-      min-width: 60px !important; 
-      padding-left: 6px !important; 
+      flex: 0.75 !important;        /* 👈 原為 1，縮窄收緊間距 */
+      min-width: 52px !important;   /* 👈 原為 60px */
+      padding-left: 0px !important; 
+      text-align: center !important;
     }
     .col-date { 
-      flex: 0.9 !important; 
-      min-width: 48px !important; 
+      flex: 0.65 !important;        /* 👈 原為 0.9，大幅縮減天數左右空隙 */
+      min-width: 40px !important;   /* 👈 原為 48px */
       text-align: center !important; 
     }
     .col-prog { 
-      flex: 1.1 !important; 
-      min-width: 62px !important; 
-      text-align: center !important; 
-    }
-    .col-act { 
-      flex: 1.1 !important; 
-      min-width: 58px !important; 
+      flex: 0.85 !important;        /* 👈 原為 1.1，緊貼天數與後方操作按鈕 */
+      min-width: 56px !important;   /* 👈 原為 62px */
       text-align: center !important; 
     }
 
@@ -201,7 +197,7 @@ function initDynamicUI() {
       flex: 1.5 !important; 
       min-width: 70px !important; 
       text-align: center !important; 
-      padding-right: 14px !important; /* 👈 向右空出安全距離，不再貼邊 */
+      padding-right: 4px !important; /* 👈 向右空出安全距離，不再貼邊 */
       margin-right: 4px !important;
     }
 
@@ -217,10 +213,33 @@ function initDynamicUI() {
       align-items: center !important;
       white-space: nowrap !important;
     }
-    .col-sum-name { flex: 4.5 !important; min-width: 180px !important; overflow: hidden; text-overflow: ellipsis; }
-    .col-sum-date { flex: 2 !important; min-width: 95px !important; text-align: center; line-height: 1.2; }
-    .col-sum-prog { flex: 1.5 !important; min-width: 65px !important; text-align: center; }
-    .col-sum-owner { flex: 1.5 !important; min-width: 65px !important; text-align: center; overflow: hidden; text-overflow: ellipsis; }
+    /* 🌟 總覽欄位優化：起訖日期、總進度、開案者縮小約 1/3 間距並向右靠攏 */
+    .col-sum-name { 
+      flex: 5.5 !important;           /* 👈 吸收釋放出的空間，大幅提升名稱可見度 */
+      min-width: 200px !important; 
+      overflow: hidden !important; 
+      text-overflow: ellipsis !important; 
+    }
+    .col-sum-date { 
+      flex: 1.3 !important;           /* 👈 由原本的 2 縮減約 1/3 */
+      min-width: 65px !important;     /* 👈 縮減最小寬度 */
+      text-align: center !important; 
+      line-height: 1.25 !important; 
+      padding-left: 6px !important;   /* 👈 往右微調靠攏 */
+    }
+    .col-sum-prog { 
+      flex: 1 !important;             /* 👈 由原本的 1.5 縮減 1/3 */
+      min-width: 48px !important; 
+      text-align: center !important; 
+    }
+    .col-sum-owner { 
+      flex: 1 !important;             /* 👈 由原本的 1.5 縮減 1/3 */
+      min-width: 50px !important; 
+      text-align: center !important; 
+      overflow: hidden !important; 
+      text-overflow: ellipsis !important; 
+      padding-right: 14px !important; /* 👈 維持右側安全留白，避免貼緊甘特圖 */
+    }
 
     .col-name { 
       flex: 4.2 !important; 
@@ -237,8 +256,8 @@ function initDynamicUI() {
       text-align: center !important; 
     }
     .col-prog { flex: 1.2 !important; min-width: 65px !important; text-align: center; }
-    .col-act { flex: 1.2 !important; min-width: 60px !important; text-align: center; }
-    .col-owner { flex: 1.5 !important; min-width: 65px !important; text-align: center; }
+    .col-act { flex: 0.9 !important; min-width: 45px !important; text-align: center; }
+    .col-owner { flex: 1.1 !important; min-width: 50px !important; text-align: center; }
 
     /* 🌟 手機與窄螢幕 (<= 850px) 適配 */
     @media (max-width: 850px) {
