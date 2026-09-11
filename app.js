@@ -245,7 +245,6 @@ window.sendNotificationEmail = async ({ targetUid = "", targetRole = "", projTit
       }
     }
 
-    // 🌟 若找不到收件人，在 Console 明確印出警告，方便排查
     if (recipientEmails.length === 0) {
       console.warn(`[Email 略過] 找不到收件人信箱！條件: targetRole=${targetRole}, targetUid=${targetUid}`);
       return;
@@ -253,11 +252,13 @@ window.sendNotificationEmail = async ({ targetUid = "", targetRole = "", projTit
 
     console.log(`[Email 準備發送] 預計寄送給:`, recipientEmails);
 
-    // 3. 逐一發送並攔截 400/500 錯誤日誌
+    // 🌟 Google Apps Script 專屬 API 網址
+    const gasApiUrl = "https://script.google.com/macros/s/AKfycbwEfdzs0xN2fd4LgG6m5xwAAq3iesxBpYc55IoE6H1WlHPvayMqCQ0H5fIHo7yBbPdS_A/exec";
+
     for (const email of recipientEmails) {
-      fetch('/api/send-email', {
+      fetch(gasApiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
           toEmail: email,
           projTitle: projTitle,
@@ -266,15 +267,8 @@ window.sendNotificationEmail = async ({ targetUid = "", targetRole = "", projTit
           subject: `${type}：${projTitle}`
         })
       })
-      .then(async res => {
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          console.error(`❌ [Email 伺服器錯誤 ${res.status}] 寄給 ${email} 失敗:`, data.error || data);
-        } else {
-          console.log(`✅ [Email 發送成功] 已送達 ${email}`);
-        }
-      })
-      .catch(e => console.error(`❌ [Email 連線失敗]`, e));
+      .then(() => console.log(`✅ [Email 請求已送出] 至 ${email}`))
+      .catch(e => console.warn(`[Email 發送警告]`, e));
     }
   } catch (err) {
     console.error("[Email Notification Error]", err);
