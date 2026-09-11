@@ -1212,7 +1212,9 @@ function getGraceDaysLeft(proj) {
 }
 
 function getDynamicallyShiftedTasks(proj, todayStr) {
-    let displayTasks = JSON.parse(JSON.stringify(proj.tasks || []));
+    // 🌟 在複製任務時，先綁定每一項在資料庫的原始真實索引 (_rawIndex)
+    let displayTasks = (proj.tasks || []).map((t, idx) => ({ ...t, _rawIndex: idx }));
+    
     if (proj.status === 'paused' && proj.pauseHistory && proj.pauseHistory.length > 0) {
         const lastPause = proj.pauseHistory[proj.pauseHistory.length - 1];
         if (!lastPause.end) {
@@ -1728,10 +1730,10 @@ function renderProjects() {
   const subProjMap = {};
   const handledGroups = new Set();
 
-  // 🌟 尋找第一個 forEach（建立 subProjMap）：
-  (activeProj.tasks || []).forEach((task, index) => {
-      // 👈 加入這行防呆：如果是系統通知，絕對不當成子專案！
+  // 🌟 第一個 forEach：建立 subProjMap
+  (activeProj.tasks || []).forEach((task) => {
       if (task.name && task.name.includes("[系統通知]")) return;
+      const realIndex = task._rawIndex !== undefined ? task._rawIndex : 0; // 👈 取得真實索引
 
       if (task.isSubProjectTask && task.parentSubProject) {
           if (!subProjMap[task.parentSubProject]) {
@@ -1748,7 +1750,7 @@ function renderProjects() {
           }
           const group = subProjMap[task.parentSubProject];
           group.tasks.push(task);
-          group.originalIndexes.push(index);
+          group.originalIndexes.push(realIndex); // 👈 存入真實索引
           
           if (task.start && task.start !== "尚未建立細項" && task.start < group.start) group.start = task.start;
           if (task.end && task.end !== "尚未建立細項" && task.end > group.end) group.end = task.end;
@@ -1756,10 +1758,10 @@ function renderProjects() {
       }
   });
 
-  // 🌟 尋找第二個 forEach（推入 renderList）：
-  (activeProj.tasks || []).forEach((task, index) => {
-      // 👈 同樣加入這行防呆：系統通知絕不單獨渲染成子專案或細項
+  // 🌟 第二個 forEach：推入 renderList
+  (activeProj.tasks || []).forEach((task) => {
       if (task.name && task.name.includes("[系統通知]")) return;
+      const realIndex = task._rawIndex !== undefined ? task._rawIndex : 0; // 👈 取得真實索引
 
       if (task.isSubProjectTask && task.parentSubProject) {
           if (!handledGroups.has(task.parentSubProject)) {
@@ -1782,7 +1784,7 @@ function renderProjects() {
               }
           }
       } else {
-          renderList.push({ ...task, originalIndex: index });
+          renderList.push({ ...task, originalIndex: realIndex }); // 👈 存入真實索引
       }
   });
 
@@ -2340,6 +2342,102 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
 
   await updateDoc(doc(db, "projects", projId), { tasks });
   if(newProg !== 100) alert(`進度已更新為 ${newProg}%`);
+};window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
+  const proj = allProjectsData.find(p => p.id === projId);
+  const tasks = [...proj.tasks];
+  const targetTask = tasks[taskIndex];
+  
+  const isProjOwner = (proj.ownerId === auth.currentUser.uid);
+  const taskAssigneeId = targetTask.assigneeId || proj.ownerId;
+  const isMyTask = (auth.currentUser.uid === taskAssigneeId);
+  
+  if (!isProjOwner && !isMyTask && currentUserData.role !== 'admin') {
+    return alert("權限不足：您並非此任務細項之負責人或專案建立者，無法更新進度！");
+  }
+
+  const inputElem = document.getElementById(`prog_input_${taskIndex}`);
+  let newProg = parseInt(inputElem.value); 
+  const oldProg = targetTask.progress || 0;
+  if (isNaN(newProg) || newProg < 0) newProg = 0; 
+  if (newProg > 100) newProg = 100;
+  if (newProg < oldProg) { 
+    alert(`錯誤：進度不能往回倒扣！目前已達成 ${oldProg}%。`); 
+    inputElem.value = oldProg; 
+    return; 
+  }
+
+  const todayStr = getTodayStr();
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+  let passedDays = 0; 
+  if (todayStr >= targetTask.start) passedDays = getWorkingDays(targetTask.start, todayStr);
+
+  let delayReason = targetTask.delayReason || ""; 
+  let currentRemark = "";
+  
+  if (newProg === 100) {
+    if (todayStr > plannedEnd && !delayReason) {
+      delayReason = await window.openCustomPrompt("⚠️ 任務已 Delay", "此任務已超出預計完成日，請填寫 Delay 原因 (必填)：", true);
+      if (delayReason === null) { inputElem.value = oldProg; return; }
+    } else {
+      currentRemark = await window.openCustomPrompt("🎉 任務結案", "即將結案！可填寫結案備註 (選填)：", false);
+      if (currentRemark === null) { inputElem.value = oldProg; return; }
+    }
+    
+    targetTask.isCompleted = true; 
+    targetTask.completedAt = ts; 
+    targetTask.delayReason = delayReason;
+    
+    // 🌟 同時相容「協作流程」與舊資料的「簽核流程」
+    const isFlowTask = targetTask.isSubProjectTask && 
+      (targetTask.name.includes("協作流程") || targetTask.name.includes("簽核流程"));
+
+    if (isFlowTask) {
+        const flowTypeName = targetTask.name.includes("協作流程") ? "協作流程" : "簽核流程";
+        const parentSubName = targetTask.parentSubProject;
+        const nextWorkingDay = getNextWorkingDayStr(todayStr); 
+        let modifiedCount = 0;
+        
+        tasks.forEach(t => {
+            // 排除流程自身，其餘同子專案且未完成的細項自動遞延
+            if (t.isSubProjectTask && t.parentSubProject === parentSubName && !t.name.includes("協作流程") && !t.name.includes("簽核流程")) {
+                if (!t.isCompleted) {
+                    t.start = nextWorkingDay;
+                    if (t.end < t.start) t.end = nextWorkingDay;
+                    modifiedCount++;
+                }
+            }
+        });
+        if (modifiedCount > 0) {
+            alert(`🎉 ${flowTypeName}已結案！後續 ${modifiedCount} 個細項的起始日，已自動展延至下一個工作日 (${nextWorkingDay})。`);
+        } else {
+            alert(`🎉 ${flowTypeName}已結案！`);
+        }
+    } else {
+        alert("🎉 進度已達 100%！該任務已結案。");
+    }
+
+  } else { 
+    currentRemark = await window.openCustomPrompt("📝 進度更新", "請輸入此次進度更新的備註事項 (選填)：", false);
+    if (currentRemark === null) { inputElem.value = oldProg; return; }
+    targetTask.isCompleted = false; 
+    targetTask.completedAt = null; 
+  }
+  
+  targetTask.progress = newProg; 
+  targetTask.lastUpdatedAt = ts;
+
+  if (!targetTask.history) targetTask.history = [];
+  targetTask.history.push({ 
+    timestamp: ts, 
+    progress: newProg, 
+    type: newProg === 100 ? 'complete' : 'update', 
+    daysPassed: passedDays, 
+    remark: currentRemark, 
+    delayReason: delayReason || "" 
+  });
+
+  await updateDoc(doc(db, "projects", projId), { tasks });
+  if (newProg !== 100) alert(`進度已更新為 ${newProg}%`);
 };
 
 document.getElementById("btn-add-project").addEventListener("click", async () => {
@@ -2546,8 +2644,6 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   } else {
     alert("🎉 新專案已成功建立！開放 7 日自由編輯期。");
   }
-
-  alert(isNeedApproval ? "🎉 專案已成功送出簽核！已送交最高級主管審核。" : "🎉 新專案已成功建立！開放 7 日自由編輯期。");
 
   const chkApproval = document.getElementById("chk-need-approval");
   if (chkApproval) {
