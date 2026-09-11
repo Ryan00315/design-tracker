@@ -201,42 +201,53 @@ function initDynamicUI() {
         flex: 0 0 100% !important; 
         min-width: 100% !important; 
       }
-    } /* 👈 這裡原本漏掉關閉 */
+    }
 
-    /* 🌟 電腦版優化：解鎖遮擋，讓按鈕浮出時跨越到日期欄位 */
+    /* 🌟 1. 強制日期「上下分行」置中排列 */
+    .col-sum-date, .col-expected-date { 
+      display: flex !important; 
+      flex-direction: column !important; 
+      justify-content: center !important; 
+      align-items: center !important; 
+      line-height: 1.25 !important; 
+      min-width: 85px !important; 
+      text-align: center !important;
+    }
+
+    /* 🌟 2. 電腦版浮動按鈕：頭部 (左邊) 直接與日期欄位切齊 */
     @media (min-width: 851px) {
       .gantt-row {
         position: relative !important;
       }
       .gantt-row:hover {
-        z-index: 30 !important; /* 確保懸浮列圖層置頂 */
+        z-index: 30 !important;
       }
       .gantt-row .col-name {
         position: relative !important;
-        overflow: visible !important; /* 👈 關鍵核心：解除欄位裁切，按鍵不再被切斷 */
+        overflow: visible !important;
       }
       /* 平常隱藏按鈕 */
       .gantt-row .col-name > div {
         display: none !important;
       }
-      /* 滑鼠懸浮 (Hover) 時，4 顆按鈕完整浮動跨到日期上方 */
+      /* 滑鼠懸浮時：左側 (頭) 精準對齊日期欄位開頭 (left: 100%) */
       .gantt-row:hover .col-name > div {
         display: inline-flex !important;
         position: absolute !important;
-        right: -60px !important; /* 往右突出跨在日期欄位上方 */
+        left: 100% !important; /* 👈 關鍵：頭部切齊日期欄位最左側 */
+        right: auto !important;
         top: 50% !important;
-        transform: translateY(-50%) !important; /* 垂直完美居中 */
+        transform: translateY(-50%) !important;
         white-space: nowrap !important;
-        width: max-content !important; /* 👈 強制寬度包覆所有按鈕，絕不擠壓折行 */
+        width: max-content !important;
         background: #ffffff !important;
         padding: 3px 6px !important;
         border-radius: 6px !important;
         box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18) !important;
         border: 1px solid #cbd5e1 !important;
-        z-index: 9999 !important; /* 浮在最上層，蓋過底下的日期文字 */
+        z-index: 9999 !important;
       }
       
-      /* 鎖定左側面板最小寬度 */
       .gantt-left-panel, .gantt-left-panel-summary {
         min-width: 380px !important;
       }
@@ -1671,7 +1682,7 @@ function renderProjects() {
         const sMD = parseMD(item.start);
         const eMD = parseMD(item.end);
 
-        row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')" style="display:flex; align-items:center; overflow:hidden;">${titleDisplay}</div><div class="col-sum-date"><span>${sMD}</span><span style="color: #c2410c; font-weight: 600;">${eMD}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
+        row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')" style="display:flex; align-items:center; overflow:hidden;">${titleDisplay}</div><div class="col-sum-date" style="display:flex; flex-direction:column; align-items:center; line-height:1.25;"><div>${sMD}</div><div style="color:#c2410c; font-weight:600;">${eMD}</div></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       } else {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
         if (item.hasDelay && !item.isDone) {
