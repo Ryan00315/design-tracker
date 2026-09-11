@@ -6654,6 +6654,14 @@ window.openApprovalLogModal = (projId) => {
   const form = document.getElementById("general-edit-form");
   document.getElementById("general-edit-title").innerText = "專案簽核歷程";
   form.innerHTML = html;
+
+  // 🌟 核心：隱藏彈窗底部的「儲存修改 / 確認」按鈕
+  const submitBtn = document.querySelector("#general-edit-modal button[type='submit']") || 
+                    document.querySelector("#general-edit-modal .btn-primary");
+  if (submitBtn) {
+    submitBtn.style.display = "none";
+  }
+
   document.getElementById("general-edit-modal").classList.add("active");
 };
 
