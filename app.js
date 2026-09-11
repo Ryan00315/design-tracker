@@ -152,22 +152,65 @@ function initDynamicUI() {
       min-width: max-content !important;
     }
 
-    /* 🌟 甘特圖主面板：設定最小寬度保護，未達寬度自動橫向捲動 */
+    /* 🌟 1. 面板分配：左側面板加寬 80px (460px ➔ 540px)，甘特圖剛好縮小 2 天 (18天 ➔ 16天) */
     .gantt-master-layout { 
       display: flex !important; 
       width: 100% !important;
       overflow-x: auto !important;
     }
     .gantt-left-panel, .gantt-left-panel-summary { 
-      flex: 0 0 460px !important; 
-      min-width: 460px !important; 
-      max-width: 460px !important; 
+      flex: 0 0 540px !important;   /* 👈 加寬 80px，把空間吃過來 */
+      min-width: 540px !important; 
+      max-width: 540px !important; 
+      border-right: 2px solid #e2e8f0 !important; /* 👈 明確垂直分隔線，區隔甘特圖 */
     }
     .gantt-right-panel, .gantt-right-panel-summary { 
-      flex: 1 1 500px !important; 
-      min-width: 450px !important; 
+      flex: 1 1 420px !important; 
+      min-width: 420px !important; 
+      padding-left: 8px !important; /* 👈 甘特圖左側微調空隙，防止圖形貼住分隔線 */
     }
 
+    /* 🌟 2. 欄位寬度重配：多出來的 80px 全數灌入「細項名稱 (.col-name)」 */
+    .col-name { 
+      flex: 5.5 !important;        /* 👈 權重加大，名稱欄大幅變寬 */
+      min-width: 220px !important; 
+    }
+    .col-expected-date { 
+      flex: 1 !important; 
+      min-width: 60px !important; 
+      padding-left: 6px !important; 
+    }
+    .col-date { 
+      flex: 0.9 !important; 
+      min-width: 48px !important; 
+      text-align: center !important; 
+    }
+    .col-prog { 
+      flex: 1.1 !important; 
+      min-width: 62px !important; 
+      text-align: center !important; 
+    }
+    .col-act { 
+      flex: 1.1 !important; 
+      min-width: 58px !important; 
+      text-align: center !important; 
+    }
+
+    /* 🌟 3. 負責人欄位：增加右側安全內距，徹底解決擠到甘特圖左側的問題 */
+    .col-owner, .col-sum-owner { 
+      flex: 1.5 !important; 
+      min-width: 70px !important; 
+      text-align: center !important; 
+      padding-right: 14px !important; /* 👈 向右空出安全距離，不再貼邊 */
+      margin-right: 4px !important;
+    }
+
+    /* 電腦版浮動按鈕最小寬度同步跟進 */
+    @media (min-width: 851px) {
+      .gantt-left-panel, .gantt-left-panel-summary {
+        min-width: 540px !important;
+      }
+    }
     /* 🌟 欄位寬度與間距鎖定，防止文字重疊 */
     .gantt-row, .gantt-row-header {
       display: flex !important;
@@ -179,9 +222,20 @@ function initDynamicUI() {
     .col-sum-prog { flex: 1.5 !important; min-width: 65px !important; text-align: center; }
     .col-sum-owner { flex: 1.5 !important; min-width: 65px !important; text-align: center; overflow: hidden; text-overflow: ellipsis; }
 
-    .col-name { flex: 3.5 !important; min-width: 150px !important; }
-    .col-expected-date { flex: 1.8 !important; min-width: 85px !important; text-align: center; }
-    .col-date { flex: 1 !important; min-width: 50px !important; text-align: center; }
+    .col-name { 
+      flex: 4.2 !important; 
+      min-width: 150px !important; 
+    }
+    .col-expected-date { 
+      flex: 1 !important;          /* 👈 由 1.8 縮減至 1，消除多餘空白 */
+      min-width: 60px !important;   /* 👈 由 85px 縮減至 60px */
+      padding-left: 8px !important; /* 👈 內容整體向右微調靠攏天數 */
+    }
+    .col-date { 
+      flex: 0.9 !important; 
+      min-width: 48px !important; 
+      text-align: center !important; 
+    }
     .col-prog { flex: 1.2 !important; min-width: 65px !important; text-align: center; }
     .col-act { flex: 1.2 !important; min-width: 60px !important; text-align: center; }
     .col-owner { flex: 1.5 !important; min-width: 65px !important; text-align: center; }
@@ -203,14 +257,26 @@ function initDynamicUI() {
       }
     }
 
-    /* 🌟 1. 強制日期「上下分行」置中排列 */
-    .col-sum-date, .col-expected-date { 
+    /* 🌟 1. 總覽起訖日期：維持正常寬度置中 */
+    .col-sum-date { 
       display: flex !important; 
       flex-direction: column !important; 
       justify-content: center !important; 
       align-items: center !important; 
       line-height: 1.25 !important; 
-      min-width: 85px !important; 
+      min-width: 75px !important; 
+      text-align: center !important;
+    }
+
+    /* 🌟 2. 專案預計日期：縮減寬度並往右靠，大幅消除與天數之間的空隙 */
+    .col-expected-date { 
+      display: flex !important; 
+      flex-direction: column !important; 
+      justify-content: center !important; 
+      align-items: center !important; 
+      line-height: 1.25 !important; 
+      min-width: 55px !important;   /* 👈 從 85px 縮小至 55px，直接消弭大間隔 */
+      padding-left: 14px !important; /* 👈 內容與標題整體往右靠向「預計天數」 */
       text-align: center !important;
     }
 
