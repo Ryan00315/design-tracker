@@ -6036,7 +6036,12 @@ window.renderNotifications = () => {
       // 🌟 3. 專案簽核中
       else if (isPendingApproval) {
         if (cfg.isApplyCollab) {
-          noticeMsg = `<span style="color:var(--danger); font-weight:600;">🚨 您已被指派協作專案，請確認接收。</span>`;
+          // 🌟 判斷級別分流通知文案：人員級別 vs 主管級別
+          if (currentUserData.role === 'staff') {
+            noticeMsg = `<span style="color:var(--danger); font-weight:600;">🚨 您已被指派協作專案，請確認接收。</span>`;
+          } else {
+            noticeMsg = `<span style="color:var(--danger); font-weight:600;">🚨 申請協作專案作業，請主管確認後簽核。</span>`;
+          }
           typeLabel = '<span class="pill" style="background:#dbeafe; color:#1e40af; font-weight:bold;">👑 協作指派審核</span>';
         } else {
           noticeMsg = `<span style="color:#d97706; font-weight:600;">👑 專案開案簽核申請</span>`;
