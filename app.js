@@ -112,7 +112,6 @@ function getSubProjectAssigneeOptions(selectedUid = "") {
 }
 
 function initDynamicUI() {
-  // 🌟 避免重複注入 CSS 樣式
   if (document.getElementById('custom-dynamic-ui-style')) return;
 
   const style = document.createElement('style');
@@ -122,47 +121,91 @@ function initDynamicUI() {
     .tab-pane { zoom: var(--font-scale, 1.2); }
     body.font-md { --font-scale: 1.5 !important; }
     body.font-lg { --font-scale: 1.8 !important; }
-    .kpi-card { padding: 8px 12px !important; min-height: unset !important; }
-    .kpi-title { font-size: 11.5px !important; margin-bottom: 2px !important; }
-    .kpi-number { font-size: 18px !important; }
-    .col-sum-name.clickable { cursor: pointer; text-decoration: none; transition: 0.2s; }
-    .col-sum-name.clickable:hover { opacity: 0.7; }
-    .gantt-left-panel, .gantt-left-panel-summary { flex: 0 0 40% !important; max-width: 40% !important; }
-    .gantt-right-panel, .gantt-right-panel-summary { flex: 0 0 60% !important; max-width: 60% !important; }
-    .col-sum-name { flex: 5.8 !important; } 
-    .col-sum-date { flex: 1.4 !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; } 
-    .col-sum-prog { flex: 1.6 !important; text-align: center; display: flex; justify-content: center; align-items: center; } 
-    .col-sum-owner { flex: 1.6 !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .col-name { flex: 1.8 !important; } 
-    .col-expected-date { flex: 0.5 !important; min-width: 55px !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; }
-    .col-date { flex: 0.4 !important; min-width: 40px !important; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; } 
-    .col-prog { flex: 0.4 !important; min-width: 55px !important; text-align: center; display: flex; justify-content: center; align-items: center; }
-    .col-act { flex: 0.4 !important; min-width: 45px !important; text-align: center; display: flex; justify-content: center; align-items: center; }
-    .col-owner { flex: 0.5 !important; min-width: 50px !important; text-align: center; display: flex; justify-content: center; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .mobile-fixed-dropdown { position: fixed !important; top: 60px !important; left: 0 !important; width: 100vw !important; height: calc(100vh - 60px) !important; background: #ffffff !important; z-index: 999999 !important; display: flex !important; flex-direction: column; overflow-y: auto !important; padding: 20px !important; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
-    .hide-on-mobile { display: flex !important; }
-    .font-btn { transition: 0.2s; }
-    .font-btn.active { background: #4f46e5 !important; color: #fff !important; border-color: #4f46e5 !important; }
-    @media (max-width: 768px) {
+    
+    /* 🌟 KPI 區塊：彈性換行，設定最小寬度防止擠扁成直排 */
+    .kpi-row { 
+      display: flex !important; 
+      flex-wrap: wrap !important; 
+      gap: 8px !important; 
+      align-items: stretch !important; 
+    }
+    .kpi-card { 
+      flex: 1 1 80px !important; 
+      min-width: 80px !important; 
+      padding: 8px 10px !important; 
+      min-height: unset !important; 
+      white-space: nowrap !important;
+    }
+    .kpi-title { font-size: 12px !important; margin-bottom: 2px !important; }
+    .kpi-number { font-size: 20px !important; }
+
+    /* 🌟 專案標籤 Tab：防止按鈕縮減截斷，支援橫向滑動 */
+    #project-tabs-container {
+      display: flex !important;
+      overflow-x: auto !important;
+      white-space: nowrap !important;
+      gap: 6px !important;
+      padding-bottom: 4px !important;
+    }
+    .proj-tab {
+      flex-shrink: 0 !important;
+      min-width: max-content !important;
+    }
+
+    /* 🌟 甘特圖主面板：設定最小寬度保護，未達寬度自動橫向捲動 */
+    .gantt-master-layout { 
+      display: flex !important; 
+      width: 100% !important;
+      overflow-x: auto !important;
+    }
+    .gantt-left-panel, .gantt-left-panel-summary { 
+      flex: 0 0 460px !important; 
+      min-width: 460px !important; 
+      max-width: 460px !important; 
+    }
+    .gantt-right-panel, .gantt-right-panel-summary { 
+      flex: 1 1 500px !important; 
+      min-width: 450px !important; 
+    }
+
+    /* 🌟 欄位寬度與間距鎖定，防止文字重疊 */
+    .gantt-row, .gantt-row-header {
+      display: flex !important;
+      align-items: center !important;
+      white-space: nowrap !important;
+    }
+    .col-sum-name { flex: 4.5 !important; min-width: 180px !important; overflow: hidden; text-overflow: ellipsis; }
+    .col-sum-date { flex: 2 !important; min-width: 95px !important; text-align: center; line-height: 1.2; }
+    .col-sum-prog { flex: 1.5 !important; min-width: 65px !important; text-align: center; }
+    .col-sum-owner { flex: 1.5 !important; min-width: 65px !important; text-align: center; overflow: hidden; text-overflow: ellipsis; }
+
+    .col-name { flex: 3.5 !important; min-width: 150px !important; }
+    .col-expected-date { flex: 1.8 !important; min-width: 85px !important; text-align: center; }
+    .col-date { flex: 1 !important; min-width: 50px !important; text-align: center; }
+    .col-prog { flex: 1.2 !important; min-width: 65px !important; text-align: center; }
+    .col-act { flex: 1.2 !important; min-width: 60px !important; text-align: center; }
+    .col-owner { flex: 1.5 !important; min-width: 65px !important; text-align: center; }
+
+    /* 🌟 手機與窄螢幕 (<= 850px) 適配 */
+    @media (max-width: 850px) {
       :root { --font-scale: 1 !important; }
-      .kpi-row { grid-template-columns: repeat(5, 1fr) !important; gap: 4px !important; }
-      .kpi-title { font-size: 10px !important; }
-      .kpi-card { padding: 6px 4px !important; }
-      .gantt-master-layout { display: flex !important; flex-direction: column !important; }
-      .gantt-left-panel, .gantt-left-panel-summary { flex: 0 0 100% !important; max-width: 100% !important; margin-bottom: 16px !important; overflow-x: auto !important; }
-      .gantt-right-panel, .gantt-right-panel-summary { display: block !important; flex: 0 0 100% !important; max-width: 100% !important; }
-      .hide-on-mobile { display: none !important; }
-      .mobile-fixed-dropdown .nav-sub-dept-header { color: #1e293b !important; background: #e2e8f0 !important; font-size: 14px !important; padding: 10px 14px !important; border-radius: 6px !important; margin-top: 8px !important; }
-      .mobile-fixed-dropdown .nav-sub-dept-header span { color: #1e293b !important; }
-      .mobile-fixed-dropdown .dept-count-badge { background: #cbd5e1 !important; color: #0f172a !important; }
-      .mobile-fixed-dropdown .dept-arrow { color: #475569 !important; }
-      .mobile-fixed-dropdown .nav-sub-item { color: #0f172a !important; font-size: 15px !important; padding: 10px 16px !important; border-bottom: 1px solid #f1f5f9 !important; }
-      .mobile-fixed-dropdown .nav-sub-item small { color: #64748b !important; }
-      .mobile-fixed-dropdown .nav-sub-item:hover, .mobile-fixed-dropdown .nav-sub-item.active { background: #eff6ff !important; color: #2563eb !important; font-weight: 700 !important; }
-      .mobile-fixed-dropdown .nav-sub-item.active small { color: #3b82f6 !important; }
+      .kpi-row { grid-template-columns: repeat(3, 1fr) !important; }
+      .gantt-master-layout { flex-direction: column !important; }
+      .gantt-left-panel, .gantt-left-panel-summary { 
+        flex: 0 0 100% !important; 
+        min-width: 100% !important; 
+        max-width: 100% !important; 
+        margin-bottom: 16px !important; 
+      }
+      .gantt-right-panel, .gantt-right-panel-summary { 
+        flex: 0 0 100% !important; 
+        min-width: 100% !important; 
+      }
     }
   `;
   document.head.appendChild(style);
+
+  // （後續 project-year-filter 邏輯維持原樣）
 
   const btnWrapper = document.getElementById('btn-create-wrapper');
   if (btnWrapper && !document.getElementById('project-year-filter')) {
@@ -825,6 +868,12 @@ onAuthStateChanged(auth, async (user) => {
     loadMyCalendarTodos(user.uid);
     initTemplateUI();
     window.injectFontSizeUI();
+    // 🌟 補上這段：登入完成 0.3 秒後主動觸發畫面更新，確保手機首次載入不留白
+    setTimeout(() => {
+      renderProjects();
+      if (window.renderNotifications) window.renderNotifications();
+    }, 300);
+
   } else {
     document.getElementById("auth-section").style.display = "flex"; 
     document.getElementById("app-section").style.display = "none";
@@ -4146,7 +4195,8 @@ function loadOrgUsers() {
         `;
       tbody.appendChild(tr);
     });
-    renderOrgChart(); 
+    renderOrgChart();
+    renderProjects();
   });
 }
 
@@ -5987,14 +6037,25 @@ window.rejectSubProjectAssignment = async (projId, subProjName) => {
     if (window.renderNotifications) window.renderNotifications();
 };
 
+// 🌟 增強版：具備錯誤重試與防重複監聽機制
+let projectsUnsubscribe = null;
 function loadProjects() {
-  onSnapshot(query(collection(db, "projects")), (snapshot) => {
-    allProjectsData = []; 
-    snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
-    renderProjects(); 
-    refreshAllWeeklyProjSelects();
-    if (window.renderNotifications) window.renderNotifications(); 
-  }); 
+  if (projectsUnsubscribe) projectsUnsubscribe(); // 清除舊監聽，避免重複綁定
+
+  projectsUnsubscribe = onSnapshot(
+    query(collection(db, "projects")), 
+    (snapshot) => {
+      allProjectsData = []; 
+      snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
+      renderProjects(); 
+      refreshAllWeeklyProjSelects();
+      if (window.renderNotifications) window.renderNotifications(); 
+    },
+    (error) => {
+      console.warn("手機端初次載入延遲，1.5 秒後自動重試...", error);
+      setTimeout(loadProjects, 1500); // 🌟 遇到短暫驗證延遲自動重撈，免手動重新整理
+    }
+  ); 
 }
 
 // 🌟 開啟編輯子專案彈窗
