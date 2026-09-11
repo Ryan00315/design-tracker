@@ -6846,37 +6846,180 @@ window.rejectProjectApproval = async (projId) => {
   renderProjects();
 };
 
-  // 1. 將相關通知任務標記為已讀，並解除指派細項的鎖定
-  const tasks = (proj.tasks || []).map(t => {
+// 🌟 4. 階層指派彈窗與執行
+window.openDispatchModal = (projId) => {
+  const proj = allProjectsData.find(p => p.id === projId);
+  if (!proj) return;
+
+  const myRole = currentUserData.role;
+  const myDept = currentUserData.dept || "設計部";
+  const isTopOrAdmin = (myRole === 'admin' || myRole === 'top_manager');
+  const isSenior = (myRole === 'senior_manager');
+
+  let eligibleUsers = [];
+
+  if (isTopOrAdmin) {
+    eligibleUsers = allUsersList.filter(u => u.uid !== auth.currentUser.uid);
+  } else if (isSenior) {
+    eligibleUsers = allUsersList.filter(u => u.uid !== auth.currentUser.uid && u.role !== 'top_manager' && u.role !== 'admin');
+  } else {
+    eligibleUsers = allUsersList.filter(u => (u.dept || "設計部") === myDept && u.uid !== auth.currentUser.uid && (u.role === 'staff' || u.role === 'assistant_manager'));
+  }
+
+  if (eligibleUsers.length === 0) {
+    return alert("目前沒有可供指派的下屬名單！若需執行請直接點選【承接】。");
+  }
+
+  let options = '<option value="">-- 請選擇指派對象 --</option>';
+  eligibleUsers.forEach(u => {
+    options += `<option value="${u.uid}">${u.name} (${u.dept || '設計部'} - ${roleNames[u.role] || u.role})</option>`;
+  });
+
+  const modal = document.getElementById("general-edit-modal");
+  const form = document.getElementById("general-edit-form");
+  const modalBox = modal.querySelector('.modal-box');
+  
+  if (modalBox) modalBox.style.display = '';
+
+  document.getElementById("general-edit-title").innerText = `👥 階層協作指派 [${proj.title}]`;
+
+  const defaultSaveBtn = Array.from(modal.querySelectorAll("button")).find(b => 
+    b.getAttribute("onclick")?.includes("saveGeneralEdit") || b.textContent.includes("儲存修改")
+  );
+  const defaultFooter = defaultSaveBtn ? defaultSaveBtn.closest("div") : null;
+  if (defaultFooter && defaultFooter !== form && !form.contains(defaultFooter)) {
+    defaultFooter.style.display = "none";
+  }
+
+  form.innerHTML = `
+    <div class="form-group">
+      <label class="form-label">選擇被指派主管 / 人員</label>
+      <select id="dispatch-target-uid" class="input-control">${options}</select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">指派備註說明 (選填)</label>
+      <textarea id="dispatch-note" class="input-control" rows="3" placeholder="請填寫指派工作要求或說明..."></textarea>
+    </div>
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+      <button type="button" class="action-btn" onclick="closeGeneralEditModal()">取消</button>
+      <button type="button" class="btn-primary" style="width:auto; padding:6px 16px;" onclick="submitDispatchProject('${proj.id}')">確認指派</button>
+    </div>
+  `;
+
+  modal.classList.add("active");
+};
+
+// 🌟 指派時：只轉交簽核權限，不動細項負責人
+window.submitDispatchProject = async (projId) => {
+  const targetUid = document.getElementById("dispatch-target-uid").value;
+  const note = document.getElementById("dispatch-note").value.trim();
+  if (!targetUid) return alert("請選擇指派對象！");
+
+  const targetUser = allUsersList.find(u => u.uid === targetUid);
+  const proj = allProjectsData.find(p => p.id === projId);
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+  const myName = currentUserData.name || "主管";
+
+  const isStaff = (targetUser.role === 'staff');
+  const history = proj.approvalHistory || [];
+
+  history.push({
+    step: isStaff ? '指派至執行人員 (待確認)' : '轉交主管指派',
+    operatorName: myName,
+    operatorUid: auth.currentUser.uid,
+    role: roleNames[currentUserData.role] || currentUserData.role,
+    time: ts,
+    remark: note ? `${note} (指派給 ${targetUser.name})` : `指派給 ${targetUser.name}`
+  });
+
+  await updateDoc(doc(db, "projects", projId), {
+    "approvalConfig.currentStage": isStaff ? 'staff' : 'manager',
+    "approvalConfig.currentAssigneeUid": targetUser.uid,
+    "approvalConfig.currentAssigneeName": targetUser.name,
+    "approvalConfig.lastDispatchedByUid": auth.currentUser.uid,
+    approvalHistory: history
+  });
+
+  sendNotificationEmail({
+    targetUid: targetUid,
+    projTitle: proj.title,
+    type: '專案指派審核通知',
+    reason: note ? `主管指派專案【${proj.title}】予您。指派備註：${note}` : `主管已核准專案【${proj.title}】並指派由您負責，請至系統待處理事項確認承接。`,
+    senderName: myName
+  });
+
+  closeGeneralEditModal();
+  alert(`✅ 已成功指派給 ${targetUser.name}！該專案已自您的待辦清單移出。`);
+  renderProjects();
+};
+
+// 🌟 點擊專案名稱直接前往專案看細項
+window.viewProjectFromNotif = (ownerId, ownerName, projId, status) => {
+    switchViewingUser(ownerId, ownerName);
+    if (status === 'pending_approval' || status === 'rejected') {
+        setProjectFilter('pending_approval');
+    } else {
+        setProjectFilter('ongoing');
+    }
+    switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*="tab-projects"]'));
+    setTimeout(() => {
+        selectProject(projId);
+    }, 150);
+};
+
+// 🌟 承接協作專案：按下承接後，專案生效並將未完成細項轉給承接人
+window.selfAcceptCollabProject = async (projId) => {
+  if (!confirm("確定要承接此協作專案嗎？\n承接後專案將正式生效，所有任務細項將由您負責，並加入您的【未完成】清單中。")) return;
+  const proj = allProjectsData.find(p => p.id === projId);
+  if (!proj) return;
+
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+  const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
+  const myUid = auth.currentUser.uid;
+  const history = proj.approvalHistory || [];
+
+  history.push({
+    step: '💼 承接專案',
+    operatorName: myName,
+    operatorUid: myUid,
+    role: roleNames[currentUserData.role] || currentUserData.role,
+    time: ts,
+    remark: `${myName} 已確認承接此協作專案，負責執行`
+  });
+
+  // 只要按下「承接」，將所有未完成的細項負責人正式切換為當前承接人
+  const updatedTasks = (proj.tasks || []).map(t => {
     if (t.name && t.name.includes("[系統通知]")) {
       return { ...t, isSystemNotifUnread: false };
     }
-    if (t.isSubProjectTask && t.isPendingAcceptance) {
+    if (!t.isCompleted) {
       return {
         ...t,
-        isPendingAcceptance: false // 🌟 解除鎖定
+        assigneeId: myUid,
+        assigneeName: myName,
+        isPendingAcceptance: false
       };
     }
     return t;
   });
 
-  // 2. 將承接人 B 自動納入協作成員名單 (白名單)
   let collabUids = Array.isArray(proj.collaboratorUids) ? [...proj.collaboratorUids] : [];
-  if (!collabUids.includes(auth.currentUser.uid)) {
-    collabUids.push(auth.currentUser.uid);
+  if (!collabUids.includes(myUid)) {
+    collabUids.push(myUid);
   }
 
-  // 3. 更新 Firebase：嚴格保留 proj.ownerId 與 proj.ownerName，絕不改動！
   await updateDoc(doc(db, "projects", projId), {
     status: 'active',
     collaboratorUids: collabUids,
     "approvalConfig.approvalStatus": 'approved',
+    "approvalConfig.currentAssigneeUid": "",
     approvalHistory: history,
-    tasks: tasks
+    tasks: updatedTasks
   });
 
-  alert("🎉 您已成功承接此專案！專案已正式加入您的【未完成】專案清單。");
+  alert("🎉 您已成功承接此專案！任務細項已轉交由您負責，並已加入您的【未完成】清單。");
   renderProjects();
+  if (window.renderNotifications) window.renderNotifications();
 };
 
 // 🌟 4. 階層指派彈窗與執行
