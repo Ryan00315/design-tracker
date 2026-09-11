@@ -1419,6 +1419,17 @@ function getDynamicallyShiftedTasks(proj, todayStr) {
     return displayTasks;
 }
 
+// 🌟 效能優化：防止多個 Firestore 監聽同時回傳造成畫面連續重繪
+let renderDebounceTimer = null;
+const originalRenderProjects = renderProjects;
+
+renderProjects = function() {
+  if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
+  renderDebounceTimer = setTimeout(() => {
+    originalRenderProjects();
+  }, 50); // 50 毫秒內的多個請求自動合併為 1 次
+};
+
 function renderProjects() {
   fixHeaders(); 
   checkEditModeVisibility();
