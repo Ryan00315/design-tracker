@@ -1999,11 +1999,27 @@ function renderProjects() {
 
             const expectedDateHtml = `<div class="col-expected-date" style="color: #64748b;"><span>${sMonth}/${sDay}</span><span>~ ${eMonth}/${eDay}</span></div>`;
 
-            const progressInputStyle = task.isCompleted 
-              ? 'width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold; color:var(--success);' 
-              : 'width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold;';
+            // 🌟 1. 進度數字顏色分流：未 100% 黑色、Delay 紅色、100% 綠色
+            const isTaskDelay = !task.isCompleted && (todayStr > safeEnd);
+            let numColor = '#0f172a'; // 預設未 100% 為黑色
 
-            const confirmBtnStyle = (task.isCompleted || isInputLocked) ? 'opacity: 0.4; cursor: not-allowed;' : '';
+            if (task.isCompleted || currentProgress >= 100) {
+              numColor = 'var(--success)'; // 100% 綠色
+            } else if (isTaskDelay) {
+              numColor = 'var(--danger)'; // Delay 紅色
+            }
+
+            const progressInputStyle = `width:46px; padding:2px 0px; text-align:center; height:24px; font-weight:bold; color:${numColor};`;
+
+            // 🌟 2. 按鈕樣式分流：完成為綠色且變透 (opacity: 0.4)，確認保持黑色
+            let confirmBtnStyle = '';
+            if (task.isCompleted) {
+              confirmBtnStyle = 'color: var(--success) !important; border-color: var(--success) !important; opacity: 0.4; cursor: not-allowed; font-weight: bold;';
+            } else {
+              confirmBtnStyle = isInputLocked 
+                ? 'color: #0f172a !important; opacity: 0.4; cursor: not-allowed;' 
+                : 'color: #0f172a !important; cursor: pointer;';
+            }
 
             let displayName = task.name || '未命名任務';
             if (item.isChild && task.parentSubProject) {
@@ -2018,7 +2034,7 @@ function renderProjects() {
               <div class="col-name" title="${task.name || '未命名任務'}" style="${nameIndent}"><span style="overflow:hidden; text-overflow:ellipsis;">${displayName}</span>${editHtml}</div>
               ${expectedDateHtml}
               <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
-              <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="${progressInputStyle}"><span style="font-weight:bold; margin-left:2px;">%</span></div>
+              <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="${progressInputStyle}"><span style="font-weight:bold; margin-left:2px; color:${numColor};">%</span></div>
               <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} style="${confirmBtnStyle}" onclick="confirmProgress('${activeProj.id}', ${index}, '${safeEnd}')">${task.isCompleted ? '完成' : '確認'}</button></div>
               <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
             `;
