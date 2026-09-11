@@ -201,7 +201,9 @@ function initDynamicUI() {
         flex: 0 0 100% !important; 
         min-width: 100% !important; 
       }
-      /* 🌟 電腦版優化：細項按鈕平常隱藏，滑鼠移到該列才浮現，釋放 100% 文字空間 */
+    } /* 👈 這裡原本漏掉關閉 */
+
+    /* 🌟 電腦版優化：細項按鈕平常隱藏，滑鼠移到該列才浮現，釋放 100% 文字空間 */
     @media (min-width: 851px) {
       .gantt-row .col-name {
         position: relative !important;
@@ -223,7 +225,7 @@ function initDynamicUI() {
         z-index: 10 !important;
       }
       
-      /* 🌟 同步鎖定左側面板最小寬度，防止非全螢幕時被右邊甘特圖過度壓縮 */
+      /* 鎖定左側面板最小寬度，防止被右邊甘特圖過度擠壓 */
       .gantt-left-panel, .gantt-left-panel-summary {
         min-width: 380px !important;
       }
@@ -231,13 +233,11 @@ function initDynamicUI() {
   `;
   document.head.appendChild(style);
 
-  // （後續 project-year-filter 邏輯維持原樣）
-
   const btnWrapper = document.getElementById('btn-create-wrapper');
   if (btnWrapper && !document.getElementById('project-year-filter')) {
     const currentY = new Date().getFullYear();
     let options = '';
-    for(let y = currentY - 3; y <= currentY + 3; y++){
+    for (let y = currentY - 3; y <= currentY + 3; y++) {
         options += `<option value="${y}" ${y === currentY ? 'selected' : ''}>${y}年</option>`;
     }
     options += `<option value="all">所有年份</option>`;
@@ -250,7 +250,7 @@ function initDynamicUI() {
     sel.style.fontWeight = "bold";
     sel.innerHTML = options;
     sel.onchange = () => {
-      if(currentFilter === 'ongoing' || currentFilter === 'delayed'){
+      if (currentFilter === 'ongoing' || currentFilter === 'delayed') {
          setProjectFilter('all');
       } else {
          renderProjects();
