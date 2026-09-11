@@ -1542,6 +1542,11 @@ function renderProjects() {
       }
       return;
     }
+    // 🌟 關鍵修正：只要專案還在簽核中 (pending_approval) 或退回 (rejected)，一律不准進入任何人的【未完成】！
+    if (p.status === 'pending_approval' || p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected') {
+      return;
+    }
+    
     // 🌟 核心過濾邏輯：開案者看全部，非開案者只看「已明確同意 (isPendingAcceptance !== true)」的任務
     let relevantTasks = [];
     if (isRealOwner) {
@@ -4813,32 +4818,28 @@ window.renderApprovals = () => {
     // 4. 🌟 主管審核與待處理事項（嚴格責任人分流）
     // ==========================================
     const pendingApprovals = allProjectsData.filter(p => {
-      // 1. 暫停與恢復申請：由最高主管/管理員審核
+      // 1. 暫停與恢復申請：最高主管與管理員負責
       if (p.status === 'pause_requested' || p.status === 'resume_requested') {
         return isTopOrAdmin;
       }
       
-      // 2. 已退回案件 (rejected)：【絕對只有開案者本人可見】，任何主管/審核人都不會收到
-      if (p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected') {
-        return p.ownerId === myUid;
-      }
-
-      // 3. 專案簽核中案件 (pending_approval)：
+      // 2. 專案簽核中案件 (pending_approval)：
       if (p.status === 'pending_approval') {
         const cfg = p.approvalConfig || {};
         
-        // 若已經指派給特定人員/下級主管：【只有該名被指派人看得到】，原主管/管理員不保留
+        // 🌟 關鍵：只要 currentAssigneeUid 指定給了我，我就必定要看到這筆通知！
         if (cfg.currentAssigneeUid) {
           return cfg.currentAssigneeUid === myUid;
         }
 
-        // 若尚未指派出去且為 top_manager 階段：最高主管與管理員審核
-        if (isTopOrAdmin && (cfg.currentStage === 'top_manager' || !cfg.currentStage)) {
+        // 尚未指派給特定人時：由最高主管/管理員接收
+        if (isTopOrAdmin && (!cfg.currentStage || cfg.currentStage === 'top_manager')) {
           return true;
         }
       }
       return false;
     });
+      
         approvalPendingCount = pendingApprovals.length;
     } else {
         if (btnApprovals) btnApprovals.style.display = 'none';
@@ -5429,7 +5430,7 @@ window.openAddSubProjectModal = () => {
       </div>
       <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
         <button type="button" class="action-btn" style="padding:8px 20px; font-size:14px;" onclick="closeGeneralEditModal()">取消</button>
-        <button type="button" class="btn-primary" style="width:auto; padding:8px 24px; font-size:14px;" onclick="submitAddSubProject()">確認新增</button>
+        <button type="button" class="btn-primary" style="width:auto; padding:6px 16px;" onclick="submitDispatchProject('${proj.id}')">確認指派</button>
       </div>
     `;
 
