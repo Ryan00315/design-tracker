@@ -1369,21 +1369,23 @@ function renderProjects() {
       }
       return;
     }
-    // 🌟 核心過濾邏輯：
-    // 開案者看專案全部任務；非開案者只看「指派給自己」的任務細項
+    // 🌟 核心過濾邏輯：開案者看全部，非開案者只看「已明確同意 (isPendingAcceptance !== true)」的任務
     let relevantTasks = [];
     if (isRealOwner) {
       relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
     } else {
-      relevantTasks = (p.tasks || []).filter(t => t.assigneeId === viewingUserId && !t.name?.includes("[系統通知]") && !t.isPendingAcceptance);
+      // 🌟 只有「明確不是待同意 (isPendingAcceptance !== true)」的細項才算數！
+      relevantTasks = (p.tasks || []).filter(t => 
+        t.assigneeId === viewingUserId && 
+        !t.name?.includes("[系統通知]") && 
+        t.isPendingAcceptance !== true
+      );
     }
 
-    // 🌟 關鍵限制：如果不是開案者，且在該專案中「完全沒有指派給自己的細項」
-    // 表示這純粹是「開放瀏覽」的專案，絕對不能跑到未完成、已完成或 Delay！
+    // 🌟 關鍵限制：如果不是開案者，且名下「沒有任何已同意的細項」（例如全部都在待同意），一律不得進入未完成！
     if (!isRealOwner && relevantTasks.length === 0) {
       return; 
     }
-
     const isAllDone = relevantTasks.length > 0 ? relevantTasks.every(t => t.isCompleted) : false;
     const hasDelay = relevantTasks.length > 0 ? relevantTasks.some(t => !t.isCompleted && todayStr > t.end) : false;
     const inYear = spansYear(p, selectedYear);
@@ -5944,10 +5946,11 @@ window.acceptSubProjectAssignment = async (projId, subProjName) => {
     const tasks = [...p.tasks];
     const ts = new Date().toLocaleString('zh-TW', { hour12: false });
     const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
+    const myUid = auth.currentUser.uid;
     
     tasks.forEach(t => {
         if (t.isSubProjectTask && t.parentSubProject === subProjName && t.isPendingAcceptance) {
-            t.isPendingAcceptance = false;
+            t.isPendingAcceptance = false; // 🌟 正式解除鎖定
             if (!t.history) t.history = [];
             t.history.push({
                 timestamp: ts,
@@ -5957,19 +5960,30 @@ window.acceptSubProjectAssignment = async (projId, subProjName) => {
         }
     });
 
+    // 🌟 只有在點擊「同意」後，才正式把該人員加入專案成員白名單
+    let collabUids = Array.isArray(p.collaboratorUids) ? [...p.collaboratorUids] : [];
+    if (!collabUids.includes(myUid)) {
+      collabUids.push(myUid);
+    }
+
     // 🌟 寫入專案簽核歷程
     const history = p.approvalHistory || [];
     history.push({
       step: '✅ 同意子專案指派',
       operatorName: myName,
-      operatorUid: auth.currentUser.uid,
+      operatorUid: myUid,
       role: roleNames[currentUserData.role] || currentUserData.role,
       time: ts,
       remark: `同意接收子專案【${subProjName}】`
     });
 
-    await updateDoc(doc(db, "projects", projId), { tasks, approvalHistory: history });
-    alert(`已同意子專案 [${subProjName}]！所有相關細項已納入您的清單。`);
+    await updateDoc(doc(db, "projects", projId), { 
+      tasks, 
+      collaboratorUids: collabUids, 
+      approvalHistory: history 
+    });
+    
+    alert(`已同意子專案 [${subProjName}]！所有相關細項已正式納入您的【未完成】清單。`);
     renderProjects();
     if (window.renderNotifications) window.renderNotifications();
 };
@@ -6192,6 +6206,13 @@ window.submitAddSubTaskToSubProj = async (projId, subProjName, assigneeId, assig
   // 移除原本暫存的「尚未建立細項」
   const cleanedTasks = tasks.filter(t => !(t.parentSubProject === subProjName && t.name.includes("尚未建立細項")));
 
+  // 🌟 檢查該子專案目前是否處於「待同意」狀態，若是，追加的細項也必須是待同意
+  const isAssigneeSelf = (assigneeId === auth.currentUser?.uid);
+  const isParentPending = (proj.tasks || []).some(t => 
+    t.parentSubProject === subProjName && t.assigneeId === assigneeId && t.isPendingAcceptance === true
+  );
+  const finalPendingState = isAssigneeSelf ? false : isParentPending;
+
   cleanedTasks.push({
     name: `[${subProjName}] ${taskName}`,
     start: start,
@@ -6207,10 +6228,9 @@ window.submitAddSubTaskToSubProj = async (projId, subProjName, assigneeId, assig
     isSubProjectTask: true,
     parentSubProject: subProjName,
     createdAt: Date.now(),
-    isPendingAcceptance: false, // 已在該專案內追加，不需再次等待接收
+    isPendingAcceptance: finalPendingState, // 🌟 依據母子專案狀態動態設定，不再寫死 false
     history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: 0, delayReason: '', remark: '追加子專案細項' }]
   });
-
   cleanedTasks.sort((a, b) => (a.start || "").localeCompare(b.start || ""));
 
   await updateDoc(doc(db, "projects", projId), { tasks: cleanedTasks });
