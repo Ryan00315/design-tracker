@@ -2379,15 +2379,14 @@ window.submitAddProjectTask = async () => {
     history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: passedDays, delayReason: '', remark: '追加任務細項' }]
   };
 
-  const updatedTasks = [...proj.tasks];
-  let insertIndex = updatedTasks.length; 
-  for (let i = 0; i < updatedTasks.length; i++) {
-    if (start < updatedTasks[i].start) {
-      insertIndex = i;
-      break;
-    }
-  }
-  updatedTasks.splice(insertIndex, 0, newTask);
+  const updatedTasks = [...proj.tasks, newTask];
+  
+  // 🌟 核心修復：新增任務後，自動依時間排序插到正確順序
+  updatedTasks.sort((a, b) => {
+    if (a.name && a.name.includes("[系統通知]")) return -1;
+    if (b.name && b.name.includes("[系統通知]")) return 1;
+    return (a.start || "").localeCompare(b.start || "");
+  });
 
   await updateDoc(doc(db, "projects", proj.id), { tasks: updatedTasks });
   closeAddProjectTaskModal();
@@ -4158,6 +4157,13 @@ window.saveGeneralEdit = async () => {
       if (tasks[extra].isSubProjectTask && !tasks[extra].name.includes("簽核流程")) {
           if (!tasks[extra].datesSetAt) tasks[extra].datesSetAt = Date.now();
       }
+
+      // 🌟 核心修復：修改日期後，自動依起始時間 (start) 重新排序
+      tasks.sort((a, b) => {
+        if (a.name && a.name.includes("[系統通知]")) return -1;
+        if (b.name && b.name.includes("[系統通知]")) return 1;
+        return (a.start || "").localeCompare(b.start || "");
+      });
       
       await updateDoc(doc(db, "projects", id), { tasks });
       
