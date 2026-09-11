@@ -410,14 +410,17 @@ window.sendNotificationEmail = async ({ targetUid = "", targetRole = "", projTit
           }
           return u.role === targetRole;
         })
-        // 🌟 自動取 email 或 登入帳號
         .map(u => u.email || (u.account && u.account.includes('@') ? u.account : ''))
         .filter(email => email !== '');
+
+      // 🌟 保險防呆：若清單尚未載入且當前登入者即為 admin，確保信箱不漏失
+      if (recipientEmails.length === 0 && currentUserData.role === 'admin' && auth.currentUser?.email) {
+        recipientEmails.push(auth.currentUser.email);
+      }
     } 
     // 2. 若指定特定人員 UID
     else if (targetUid) {
       const targetUser = allUsersList.find(u => u.uid === targetUid);
-      // 🌟 自動取 email 或 登入帳號
       const userEmail = targetUser?.email || (targetUser?.account && targetUser.account.includes('@') ? targetUser.account : '');
       if (userEmail) {
         recipientEmails.push(userEmail);
@@ -429,9 +432,10 @@ window.sendNotificationEmail = async ({ targetUid = "", targetRole = "", projTit
       return;
     }
 
+    // 去除重複信箱
+    recipientEmails = [...new Set(recipientEmails)];
     console.log(`[Email 準備發送] 預計寄送給:`, recipientEmails);
 
-    // 🌟 Google Apps Script 專屬 API 網址
     const gasApiUrl = "https://script.google.com/macros/s/AKfycbwEfdzs0xN2fd4LgG6m5xwAAq3iesxBpYc55IoE6H1WlHPvayMqCQ0H5fIHo7yBbPdS_A/exec";
 
     for (const email of recipientEmails) {
@@ -4769,16 +4773,33 @@ window.renderApprovals = () => {
     if (isTopOrAdmin || isDeptManager) {
         if (btnApprovals) btnApprovals.style.display = 'inline-flex';
         
-        const pendingApprovals = allProjectsData.filter(p => {
-          if (p.status === 'pause_requested' || p.status === 'resume_requested') {
-            return isTopOrAdmin;
+        // ==========================================
+    // 4. 🌟 主管審核與協作指派（核心修復：確保管理員與主管必收）
+    // ==========================================
+    const pendingApprovals = allProjectsData.filter(p => {
+      // 1. 暫停與恢復申請：最高主管與管理員負責
+      if (p.status === 'pause_requested' || p.status === 'resume_requested') {
+        return isTopOrAdmin;
+      }
+      
+      // 2. 專案開案簽核與協作申請
+      if (p.status === 'pending_approval') {
+        const cfg = p.approvalConfig || {};
+
+        // 若最高主管或管理員：只要在 top_manager 階段、或未指派下級主管前，一律要看到
+        if (isTopOrAdmin) {
+          if (!cfg.currentStage || cfg.currentStage === 'top_manager' || !cfg.currentAssigneeUid) {
+            return true;
           }
-          if (p.status === 'pending_approval') {
-            if (isTopOrAdmin) return true;
-            if (p.approvalConfig?.currentAssigneeUid === myUid) return true;
-          }
-          return false;
-        });
+        }
+
+        // 若已被特定主管指派：由該特定指派人員接收
+        if (cfg.currentAssigneeUid && cfg.currentAssigneeUid === myUid) {
+          return true;
+        }
+      }
+      return false;
+    });
         approvalPendingCount = pendingApprovals.length;
     } else {
         if (btnApprovals) btnApprovals.style.display = 'none';
