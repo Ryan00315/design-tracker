@@ -203,26 +203,37 @@ function initDynamicUI() {
       }
     } /* 👈 這裡原本漏掉關閉 */
 
-    /* 🌟 電腦版優化：細項按鈕浮動時往右飄，蓋到日期欄位，把名稱空間 100% 留滿 */
+    /* 🌟 電腦版優化：解鎖遮擋，讓按鈕浮出時跨越到日期欄位 */
     @media (min-width: 851px) {
+      .gantt-row {
+        position: relative !important;
+      }
+      .gantt-row:hover {
+        z-index: 30 !important; /* 確保懸浮列圖層置頂 */
+      }
       .gantt-row .col-name {
         position: relative !important;
+        overflow: visible !important; /* 👈 關鍵核心：解除欄位裁切，按鍵不再被切斷 */
       }
       /* 平常隱藏按鈕 */
       .gantt-row .col-name > div {
         display: none !important;
       }
-      /* 滑鼠懸浮 (Hover) 時，按鈕往右浮出並跨越到日期欄位上方 */
+      /* 滑鼠懸浮 (Hover) 時，4 顆按鈕完整浮動跨到日期上方 */
       .gantt-row:hover .col-name > div {
         display: inline-flex !important;
         position: absolute !important;
-        right: -50px !important; /* 👈 關鍵改動：設為負值，直接往右突出蓋到日期欄位 */
+        right: -60px !important; /* 往右突出跨在日期欄位上方 */
+        top: 50% !important;
+        transform: translateY(-50%) !important; /* 垂直完美居中 */
+        white-space: nowrap !important;
+        width: max-content !important; /* 👈 強制寬度包覆所有按鈕，絕不擠壓折行 */
         background: #ffffff !important;
         padding: 3px 6px !important;
         border-radius: 6px !important;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18) !important; /* 陰影加深，更有懸浮工具列質感 */
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18) !important;
         border: 1px solid #cbd5e1 !important;
-        z-index: 20 !important; /* 確保浮在最上層，不被其他欄位遮擋 */
+        z-index: 9999 !important; /* 浮在最上層，蓋過底下的日期文字 */
       }
       
       /* 鎖定左側面板最小寬度 */
@@ -1652,7 +1663,15 @@ function renderProjects() {
         // 🌟 依 titleColor 套用字體顏色
         let titleDisplay = `${badgeHtml}<span style="color:${titleColor}; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${projIcon} ${item.title}</span>`;
           
-        row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')" style="display:flex; align-items:center; overflow:hidden;">${titleDisplay}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span><span>~ ${item.end.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
+        const parseMD = (dStr) => {
+          if (!dStr) return '-';
+          const parts = dStr.split('-');
+          return parts.length >= 3 ? `${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)}` : dStr;
+        };
+        const sMD = parseMD(item.start);
+        const eMD = parseMD(item.end);
+
+        row.innerHTML = `<div class="col-sum-name clickable" title="點擊前往專案：${item.title}" onclick="selectProject('${item.projId}')" style="display:flex; align-items:center; overflow:hidden;">${titleDisplay}</div><div class="col-sum-date"><span>${sMD}</span><span style="color: #c2410c; font-weight: 600;">${eMD}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       } else {
         let statusText = item.isDone ? '<span style="color:var(--success); font-weight:700;">完成</span>' : '處理中';
         if (item.hasDelay && !item.isDone) {
@@ -1912,7 +1931,7 @@ function renderProjects() {
                   <span style="margin-left: 8px; font-size: 11px;">${chevron}</span>
                   ${addSubTaskBtn}
               </div>
-              <div class="col-expected-date" style="color: #64748b; font-size:12px;"><span>${sMonth}/${sDay}</span><span>~ ${eMonth}/${eDay}</span></div>
+              <div class="col-expected-date" style="font-size:12px; line-height: 1.2;"><span>${sMonth}/${sDay}</span><span style="color: #c2410c; font-weight: 600;">${eMonth}/${eDay}</span></div>
               <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
               <div class="col-prog"><span style="font-weight:bold;">${item.progress}%</span></div>
               <div class="col-act">${subProjActBtns}</div>
@@ -1997,7 +2016,7 @@ function renderProjects() {
             const eMonth = !isNaN(eDate.getMonth()) ? eDate.getMonth() + 1 : '-';
             const eDay = !isNaN(eDate.getDate()) ? eDate.getDate() : '-';
 
-            const expectedDateHtml = `<div class="col-expected-date" style="color: #64748b;"><span>${sMonth}/${sDay}</span><span>~ ${eMonth}/${eDay}</span></div>`;
+            const expectedDateHtml = `<div class="col-expected-date" style="line-height: 1.2;"><span>${sMonth}/${sDay}</span><span style="color: #c2410c; font-weight: 600;">${eMonth}/${eDay}</span></div>`;
 
             // 🌟 1. 進度數字顏色分流：未 100% 黑色、Delay 紅色、100% 綠色
             const isTaskDelay = !task.isCompleted && (todayStr > safeEnd);
