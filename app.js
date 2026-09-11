@@ -229,19 +229,22 @@ window.sendNotificationEmail = async ({ targetUid = "", targetRole = "", projTit
     if (targetRole) {
       recipientEmails = allUsersList
         .filter(u => {
-          if (!u.email) return false;
           if (targetRole === 'top_manager') {
             return u.role === 'top_manager' || u.role === 'admin';
           }
           return u.role === targetRole;
         })
-        .map(u => u.email);
+        // 🌟 自動取 email 或 登入帳號
+        .map(u => u.email || (u.account && u.account.includes('@') ? u.account : ''))
+        .filter(email => email !== '');
     } 
     // 2. 若指定特定人員 UID
     else if (targetUid) {
       const targetUser = allUsersList.find(u => u.uid === targetUid);
-      if (targetUser && targetUser.email) {
-        recipientEmails.push(targetUser.email);
+      // 🌟 自動取 email 或 登入帳號
+      const userEmail = targetUser?.email || (targetUser?.account && targetUser.account.includes('@') ? targetUser.account : '');
+      if (userEmail) {
+        recipientEmails.push(userEmail);
       }
     }
 
@@ -3989,6 +3992,12 @@ function loadOrgUsers() {
     
     snapshot.forEach(docSnap => {
       const u = docSnap.data(); 
+      // 🌟 自動補齊：如果沒有 email，但有帳號且格式包含 @，自動補齊並同步至資料庫
+      if (!u.email && u.account && u.account.includes('@')) {
+        u.email = u.account;
+        updateDoc(doc(db, "users", docSnap.id), { email: u.account }).catch(console.warn);
+      }
+      
       allUsersList.push({ uid: docSnap.id, ...u });
       if (["top_manager", "senior_manager", "manager", "assistant_manager"].includes(u.role)) {
         supervisorSelect.innerHTML += `<option value="${docSnap.id}">${u.name} (${roleNames[u.role] || u.role})</option>`;
@@ -4059,9 +4068,19 @@ document.getElementById("btn-create-user").addEventListener("click", async () =>
     const secAuth = getAuth(secApp);
     const userCred = await createUserWithEmailAndPassword(secAuth, email, pass); 
     await signOut(secAuth);
+
+    // 👇 就是放在這裡（取代原本的 setDoc）
     await setDoc(doc(db, "users", userCred.user.uid), { 
-      name, email, dept, role, supervisorId, canEdit: false, createdAt: serverTimestamp() 
+      name, 
+      account: email, // 登入帳號
+      email: email,   // 系統自動將帳號同步為 email
+      dept, 
+      role, 
+      supervisorId, 
+      canEdit: false, 
+      createdAt: serverTimestamp() 
     });
+
     alert(`人員 ${name} 建立成功！`);
   } catch (err) { 
     alert("建立失敗: " + err.message); 
@@ -6350,6 +6369,15 @@ window.approveProjectApproval = async (projId) => {
     status: 'active',
     "approvalConfig.approvalStatus": 'approved',
     approvalHistory: history
+  });
+
+  // 🌟 [補上] 發信通知開案申請人：主管已核准開案
+  sendNotificationEmail({
+    targetUid: proj.ownerId,
+    projTitle: proj.title,
+    type: '專案開案核准通知',
+    reason: `主管【${myName}】已審核同意專案【${proj.title}】開案，專案已正式生效並納入未完成清單！`,
+    senderName: myName
   });
 
   alert("✅ 已成功同意開案，專案已加入未完成！");
