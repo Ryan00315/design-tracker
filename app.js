@@ -1453,7 +1453,6 @@ function renderProjects() {
 
     const collabs = Array.isArray(p.collaborators) ? p.collaborators : [];
     const isDeptCollab = collabs.includes(targetDept);
-    // 🌟 判定是否由開案者手動加入協作成員名單
     const isDirectCollab = Array.isArray(p.collaboratorUids) && p.collaboratorUids.includes(viewingUserId);
 
     if (!isDeptCollab && !isDirectCollab) return false;
@@ -1565,12 +1564,25 @@ function renderProjects() {
       return; 
     }
     const isAllDone = relevantTasks.length > 0 ? relevantTasks.every(t => t.isCompleted) : false;
-    const hasDelay = relevantTasks.length > 0 ? relevantTasks.some(t => !t.isCompleted && todayStr > t.end) : false;
-    const inYear = spansYear(p, selectedYear);
-
     if (!isAllDone) { 
       countOngoing++; 
       projectsOngoing.push(p); 
+    }
+    const hasDelay = relevantTasks.length > 0 ? relevantTasks.some(t => !t.isCompleted && todayStr > t.end) : false;
+    const inYear = spansYear(p, selectedYear);
+
+    // 🌟 核心防護：未完成清單嚴格過濾
+    // 1. 凡是簽核中 (pending_approval) 或已退回 (rejected) 的專案，絕對不准進入未完成清單！
+    const isUnderApproval = (p.status === 'pending_approval' || p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
+    
+    // 2. 若非開案者本人，且名下「沒有真正屬於自己負責執行的有效任務」，也不得進入未完成！
+    const hasMyActualTasks = relevantTasks.some(t => t.assigneeId === viewingUserId && !t.isCompleted);
+
+    if (!isAllDone && !isUnderApproval) {
+      if (isRealOwner || hasMyActualTasks) {
+        countOngoing++; 
+        projectsOngoing.push(p); 
+      }
     }
     if (hasDelay) { 
       countDelayed++; 
@@ -4815,7 +4827,7 @@ window.renderApprovals = () => {
         if (btnApprovals) btnApprovals.style.display = 'inline-flex';
         
     // ==========================================
-    // 4. 🌟 主管審核與待處理事項（嚴格責任人分流）
+    // 4. 🌟 待審核與待指派事項（精準責任指針）
     // ==========================================
     const pendingApprovals = allProjectsData.filter(p => {
       // 1. 暫停與恢復申請：最高主管與管理員負責
@@ -4823,16 +4835,16 @@ window.renderApprovals = () => {
         return isTopOrAdmin;
       }
       
-      // 2. 專案簽核中案件 (pending_approval)：
+      // 2. 專案開案簽核與協作申請 (pending_approval)
       if (p.status === 'pending_approval') {
         const cfg = p.approvalConfig || {};
-        
-        // 🌟 關鍵：只要 currentAssigneeUid 指定給了我，我就必定要看到這筆通知！
+
+        // 🌟 關鍵核心：只要 currentAssigneeUid 指定給了我 (不論我是主管還是人員)，我就必定看到！
         if (cfg.currentAssigneeUid) {
           return cfg.currentAssigneeUid === myUid;
         }
 
-        // 尚未指派給特定人時：由最高主管/管理員接收
+        // 🌟 若尚未指派出去 (第一關)：只有最高主管與管理員看得見，其他人不顯示
         if (isTopOrAdmin && (!cfg.currentStage || cfg.currentStage === 'top_manager')) {
           return true;
         }
@@ -5430,7 +5442,7 @@ window.openAddSubProjectModal = () => {
       </div>
       <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
         <button type="button" class="action-btn" style="padding:8px 20px; font-size:14px;" onclick="closeGeneralEditModal()">取消</button>
-        <button type="button" class="btn-primary" style="width:auto; padding:6px 16px;" onclick="submitDispatchProject('${proj.id}')">確認指派</button>
+        <button type="button" class="btn-primary" style="width:auto; padding:6px 16px;" onclick="event.preventDefault(); event.stopPropagation(); submitDispatchProject('${proj.id}')">確認指派</button>
       </div>
     `;
 
@@ -6928,16 +6940,20 @@ window.openDispatchModal = (projId) => {
 
 // 🌟 指派時：只轉交簽核權限，不動細項負責人
 window.submitDispatchProject = async (projId) => {
-  const targetUid = document.getElementById("dispatch-target-uid").value;
-  const note = document.getElementById("dispatch-note").value.trim();
+  const targetUid = document.getElementById("dispatch-target-uid")?.value;
+  const note = document.getElementById("dispatch-note")?.value.trim();
   if (!targetUid) return alert("請選擇指派對象！");
+
+  // 🌟 1. 點擊後立即徹底關閉彈窗，避免非同步網路請求延遲造成重複點擊
+  closeGeneralEditModal();
+  document.getElementById("general-edit-modal")?.classList.remove("active");
 
   const targetUser = allUsersList.find(u => u.uid === targetUid);
   const proj = allProjectsData.find(p => p.id === projId);
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   const myName = currentUserData.name || "主管";
 
-  const isStaff = (targetUser.role === 'staff');
+  const isStaff = (targetUser?.role === 'staff');
   const history = proj.approvalHistory || [];
 
   history.push({
@@ -6965,7 +6981,6 @@ window.submitDispatchProject = async (projId) => {
     senderName: myName
   });
 
-  closeGeneralEditModal();
   alert(`✅ 已成功指派給 ${targetUser.name}！該專案已自您的待辦清單移出。`);
   renderProjects();
 };
