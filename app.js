@@ -201,6 +201,32 @@ function initDynamicUI() {
         flex: 0 0 100% !important; 
         min-width: 100% !important; 
       }
+      /* 🌟 電腦版優化：細項按鈕平常隱藏，滑鼠移到該列才浮現，釋放 100% 文字空間 */
+    @media (min-width: 851px) {
+      .gantt-row .col-name {
+        position: relative !important;
+      }
+      /* 平常隱藏 4 顆按鈕 */
+      .gantt-row .col-name > div {
+        display: none !important;
+      }
+      /* 滑鼠懸浮 (Hover) 該列時，按鈕浮動在右側 */
+      .gantt-row:hover .col-name > div {
+        display: inline-flex !important;
+        position: absolute !important;
+        right: 4px !important;
+        background: #ffffff !important;
+        padding: 2px 4px !important;
+        border-radius: 4px !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+        border: 1px solid #e2e8f0 !important;
+        z-index: 10 !important;
+      }
+      
+      /* 🌟 同步鎖定左側面板最小寬度，防止非全螢幕時被右邊甘特圖過度壓縮 */
+      .gantt-left-panel, .gantt-left-panel-summary {
+        min-width: 380px !important;
+      }
     }
   `;
   document.head.appendChild(style);
