@@ -6846,25 +6846,6 @@ window.rejectProjectApproval = async (projId) => {
   renderProjects();
 };
 
-// 🌟 承接協作專案：保持母專案原開案者不變，僅將 B 納入協作成員並生效
-window.selfAcceptCollabProject = async (projId) => {
-  if (!confirm("確定要承接此協作專案嗎？\n承接後專案將正式生效，並加入您的【未完成】專案清單中。")) return;
-  const proj = allProjectsData.find(p => p.id === projId);
-  if (!proj) return;
-
-  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
-  const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
-  const history = proj.approvalHistory || [];
-
-  history.push({
-    step: '💼 承接專案',
-    operatorName: myName,
-    operatorUid: auth.currentUser.uid,
-    role: roleNames[currentUserData.role] || currentUserData.role,
-    time: ts,
-    remark: `${myName} 已確認承接此協作專案`
-  });
-
   // 1. 將相關通知任務標記為已讀，並解除指派細項的鎖定
   const tasks = (proj.tasks || []).map(t => {
     if (t.name && t.name.includes("[系統通知]")) {
@@ -6987,16 +6968,38 @@ window.submitDispatchProject = async (projId) => {
     remark: note ? `${note} (指派給 ${targetUser.name})` : `指派給 ${targetUser.name}`
   });
 
-  // 🌟 將原先已完成審核/指派的通知關閉，並將新的指派責任移交給 targetUser
+  window.submitDispatchProject = async (projId) => {
+  const targetUid = document.getElementById("dispatch-target-uid").value;
+  const note = document.getElementById("dispatch-note").value.trim();
+  if (!targetUid) return alert("請選擇指派對象！");
+
+  const targetUser = allUsersList.find(u => u.uid === targetUid);
+  const proj = allProjectsData.find(p => p.id === projId);
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+  const myName = currentUserData.name || "主管";
+
+  const isStaff = (targetUser.role === 'staff');
+  const history = proj.approvalHistory || [];
+
+  history.push({
+    step: isStaff ? '指派至執行人員 (待確認)' : '轉交主管指派',
+    operatorName: myName,
+    operatorUid: auth.currentUser.uid,
+    role: roleNames[currentUserData.role] || currentUserData.role,
+    time: ts,
+    remark: note ? `${note} (指派給 ${targetUser.name})` : `指派給 ${targetUser.name}`
+  });
+
+  // 🌟 核心：指派階段「不變更 tasks 細項負責人」，保持原開案者身分，只轉移審核指派權限
   await updateDoc(doc(db, "projects", projId), {
-    "approvalConfig.currentStage": isStaff ? 'staff' : 'manager', // 推進關卡
-    "approvalConfig.currentAssigneeUid": targetUser.uid,          // 移交責任人給下一個人
+    "approvalConfig.currentStage": isStaff ? 'staff' : 'manager',
+    "approvalConfig.currentAssigneeUid": targetUser.uid,          // 移交給下一位主管/人員
     "approvalConfig.currentAssigneeName": targetUser.name,
     "approvalConfig.lastDispatchedByUid": auth.currentUser.uid,
     approvalHistory: history
   });
 
-  // 🌟 [補上] 發信通知被主管指派的對象
+  // 發信通知被指派的對象
   sendNotificationEmail({
     targetUid: targetUid,
     projTitle: proj.title,
@@ -7009,6 +7012,7 @@ window.submitDispatchProject = async (projId) => {
   alert(`✅ 已成功指派給 ${targetUser.name}！該專案已自您的待辦清單移出。`);
   renderProjects();
 };
+  
 // 🌟 點擊專案名稱直接前往專案看細項 (修正退回專案跳轉至 pending_approval)
 window.viewProjectFromNotif = (ownerId, ownerName, projId, status) => {
     switchViewingUser(ownerId, ownerName);
@@ -7023,24 +7027,63 @@ window.viewProjectFromNotif = (ownerId, ownerName, projId, status) => {
     }, 150);
 };
 
-// 🌟 承接協作專案：按承接後，專案才正式變成 active 並轉入承接者的未完成
+// 🌟 承接協作專案：不論階級是誰，按下承接後，專案生效並將未完成細項轉給承接人
 window.selfAcceptCollabProject = async (projId) => {
-  if (!confirm("確定要承接此協作專案嗎？\n承接後專案將正式生效，並加入您的【未完成】專案清單中。")) return;
+  if (!confirm("確定要承接此協作專案嗎？\n承接後專案將正式生效，所有任務細項將由您負責，並加入您的【未完成】清單中。")) return;
   const proj = allProjectsData.find(p => p.id === projId);
   if (!proj) return;
 
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
+  const myUid = auth.currentUser.uid;
   const history = proj.approvalHistory || [];
 
   history.push({
     step: '💼 承接專案',
     operatorName: myName,
-    operatorUid: auth.currentUser.uid,
+    operatorUid: myUid,
     role: roleNames[currentUserData.role] || currentUserData.role,
     time: ts,
-    remark: `${myName} 已確認承接此協作專案`
+    remark: `${myName} 已確認承接此協作專案，負責執行`
   });
+
+  // 🌟 核心：只要按下「承接」，將所有未完成的細項負責人正式切換為當前承接人
+  const updatedTasks = (proj.tasks || []).map(t => {
+    if (t.name && t.name.includes("[系統通知]")) {
+      return { ...t, isSystemNotifUnread: false };
+    }
+    // 已完成的細項保留原紀錄，其餘尚未完成的任務全部移交給承接人
+    if (!t.isCompleted) {
+      return {
+        ...t,
+        assigneeId: myUid,
+        assigneeName: myName,
+        isPendingAcceptance: false // 正式生效，不再是待同意
+      };
+    }
+    return t;
+  });
+
+  // 確保承接人加入專案協作成員名單 (白名單)
+  let collabUids = Array.isArray(proj.collaboratorUids) ? [...proj.collaboratorUids] : [];
+  if (!collabUids.includes(myUid)) {
+    collabUids.push(myUid);
+  }
+
+  // 寫入資料庫：專案轉 active、更新任務陣列、清空待審標記
+  await updateDoc(doc(db, "projects", projId), {
+    status: 'active',
+    collaboratorUids: collabUids,
+    "approvalConfig.approvalStatus": 'approved',
+    "approvalConfig.currentAssigneeUid": "", // 流程已結束，清空責任人
+    approvalHistory: history,
+    tasks: updatedTasks
+  });
+
+  alert("🎉 您已成功承接此專案！任務細項已轉交由您負責，並已加入您的【未完成】清單。");
+  renderProjects();
+  if (window.renderNotifications) window.renderNotifications();
+};
 
   // 將相關通知任務標記為已讀知悉
   const tasks = (proj.tasks || []).map(t => {
@@ -7159,6 +7202,7 @@ window.submitProjectResubmit = async (projId) => {
     targetRole: isApplyCollab ? '待主管指派協作' : '待主管簽核同意'
   });
 
+  // 🌟 重新送審時：重設為全新送審狀態，清除先前的指派指針
   await updateDoc(doc(db, "projects", projId), {
     status: 'pending_approval',
     approvalConfig: {
@@ -7166,13 +7210,12 @@ window.submitProjectResubmit = async (projId) => {
       isApplyCollab: isApplyCollab,
       approvalDesc: desc,
       currentStage: 'top_manager',
-      currentAssigneeUid: "",
+      currentAssigneeUid: "", // 👈 清空指派人，回歸最高主管
       approvalStatus: isApplyCollab ? 'pending_collab_dispatch' : 'pending_top_approval'
     },
     approvalHistory: history
   });
 
-  // 🌟 將 approvalDesc 修正為該函式定義的 desc
   sendNotificationEmail({
     targetRole: 'top_manager',
     projTitle: proj.title,
