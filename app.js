@@ -1472,9 +1472,20 @@ function renderProjects() {
 
   // 🌟 修復核心漏洞 1：若為管理員/主管，或專案當前審核人是自己，將所有簽核中與退回中的專案納入檢視
   allProjectsData.forEach(p => {
-    const isApprovalOrReject = (p.status === 'pending_approval' || p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
-    if (isApprovalOrReject) {
-      if (p.ownerId === viewingUserId || p.approvalConfig?.currentAssigneeUid === auth.currentUser.uid || currentUserData.role === 'admin' || currentUserData.role === 'top_manager') {
+    const isApproval = (p.status === 'pending_approval');
+    const isRejected = (p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
+
+    // 🌟 1. 已退回：只有申請人 (ownerId) 本人可見
+    if (isRejected) {
+      if (p.ownerId === viewingUserId) {
+        allInvolvedProjectsMap.set(p.id, p);
+      }
+    } 
+    // 🌟 2. 簽核中：只有開案者、或當前輪到的審核人可見；若已指派出去了，原主管不再保留
+    else if (isApproval) {
+      const cfg = p.approvalConfig || {};
+      const isCurrentTurn = cfg.currentAssigneeUid ? (cfg.currentAssigneeUid === auth.currentUser?.uid) : (currentUserData.role === 'admin' || currentUserData.role === 'top_manager');
+      if (p.ownerId === viewingUserId || isCurrentTurn) {
         allInvolvedProjectsMap.set(p.id, p);
       }
     }
@@ -1498,9 +1509,23 @@ function renderProjects() {
     const isRealOwner = (p.ownerId === viewingUserId);
     
     // 🌟 修復核心漏洞 2：兼容舊資料 (含 approvalStatus: 'rejected')
-    const isApprovalOrRejected = (p.status === 'pending_approval' || p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
-    if (isApprovalOrRejected) {
-      if (isRealOwner || p.approvalConfig?.currentAssigneeUid === auth.currentUser.uid || currentUserData.role === 'admin' || currentUserData.role === 'top_manager') {
+    const isApproval = (p.status === 'pending_approval');
+    const isRejected = (p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
+
+    // 🌟 退回案件：只有開案者計算並列入，主管端完全不顯示
+    if (isRejected) {
+      if (isRealOwner) {
+        countPendingApproval++;
+        projectsPendingApproval.push(p);
+      }
+      return;
+    }
+
+    // 🌟 簽核中案件：開案者自己、或是當前剛好輪到此主管審核/指派才計入；已同意或已轉交出去的案子不計入
+    if (isApproval) {
+      const cfg = p.approvalConfig || {};
+      const isMyTurn = cfg.currentAssigneeUid ? (cfg.currentAssigneeUid === auth.currentUser?.uid) : (currentUserData.role === 'admin' || currentUserData.role === 'top_manager');
+      if (isRealOwner || isMyTurn) {
         countPendingApproval++;
         projectsPendingApproval.push(p);
       }
@@ -4773,28 +4798,31 @@ window.renderApprovals = () => {
     if (isTopOrAdmin || isDeptManager) {
         if (btnApprovals) btnApprovals.style.display = 'inline-flex';
         
-        // ==========================================
-    // 4. 🌟 主管審核與協作指派（核心修復：確保管理員與主管必收）
+    // ==========================================
+    // 4. 🌟 主管審核與待處理事項（嚴格責任人分流）
     // ==========================================
     const pendingApprovals = allProjectsData.filter(p => {
-      // 1. 暫停與恢復申請：最高主管與管理員負責
+      // 1. 暫停與恢復申請：由最高主管/管理員審核
       if (p.status === 'pause_requested' || p.status === 'resume_requested') {
         return isTopOrAdmin;
       }
       
-      // 2. 專案開案簽核與協作申請
+      // 2. 已退回案件 (rejected)：【絕對只有開案者本人可見】，任何主管/審核人都不會收到
+      if (p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected') {
+        return p.ownerId === myUid;
+      }
+
+      // 3. 專案簽核中案件 (pending_approval)：
       if (p.status === 'pending_approval') {
         const cfg = p.approvalConfig || {};
-
-        // 若最高主管或管理員：只要在 top_manager 階段、或未指派下級主管前，一律要看到
-        if (isTopOrAdmin) {
-          if (!cfg.currentStage || cfg.currentStage === 'top_manager' || !cfg.currentAssigneeUid) {
-            return true;
-          }
+        
+        // 若已經指派給特定人員/下級主管：【只有該名被指派人看得到】，原主管/管理員不保留
+        if (cfg.currentAssigneeUid) {
+          return cfg.currentAssigneeUid === myUid;
         }
 
-        // 若已被特定主管指派：由該特定指派人員接收
-        if (cfg.currentAssigneeUid && cfg.currentAssigneeUid === myUid) {
+        // 若尚未指派出去且為 top_manager 階段：最高主管與管理員審核
+        if (isTopOrAdmin && (cfg.currentStage === 'top_manager' || !cfg.currentStage)) {
           return true;
         }
       }
