@@ -349,11 +349,12 @@ function initDynamicUI() {
     }
     options += `<option value="all">所有年份</option>`;
     
+    // 1. 年份選擇器
     const sel = document.createElement('select');
     sel.id = "project-year-filter";
     sel.className = "input-control";
-    sel.style.width = "100px";
-    sel.style.marginRight = "10px";
+    sel.style.width = "90px";
+    sel.style.marginRight = "8px";
     sel.style.fontWeight = "bold";
     sel.innerHTML = options;
     sel.onchange = () => {
@@ -363,7 +364,24 @@ function initDynamicUI() {
          renderProjects();
       }
     };
-    btnWrapper.insertBefore(sel, btnWrapper.firstChild);
+
+    // 🌟 2. 新增：關鍵字搜尋輸入框 (主專案與細項名稱即時過濾)
+    const searchInput = document.createElement('input');
+    searchInput.type = "text";
+    searchInput.id = "project-search-keyword";
+    searchInput.className = "input-control";
+    searchInput.placeholder = "🔍 搜尋專案或細項名稱...";
+    searchInput.style.width = "180px";
+    searchInput.style.marginRight = "10px";
+    searchInput.style.padding = "4px 8px";
+    searchInput.style.fontSize = "13px";
+    searchInput.oninput = () => {
+      selectedProjectId = 'SUMMARY'; // 搜尋時重回列表總覽
+      renderProjects();
+    };
+
+    btnWrapper.insertBefore(searchInput, btnWrapper.firstChild);
+    btnWrapper.insertBefore(sel, searchInput);
   }
 }
 
@@ -1442,7 +1460,8 @@ function renderProjects() {
   const yearFilterVal = document.getElementById('project-year-filter')?.value || new Date().getFullYear().toString();
   const selectedYear = yearFilterVal === 'all' ? 'all' : parseInt(yearFilterVal);
   const todayStr = getTodayStr();
-
+  // 🌟 抓取搜尋關鍵字 (轉小寫便於比對)
+  const searchKeyword = (document.getElementById('project-search-keyword')?.value || "").trim().toLowerCase();
   // 1. 自己開案的專案
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
@@ -1517,18 +1536,21 @@ function renderProjects() {
 
   allInvolvedProjects.forEach(p => {
     const isRealOwner = (p.ownerId === viewingUserId);
-    
-    // 🌟 修復核心漏洞 2：兼容舊資料 (含 approvalStatus: 'rejected')
-    const isApproval = (p.status === 'pending_approval');
-    const isRejected = (p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
 
-    // 🌟 退回案件：只有開案者計算並列入，主管端完全不顯示
-    if (isRejected) {
-      if (isRealOwner) {
-        countPendingApproval++;
-        projectsPendingApproval.push(p);
+    // 🌟 核心過濾：關鍵字比對 (符合「主專案名稱」或「底下任何任務細項名稱」)
+    if (searchKeyword) {
+      const pTitle = (p.title || "").toLowerCase();
+      const matchTitle = pTitle.includes(searchKeyword);
+      const matchTask = (p.tasks || []).some(t => {
+        const tName = (t.name || "").toLowerCase();
+        const subName = (t.parentSubProject || "").toLowerCase();
+        return tName.includes(searchKeyword) || subName.includes(searchKeyword);
+      });
+
+      // 若兩者皆不符合，直接略過此專案
+      if (!matchTitle && !matchTask) {
+        return;
       }
-      return;
     }
 
     // 🌟 簽核中案件：開案者自己、或是當前剛好輪到此主管審核/指派才計入；已同意或已轉交出去的案子不計入
@@ -1593,9 +1615,14 @@ function renderProjects() {
     }
   });
 
-  let adHocsOngoing = userAdHocs.filter(e => !e.isCompleted);
-  let adHocsDelayed = userAdHocs.filter(e => !e.isCompleted && e.startDate < todayStr);
-  let adHocsCompleted = userAdHocs.filter(e => e.isCompleted && (selectedYear === 'all' || parseInt(getAdHocDateStr(e).substring(0,4)) === selectedYear));
+  const filteredAdHocs = userAdHocs.filter(e => {
+    if (!searchKeyword) return true;
+    return (e.title || "").toLowerCase().includes(searchKeyword) || (e.reason || "").toLowerCase().includes(searchKeyword);
+  });
+
+  let adHocsOngoing = filteredAdHocs.filter(e => !e.isCompleted);
+  let adHocsDelayed = filteredAdHocs.filter(e => !e.isCompleted && e.startDate < todayStr);
+  let adHocsCompleted = filteredAdHocs.filter(e => e.isCompleted && (selectedYear === 'all' || parseInt(getAdHocDateStr(e).substring(0,4)) === selectedYear));
 
   countOngoing += adHocsOngoing.length;
   countCompleted += adHocsCompleted.length;
