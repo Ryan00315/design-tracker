@@ -1538,8 +1538,8 @@ function renderProjects() {
   allInvolvedProjects.forEach(p => {
     const isRealOwner = (p.ownerId === viewingUserId);
 
-    // 🌟 核心過濾：關鍵字比對 (符合「主專案名稱」或「底下任何任務細項名稱」)
-    if (searchKeyword) {
+    // 🌟 1. 關鍵字搜尋防呆：只有在使用者真正有輸入字詞時才過濾
+    if (searchKeyword && searchKeyword.length > 0) {
       const pTitle = (p.title || "").toLowerCase();
       const matchTitle = pTitle.includes(searchKeyword);
       const matchTask = (p.tasks || []).some(t => {
@@ -1548,13 +1548,24 @@ function renderProjects() {
         return tName.includes(searchKeyword) || subName.includes(searchKeyword);
       });
 
-      // 若兩者皆不符合，直接略過此專案
       if (!matchTitle && !matchTask) {
-        return;
+        return; // 確實不包含關鍵字才略過
       }
     }
 
-    // 🌟 簽核中案件：開案者自己、或是當前剛好輪到此主管審核/指派才計入；已同意或已轉交出去的案子不計入
+    const isApproval = (p.status === 'pending_approval');
+    const isRejected = (p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
+
+    // 🌟 2. 退回案件：只有開案者計算並列入
+    if (isRejected) {
+      if (isRealOwner) {
+        countPendingApproval++;
+        projectsPendingApproval.push(p);
+      }
+      return;
+    }
+
+    // 🌟 3. 簽核中案件：開案者自己、或輪到的審核人列入
     if (isApproval) {
       const cfg = p.approvalConfig || {};
       const isMyTurn = cfg.currentAssigneeUid ? (cfg.currentAssigneeUid === auth.currentUser?.uid) : (currentUserData.role === 'admin' || currentUserData.role === 'top_manager');
@@ -1562,19 +1573,14 @@ function renderProjects() {
         countPendingApproval++;
         projectsPendingApproval.push(p);
       }
-      return;
+      return; // 審核中專案到此為止，不進入下方未完成
     }
-    // 🌟 關鍵修正：只要專案還在簽核中 (pending_approval) 或退回 (rejected)，一律不准進入任何人的【未完成】！
-    if (p.status === 'pending_approval' || p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected') {
-      return;
-    }
-    
-    // 🌟 核心過濾邏輯：開案者看全部，非開案者只看「已明確同意 (isPendingAcceptance !== true)」的任務
+
+    // 🌟 4. 任務完成與未完成計算 (開案者看全部細項，協作者只看分派給自己的細項)
     let relevantTasks = [];
     if (isRealOwner) {
       relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
     } else {
-      // 🌟 只有「明確不是待同意 (isPendingAcceptance !== true)」的細項才算數！
       relevantTasks = (p.tasks || []).filter(t => 
         t.assigneeId === viewingUserId && 
         !t.name?.includes("[系統通知]") && 
@@ -1582,30 +1588,20 @@ function renderProjects() {
       );
     }
 
-    // 🌟 關鍵限制：如果不是開案者，且名下「沒有任何已同意的細項」（例如全部都在待同意），一律不得進入未完成！
-    // 🌟 核心防護：凡是簽核中 (pending_approval) 或已退回 (rejected) 的專案，絕對不准進入未完成清單！
-    const isUnderApproval = (p.status === 'pending_approval' || p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
-    if (isUnderApproval) {
-      return;
-    }
-
-    // 🌟 關鍵限制：若不是開案者，且名下「沒有任何屬於自己的任務」，不得進入未完成！
+    // 若非開案者且名下無任何任務，不計入未完成
     if (!isRealOwner && relevantTasks.length === 0) {
       return; 
     }
 
     const isAllDone = relevantTasks.length > 0 ? relevantTasks.every(t => t.isCompleted) : false;
-    const hasMyActualTasks = relevantTasks.some(t => t.assigneeId === viewingUserId && !t.isCompleted);
-
-    if (!isAllDone) {
-      if (isRealOwner || hasMyActualTasks) {
-        countOngoing++; 
-        projectsOngoing.push(p); 
-      }
-    }
     const hasDelay = relevantTasks.length > 0 ? relevantTasks.some(t => !t.isCompleted && todayStr > t.end) : false;
     const inYear = spansYear(p, selectedYear);
-    
+
+    // 🌟 5. 正式推入未完成
+    if (!isAllDone) {
+      countOngoing++; 
+      projectsOngoing.push(p); 
+    }
     if (hasDelay) { 
       countDelayed++; 
       projectsDelayed.push(p); 
