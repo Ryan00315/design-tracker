@@ -354,17 +354,17 @@ function initDynamicUI() {
     filterGroup.id = "project-filter-group";
     filterGroup.style.cssText = "display: flex; flex-direction: column; gap: 4px; margin-right: 10px;";
 
-    // 1. 年份選擇器
+    // 1. 年份選擇器（維持 180px * 30px 不變，消除文字垂直裁切）
     const sel = document.createElement('select');
     sel.id = "project-year-filter";
     sel.className = "input-control";
-    sel.style.cssText = "width: 180px; height: 30px; font-weight: bold; box-sizing: border-box;";
+    sel.style.cssText = "width: 180px; height: 30px; line-height: 28px; font-size: 13px; font-weight: bold; padding: 0 8px; box-sizing: border-box; display: flex; align-items: center;";
     sel.innerHTML = options;
     sel.onchange = () => {
       if (currentFilter === 'ongoing' || currentFilter === 'delayed') {
-         setProjectFilter('all');
+        setProjectFilter('all');
       } else {
-         renderProjects();
+        renderProjects();
       }
     };
 
