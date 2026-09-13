@@ -1440,20 +1440,6 @@ function getDynamicallyShiftedTasks(proj, todayStr) {
     return displayTasks;
 }
 
-// 🌟 效能優化：防止多個 Firestore 監聽同時回傳造成畫面連續重繪
-let renderDebounceTimer = null;
-const originalRenderProjects = renderProjects;
-
-renderProjects = function() {
-  if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
-  renderDebounceTimer = setTimeout(() => {
-    originalRenderProjects();
-  }, 50);
-};
-```
-
-**整段直接替換為（安全防抖，保證不報錯且畫面瞬間出現）**：
-```javascript
 // 🌟 效能優化：安全防抖動排程器
 let renderDebounceTimer = null;
 function scheduleRenderProjects() {
