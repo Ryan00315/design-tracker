@@ -349,13 +349,16 @@ function initDynamicUI() {
     }
     options += `<option value="all">所有年份</option>`;
     
+    // 🌟 外層容器：強制上下直排 (讓搜尋框在年份底下)
+    const filterGroup = document.createElement('div');
+    filterGroup.id = "project-filter-group";
+    filterGroup.style.cssText = "display: flex; flex-direction: column; gap: 4px; margin-right: 10px;";
+
     // 1. 年份選擇器
     const sel = document.createElement('select');
     sel.id = "project-year-filter";
     sel.className = "input-control";
-    sel.style.width = "90px";
-    sel.style.marginRight = "8px";
-    sel.style.fontWeight = "bold";
+    sel.style.cssText = "width: 180px; height: 30px; font-weight: bold; box-sizing: border-box;";
     sel.innerHTML = options;
     sel.onchange = () => {
       if (currentFilter === 'ongoing' || currentFilter === 'delayed') {
@@ -365,23 +368,23 @@ function initDynamicUI() {
       }
     };
 
-    // 🌟 2. 新增：關鍵字搜尋輸入框 (主專案與細項名稱即時過濾)
+    // 🌟 2. 關鍵字搜尋輸入框 (寬度跟原本一樣 180px)
     const searchInput = document.createElement('input');
     searchInput.type = "text";
     searchInput.id = "project-search-keyword";
     searchInput.className = "input-control";
     searchInput.placeholder = "🔍 搜尋專案或細項名稱...";
-    searchInput.style.width = "180px";
-    searchInput.style.marginRight = "10px";
-    searchInput.style.padding = "4px 8px";
-    searchInput.style.fontSize = "13px";
+    searchInput.style.cssText = "width: 180px; height: 30px; padding: 4px 8px; font-size: 12px; box-sizing: border-box;";
     searchInput.oninput = () => {
-      selectedProjectId = 'SUMMARY'; // 搜尋時重回列表總覽
+      selectedProjectId = 'SUMMARY';
       renderProjects();
     };
 
-    btnWrapper.insertBefore(searchInput, btnWrapper.firstChild);
-    btnWrapper.insertBefore(sel, searchInput);
+    // 裝進垂直容器：上面年份、下面搜尋
+    filterGroup.appendChild(sel);
+    filterGroup.appendChild(searchInput);
+
+    btnWrapper.insertBefore(filterGroup, btnWrapper.firstChild);
   }
 }
 
@@ -1445,8 +1448,20 @@ renderProjects = function() {
   if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
   renderDebounceTimer = setTimeout(() => {
     originalRenderProjects();
-  }, 50); // 50 毫秒內的多個請求自動合併為 1 次
+  }, 50);
 };
+```
+
+**整段直接替換為（安全防抖，保證不報錯且畫面瞬間出現）**：
+```javascript
+// 🌟 效能優化：安全防抖動排程器
+let renderDebounceTimer = null;
+function scheduleRenderProjects() {
+  if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
+  renderDebounceTimer = setTimeout(() => {
+    renderProjects();
+  }, 50);
+}
 
 function renderProjects() {
   fixHeaders(); 
