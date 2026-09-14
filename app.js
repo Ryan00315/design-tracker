@@ -3239,11 +3239,16 @@ function renderWeeklyReports() {
 
   filtered.forEach((w, index) => {
     let isOwner = (w.ownerId === auth.currentUser.uid);
-    let isAllowedTime = isWeeklyReportEditable(w);
-    let canEditUI = (isEditMode || isAllowedTime) && isOwner && isAllowedTime;
     
-    let editHtml = canEditUI ? `<button class="action-btn" style="margin-right:6px; border-color:var(--warning); color:var(--warning);" onclick="openGeneralEdit('weekly', '${w.id}')">✏️ 編輯</button>` : '';
-    let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || (isOwner && isAllowedTime)) ? `<button class="action-btn danger" onclick="deleteWeekly('${w.id}')">刪除</button>` : '';
+    // 🌟 核心規則：任一主管已閱 (supervisorNoted || topManagerNoted)，或已逾 2 天，立即失效
+    const hasAnyNoted = (w.supervisorNoted === true || w.topManagerNoted === true);
+    let isAllowedTime = isWeeklyReportEditable(w); // 內部已含 2 天判定與 Noted 檢查
+    const canModify = isOwner && !hasAnyNoted && isAllowedTime;
+
+    let editHtml = canModify ? `<button class="action-btn" style="margin-right:6px; border-color:var(--warning); color:var(--warning);" onclick="openGeneralEdit('weekly', '${w.id}')">✏️ 編輯</button>` : '';
+    
+    // 🌟 刪除按鈕：主管未閱且在 2 天內才顯示；管理員 (admin) 則保留最高刪除管理權
+    let delHtml = (canModify || currentUserData.role === 'admin') ? `<button class="action-btn danger" onclick="deleteWeekly('${w.id}')">刪除</button>` : '';
     
     let supText = w.supervisorNoted ? '<span style="color:var(--success); font-weight:bold;">Noted</span>' : '<span style="color:var(--text-muted);">待閱</span>';
     let topText = w.topManagerNoted ? '<span style="color:var(--success); font-weight:bold;">Noted</span>' : '<span style="color:var(--text-muted);">待閱</span>';
@@ -3342,33 +3347,6 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
       topManagerNoted: false 
     });
     
-    const projectUpdates = {};
-    const adhocUpdates = [];
-    
-    for (let item of items) {
-      if (item.projectId === 'SPECIAL_OTHER') continue;
-      
-      if (item.projectId === 'SPECIAL_ADHOC') {
-        const evt = allAdHocData.find(a => a.id === item.taskId);
-        if (evt && evt.isCompleted && !evt.reportedCompleted) {
-           adhocUpdates.push(item.taskId);
-        }
-        continue;
-      }
-      
-      const p = allProjectsData.find(x => x.id === item.projectId);
-      if (p) {
-        const tIndex = parseInt(item.taskId);
-        if (p.tasks[tIndex] && p.tasks[tIndex].isCompleted && !p.tasks[tIndex].reportedCompleted) {
-          if (!projectUpdates[p.id]) projectUpdates[p.id] = [...p.tasks];
-          projectUpdates[p.id][tIndex].reportedCompleted = true;
-        }
-      }
-    }
-    
-    for (let pId in projectUpdates) await updateDoc(doc(db, "projects", pId), { tasks: projectUpdates[pId] });
-    for (let aId of adhocUpdates) await updateDoc(doc(db, "ad_hoc_events", aId), { reportedCompleted: true });
-    
     initWeeklyDateAndLeave(); 
     document.getElementById("weekly-items-container").innerHTML = ""; 
     addWeeklyRow(); 
@@ -3446,13 +3424,51 @@ window.openWeeklyModal = (id) => {
 window.closeWeeklyModal = () => document.getElementById('weekly-detail-modal').classList.remove('active');
 
 window.markWeeklyNoted = async (type) => {
-  if(!currentWeeklyReportId) return; 
+  if (!currentWeeklyReportId) return; 
+  const report = allWeeklyData.find(w => w.id === currentWeeklyReportId);
+  if (!report) return;
+
   const updateData = {};
-  if(type === 'supervisor') updateData.supervisorNoted = true; 
-  if(type === 'top_manager') updateData.topManagerNoted = true;
+  if (type === 'supervisor') updateData.supervisorNoted = true; 
+  if (type === 'top_manager') updateData.topManagerNoted = true;
+  
+  // 🌟 1. 更新週報已閱狀態
   await updateDoc(doc(db, "weekly_reports", currentWeeklyReportId), updateData);
+
+  // 🌟 2. 核心調整：主管點閱後，才將此週報內「已完成」的專案細項與事件正式鎖定 (避免日後重複填寫)
+  const projectUpdates = {};
+  const adhocUpdates = [];
+
+  (report.items || []).forEach(item => {
+    if (item.projectId === 'SPECIAL_OTHER') return;
+
+    if (item.projectId === 'SPECIAL_ADHOC') {
+      const evt = allAdHocData.find(a => a.id === item.taskId);
+      if (evt && evt.isCompleted && !evt.reportedCompleted) {
+        adhocUpdates.push(item.taskId);
+      }
+      return;
+    }
+
+    const p = allProjectsData.find(x => x.id === item.projectId);
+    if (p && p.tasks) {
+      const tIndex = parseInt(item.taskId);
+      if (p.tasks[tIndex] && p.tasks[tIndex].isCompleted && !p.tasks[tIndex].reportedCompleted) {
+        if (!projectUpdates[p.id]) projectUpdates[p.id] = [...p.tasks];
+        projectUpdates[p.id][tIndex].reportedCompleted = true;
+      }
+    }
+  });
+
+  for (let pId in projectUpdates) {
+    await updateDoc(doc(db, "projects", pId), { tasks: projectUpdates[pId] });
+  }
+  for (let aId of adhocUpdates) {
+    await updateDoc(doc(db, "ad_hoc_events", aId), { reportedCompleted: true });
+  }
+
   closeWeeklyModal(); 
-  alert('已成功標記為 Noted (已閱)！該週報自此鎖定。');
+  alert('已成功標記為 Noted (已閱)！該週報已鎖定，所屬已完成項目不再重複列出。');
 };
 
 function loadMyCalendarTodos(myUid) {
