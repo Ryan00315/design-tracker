@@ -1440,14 +1440,16 @@ function getDynamicallyShiftedTasks(proj, todayStr) {
     return displayTasks;
 }
 
-// 🌟 效能優化：安全防抖動排程器
+// 🌟 效能極致優化：畫面重繪防抖排程器（防止手機端連續重繪卡死）
 let renderDebounceTimer = null;
-function scheduleRenderProjects() {
+window.triggerProjectsUpdate = function() {
   if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
   renderDebounceTimer = setTimeout(() => {
-    renderProjects();
-  }, 50);
-}
+    if (typeof renderProjects === 'function') {
+      renderProjects();
+    }
+  }, 80);
+};
 
 function renderProjects() {
   fixHeaders(); 
@@ -2968,7 +2970,13 @@ function loadAdHocEvents() {
     allAdHocData = []; 
     snapshot.forEach(docSnap => allAdHocData.push({ id: docSnap.id, ...docSnap.data() })); 
     renderAdHocEvents(); 
-    renderProjects();
+
+    // 🌟 改用防抖排程器，避免事件紀錄載入時又重複重繪專案列表
+    if (typeof window.triggerProjectsUpdate === 'function') {
+      window.triggerProjectsUpdate();
+    } else {
+      renderProjects();
+    }
   }); 
 }
 
@@ -3933,14 +3941,18 @@ window.openGeneralEdit = (type, id, extra) => {
       </div>
     `;
 
-    // 🌟 等待 Modal 的 DOM 渲染完成後，才綁定 Quill，並帶入原本存在 Firebase 的 HTML 內容
+    // 🌟 手機 APP 模式專屬優化：延遲 400ms 與 1200ms 雙重確保畫面必定出現
     setTimeout(() => {
-      window.editAdhocQuill = new Quill('#edit-val-reason-container', {
-        modules: { toolbar: toolbarOptions },
-        theme: 'snow'
-      });
-      window.editAdhocQuill.root.innerHTML = adhoc.reason || '';
-    }, 100);
+      window.triggerProjectsUpdate();
+      if (window.renderNotifications) window.renderNotifications();
+    }, 400);
+
+    setTimeout(() => {
+      if (allProjectsData.length > 0 && document.getElementById("gantt-summary-left-body")?.children.length === 0) {
+        console.log("偵測到手機版初次渲染落後，執行自動補償渲染...");
+        window.triggerProjectsUpdate();
+      }
+    }, 1200);
 
   } else if (type === 'weekly') {
     const weekly = allWeeklyData.find(w => w.id === id);
@@ -4441,7 +4453,13 @@ function loadOrgUsers() {
       tbody.appendChild(tr);
     });
     renderOrgChart();
-    renderProjects();
+
+    // 🌟 改用防抖排程器，避免組織成員載入時與專案監聽競爭卡死
+    if (typeof window.triggerProjectsUpdate === 'function') {
+      window.triggerProjectsUpdate();
+    } else {
+      renderProjects();
+    }
   });
 }
 
@@ -6325,7 +6343,14 @@ function loadProjects() {
     (snapshot) => {
       allProjectsData = []; 
       snapshot.forEach(docSnap => allProjectsData.push({ id: docSnap.id, ...docSnap.data() })); 
-      renderProjects(); 
+      
+      // 🌟 改用防抖排程器，避免手機端連續重複重繪而卡死
+      if (typeof window.triggerProjectsUpdate === 'function') {
+        window.triggerProjectsUpdate();
+      } else {
+        renderProjects();
+      }
+
       refreshAllWeeklyProjSelects();
       if (window.renderNotifications) window.renderNotifications(); 
     },
