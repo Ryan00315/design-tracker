@@ -698,13 +698,16 @@ window.switchNav = (tabId, title, elem) => {
   if (elem) elem.classList.add('active');
   document.getElementById('current-title').innerText = title;
   
-  if (tabId === 'tab-projects') setTimeout(renderProjects, 100);
-  if (tabId === 'tab-weekly') initWeeklyDateAndLeave(); 
+  if (tabId === 'tab-projects') window.triggerProjectsUpdate();
+  if (tabId === 'tab-weekly') {
+    if (allWeeklyData.length === 0) loadWeeklyReports(); // 👈 點到週報才撈
+    initWeeklyDateAndLeave(); 
+  }
   if (tabId === 'tab-calendar') {
+    if (myCalendarTodos.length === 0 && auth.currentUser) loadMyCalendarTodos(auth.currentUser.uid); // 👈 點到行事曆才撈
     initCalendarSelectors();
     renderCalendar();
   }
-  // 🌟 新增：點擊系統通知時，立即重新計算並渲染待處理表格
   if (tabId === 'tab-notifications') {
     if (window.renderNotifications) window.renderNotifications();
   }
@@ -1021,16 +1024,13 @@ onAuthStateChanged(auth, async (user) => {
     addTaskRow(); 
     addWeeklyRow(); 
     loadProjects(); 
-    loadAdHocEvents(); 
-    loadWeeklyReports();
-    loadMyCalendarTodos(user.uid);
+    loadOrgUsers();
+    loadAdHocEvents();
     initTemplateUI();
     window.injectFontSizeUI();
-    // 🌟 補上這段：登入完成 0.3 秒後主動觸發畫面更新，確保手機首次載入不留白
-    setTimeout(() => {
-      renderProjects();
-      if (window.renderNotifications) window.renderNotifications();
-    }, 300);
+    // 🌟 登入後直接執行一次更新，不再透過 setTimeout 乾等
+    window.triggerProjectsUpdate();
+    if (window.renderNotifications) window.renderNotifications();
 
   } else {
     document.getElementById("auth-section").style.display = "flex"; 
