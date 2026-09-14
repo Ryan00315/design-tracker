@@ -3,7 +3,7 @@
 // ==========================================
 
 // 💡 每次您更新了 app.js 或 style.css，請記得把這裡的 v1 往上加 (例如改成 v2, v3...)
-const CACHE_NAME = 'pms-cache-v1'; // 👈 記得改一下版本號
+const CACHE_NAME = 'pms-cache-v2'; // 👈 記得改一下版本號
 
 const urlsToCache = [
   './',
