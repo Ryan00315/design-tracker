@@ -5747,12 +5747,13 @@ window.initNotificationsUI = () => {
         `;
         li.onclick = () => window.switchNav('tab-notifications', '系統通知', li);
         
-        const weeklyNav = document.querySelector('li[onclick*="tab-weekly"]');
-        if (weeklyNav && weeklyNav.parentNode) {
-            weeklyNav.parentNode.insertBefore(li, weeklyNav.nextSibling);
-        } else {
-            navUl.appendChild(li);
-        }
+        // 🌟 將「系統通知」移至分隔線下方、個人行事曆 (tab-calendar) 正上方
+      const calendarNav = document.querySelector('li[onclick*="tab-calendar"]');
+      if (calendarNav && calendarNav.parentNode) {
+          calendarNav.parentNode.insertBefore(li, calendarNav);
+      } else {
+          navUl.appendChild(li);
+      }
     }
 
     const samplePane = document.getElementById("tab-projects") || document.querySelector(".tab-pane");
