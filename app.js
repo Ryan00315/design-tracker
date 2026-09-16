@@ -3972,30 +3972,33 @@ window.openGeneralEdit = (type, id, extra) => {
     `;
   } else if (type === 'adhoc') {
     const adhoc = allAdHocData.find(a => a.id === id);
+    if (!adhoc) return alert("找不到該事件紀錄！");
+
     document.getElementById("general-edit-title").innerText = "編輯事件紀錄";
 
-    // 🌟 將原因說明改用 Quill 編輯器容器，取代純文字 input
     form.innerHTML = `
       <div class="form-group"><label class="form-label">事項名稱</label><input type="text" id="edit-val-title" class="input-control" value="${adhoc.title}"></div>
       <div class="form-group"><label class="form-label">開始日期</label><input type="date" id="edit-val-start" class="input-control" value="${adhoc.startDate || ''}"></div>
       <div class="form-group">
         <label class="form-label">原因說明</label>
-        <div id="edit-val-reason-container" style="background:#fff; min-height:80px;"></div>
+        <div id="edit-val-reason-container" style="background:#fff; min-height:120px;"></div>
       </div>
     `;
 
-    // 🌟 手機 APP 模式專屬優化：延遲 400ms 與 1200ms 雙重確保畫面必定出現
+    // 🌟 實例化 Quill 編輯器並帶入原有的說明內容
     setTimeout(() => {
-      window.triggerProjectsUpdate();
-      if (window.renderNotifications) window.renderNotifications();
-    }, 400);
-
-    setTimeout(() => {
-      if (allProjectsData.length > 0 && document.getElementById("gantt-summary-left-body")?.children.length === 0) {
-        console.log("偵測到手機版初次渲染落後，執行自動補償渲染...");
-        window.triggerProjectsUpdate();
+      const container = document.getElementById('edit-val-reason-container');
+      if (container && !container.classList.contains('ql-container')) {
+        window.editAdhocQuill = new Quill('#edit-val-reason-container', {
+          modules: { toolbar: toolbarOptions },
+          theme: 'snow',
+          placeholder: '請填寫原因說明 (Enter 換行)...'
+        });
       }
-    }, 1200);
+      if (window.editAdhocQuill) {
+        window.editAdhocQuill.root.innerHTML = adhoc.reason || '';
+      }
+    }, 60);
 
   } else if (type === 'weekly') {
     const weekly = allWeeklyData.find(w => w.id === id);
@@ -4203,6 +4206,9 @@ window.onEditWeeklyProjChange = (idx) => {
 window.closeGeneralEditModal = () => {
     const modal = document.getElementById("general-edit-modal");
     modal.classList.remove("active");
+
+    // 🌟 清除編輯器參照，確保下次點修改重新正確渲染
+    window.editAdhocQuill = null;
 
     const defaultSaveBtn = Array.from(modal.querySelectorAll("button")).find(b => 
       b.getAttribute("onclick")?.includes("saveGeneralEdit") || b.textContent.includes("儲存修改")
