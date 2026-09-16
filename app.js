@@ -7373,21 +7373,18 @@ window.initManualModalUI = function() {
   manualBtn.title = "查看系統使用手冊與按鍵說明";
   manualBtn.innerHTML = "📖";
   manualBtn.style.cssText = `
-    margin-left: 8px;
-    padding: 2px 8px;
-    font-size: 12px;
-    font-weight: bold;
-    color: #4338ca;
-    background: #e0e7ff;
-    border: 1px solid #c7d2fe;
-    border-radius: 4px;
-    cursor: pointer;
-    vertical-align: middle;
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    line-height: 1.4;
-  `;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 13px;
+  background: #e0e7ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 4px;
+  cursor: pointer;
+  vertical-align: middle;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.4;
+`;
   manualBtn.onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
