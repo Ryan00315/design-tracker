@@ -1327,20 +1327,38 @@ window.addTaskRow = () => {
 };
 
 window.moveTaskRow = (btn, direction) => {
-  const row = btn.closest('.task-row') || btn.closest('.tpl-task-row') || btn.closest('.subproject-row') || btn.closest('.sub-task-item');
+  // 🌟 1. 抓取目前要移動的列 (支援一般任務列、子專案外框、子細項列)
+  const row = btn.closest('.sub-task-item') || btn.closest('.task-row') || btn.closest('.tpl-task-row') || btn.closest('.subproject-row');
   if (!row) return;
-  
-  if (direction === -1 && row.previousElementSibling) {
-    // 避免排到固定的簽核送審上方
-    if (row.previousElementSibling.classList?.contains('is-approval-task')) return;
-    row.parentNode.insertBefore(row, row.previousElementSibling);
-  } else if (direction === 1 && row.nextElementSibling) {
-    row.parentNode.insertBefore(row.nextElementSibling, row);
+
+  const parent = row.parentNode;
+  if (!parent) return;
+
+  if (direction === -1) {
+    // 🌟 上移
+    const prev = row.previousElementSibling;
+    if (prev) {
+      // 若上方是固定的「簽核送審」，不可超越
+      if (prev.classList?.contains('is-approval-task')) return;
+      parent.insertBefore(row, prev);
+    }
+  } else if (direction === 1) {
+    // 🌟 下移
+    const next = row.nextElementSibling;
+    if (next) {
+      // 將目前列插到「下下個元素」的前面，等同於移到下一個元素的後方
+      parent.insertBefore(row, next.nextElementSibling);
+    }
   }
 
-  // 🌟 若移動的是子細項，自動刷新序號
-  if (row.classList.contains('sub-task-item')) {
-    window.updateSubTaskNumbers(row.closest('.sub-tasks-container'));
+  // 🌟 2. 移動後自動重新計算子細項序號 (1., 2., 3...)
+  const subContainer = row.closest('.sub-tasks-container');
+  if (subContainer) {
+    if (typeof window.updateSubTaskNumbers === 'function') {
+      window.updateSubTaskNumbers(subContainer);
+    } else if (typeof window.recalcSubTaskNumbers === 'function') {
+      window.recalcSubTaskNumbers();
+    }
   }
 };
 
@@ -5314,19 +5332,43 @@ window.addInnerSubTask = window.addSubTaskItem = function(btn) {
       btn.parentNode.insertBefore(tasksContainer, btn);
     }
 
-    // 2. 計算預設起始日（純原生 JS 計算，避免外部函式未定義）
+    // 2. 計算預設起始日、天數與結束日（支援「時間同步」與「接續時間」）
     let defaultStart = (typeof getTodayStr === 'function') ? getTodayStr() : new Date().toISOString().split('T')[0];
+    let defaultEnd = defaultStart;
+    let defaultDays = 1;
+
+    // 檢查彈窗或本列中是否勾選了「時間同步」
+    const syncCheckbox = parentRow?.querySelector('.subproject-sync-date') || document.getElementById('modal-subproject-sync-date');
+    const isSyncDate = syncCheckbox ? syncCheckbox.checked : false;
+
     const existingItems = tasksContainer.querySelectorAll('.sub-task-item');
     if (existingItems.length > 0) {
       const lastItem = existingItems[existingItems.length - 1];
+      const lastStartInput = lastItem.querySelector('.sub-task-start');
+      const lastDaysInput = lastItem.querySelector('.sub-task-days');
       const lastEndInput = lastItem.querySelector('.sub-task-end');
-      if (lastEndInput && lastEndInput.value) {
-        const nextD = new Date(lastEndInput.value.replace(/-/g, '/'));
-        nextD.setDate(nextD.getDate() + 1);
-        const y = nextD.getFullYear();
-        const m = String(nextD.getMonth() + 1).padStart(2, '0');
-        const d = String(nextD.getDate()).padStart(2, '0');
-        defaultStart = `${y}-${m}-${d}`;
+
+      if (isSyncDate) {
+        // 🌟 勾選「時間同步」：開始時間、工作天數、結束時間完全拷貝上一個細項
+        if (lastStartInput && lastStartInput.value) defaultStart = lastStartInput.value;
+        if (lastDaysInput && lastDaysInput.value) defaultDays = parseInt(lastDaysInput.value) || 1;
+        if (lastEndInput && lastEndInput.value) defaultEnd = lastEndInput.value;
+      } else {
+        // 🌟 未勾選：維持原本的接續時間（順延至下一個工作日）
+        if (lastEndInput && lastEndInput.value) {
+          if (typeof getNextWorkingDayStr === 'function') {
+            defaultStart = getNextWorkingDayStr(lastEndInput.value);
+          } else {
+            const nextD = new Date(lastEndInput.value.replace(/-/g, '/'));
+            nextD.setDate(nextD.getDate() + 1);
+            const y = nextD.getFullYear();
+            const m = String(nextD.getMonth() + 1).padStart(2, '0');
+            const d = String(nextD.getDate()).padStart(2, '0');
+            defaultStart = `${y}-${m}-${d}`;
+          }
+          defaultEnd = defaultStart;
+          defaultDays = 1;
+        }
       }
     }
 
@@ -5339,10 +5381,10 @@ window.addInnerSubTask = window.addSubTaskItem = function(btn) {
       <input type="text" class="input-control sub-task-name" placeholder="請輸入細項工作名稱..." style="flex:2; padding:6px 10px; font-size:13px;" required>
       <input type="date" class="input-control sub-task-start" value="${defaultStart}" style="flex:1; padding:6px 8px; font-size:13px;" 
              onchange="if(typeof onTaskStartChange==='function') onTaskStartChange(this, null)">
-      <input type="number" class="input-control sub-task-days" value="1" min="1" placeholder="天數" style="width:55px; padding:6px 4px; font-size:13px; text-align:center;" 
-             oninput="if(typeof onTaskDaysChange==='function') onTaskDaysChange(this, null, null)">
-      <input type="date" class="input-control sub-task-end" value="${defaultStart}" style="flex:1; padding:6px 8px; font-size:13px;" 
-             onchange="if(typeof onTaskEndChange==='function') onTaskEndChange(this, null, null)">
+      <input type="number" class="input-control sub-task-days" value="${defaultDays}" min="1" placeholder="天數" style="width:55px; padding:6px 4px; font-size:13px; text-align:center;" 
+       oninput="if(typeof onTaskDaysChange==='function') onTaskDaysChange(this, null, null)">
+      <input type="date" class="input-control sub-task-end" value="${defaultEnd}" style="flex:1; padding:6px 8px; font-size:13px;" 
+       onchange="if(typeof onTaskEndChange==='function') onTaskEndChange(this, null, null)">
       <div style="display:flex; gap:3px; margin:0; flex-shrink:0;">
         <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移" style="padding:2px 6px; font-size:11px;">↑</button>
         <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移" style="padding:2px 6px; font-size:11px;">↓</button>
@@ -5543,6 +5585,12 @@ window.openAddSubProjectModal = () => {
             🛒 採購
           </label>
 
+          <!-- 🌟 新增：時間同步開關 (可重複點擊勾選/取消) -->
+          <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:bold; color:#1d4ed8; cursor:pointer; white-space:nowrap; background:#eff6ff; padding:6px 12px; border-radius:4px; border:1px solid #bfdbfe;">
+            <input type="checkbox" id="modal-subproject-sync-date" class="subproject-sync-date" style="cursor:pointer; width:16px; height:16px;">
+            🔄 時間同步
+          </label>
+          
           <select id="modal-subproject-assignee" class="input-control subproject-assignee" style="flex:1; min-width:180px; font-size:14px;">
             ${assigneeOptions}
           </select>
