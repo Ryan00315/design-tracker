@@ -2292,28 +2292,7 @@ function renderProjects() {
               <div class="col-name" title="${task.name || '未命名任務'}" style="${nameIndent}"><span style="overflow:hidden; text-overflow:ellipsis;">${displayName}</span>${editHtml}</div>
               ${expectedDateHtml}
               <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
-              // 🌟 1. 計算該任務的允許輸入下限（若上次已送出 11%，則下次只能從 12% 起跳）
-            // 🌟 1. 計算該任務的允許輸入下限（若上次已送出 11%，則下次只能從 12% 起跳）
-            const minAllowedProg = currentProgress > 0 ? Math.min(100, currentProgress + 1) : 0;
-
-            const row = document.createElement("div"); 
-            row.className = "gantt-row";
-            row.innerHTML = `
-              <div class="col-name" title="${task.name || '未命名任務'}" style="${nameIndent}"><span style="overflow:hidden; text-overflow:ellipsis;">${displayName}</span>${editHtml}</div>
-              ${expectedDateHtml}
-              <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
-              <div class="col-prog">
-                <input type="number" 
-                       min="${minAllowedProg}" 
-                       max="100" 
-                       value="${currentProgress}" 
-                       id="prog_input_${index}" 
-                       ${isInputLocked ? 'disabled' : ''} 
-                       style="${progressInputStyle}"
-                       onkeydown="handleProgressKeyLoop(event, this, ${minAllowedProg})"
-                       onchange="handleProgressInputLimit(this, ${minAllowedProg})">
-                <span style="font-weight:bold; margin-left:2px; color:${numColor};">%</span>
-              </div>
+              <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="${progressInputStyle}"><span style="font-weight:bold; margin-left:2px; color:${numColor};">%</span></div>
               <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} style="${confirmBtnStyle}" onclick="confirmProgress('${activeProj.id}', ${index}, '${safeEnd}')">${task.isCompleted ? '完成' : '確認'}</button></div>
               <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
             `;
@@ -2597,45 +2576,6 @@ window.submitDelayReason = () => {
   if (resolveDelayPrompt) resolveDelayPrompt(val);
 };
 
-// 🌟 處理上下鍵步進與 0/min <-> 100 循環切換
-window.handleProgressKeyLoop = (e, input, minVal) => {
-  let val = parseInt(input.value);
-  if (isNaN(val)) val = minVal;
-
-  if (e.key === 'ArrowDown') {
-    e.preventDefault();
-    if (val <= minVal) {
-      // 達到最小值（如 0% 或 12%）再往下按，循環跳到 100%
-      input.value = 100;
-    } else {
-      input.value = val - 1;
-    }
-    input.dispatchEvent(new Event('input'));
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault();
-    if (val >= 100) {
-      // 達到 100% 再往上按，循環跳回最小值（如 0% 或 12%）
-      input.value = minVal;
-    } else {
-      input.value = val + 1;
-    }
-    input.dispatchEvent(new Event('input'));
-  }
-};
-
-// 🌟 手動輸入數字防呆：防止使用者直接鍵入低於上次確認的進度或超過 100
-window.handleProgressInputLimit = (input, minVal) => {
-  let val = parseInt(input.value);
-  if (isNaN(val)) return;
-
-  if (val > 100) {
-    input.value = 100;
-  } else if (val < minVal && input.value.length >= String(minVal).length) {
-    // 若手動鍵入小於下限的數值，直接校正為允許的最小值
-    input.value = minVal;
-  }
-};
-
 window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const proj = allProjectsData.find(p => p.id === projId);
   const tasks = [...proj.tasks];
@@ -2681,11 +2621,9 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const oldProg = targetTask.progress || 0;
   if (isNaN(newProg) || newProg < 0) newProg = 0; 
   if (newProg > 100) newProg = 100;
-
-  // 🌟 若進度不大於上次進度，禁止提交
-  if (oldProg > 0 && newProg <= oldProg && !targetTask.isCompleted) { 
-    alert(`錯誤：進度不能往回倒扣或維持原進度！目前已達成 ${oldProg}%，下次更新需大於等於 ${oldProg + 1}%。`); 
-    inputElem.value = oldProg + 1 <= 100 ? oldProg + 1 : 100; 
+  if (newProg < oldProg) { 
+    alert(`錯誤：進度不能往回倒扣！目前已達成 ${oldProg}%。`); 
+    inputElem.value = oldProg; 
     return; 
   }
 
