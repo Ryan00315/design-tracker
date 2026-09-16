@@ -1028,7 +1028,7 @@ onAuthStateChanged(auth, async (user) => {
     loadAdHocEvents();
     initTemplateUI();
     window.injectFontSizeUI();
-    // 🌟 登入後直接執行一次更新，不再透過 setTimeout 乾等
+    window.initManualModalUI();
     window.triggerProjectsUpdate();
     if (window.renderNotifications) window.renderNotifications();
 
@@ -7360,46 +7360,56 @@ window.submitProjectResubmit = async (projId) => {
 
 // 🌟 注入系統手冊圖示 (v1.0 右方) 與 1/2 寬度獨立彈窗
 window.initManualModalUI = function() {
-  // 1. 防止重複注入按鈕
   if (document.getElementById("btn-open-system-manual")) return;
 
-  // 尋找包含 v1.0 的標題或標籤元素 (若無則尋找 .sidebar-brand 或 h1/h2)
-  const allElements = Array.from(document.querySelectorAll("span, div, small, h1, h2, h3, a"));
-  const versionElem = allElements.find(el => el.textContent && el.textContent.trim().toLowerCase().includes("v1.0"));
-  
+  // 1. 建立純圖示按鈕
   const manualBtn = document.createElement("button");
   manualBtn.type = "button";
   manualBtn.id = "btn-open-system-manual";
   manualBtn.title = "查看系統使用手冊與按鍵說明";
   manualBtn.innerHTML = "📖";
   manualBtn.style.cssText = `
-  margin-left: 6px;
-  padding: 1px 6px;
-  font-size: 13px;
-  background: #e0e7ff;
-  border: 1px solid #c7d2fe;
-  border-radius: 4px;
-  cursor: pointer;
-  vertical-align: middle;
-  display: inline-flex;
-  align-items: center;
-  line-height: 1.4;
-`;
+    margin-left: 6px;
+    padding: 1px 6px;
+    font-size: 14px;
+    background: #e0e7ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 4px;
+    cursor: pointer;
+    vertical-align: middle;
+    display: inline-flex;
+    align-items: center;
+    line-height: 1.4;
+  `;
   manualBtn.onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
     window.openSystemManualModal();
   };
 
-  if (versionElem && versionElem.parentNode) {
-    versionElem.parentNode.insertBefore(manualBtn, versionElem.nextSibling);
-  } else {
-    // 若找不到 v1.0 字樣，備援掛在使用者列或右上角
-    const brand = document.querySelector(".sidebar-brand") || document.querySelector(".header") || document.querySelector("header");
-    if (brand) brand.appendChild(manualBtn);
+  // 2. 尋找畫面上的 v1.0 文字節點（支援直接插入其後方）
+  let targetNode = null;
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+  let node;
+  while (node = walker.nextNode()) {
+    if (node.nodeValue && node.nodeValue.includes("v1.0")) {
+      targetNode = node.parentElement;
+      break;
+    }
   }
 
-  // 2. 建立 1/2 寬度的專屬獨立彈窗容器
+  // 3. 依序嘗試掛載位置
+  if (targetNode) {
+    targetNode.parentNode.insertBefore(manualBtn, targetNode.nextSibling);
+  } else if (document.getElementById("current-title")) {
+    // 備援一：掛在頂部大標題（專案進度）右側
+    document.getElementById("current-title").appendChild(manualBtn);
+  } else if (document.getElementById("user-role-badge")) {
+    // 備援二：掛在右上角使用者身分徽章右側
+    document.getElementById("user-role-badge").parentNode.appendChild(manualBtn);
+  }
+
+  // 4. 建立獨立彈窗（維持原本的視窗代碼）
   if (!document.getElementById("system-manual-modal")) {
     const modalDiv = document.createElement("div");
     modalDiv.id = "system-manual-modal";
