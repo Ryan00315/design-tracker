@@ -2589,8 +2589,38 @@ window.submitDelayReason = () => {
   if (resolveDelayPrompt) resolveDelayPrompt(val);
 };
 
+// 🌟 上下鍵步進與循環跳轉：在最小值時按下鍵跳到 100%；在 100% 時按上鍵跳回最小值
+window.handleProgressKeyLoop = (e, input, minVal) => {
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+
+  e.preventDefault();
+  let val = parseInt(input.value);
+  if (isNaN(val)) val = minVal;
+
+  if (e.key === 'ArrowDown') {
+    // 按下鍵：若已達最小值（例如 0% 或 12%），循環跳至 100%；否則 -1
+    input.value = (val <= minVal) ? 100 : val - 1;
+  } else if (e.key === 'ArrowUp') {
+    // 按上鍵：若已達 100%，循環跳回最小值（例如 0% 或 12%）；否則 +1
+    input.value = (val >= 100) ? minVal : val + 1;
+  }
+};
+
+// 🌟 手動輸入防呆：低於門檻自動修正為最小值，高於 100 自動修正為 100
+window.handleProgressInputLimit = (input, minVal) => {
+  let val = parseInt(input.value);
+  if (isNaN(val)) {
+    input.value = minVal;
+    return;
+  }
+  if (val > 100) input.value = 100;
+  if (val < minVal) input.value = minVal;
+};
+
 window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const proj = allProjectsData.find(p => p.id === projId);
+  if (!proj || !proj.tasks || !proj.tasks[taskIndex]) return;
+
   const tasks = [...proj.tasks];
   const targetTask = tasks[taskIndex];
   
@@ -2602,41 +2632,16 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
     return alert("權限不足：您並非此任務細項之負責人或專案建立者，無法更新進度！");
   }
 
-  // 🌟 同時支援「協作流程」與舊專案的「簽核流程」
-    const isApprovalOrCollabTask = targetTask.isSubProjectTask && 
-      (targetTask.name.includes("協作流程") || targetTask.name.includes("簽核流程"));
-
-    if (isApprovalOrCollabTask) {
-        const parentSubName = targetTask.parentSubProject;
-        const nextWorkingDay = getNextWorkingDayStr(todayStr); 
-        let modifiedCount = 0;
-        
-        tasks.forEach(t => {
-            if (t.isSubProjectTask && t.parentSubProject === parentSubName && !t.name.includes("協作流程") && !t.name.includes("簽核流程")) {
-                if (!t.isCompleted) {
-                    t.start = nextWorkingDay;
-                    if (t.end < t.start) t.end = nextWorkingDay;
-                    modifiedCount++;
-                }
-            }
-        });
-        if (modifiedCount > 0) {
-            alert(`🎉 協作流程已結案！後續 ${modifiedCount} 個細項的起始日，已自動展延至下一個工作日 (${nextWorkingDay})。`);
-        } else {
-            alert("🎉 協作流程已結案！");
-        }
-    } else {
-        alert("🎉 進度已達 100%！該任務已結案。");
-    }
-
   const inputElem = document.getElementById(`prog_input_${taskIndex}`);
   let newProg = parseInt(inputElem.value); 
   const oldProg = targetTask.progress || 0;
   if (isNaN(newProg) || newProg < 0) newProg = 0; 
   if (newProg > 100) newProg = 100;
-  if (newProg < oldProg) { 
-    alert(`錯誤：進度不能往回倒扣！目前已達成 ${oldProg}%。`); 
-    inputElem.value = oldProg; 
+
+  // 🌟 核心防倒退：若先前已有進度 (例如 11%)，下次送出必須嚴格大於前次 (至少 12% 起跳)
+  if (oldProg > 0 && newProg <= oldProg && !targetTask.isCompleted) { 
+    alert(`錯誤：進度不能倒退或維持原進度！目前已達成 ${oldProg}%，下次更新需大於等於 ${oldProg + 1}%。`); 
+    inputElem.value = Math.min(100, oldProg + 1); 
     return; 
   }
 
@@ -2661,7 +2666,7 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
     targetTask.completedAt = ts; 
     targetTask.delayReason = delayReason;
     
-    // 🌟 同時相容「協作流程」與舊資料的「簽核流程」
+    // 🌟 協作/簽核流程結案自動推延同子專案後續任務
     const isFlowTask = targetTask.isSubProjectTask && 
       (targetTask.name.includes("協作流程") || targetTask.name.includes("簽核流程"));
 
@@ -2672,96 +2677,6 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
         let modifiedCount = 0;
         
         tasks.forEach(t => {
-            // 排除流程自身，其餘同子專案且未完成的細項自動遞延
-            if (t.isSubProjectTask && t.parentSubProject === parentSubName && !t.name.includes("協作流程") && !t.name.includes("簽核流程")) {
-                if (!t.isCompleted) {
-                    t.start = nextWorkingDay;
-                    if (t.end < t.start) t.end = nextWorkingDay;
-                    modifiedCount++;
-                }
-            }
-        });
-        if (modifiedCount > 0) {
-            alert(`🎉 ${flowTypeName}已結案！後續 ${modifiedCount} 個細項的起始日，已自動展延至下一個工作日 (${nextWorkingDay})。`);
-        } else {
-            alert(`🎉 ${flowTypeName}已結案！`);
-        }
-    } else {
-        alert("🎉 進度已達 100%！該任務已結案。");
-    }
-
-  } else { 
-    currentRemark = await window.openCustomPrompt("📝 進度更新", "請輸入此次進度更新的備註事項 (選填)：", false);
-    if (currentRemark === null) { inputElem.value = oldProg; return; }
-    targetTask.isCompleted = false; 
-    targetTask.completedAt = null; 
-  }
-  
-  targetTask.progress = newProg; 
-  targetTask.lastUpdatedAt = ts;
-
-  if (!targetTask.history) targetTask.history = [];
-  targetTask.history.push({ timestamp: ts, progress: newProg, type: newProg === 100 ? 'complete' : 'update', daysPassed: passedDays, remark: currentRemark, delayReason: delayReason || "" });
-
-  await updateDoc(doc(db, "projects", projId), { tasks });
-  if(newProg !== 100) alert(`進度已更新為 ${newProg}%`);
-};window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
-  const proj = allProjectsData.find(p => p.id === projId);
-  const tasks = [...proj.tasks];
-  const targetTask = tasks[taskIndex];
-  
-  const isProjOwner = (proj.ownerId === auth.currentUser.uid);
-  const taskAssigneeId = targetTask.assigneeId || proj.ownerId;
-  const isMyTask = (auth.currentUser.uid === taskAssigneeId);
-  
-  if (!isProjOwner && !isMyTask && currentUserData.role !== 'admin') {
-    return alert("權限不足：您並非此任務細項之負責人或專案建立者，無法更新進度！");
-  }
-
-  const inputElem = document.getElementById(`prog_input_${taskIndex}`);
-  let newProg = parseInt(inputElem.value); 
-  const oldProg = targetTask.progress || 0;
-  if (isNaN(newProg) || newProg < 0) newProg = 0; 
-  if (newProg > 100) newProg = 100;
-  if (newProg < oldProg) { 
-    alert(`錯誤：進度不能往回倒扣！目前已達成 ${oldProg}%。`); 
-    inputElem.value = oldProg; 
-    return; 
-  }
-
-  const todayStr = getTodayStr();
-  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
-  let passedDays = 0; 
-  if (todayStr >= targetTask.start) passedDays = getWorkingDays(targetTask.start, todayStr);
-
-  let delayReason = targetTask.delayReason || ""; 
-  let currentRemark = "";
-  
-  if (newProg === 100) {
-    if (todayStr > plannedEnd && !delayReason) {
-      delayReason = await window.openCustomPrompt("⚠️ 任務已 Delay", "此任務已超出預計完成日，請填寫 Delay 原因 (必填)：", true);
-      if (delayReason === null) { inputElem.value = oldProg; return; }
-    } else {
-      currentRemark = await window.openCustomPrompt("🎉 任務結案", "即將結案！可填寫結案備註 (選填)：", false);
-      if (currentRemark === null) { inputElem.value = oldProg; return; }
-    }
-    
-    targetTask.isCompleted = true; 
-    targetTask.completedAt = ts; 
-    targetTask.delayReason = delayReason;
-    
-    // 🌟 同時相容「協作流程」與舊資料的「簽核流程」
-    const isFlowTask = targetTask.isSubProjectTask && 
-      (targetTask.name.includes("協作流程") || targetTask.name.includes("簽核流程"));
-
-    if (isFlowTask) {
-        const flowTypeName = targetTask.name.includes("協作流程") ? "協作流程" : "簽核流程";
-        const parentSubName = targetTask.parentSubProject;
-        const nextWorkingDay = getNextWorkingDayStr(todayStr); 
-        let modifiedCount = 0;
-        
-        tasks.forEach(t => {
-            // 排除流程自身，其餘同子專案且未完成的細項自動遞延
             if (t.isSubProjectTask && t.parentSubProject === parentSubName && !t.name.includes("協作流程") && !t.name.includes("簽核流程")) {
                 if (!t.isCompleted) {
                     t.start = nextWorkingDay;
