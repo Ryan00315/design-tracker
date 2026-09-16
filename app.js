@@ -336,6 +336,15 @@ function initDynamicUI() {
       .gantt-left-panel, .gantt-left-panel-summary {
         min-width: 380px !important;
       }
+        /* 🌟 隱藏 number 輸入框的原生微調箭頭，由全自訂按鍵與滾輪邏輯接管 */
+      .col-prog input[type=number]::-webkit-inner-spin-button, 
+      .col-prog input[type=number]::-webkit-outer-spin-button { 
+        -webkit-appearance: none !important; 
+        margin: 0 !important; 
+      }
+      .col-prog input[type=number] {
+        -moz-appearance: textfield !important;
+      }
     }
   `;
   document.head.appendChild(style);
@@ -2296,13 +2305,12 @@ function renderProjects() {
               <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
               <div class="col-prog">
                 <input type="number" 
-                       min="${minAllowedProg}" 
-                       max="100" 
                        value="${currentProgress}" 
                        id="prog_input_${index}" 
                        ${isInputLocked ? 'disabled' : ''} 
                        style="${progressInputStyle}"
                        onkeydown="handleProgressKeyLoop(event, this, ${minAllowedProg})"
+                       onwheel="event.preventDefault(); handleProgressKeyLoop({key: event.deltaY < 0 ? 'ArrowUp' : 'ArrowDown', preventDefault: ()=>{}, stopPropagation: ()=>{}}, this, ${minAllowedProg})"
                        oninput="handleProgressInputLimit(this, ${minAllowedProg})"
                        onblur="handleProgressBlurLimit(this, ${minAllowedProg})">
                 <span style="font-weight:bold; margin-left:2px; color:${numColor};">%</span>
@@ -2590,60 +2598,43 @@ window.submitDelayReason = () => {
   if (resolveDelayPrompt) resolveDelayPrompt(val);
 };
 
-// 🌟 強化版：處理上下鍵步進與循環跳轉 (0/min <-> 100)
+// 🌟 強化版：處理上下鍵與滾輪步進循環跳轉 (0/min <-> 100)
 window.handleProgressKeyLoop = (e, input, minVal) => {
   if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
 
-  // 1. 強制徹底阻斷瀏覽器原生的 number 步進與限制
+  // 徹底阻斷瀏覽器原生 number 的干擾
   e.preventDefault();
   e.stopPropagation();
 
-  // 取得當前數值，若為空或 NaN 則以目前設定的下限基準
   let val = parseInt(input.value, 10);
   if (isNaN(val)) val = minVal;
 
   if (e.key === 'ArrowDown') {
-    // 🌟 若目前數值小於等於下限值 (例如 0 或 12)，直接循環跳到 100
-    if (val <= minVal) {
-      input.value = 100;
-    } else {
-      input.value = Math.max(minVal, val - 1);
-    }
+    // 🌟 在 0% 或 min 門檻時按下，循環跳到 100%
+    input.value = (val <= minVal) ? 100 : val - 1;
   } else if (e.key === 'ArrowUp') {
-    // 🌟 若目前數值已達 100 (或大於 100)，循環跳回下限值 (例如 0 或 12)
-    if (val >= 100) {
-      input.value = minVal;
-    } else {
-      input.value = Math.min(100, Math.max(minVal, val + 1));
-    }
+    // 🌟 在 100% 時按上，循環跳回 0% 或 min 門檻
+    input.value = (val >= 100) ? minVal : val + 1;
   }
 
-  // 2. 即時更新顏色（若有 Delay 變紅、100% 變綠）
-  if (typeof window.updateProgressColor === 'function') {
-    window.updateProgressColor(input);
-  }
+  // 觸發一次 input 事件以更新可能連動的樣式
+  input.dispatchEvent(new Event('input'));
 };
 
-// 🌟 手動輸入即時鎖定：打字當下（oninput）直接限制在 0~100，絕不允許出現 101 以上
+// 🌟 手動輸入即時鎖死（oninput）：絕不允許超過 100，即時切除
 window.handleProgressInputLimit = (input, minVal) => {
-  // 清除非數字字元（防止輸入 e、+、- 等）
-  input.value = input.value.replace(/[^\d]/g, '');
-
   if (input.value === '') return;
 
   let val = parseInt(input.value, 10);
-  if (isNaN(val)) {
-    input.value = minVal;
-    return;
-  }
+  if (isNaN(val)) return;
 
-  // 🌟 即時鎖定：超過 100 直接強制切回 100
+  // 🌟 若手動輸入大於 100，直接砍成 100
   if (val > 100) {
     input.value = 100;
   }
 };
 
-// 🌟 失焦（onblur）驗證：離開輸入框時若低於歷史門檻，強制校正回允許的最小值
+// 🌟 失焦保護（onblur）：離開輸入框時若低於歷史門檻，強制校正回允許的最小值
 window.handleProgressBlurLimit = (input, minVal) => {
   let val = parseInt(input.value, 10);
   if (isNaN(val) || val < minVal) {
