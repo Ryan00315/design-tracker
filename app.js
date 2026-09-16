@@ -7357,3 +7357,243 @@ window.submitProjectResubmit = async (projId) => {
   alert("🎉 專案已成功重新送審！");
   renderProjects();
 };
+
+// 🌟 注入系統手冊圖示 (v1.0 右方) 與 1/2 寬度獨立彈窗
+window.initManualModalUI = function() {
+  // 1. 防止重複注入按鈕
+  if (document.getElementById("btn-open-system-manual")) return;
+
+  // 尋找包含 v1.0 的標題或標籤元素 (若無則尋找 .sidebar-brand 或 h1/h2)
+  const allElements = Array.from(document.querySelectorAll("span, div, small, h1, h2, h3, a"));
+  const versionElem = allElements.find(el => el.textContent && el.textContent.trim().toLowerCase().includes("v1.0"));
+  
+  const manualBtn = document.createElement("button");
+  manualBtn.type = "button";
+  manualBtn.id = "btn-open-system-manual";
+  manualBtn.title = "查看系統使用手冊與按鍵說明";
+  manualBtn.innerHTML = "📖 手冊";
+  manualBtn.style.cssText = `
+    margin-left: 8px;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #4338ca;
+    background: #e0e7ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 4px;
+    cursor: pointer;
+    vertical-align: middle;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    line-height: 1.4;
+  `;
+  manualBtn.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    window.openSystemManualModal();
+  };
+
+  if (versionElem && versionElem.parentNode) {
+    versionElem.parentNode.insertBefore(manualBtn, versionElem.nextSibling);
+  } else {
+    // 若找不到 v1.0 字樣，備援掛在使用者列或右上角
+    const brand = document.querySelector(".sidebar-brand") || document.querySelector(".header") || document.querySelector("header");
+    if (brand) brand.appendChild(manualBtn);
+  }
+
+  // 2. 建立 1/2 寬度的專屬獨立彈窗容器
+  if (!document.getElementById("system-manual-modal")) {
+    const modalDiv = document.createElement("div");
+    modalDiv.id = "system-manual-modal";
+    modalDiv.className = "modal";
+    modalDiv.style.cssText = `
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: rgba(15, 23, 42, 0.6);
+      z-index: 99999;
+      justify-content: center;
+      align-items: center;
+      backdrop-filter: blur(3px);
+    `;
+
+    modalDiv.innerHTML = `
+      <div id="system-manual-box" style="
+        background: #ffffff;
+        width: 50vw;
+        max-width: 900px;
+        min-width: 320px;
+        height: 85vh;
+        max-height: 880px;
+        border-radius: 12px;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border: 1px solid #e2e8f0;
+        animation: fadeInManual 0.2s ease-out;
+      ">
+        <!-- 彈窗頂部 -->
+        <div style="
+          padding: 16px 20px;
+          background: #f8fafc;
+          border-bottom: 1px solid #e2e8f0;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        ">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 20px;">📘</span>
+            <span style="font-size: 16px; font-weight: bold; color: #1e293b;">專案管理系統 (PMS) 功能說明與 SOP 操作手冊</span>
+          </div>
+          <button type="button" onclick="window.closeSystemManualModal()" style="
+            background: transparent;
+            border: none;
+            font-size: 20px;
+            font-weight: bold;
+            color: #64748b;
+            cursor: pointer;
+            padding: 4px 8px;
+            line-height: 1;
+            border-radius: 4px;
+          " title="關閉手冊">✕</button>
+        </div>
+
+        <!-- 彈窗內容區 (可滾動) -->
+        <div style="
+          flex: 1;
+          padding: 24px 28px;
+          overflow-y: auto;
+          line-height: 1.65;
+          color: #334155;
+          font-size: 14px;
+        ">
+          <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 12px 16px; border-radius: 4px; margin-bottom: 20px;">
+            <b style="color: #1d4ed8;">📌 系統核心原則：</b> 本系統採用工作日推算（自動排除國定假日與六日），支援階層審核、跨部門協作、動態停工展延與雙階段週報鎖定。
+          </div>
+
+          <h3 style="color: #0f172a; margin-top: 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">一、 各模組按鍵功能索引</h3>
+          
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px;">
+            <thead>
+              <tr style="background: #f1f5f9; text-align: left;">
+                <th style="border: 1px solid #cbd5e1; padding: 8px;">按鈕 / 元素名稱</th>
+                <th style="border: 1px solid #cbd5e1; padding: 8px;">功能與業務邏輯說明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: #4338ca;">➕ 建立專案</td><td style="border: 1px solid #cbd5e1; padding: 8px;">展開/收合開案規劃表單。可勾選瀏覽部門、套用模板、新增子專案。</td></tr>
+              <tr><td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: #4338ca;">➕ 新增細項</td><td style="border: 1px solid #cbd5e1; padding: 8px;">於專案內追加任務，工期預設承接前項結束日之次一工作天。</td></tr>
+              <tr><td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: #4338ca;">➕ 新增子專案</td><td style="border: 1px solid #cbd5e1; padding: 8px;">建立分組工作群，支援指定跨部門負責人、採購前置簽核與時間同步。</td></tr>
+              <tr><td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: #b45309;">🛒 採購 (勾選)</td><td style="border: 1px solid #cbd5e1; padding: 8px;">子專案專用，強制於首項插入「簽核送審」，後續細項起始日自動連動於送審後之工作天。</td></tr>
+              <tr><td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: #1d4ed8;">🔄 時間同步 (勾選)</td><td style="border: 1px solid #cbd5e1; padding: 8px;">追加子細項時，開始日、工作天數與結束日完全拷貝上一筆；取消勾選則為順延接續。</td></tr>
+              <tr><td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: bold;">↑ / ↓ 箭頭</td><td style="border: 1px solid #cbd5e1; padding: 8px;">上下調換細項排程順序，自動更新編號（不可移至採購簽核送審上方）。</td></tr>
+              <tr><td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: #16a34a;">確認 / 完成</td><td style="border: 1px solid #cbd5e1; padding: 8px;">更新進度百分比（0~100%）。達 100% 且逾期時強制彈出填寫 Delay 原因。</td></tr>
+              <tr><td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: #dc2626;">⏸️ 申請暫停 / ▶️ 申請恢復</td><td style="border: 1px solid #cbd5e1; padding: 8px;">負責人填寫原因與生效日期送審。主管同意恢復後，系統自動將未完成細項時程向後遞延。</td></tr>
+              <tr><td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: #4338ca;">🔄 重新送審</td><td style="border: 1px solid #cbd5e1; padding: 8px;">專案被主管退回時出現，可選擇專案簽核或協作流程，修改說明後再次送出。</td></tr>
+              <tr><td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: #059669;">主管 / 最高主管 Noted</td><td style="border: 1px solid #cbd5e1; padding: 8px;">週報專用簽核。一旦點閱，週報立即鎖死禁止改動，且當期已完成之專案不再重複列出。</td></tr>
+            </tbody>
+          </table>
+
+          <h3 style="color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">二、 標準作業程序 (SOP)</h3>
+
+          <div style="margin-bottom: 16px;">
+            <h4 style="color: #1e40af; margin-bottom: 6px;">SOP 1：專案建立與送審</h4>
+            <ol style="padding-left: 20px; margin: 0;">
+              <li>點擊右上角「➕ 建立專案」，填寫專案名稱、選取代表色系，勾選開放瀏覽部門。</li>
+              <li>依序填寫任務細項（或帶入模板）；若需外部門同仁協作，點擊「新增子專案」並選定指派人。</li>
+              <li>若含跨部門指派或勾選「需要簽核」，專案提交後轉入「⏳ 簽核中」並通知主管；若為純個人/同部門專案，直接進入「未完成」清單享有 7 天自由編輯期。</li>
+            </ol>
+          </div>
+
+          <div style="margin-bottom: 16px;">
+            <h4 style="color: #1e40af; margin-bottom: 6px;">SOP 2：細項進度與 Delay 回報</h4>
+            <ol style="padding-left: 20px; margin: 0;">
+              <li>至甘特圖清單找到名下負責細項，於進度框輸入新百分比並按「確認」。</li>
+              <li>進度達 100% 且系統判定當前日期已超過預計結束日，強制填寫「Delay 原因」方可結案。</li>
+              <li>若需修改進度備註或 Delay 原因，負責人可在 2 天內點擊歷程旁的「✏️ 修改」補正。</li>
+            </ol>
+          </div>
+
+          <div style="margin-bottom: 16px;">
+            <h4 style="color: #1e40af; margin-bottom: 6px;">SOP 3：協作專案主管指派與同仁回覆</h4>
+            <ol style="padding-left: 20px; margin: 0;">
+              <li>主管於「系統通知」接獲審核申請，可點選「👥 指派」下發給部門同仁，或點選「自行承接」。</li>
+              <li>被指派同仁於「系統通知」點選「同意」，專案正式納入個人未完成清單；若點選「拒絕」，需填寫具體原因退回開案人。</li>
+            </ol>
+          </div>
+
+          <div style="margin-bottom: 16px;">
+            <h4 style="color: #1e40af; margin-bottom: 6px;">SOP 4：工作週報填寫與審核結轉</h4>
+            <ol style="padding-left: 20px; margin: 0;">
+              <li>每週五（或請假提前）進入「工作週報」，點擊「+」選取本週執行任務並填寫說明後「送出週報」。</li>
+              <li>送出後 2 天內或在主管尚未閱讀前，可隨時點擊「✏️ 編輯」或「刪除」重新填寫。</li>
+              <li>主管查閱後點擊「Noted」，週報立即鎖死封存，當期完成的細項永久鎖定不再出現在後續選單。</li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- 彈窗底部 -->
+        <div style="
+          padding: 12px 20px;
+          background: #f8fafc;
+          border-top: 1px solid #e2e8f0;
+          display: flex;
+          justify-content: flex-end;
+        ">
+          <button type="button" onclick="window.closeSystemManualModal()" style="
+            padding: 6px 18px;
+            background: #4f46e5;
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: bold;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+          ">關閉手冊</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modalDiv);
+
+    // 響應式：手機版或窄螢幕自動轉為撐滿
+    const style = document.createElement("style");
+    style.innerHTML = `
+      @keyframes fadeInManual {
+        from { opacity: 0; transform: scale(0.96); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      @media (max-width: 850px) {
+        #system-manual-box {
+          width: 94vw !important;
+          height: 92vh !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+};
+
+window.openSystemManualModal = function() {
+  const modal = document.getElementById("system-manual-modal");
+  if (modal) {
+    modal.style.display = "flex";
+  }
+};
+
+window.closeSystemManualModal = function() {
+  const modal = document.getElementById("system-manual-modal");
+  if (modal) {
+    modal.style.display = "none";
+  }
+};
+
+// 🌟 自動掛載：畫面載入與身分確認後自動初始化
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => setTimeout(window.initManualModalUI, 300));
+} else {
+  setTimeout(window.initManualModalUI, 300);
+}
