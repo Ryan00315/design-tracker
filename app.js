@@ -7313,11 +7313,10 @@ window.submitProjectResubmit = async (projId) => {
   renderProjects();
 };
 
-// 🌟 注入系統手冊圖示 (v1.0 右方無背景透明 icon) 與 1/2 寬度完整 SOP 獨立彈窗
 window.initManualModalUI = function() {
   if (document.getElementById("btn-open-system-manual")) return;
 
-  // 1. 建立純圖示按鈕 (透明背景、無框線、Hover 放大反饋)
+  // 1. 建立純圖示按鈕 (透明背景、微調邊距避免擠壓 v2.0)
   const manualBtn = document.createElement("button");
   manualBtn.type = "button";
   manualBtn.id = "btn-open-system-manual";
@@ -7325,8 +7324,9 @@ window.initManualModalUI = function() {
   manualBtn.innerHTML = "📖";
   manualBtn.style.cssText = `
     margin-left: 6px;
-    padding: 0 4px;
-    font-size: 16px;
+    margin-right: 4px;
+    padding: 0;
+    font-size: 15px;
     background: transparent;
     border: none;
     cursor: pointer;
@@ -7345,25 +7345,24 @@ window.initManualModalUI = function() {
     window.openSystemManualModal();
   };
 
-  // 2. 尋找畫面上的 v1.0 文字節點掛載
-  let targetNode = null;
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
-  let node;
-  while (node = walker.nextNode()) {
-    if (node.nodeValue && node.nodeValue.includes("v1.0")) {
-      targetNode = node.parentElement;
-      break;
+  // 2. 精確鎖定版本號標籤 (.version-tag) 並插入在其左邊 (前方)
+  const versionTag = document.querySelector(".version-tag");
+
+  if (versionTag && versionTag.parentNode) {
+    // 🌟 直接插在 v2.0 的前面，完全不變動 v2.0 本身的樣式
+    versionTag.parentNode.insertBefore(manualBtn, versionTag);
+  } else {
+    // 備援：若無 class 則模糊尋找含 v2 或 v1 的文字元素
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+    let node;
+    while (node = walker.nextNode()) {
+      if (node.nodeValue && (node.nodeValue.includes("v2.") || node.nodeValue.includes("v1."))) {
+        node.parentElement.parentNode.insertBefore(manualBtn, node.parentElement);
+        break;
+      }
     }
   }
-
-  if (targetNode) {
-    targetNode.parentNode.insertBefore(manualBtn, targetNode.nextSibling);
-  } else if (document.getElementById("current-title")) {
-    document.getElementById("current-title").appendChild(manualBtn);
-  } else if (document.getElementById("user-role-badge")) {
-    document.getElementById("user-role-badge").parentNode.appendChild(manualBtn);
-  }
-
+  
   // 3. 建立 1/2 寬度的專屬獨立彈窗容器 (內嵌全功能與完整 6 大 SOP)
   if (!document.getElementById("system-manual-modal")) {
     const modalDiv = document.createElement("div");
