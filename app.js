@@ -2590,36 +2590,37 @@ window.submitDelayReason = () => {
   if (resolveDelayPrompt) resolveDelayPrompt(val);
 };
 
-// 🌟 上下鍵步進與循環跳轉：0/min 時按下鍵跳到 100；100 時按上鍵跳回 0/min
+// 🌟 強化版：處理上下鍵步進與循環跳轉 (0/min <-> 100)
 window.handleProgressKeyLoop = (e, input, minVal) => {
   if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
 
-  // 強制攔截瀏覽器原生 number 的加減行為
+  // 1. 強制徹底阻斷瀏覽器原生的 number 步進與限制
   e.preventDefault();
   e.stopPropagation();
 
-  let val = parseInt(input.value);
+  // 取得當前數值，若為空或 NaN 則以目前設定的下限基準
+  let val = parseInt(input.value, 10);
   if (isNaN(val)) val = minVal;
 
   if (e.key === 'ArrowDown') {
-    // 🌟 若已達最小值（例如 0 或 12），循環跳至 100；否則 -1
+    // 🌟 若目前數值小於等於下限值 (例如 0 或 12)，直接循環跳到 100
     if (val <= minVal) {
       input.value = 100;
     } else {
-      input.value = val - 1;
+      input.value = Math.max(minVal, val - 1);
     }
   } else if (e.key === 'ArrowUp') {
-    // 🌟 若已達 100，循環跳回最小值（例如 0 或 12）；否則 +1
+    // 🌟 若目前數值已達 100 (或大於 100)，循環跳回下限值 (例如 0 或 12)
     if (val >= 100) {
       input.value = minVal;
     } else {
-      input.value = val + 1;
+      input.value = Math.min(100, Math.max(minVal, val + 1));
     }
   }
 
-  // 觸發顏色同步或更新驗證
-  if (typeof window.handleProgressInputLimit === 'function') {
-    window.handleProgressInputLimit(input, minVal);
+  // 2. 即時更新顏色（若有 Delay 變紅、100% 變綠）
+  if (typeof window.updateProgressColor === 'function') {
+    window.updateProgressColor(input);
   }
 };
 
