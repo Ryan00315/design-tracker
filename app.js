@@ -5288,6 +5288,12 @@ window.addSubProjectRow = (defaultName = "", defaultAssignee = "", subTasks = []
         🛒 採購
       </label>
 
+      <!-- 🌟 新增：時間同步開關 (草稿規劃專用) -->
+      <label style="display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:bold; color:#1d4ed8; cursor:pointer; white-space:nowrap; background:#eff6ff; padding:4px 8px; border-radius:4px; border:1px solid #bfdbfe;">
+        <input type="checkbox" class="subproject-sync-date" style="cursor:pointer;">
+        🔄 時間同步
+      </label>
+
       <div class="form-group" style="margin:0; flex:1; min-width:140px;">
         <select class="input-control subproject-assignee">
            ${assigneeOptions}
@@ -5316,11 +5322,10 @@ window.addSubProjectRow = (defaultName = "", defaultAssignee = "", subTasks = []
   }
 };
 
-// 🌟 萬用追加子細項函式 (同時相容彈窗與頁面容器)
+// 🌟 萬用追加子細項函式 (同時相容彈窗與頁面容器，支援時間同步與排序)
 window.addInnerSubTask = window.addSubTaskItem = function(btn) {
   try {
     // 1. 尋找目標容器
-    const modalContainer = document.getElementById("add-subproject-container");
     const parentRow = btn.closest('#add-subproject-container') || btn.closest('.subproject-row') || btn.closest('.tpl-subproject-row');
     let tasksContainer = parentRow ? parentRow.querySelector('.sub-tasks-container') : null;
 
@@ -5349,12 +5354,12 @@ window.addInnerSubTask = window.addSubTaskItem = function(btn) {
       const lastEndInput = lastItem.querySelector('.sub-task-end');
 
       if (isSyncDate) {
-        // 🌟 勾選「時間同步」：開始時間、工作天數、結束時間完全拷貝上一個細項
+        // 🌟 勾選「時間同步」：完全拷貝上一筆細項的開始日、天數與結束日
         if (lastStartInput && lastStartInput.value) defaultStart = lastStartInput.value;
         if (lastDaysInput && lastDaysInput.value) defaultDays = parseInt(lastDaysInput.value) || 1;
         if (lastEndInput && lastEndInput.value) defaultEnd = lastEndInput.value;
       } else {
-        // 🌟 未勾選：維持原本的接續時間（順延至下一個工作日）
+        // 🌟 未勾選：維持順延接續（跳至下一工作日）
         if (lastEndInput && lastEndInput.value) {
           if (typeof getNextWorkingDayStr === 'function') {
             defaultStart = getNextWorkingDayStr(lastEndInput.value);
@@ -5372,7 +5377,7 @@ window.addInnerSubTask = window.addSubTaskItem = function(btn) {
       }
     }
 
-    // 3. 建立細項 DOM 元素 (包含上下排序與刪除)
+    // 3. 建立細項 DOM 元素 (包含上下排序、同步變數與安全日期限制)
     const div = document.createElement('div');
     div.className = "sub-task-item";
     div.style.cssText = "display:flex; gap:6px; align-items:center; margin-bottom:8px;";
@@ -5382,17 +5387,24 @@ window.addInnerSubTask = window.addSubTaskItem = function(btn) {
       <input type="date" class="input-control sub-task-start" value="${defaultStart}" style="flex:1; padding:6px 8px; font-size:13px;" 
              onchange="if(typeof onTaskStartChange==='function') onTaskStartChange(this, null)">
       <input type="number" class="input-control sub-task-days" value="${defaultDays}" min="1" placeholder="天數" style="width:55px; padding:6px 4px; font-size:13px; text-align:center;" 
-       oninput="if(typeof onTaskDaysChange==='function') onTaskDaysChange(this, null, null)">
-      <input type="date" class="input-control sub-task-end" value="${defaultEnd}" style="flex:1; padding:6px 8px; font-size:13px;" 
-       onchange="if(typeof onTaskEndChange==='function') onTaskEndChange(this, null, null)">
+             oninput="if(typeof onTaskDaysChange==='function') onTaskDaysChange(this, null, null)">
+      <input type="date" class="input-control sub-task-end" value="${defaultEnd}" min="${defaultStart}" style="flex:1; padding:6px 8px; font-size:13px;" 
+             onchange="if(typeof onTaskEndChange==='function') onTaskEndChange(this, null, null)">
       <div style="display:flex; gap:3px; margin:0; flex-shrink:0;">
         <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移" style="padding:2px 6px; font-size:11px;">↑</button>
         <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移" style="padding:2px 6px; font-size:11px;">↓</button>
-        <button type="button" class="action-btn danger" onclick="const c = this.closest('.sub-tasks-container'); this.closest('.sub-task-item').remove(); window.updateSubTaskNumbers(c);" style="padding:3px 8px; font-size:11px; cursor:pointer;">✕</button>
+        <button type="button" class="action-btn danger" onclick="const c = this.closest('.sub-tasks-container'); this.closest('.sub-task-item').remove(); if(typeof updateSubTaskNumbers==='function') updateSubTaskNumbers(c);" style="padding:3px 8px; font-size:11px; cursor:pointer;">✕</button>
       </div>
     `;
+
     tasksContainer.appendChild(div);
-    window.recalcSubTaskNumbers();
+
+    // 🌟 4. 雙重相容刷新序號 (1., 2., 3.)
+    if (typeof window.updateSubTaskNumbers === 'function') {
+      window.updateSubTaskNumbers(tasksContainer);
+    } else if (typeof window.recalcSubTaskNumbers === 'function') {
+      window.recalcSubTaskNumbers();
+    }
   } catch (err) {
     console.error("追加子細項執行失敗:", err);
     alert("追加細項時發生錯誤: " + err.message);
