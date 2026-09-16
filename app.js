@@ -2286,18 +2286,31 @@ function renderProjects() {
             }
             const nameIndent = item.isChild ? 'padding-left: 22px; color: var(--text-muted);' : '';
 
+            // 🌟 1. 在外面計算門檻（若上次已送出 11%，則下次只能從 12% 起跳；若原為 0% 則從 0 起跳）
+            const minAllowedProg = currentProgress > 0 ? Math.min(100, currentProgress + 1) : 0;
+
             const row = document.createElement("div"); 
             row.className = "gantt-row";
             row.innerHTML = `
-              <div class="col-name" title="${task.name || '未命名任務'}" style="${nameIndent}"><span style="overflow:hidden; text-overflow:ellipsis;">${displayName}</span>${editHtml}</div>
-              ${expectedDateHtml}
+              <div class="col-name" title="${task.name || '未命名任務'}" style="${nameIndent}"><span style="overflow:hidden; text-overflow:ellipsis;">${displayName}</span>${editHtml}</div>${expectedDateHtml}
               <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
-              <div class="col-prog"><input type="number" min="0" max="100" value="${currentProgress}" id="prog_input_${index}" ${isInputLocked ? 'disabled' : ''} style="${progressInputStyle}"><span style="font-weight:bold; margin-left:2px; color:${numColor};">%</span></div>
-              <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} style="${confirmBtnStyle}" onclick="confirmProgress('${activeProj.id}', ${index}, '${safeEnd}')">${task.isCompleted ? '完成' : '確認'}</button></div>
+              <div class="col-prog">
+                <input type="number" 
+                       min="${minAllowedProg}" 
+                       max="100" 
+                       value="${currentProgress}" 
+                       id="prog_input_${index}" 
+                       ${isInputLocked ? 'disabled' : ''} 
+                       style="${progressInputStyle}"
+                       onkeydown="handleProgressKeyLoop(event, this, ${minAllowedProg})"
+                       onchange="handleProgressInputLimit(this, ${minAllowedProg})">
+                <span style="font-weight:bold; margin-left:2px; color:${numColor};">%</span>
+              </div>
+              <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} style="${confirmBtnStyle}" onclick="confirmProgress('${activeProj.id}',${index}, '${safeEnd}')">${task.isCompleted ? '完成' : '確認'}</button></div>
               <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
             `;
             if(leftBody) leftBody.appendChild(row);
-
+            
             if (listBody) {
               let historyHtml = '';
               const historyList = task.history || [];
