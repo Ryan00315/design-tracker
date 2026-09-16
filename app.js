@@ -2293,6 +2293,7 @@ function renderProjects() {
               ${expectedDateHtml}
               <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
               // 🌟 1. 計算該任務的允許輸入下限（若上次已送出 11%，則下次只能從 12% 起跳）
+            // 🌟 1. 計算該任務的允許輸入下限（若上次已送出 11%，則下次只能從 12% 起跳）
             const minAllowedProg = currentProgress > 0 ? Math.min(100, currentProgress + 1) : 0;
 
             const row = document.createElement("div"); 
@@ -2310,12 +2311,9 @@ function renderProjects() {
                        ${isInputLocked ? 'disabled' : ''} 
                        style="${progressInputStyle}"
                        onkeydown="handleProgressKeyLoop(event, this, ${minAllowedProg})"
-                       oninput="handleProgressInputLimit(this, ${minAllowedProg})">
+                       onchange="handleProgressInputLimit(this, ${minAllowedProg})">
                 <span style="font-weight:bold; margin-left:2px; color:${numColor};">%</span>
               </div>
-              <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} style="${confirmBtnStyle}" onclick="confirmProgress('${activeProj.id}', ${index}, '${safeEnd}')">${task.isCompleted ? '完成' : '確認'}</button></div>
-              <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
-            `;
               <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} style="${confirmBtnStyle}" onclick="confirmProgress('${activeProj.id}', ${index}, '${safeEnd}')">${task.isCompleted ? '完成' : '確認'}</button></div>
               <div class="col-owner" title="${taskAssigneeName}">${taskAssigneeName}</div>
             `;
