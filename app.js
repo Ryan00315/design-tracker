@@ -7323,10 +7323,10 @@ window.initManualModalUI = function() {
   manualBtn.title = "查看全系統功能說明與操作手冊 (SOP)";
   manualBtn.innerHTML = "📖";
   manualBtn.style.cssText = `
-    margin-left: 6px;
-    margin-right: 4px;
+    margin-left: 3px;
+    margin-right: 0;
     padding: 0;
-    font-size: 15px;
+    font-size: 14px;
     background: transparent;
     border: none;
     cursor: pointer;
@@ -7334,6 +7334,7 @@ window.initManualModalUI = function() {
     display: inline-flex;
     align-items: center;
     line-height: 1;
+    user-select: none;
     transition: transform 0.15s ease;
   `;
   manualBtn.onmouseover = () => { manualBtn.style.transform = "scale(1.2)"; };
@@ -7345,22 +7346,11 @@ window.initManualModalUI = function() {
     window.openSystemManualModal();
   };
 
-  // 2. 精確鎖定版本號標籤 (.version-tag) 並插入在其左邊 (前方)
+  // 2. 精確鎖定版本標籤 (.version-tag) 並插入在其右側 (後方)
   const versionTag = document.querySelector(".version-tag");
 
   if (versionTag && versionTag.parentNode) {
-    // 🌟 直接插在 v2.0 的前面，完全不變動 v2.0 本身的樣式
-    versionTag.parentNode.insertBefore(manualBtn, versionTag);
-  } else {
-    // 備援：若無 class 則模糊尋找含 v2 或 v1 的文字元素
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
-    let node;
-    while (node = walker.nextNode()) {
-      if (node.nodeValue && (node.nodeValue.includes("v2.") || node.nodeValue.includes("v1."))) {
-        node.parentElement.parentNode.insertBefore(manualBtn, node.parentElement);
-        break;
-      }
-    }
+    versionTag.parentNode.insertBefore(manualBtn, versionTag.nextSibling);
   }
   
   // 3. 建立 1/2 寬度的專屬獨立彈窗容器 (內嵌全功能與完整 6 大 SOP)
