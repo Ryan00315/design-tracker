@@ -2303,7 +2303,8 @@ function renderProjects() {
                        ${isInputLocked ? 'disabled' : ''} 
                        style="${progressInputStyle}"
                        onkeydown="handleProgressKeyLoop(event, this, ${minAllowedProg})"
-                       onchange="handleProgressInputLimit(this, ${minAllowedProg})">
+                       oninput="handleProgressInputLimit(this, ${minAllowedProg})"
+                       onblur="handleProgressBlurLimit(this, ${minAllowedProg})">
                 <span style="font-weight:bold; margin-left:2px; color:${numColor};">%</span>
               </div>
               <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} style="${confirmBtnStyle}" onclick="confirmProgress('${activeProj.id}',${index}, '${safeEnd}')">${task.isCompleted ? '完成' : '確認'}</button></div>
@@ -2589,32 +2590,66 @@ window.submitDelayReason = () => {
   if (resolveDelayPrompt) resolveDelayPrompt(val);
 };
 
-// 🌟 上下鍵步進與循環跳轉：在最小值時按下鍵跳到 100%；在 100% 時按上鍵跳回最小值
+// 🌟 上下鍵步進與循環跳轉：0/min 時按下鍵跳到 100；100 時按上鍵跳回 0/min
 window.handleProgressKeyLoop = (e, input, minVal) => {
   if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
 
+  // 強制攔截瀏覽器原生 number 的加減行為
   e.preventDefault();
+  e.stopPropagation();
+
   let val = parseInt(input.value);
   if (isNaN(val)) val = minVal;
 
   if (e.key === 'ArrowDown') {
-    // 按下鍵：若已達最小值（例如 0% 或 12%），循環跳至 100%；否則 -1
-    input.value = (val <= minVal) ? 100 : val - 1;
+    // 🌟 若已達最小值（例如 0 或 12），循環跳至 100；否則 -1
+    if (val <= minVal) {
+      input.value = 100;
+    } else {
+      input.value = val - 1;
+    }
   } else if (e.key === 'ArrowUp') {
-    // 按上鍵：若已達 100%，循環跳回最小值（例如 0% 或 12%）；否則 +1
-    input.value = (val >= 100) ? minVal : val + 1;
+    // 🌟 若已達 100，循環跳回最小值（例如 0 或 12）；否則 +1
+    if (val >= 100) {
+      input.value = minVal;
+    } else {
+      input.value = val + 1;
+    }
+  }
+
+  // 觸發顏色同步或更新驗證
+  if (typeof window.handleProgressInputLimit === 'function') {
+    window.handleProgressInputLimit(input, minVal);
   }
 };
 
-// 🌟 手動輸入防呆：低於門檻自動修正為最小值，高於 100 自動修正為 100
+// 🌟 手動輸入即時鎖定：打字當下（oninput）直接限制在 0~100，絕不允許出現 101 以上
 window.handleProgressInputLimit = (input, minVal) => {
-  let val = parseInt(input.value);
+  // 清除非數字字元（防止輸入 e、+、- 等）
+  input.value = input.value.replace(/[^\d]/g, '');
+
+  if (input.value === '') return;
+
+  let val = parseInt(input.value, 10);
   if (isNaN(val)) {
     input.value = minVal;
     return;
   }
-  if (val > 100) input.value = 100;
-  if (val < minVal) input.value = minVal;
+
+  // 🌟 即時鎖定：超過 100 直接強制切回 100
+  if (val > 100) {
+    input.value = 100;
+  }
+};
+
+// 🌟 失焦（onblur）驗證：離開輸入框時若低於歷史門檻，強制校正回允許的最小值
+window.handleProgressBlurLimit = (input, minVal) => {
+  let val = parseInt(input.value, 10);
+  if (isNaN(val) || val < minVal) {
+    input.value = minVal;
+  } else if (val > 100) {
+    input.value = 100;
+  }
 };
 
 window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
