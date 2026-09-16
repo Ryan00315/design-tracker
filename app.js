@@ -2014,7 +2014,12 @@ function renderProjects() {
   }
   if (btnProjectAddSubProject) {
     btnProjectAddSubProject.style.display = canOperateProject ? "inline-block" : "none";
-    btnProjectAddSubProject.onclick = () => window.openAddSubProjectModal(); // 🌟 補上點擊開啟追加子專案彈窗
+    btnProjectAddSubProject.removeAttribute("onclick");
+    btnProjectAddSubProject.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      window.openAddSubProjectModal();
+    };
   }
   if (delProjBtn) {
     delProjBtn.style.display = canDeleteProj ? "inline-block" : "none";
@@ -5507,18 +5512,21 @@ window.updateSubTaskNumbers = (container) => {
     });
 };
 
-// 🌟 追加子專案彈窗（為輸入框加上專屬 ID，杜絕 DOM 抓取衝突）
+// 🌟 追加子專案彈窗（修復 proj 未定義報錯，確保點擊必定彈出）
 window.openAddSubProjectModal = () => {
     const modal = document.getElementById("general-edit-modal");
     const form = document.getElementById("general-edit-form");
-    const modalBox = modal.querySelector('.modal-box');
+    const modalBox = modal?.querySelector('.modal-box');
     
+    if (!modal || !form) return alert("找不到彈窗容器！");
+
     if (modalBox) {
         modalBox.style.maxWidth = "960px";
         modalBox.style.width = "90vw";
         modalBox.style.minHeight = "480px";
         modalBox.style.maxHeight = "85vh";
         modalBox.style.overflowY = "auto";
+        modalBox.style.display = '';
     }
 
     document.getElementById("general-edit-title").innerText = `📦 追加新子專案`;
@@ -5528,7 +5536,6 @@ window.openAddSubProjectModal = () => {
       <div id="add-subproject-container" class="subproject-row" style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:16px;">
         <div style="display:flex; gap:12px; align-items:center; margin-bottom:14px; flex-wrap:wrap;">
           <span style="font-weight:bold; color:var(--primary); font-size:15px; white-space:nowrap;">📦 子專案名稱</span>
-          <!-- 🌟 賦予專屬 ID: modal-subproject-name -->
           <input type="text" id="modal-subproject-name" class="input-control subproject-name" placeholder="請輸入子專案名稱 (必填)" style="flex:2; min-width:180px; font-size:14px;" required>
           
           <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:bold; color:#b45309; cursor:pointer; white-space:nowrap; background:#fef3c7; padding:6px 12px; border-radius:4px; border:1px solid #fde68a;">
@@ -5536,7 +5543,6 @@ window.openAddSubProjectModal = () => {
             🛒 採購
           </label>
 
-          <!-- 🌟 賦予專屬 ID: modal-subproject-assignee -->
           <select id="modal-subproject-assignee" class="input-control subproject-assignee" style="flex:1; min-width:180px; font-size:14px;">
             ${assigneeOptions}
           </select>
@@ -5551,7 +5557,7 @@ window.openAddSubProjectModal = () => {
       </div>
       <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
         <button type="button" class="action-btn" style="padding:8px 20px; font-size:14px;" onclick="closeGeneralEditModal()">取消</button>
-        <button type="button" class="btn-primary" style="width:auto; padding:6px 16px;" onclick="event.preventDefault(); event.stopPropagation(); submitDispatchProject('${proj.id}')">確認指派</button>
+        <button type="button" class="btn-primary" style="width:auto; padding:8px 24px; font-size:14px;" onclick="event.preventDefault(); submitAddSubProject();">確認新增</button>
       </div>
     `;
 
