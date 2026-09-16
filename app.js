@@ -3233,25 +3233,21 @@ window.updateWeeklyTaskSelect = (selectElem) => {
 
 window.addWeeklyRow = () => {
   const container = document.getElementById("weekly-items-container");
-  // 3. 建立細項 DOM 元素 (加入 ↑ ↓ 排序按鈕)
-    const div = document.createElement('div');
-    div.className = "sub-task-item";
-    div.style.cssText = "display:flex; gap:6px; align-items:center; margin-bottom:8px;";
-    div.innerHTML = `
-      <span class="sub-task-num" style="font-size:13px; color:#b45309; font-weight:bold; width:22px; text-align:center;"></span>
-      <input type="text" class="input-control sub-task-name" placeholder="請輸入細項工作名稱..." style="flex:2; padding:6px 10px; font-size:13px;" required>
-      <input type="date" class="input-control sub-task-start" value="${defaultStart}" style="flex:1; padding:6px 8px; font-size:13px;" 
-             onchange="onTaskStartChange(this, null)">
-      <input type="number" class="input-control sub-task-days" value="1" min="1" placeholder="天數" style="width:55px; padding:6px 4px; font-size:13px; text-align:center;" 
-             oninput="onTaskDaysChange(this, null, null)">
-      <input type="date" class="input-control sub-task-end" value="${defaultStart}" style="flex:1; padding:6px 8px; font-size:13px;" 
-             onchange="onTaskEndChange(this, null, null)">
-      <div style="display:flex; gap:3px; margin:0; flex-shrink:0;">
-        <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移" style="padding:2px 6px; font-size:11px;">↑</button>
-        <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移" style="padding:2px 6px; font-size:11px;">↓</button>
-        <button type="button" class="action-btn danger" onclick="const c = this.closest('.sub-tasks-container'); this.closest('.sub-task-item').remove(); window.updateSubTaskNumbers(c);" style="padding:3px 8px; font-size:11px; cursor:pointer;">✕</button>
-      </div>
-    `;
+  const div = document.createElement('div'); 
+  div.className = "weekly-item-row"; 
+  div.style.cssText = "display:flex; gap:16px; margin-bottom:12px; align-items:flex-start; border: 1px solid var(--border-light); padding: 14px; border-radius: 8px; background: #fafafa;";
+  div.innerHTML = `
+    <div style="flex:1; display:flex; flex-direction:column; gap:10px; border-right: 1px dashed var(--border); padding-right:16px;">
+      <select class="input-control weekly-proj-select" onchange="updateWeeklyTaskSelect(this)" style="background:#fff;"></select>
+      <select class="input-control weekly-task-select" onchange="onWeeklyTaskSelectChange(this)" style="background:#fff;">
+        <option value="">-- 請先選擇主專案 --</option>
+      </select>
+    </div>
+    <div style="flex:2.5;">
+      <textarea class="input-control weekly-content" rows="3" placeholder="請填寫此任務的進度說明..." style="background:#fff;"></textarea>
+    </div>
+    <button class="action-btn danger" onclick="this.parentElement.remove()" style="padding: 10px; margin-left: 8px;">X</button>
+  `;
   container.appendChild(div); 
   populateWeeklyProjSelect(div.querySelector('.weekly-proj-select'));
 };
@@ -5329,22 +5325,25 @@ window.addInnerSubTask = window.addSubTaskItem = function(btn) {
       }
     }
 
-    // 3. 建立細項 DOM 元素
+    // 3. 建立細項 DOM 元素 (包含上下排序與刪除)
     const div = document.createElement('div');
     div.className = "sub-task-item";
-    div.style.cssText = "display:flex; gap:8px; align-items:center; margin-bottom:8px;";
+    div.style.cssText = "display:flex; gap:6px; align-items:center; margin-bottom:8px;";
     div.innerHTML = `
       <span class="sub-task-num" style="font-size:13px; color:#b45309; font-weight:bold; width:22px; text-align:center;"></span>
       <input type="text" class="input-control sub-task-name" placeholder="請輸入細項工作名稱..." style="flex:2; padding:6px 10px; font-size:13px;" required>
       <input type="date" class="input-control sub-task-start" value="${defaultStart}" style="flex:1; padding:6px 8px; font-size:13px;" 
              onchange="if(typeof onTaskStartChange==='function') onTaskStartChange(this, null)">
-      <input type="number" class="input-control sub-task-days" value="1" min="1" placeholder="天數" style="width:65px; padding:6px 6px; font-size:13px; text-align:center;" 
+      <input type="number" class="input-control sub-task-days" value="1" min="1" placeholder="天數" style="width:55px; padding:6px 4px; font-size:13px; text-align:center;" 
              oninput="if(typeof onTaskDaysChange==='function') onTaskDaysChange(this, null, null)">
       <input type="date" class="input-control sub-task-end" value="${defaultStart}" style="flex:1; padding:6px 8px; font-size:13px;" 
              onchange="if(typeof onTaskEndChange==='function') onTaskEndChange(this, null, null)">
-      <button type="button" class="action-btn danger" onclick="this.closest('.sub-task-item').remove(); window.recalcSubTaskNumbers();" style="padding:4px 8px; font-size:11px; cursor:pointer;">✕</button>
+      <div style="display:flex; gap:3px; margin:0; flex-shrink:0;">
+        <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移" style="padding:2px 6px; font-size:11px;">↑</button>
+        <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移" style="padding:2px 6px; font-size:11px;">↓</button>
+        <button type="button" class="action-btn danger" onclick="const c = this.closest('.sub-tasks-container'); this.closest('.sub-task-item').remove(); window.updateSubTaskNumbers(c);" style="padding:3px 8px; font-size:11px; cursor:pointer;">✕</button>
+      </div>
     `;
-
     tasksContainer.appendChild(div);
     window.recalcSubTaskNumbers();
   } catch (err) {
