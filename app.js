@@ -1223,9 +1223,13 @@ window.cascadeDatesIfSequential = (startRow) => {
 window.onTaskStartChange = (startInput, targetEndId) => {
   window.checkWorkingDay(startInput);
   if (!startInput.value) return;
-  const row = startInput.closest('.task-row') || startInput.closest('.tpl-task-row') || startInput.closest('#general-edit-form') || startInput.closest('.modal-box');
-  const endInput = typeof targetEndId === 'string' ? document.getElementById(targetEndId) : row?.querySelector('.task-end') || row?.querySelector('.tpl-task-end');
-  const daysInput = row?.querySelector('.task-days') || row?.querySelector('.tpl-task-days') || row?.querySelector('#add-task-days') || row?.querySelector('#edit-val-days');
+  
+  // 🌟 相容一般任務列與子專案細項列
+  const row = startInput.closest('.task-row') || startInput.closest('.sub-task-item') || startInput.closest('.tpl-task-row') || startInput.closest('#general-edit-form') || startInput.closest('.modal-box');
+  const endInput = typeof targetEndId === 'string' 
+    ? document.getElementById(targetEndId) 
+    : (row?.querySelector('.task-end') || row?.querySelector('.sub-task-end') || row?.querySelector('.tpl-task-end'));
+  const daysInput = row?.querySelector('.task-days') || row?.querySelector('.sub-task-days') || row?.querySelector('.tpl-task-days') || row?.querySelector('#add-task-days') || row?.querySelector('#edit-val-days');
 
   if (endInput) {
     endInput.min = startInput.value;
@@ -1234,14 +1238,18 @@ window.onTaskStartChange = (startInput, targetEndId) => {
   }
 
   if (row && row.classList.contains('task-row') && row.closest('#task-list-container')) {
-      cascadeDatesIfSequential(row);
+    cascadeDatesIfSequential(row);
   }
 };
 
 window.onTaskDaysChange = (daysInput, targetStartId, targetEndId) => {
-  const row = daysInput.closest('.task-row') || daysInput.closest('.tpl-task-row') || daysInput.closest('#general-edit-form') || daysInput.closest('.modal-box');
-  const startInput = typeof targetStartId === 'string' ? document.getElementById(targetStartId) : row?.querySelector('.task-start') || row?.querySelector('.tpl-task-start') || row?.querySelector('#add-task-start');
-  const endInput = typeof targetEndId === 'string' ? document.getElementById(targetEndId) : row?.querySelector('.task-end') || row?.querySelector('.tpl-task-end') || row?.querySelector('#add-task-end');
+  const row = daysInput.closest('.task-row') || daysInput.closest('.sub-task-item') || daysInput.closest('.tpl-task-row') || daysInput.closest('#general-edit-form') || daysInput.closest('.modal-box');
+  const startInput = typeof targetStartId === 'string' 
+    ? document.getElementById(targetStartId) 
+    : (row?.querySelector('.task-start') || row?.querySelector('.sub-task-start') || row?.querySelector('.tpl-task-start') || row?.querySelector('#add-task-start'));
+  const endInput = typeof targetEndId === 'string' 
+    ? document.getElementById(targetEndId) 
+    : (row?.querySelector('.task-end') || row?.querySelector('.sub-task-end') || row?.querySelector('.tpl-task-end') || row?.querySelector('#add-task-end'));
 
   const days = parseInt(daysInput.value) || 1;
   if (startInput && startInput.value && endInput) {
@@ -1250,15 +1258,18 @@ window.onTaskDaysChange = (daysInput, targetStartId, targetEndId) => {
   }
 
   if (row && row.classList.contains('task-row') && row.closest('#task-list-container')) {
-      cascadeDatesIfSequential(row);
+    cascadeDatesIfSequential(row);
   }
 };
-
 window.onTaskEndChange = (endInput, targetStartId, targetDaysId) => {
   window.checkWorkingDay(endInput);
-  const row = endInput.closest('.task-row') || endInput.closest('.tpl-task-row') || endInput.closest('#general-edit-form') || endInput.closest('.modal-box');
-  const startInput = typeof targetStartId === 'string' ? document.getElementById(targetStartId) : row?.querySelector('.task-start') || row?.querySelector('.tpl-task-start') || row?.querySelector('#add-task-start');
-  const daysInput = typeof targetDaysId === 'string' ? document.getElementById(targetDaysId) : row?.querySelector('.task-days') || row?.querySelector('.tpl-task-days') || row?.querySelector('#add-task-days');
+  const row = endInput.closest('.task-row') || endInput.closest('.sub-task-item') || endInput.closest('.tpl-task-row') || endInput.closest('#general-edit-form') || endInput.closest('.modal-box');
+  const startInput = typeof targetStartId === 'string' 
+    ? document.getElementById(targetStartId) 
+    : (row?.querySelector('.task-start') || row?.querySelector('.sub-task-start') || row?.querySelector('.tpl-task-start') || row?.querySelector('#add-task-start'));
+  const daysInput = typeof targetDaysId === 'string' 
+    ? document.getElementById(targetDaysId) 
+    : (row?.querySelector('.task-days') || row?.querySelector('.sub-task-days') || row?.querySelector('.tpl-task-days') || row?.querySelector('#add-task-days'));
 
   if (startInput && startInput.value && endInput.value) {
     if (endInput.value < startInput.value) {
@@ -1270,15 +1281,33 @@ window.onTaskEndChange = (endInput, targetStartId, targetDaysId) => {
   }
 
   if (row && row.classList.contains('task-row') && row.closest('#task-list-container')) {
-      cascadeDatesIfSequential(row);
+    cascadeDatesIfSequential(row);
   }
 };
 
 window.addTaskRow = () => {
   const container = document.getElementById("task-list-container"); 
-  const rows = container.querySelectorAll('.task-row');
-  let defaultStart = rows.length > 0 ? getNextWorkingDayStr(rows[rows.length - 1].querySelector('.task-end').value) : "";
-  let defaultEnd = defaultStart ? defaultStart : "";
+  const allRows = container.querySelectorAll('.task-row, .subproject-row');
+  let defaultStart = "";
+
+  if (allRows.length > 0) {
+    const lastRow = allRows[allRows.length - 1];
+    if (lastRow.classList.contains('task-row')) {
+      // 若上一列是一般細項，抓該細項的結束日
+      const lastEnd = lastRow.querySelector('.task-end')?.value;
+      if (lastEnd) defaultStart = getNextWorkingDayStr(lastEnd);
+    } else if (lastRow.classList.contains('subproject-row')) {
+      // 🌟 若上一列是子專案，抓該子專案內部最後一個子細項的結束日
+      const subEnds = Array.from(lastRow.querySelectorAll('.sub-task-end')).map(el => el.value).filter(Boolean);
+      if (subEnds.length > 0) {
+        subEnds.sort();
+        const maxEnd = subEnds[subEnds.length - 1];
+        defaultStart = getNextWorkingDayStr(maxEnd);
+      }
+    }
+  }
+
+  let defaultEnd = defaultStart || "";
 
   const div = document.createElement('div'); 
   div.className = "form-row task-row"; 
@@ -1298,12 +1327,20 @@ window.addTaskRow = () => {
 };
 
 window.moveTaskRow = (btn, direction) => {
-  const row = btn.closest('.task-row') || btn.closest('.tpl-task-row');
+  const row = btn.closest('.task-row') || btn.closest('.tpl-task-row') || btn.closest('.subproject-row') || btn.closest('.sub-task-item');
   if (!row) return;
+  
   if (direction === -1 && row.previousElementSibling) {
+    // 避免排到固定的簽核送審上方
+    if (row.previousElementSibling.classList?.contains('is-approval-task')) return;
     row.parentNode.insertBefore(row, row.previousElementSibling);
   } else if (direction === 1 && row.nextElementSibling) {
     row.parentNode.insertBefore(row.nextElementSibling, row);
+  }
+
+  // 🌟 若移動的是子細項，自動刷新序號
+  if (row.classList.contains('sub-task-item')) {
+    window.updateSubTaskNumbers(row.closest('.sub-tasks-container'));
   }
 };
 
@@ -1977,6 +2014,7 @@ function renderProjects() {
   }
   if (btnProjectAddSubProject) {
     btnProjectAddSubProject.style.display = canOperateProject ? "inline-block" : "none";
+    btnProjectAddSubProject.onclick = () => window.openAddSubProjectModal(); // 🌟 補上點擊開啟追加子專案彈窗
   }
   if (delProjBtn) {
     delProjBtn.style.display = canDeleteProj ? "inline-block" : "none";
@@ -3195,10 +3233,25 @@ window.updateWeeklyTaskSelect = (selectElem) => {
 
 window.addWeeklyRow = () => {
   const container = document.getElementById("weekly-items-container");
-  const div = document.createElement('div'); 
-  div.className = "weekly-item-row"; 
-  div.style.cssText = "display:flex; gap:16px; margin-bottom:12px; align-items:flex-start; border: 1px solid var(--border-light); padding: 14px; border-radius: 8px; background: #fafafa;";
-  div.innerHTML = `<div style="flex:1; display:flex; flex-direction:column; gap:10px; border-right: 1px dashed var(--border); padding-right:16px;"><select class="input-control weekly-proj-select" onchange="updateWeeklyTaskSelect(this)" style="background:#fff;"></select><select class="input-control weekly-task-select" onchange="onWeeklyTaskSelectChange(this)" style="background:#fff;"><option value="">-- 請先選擇主專案 --</option></select></div><div style="flex:2.5;"><textarea class="input-control weekly-content" rows="3" placeholder="請填寫此任務的進度說明..." style="background:#fff;"></textarea></div><button class="action-btn danger" onclick="this.parentElement.remove()" style="padding: 10px; margin-left: 8px;">X</button>`;
+  // 3. 建立細項 DOM 元素 (加入 ↑ ↓ 排序按鈕)
+    const div = document.createElement('div');
+    div.className = "sub-task-item";
+    div.style.cssText = "display:flex; gap:6px; align-items:center; margin-bottom:8px;";
+    div.innerHTML = `
+      <span class="sub-task-num" style="font-size:13px; color:#b45309; font-weight:bold; width:22px; text-align:center;"></span>
+      <input type="text" class="input-control sub-task-name" placeholder="請輸入細項工作名稱..." style="flex:2; padding:6px 10px; font-size:13px;" required>
+      <input type="date" class="input-control sub-task-start" value="${defaultStart}" style="flex:1; padding:6px 8px; font-size:13px;" 
+             onchange="onTaskStartChange(this, null)">
+      <input type="number" class="input-control sub-task-days" value="1" min="1" placeholder="天數" style="width:55px; padding:6px 4px; font-size:13px; text-align:center;" 
+             oninput="onTaskDaysChange(this, null, null)">
+      <input type="date" class="input-control sub-task-end" value="${defaultStart}" style="flex:1; padding:6px 8px; font-size:13px;" 
+             onchange="onTaskEndChange(this, null, null)">
+      <div style="display:flex; gap:3px; margin:0; flex-shrink:0;">
+        <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移" style="padding:2px 6px; font-size:11px;">↑</button>
+        <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移" style="padding:2px 6px; font-size:11px;">↓</button>
+        <button type="button" class="action-btn danger" onclick="const c = this.closest('.sub-tasks-container'); this.closest('.sub-task-item').remove(); window.updateSubTaskNumbers(c);" style="padding:3px 8px; font-size:11px; cursor:pointer;">✕</button>
+      </div>
+    `;
   container.appendChild(div); 
   populateWeeklyProjSelect(div.querySelector('.weekly-proj-select'));
 };
