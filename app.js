@@ -7371,7 +7371,7 @@ window.initManualModalUI = function() {
   manualBtn.type = "button";
   manualBtn.id = "btn-open-system-manual";
   manualBtn.title = "查看系統使用手冊與按鍵說明";
-  manualBtn.innerHTML = "📖 手冊";
+  manualBtn.innerHTML = "📖";
   manualBtn.style.cssText = `
     margin-left: 8px;
     padding: 2px 8px;
