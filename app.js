@@ -345,6 +345,65 @@ function initDynamicUI() {
       .col-prog input[type=number] {
         -moz-appearance: textfield !important;
       }
+      /* 🌟 電腦版專用：頂部 Header 文字與按鈕放大至與側邊欄相同大小 (14px~15px) */
+    @media (min-width: 851px) {
+      .top-header {
+        min-height: 56px !important;
+      }
+      /* 1. 左側麵包屑導航 (PMS / 週報填寫) */
+      .top-header .breadcrumb {
+        font-size: 15px !important;
+      }
+      .top-header .breadcrumb b {
+        font-size: 16px !important;
+      }
+      #viewing-user-name {
+        font-size: 14px !important;
+      }
+
+      /* 2. 編輯模式按鈕 */
+      #btn-toggle-edit-mode {
+        font-size: 14px !important;
+        padding: 5px 12px !important;
+      }
+
+      /* 3. 字體切換工具列 (字體、小、中、大) */
+      #font-size-control-container {
+        height: 36px !important;
+        padding: 4px 10px !important;
+      }
+      #font-size-control-container span {
+        font-size: 14px !important;
+      }
+      #font-size-control-container .font-btn {
+        font-size: 13.5px !important;
+        padding: 3px 10px !important;
+      }
+
+      /* 4. 使用者資訊 (頭像、名字、職稱徽章) */
+      .user-info-box .avatar {
+        width: 36px !important;
+        height: 36px !important;
+        font-size: 16px !important;
+      }
+      #user-display-name {
+        font-size: 15px !important;
+        font-weight: 700 !important;
+      }
+      #user-role-badge {
+        font-size: 12px !important;
+        padding: 2px 8px !important;
+      }
+
+      /* 5. 齒輪設定圖示與登出按鈕 */
+      .header-right .btn-icon svg {
+        width: 22px !important;
+        height: 22px !important;
+      }
+      #btn-logout {
+        font-size: 14px !important;
+        padding: 6px 14px !important;
+      }
     }
   `;
   document.head.appendChild(style);
