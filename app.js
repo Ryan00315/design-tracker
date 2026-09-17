@@ -121,6 +121,16 @@ function initDynamicUI() {
     .tab-pane { zoom: var(--font-scale, 1.2); }
     body.font-md { --font-scale: 1.5 !important; }
     body.font-lg { --font-scale: 1.8 !important; }
+    /* 🌟 讓系統手冊彈窗內容支援外層字體縮放 (小 / 中 / 大) */
+    #system-manual-box {
+      font-size: calc(13.5px * (var(--font-scale, 1.2) / 1.2)) !important;
+    }
+    body.font-md #system-manual-box {
+      zoom: 1.25 !important;
+    }
+    body.font-lg #system-manual-box {
+      zoom: 1.5 !important;
+    }
     
     /* 🌟 KPI 區塊：彈性換行，設定最小寬度防止擠扁成直排 */
     .kpi-row { 
