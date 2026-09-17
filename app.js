@@ -7451,7 +7451,7 @@ window.initManualModalUI = function() {
     versionTag.parentNode.insertBefore(manualBtn, versionTag.nextSibling);
   }
   
-  // 3. 建立 1/2 寬度的專屬獨立彈窗容器 (內嵌全功能與完整 6 大 SOP)
+  // 3. 建立 1/2 寬度的專屬獨立彈窗容器 (內嵌全功能與完整 6 大 SOP，支援 ESC 與點擊背景關閉)
   if (!document.getElementById("system-manual-modal")) {
     const modalDiv = document.createElement("div");
     modalDiv.id = "system-manual-modal";
@@ -7468,14 +7468,22 @@ window.initManualModalUI = function() {
       backdrop-filter: blur(4px);
     `;
 
+    // 🌟 點擊彈窗外圍深色遮罩直接關閉
+    modalDiv.onclick = (e) => {
+      if (e.target === modalDiv) {
+        window.closeSystemManualModal();
+      }
+    };
+
     modalDiv.innerHTML = `
       <div id="system-manual-box" style="
         background: #ffffff;
         width: 52vw;
         max-width: 960px;
         min-width: 340px;
-        height: 88vh;
-        max-height: 900px;
+        height: 85vh;
+        max-height: calc(100vh - 40px);
+        box-sizing: border-box;
         border-radius: 12px;
         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
         display: flex;
@@ -7484,14 +7492,15 @@ window.initManualModalUI = function() {
         border: 1px solid #cbd5e1;
         animation: fadeInManual 0.2s ease-out;
       ">
-        <!-- 彈窗頂部 Header -->
+        <!-- 彈窗頂部 Header (始終固定在頂部，不隨滾動或字體縮放消失) -->
         <div style="
-          padding: 14px 20px;
+          padding: 12px 20px;
           background: #f8fafc;
           border-bottom: 1px solid #e2e8f0;
           display: flex;
           align-items: center;
           justify-content: space-between;
+          flex-shrink: 0;
         ">
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 20px;">📘</span>
@@ -7500,16 +7509,16 @@ window.initManualModalUI = function() {
           <button type="button" onclick="window.closeSystemManualModal()" style="
             background: transparent;
             border: none;
-            font-size: 20px;
+            font-size: 22px;
             font-weight: bold;
             color: #64748b;
             cursor: pointer;
-            padding: 4px 8px;
+            padding: 2px 8px;
             line-height: 1;
-          " title="關閉手冊">✕</button>
+          " title="關閉手冊 (ESC)">✕</button>
         </div>
 
-        <!-- 彈窗內容區 (滾動閱覽) -->
+        <!-- 彈窗內容區 (滾動閱覽，支援外層字體小中大縮放) -->
         <div style="
           flex: 1;
           padding: 20px 24px;
@@ -7617,13 +7626,14 @@ window.initManualModalUI = function() {
 
         </div>
 
-        <!-- 彈窗底部 Footer -->
+        <!-- 彈窗底部 Footer (固定鎖定在底部，不被擠出視窗) -->
         <div style="
           padding: 10px 20px;
           background: #f8fafc;
           border-top: 1px solid #e2e8f0;
           display: flex;
           justify-content: flex-end;
+          flex-shrink: 0;
         ">
           <button type="button" onclick="window.closeSystemManualModal()" style="
             padding: 6px 18px;
@@ -7634,7 +7644,7 @@ window.initManualModalUI = function() {
             border: none;
             border-radius: 6px;
             cursor: pointer;
-          ">關閉手冊</button>
+          ">關閉手冊 (ESC)</button>
         </div>
       </div>
     `;
@@ -7657,6 +7667,16 @@ window.initManualModalUI = function() {
     document.head.appendChild(style);
   }
 };
+
+// 🌟 全域 ESC 鍵監聽：只要按下 ESC 鍵，立刻關閉說明書
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" || e.key === "Esc") {
+    const manualModal = document.getElementById("system-manual-modal");
+    if (manualModal && manualModal.style.display === "flex") {
+      window.closeSystemManualModal();
+    }
+  }
+});
 
 window.openSystemManualModal = function() {
   const modal = document.getElementById("system-manual-modal");
