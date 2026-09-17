@@ -2452,42 +2452,65 @@ window.moveActiveProjectTask = async (projId, index, direction) => {
 window.deleteActiveProjectTask = async (projId, index) => {
   const proj = allProjectsData.find(p => p.id === projId);
   if (!proj || !proj.tasks || !proj.tasks[index]) return;
-  
+
   const task = proj.tasks[index];
+  const isProjOwner = (proj.ownerId === auth.currentUser.uid);
+  const isMyTask = (auth.currentUser.uid === task.assigneeId);
+  const isGlobalAdmin = (currentUserData.role === 'admin' || currentUserData.canEdit);
+
+  // 1. 寬限期與權限驗證
   let taskCreatedTime = task.createdAt || (proj.createdAt && typeof proj.createdAt.toMillis === 'function' ? proj.createdAt.toMillis() : Date.now());
   let isTaskInGrace = true;
   if (task.isSubProjectTask && !task.name.includes("簽核流程")) {
-      if (task.datesSetAt) {
-          isTaskInGrace = ((Date.now() - task.datesSetAt) / (1000 * 60 * 60 * 24)) <= 14;
-      } else {
-          isTaskInGrace = true;
-      }
+    isTaskInGrace = task.datesSetAt ? (((Date.now() - task.datesSetAt) / (1000 * 60 * 60 * 24)) <= 14) : true;
   } else {
-      isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+    isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
   }
 
-  let isAuthorized = currentUserData.role === 'admin' || currentUserData.canEdit || ((proj.ownerId === auth.currentUser.uid || task.assigneeId === auth.currentUser.uid) && isTaskInGrace);
-  
-  if (!isAuthorized) return alert("⚠️ 此細項已超過 7 天編輯期限，只能請管理員協助刪除！");
+  if (!isGlobalAdmin && !((isProjOwner || isMyTask) && isTaskInGrace)) {
+    return alert("⚠️ 此細項已超過編輯期限，請聯繫管理員協助處理！");
+  }
 
-  const taskName = task.name;
-  if (!confirm(`⚠️ 確定要刪除任務細項「${taskName}」嗎？刪除後無法復原。`)) return;
+  const taskName = task.name || "未命名任務";
+  if (!confirm(`確定要刪除任務細項「${taskName}」嗎？`)) return;
 
+  // 2. 移除指定細項
   const tasks = [...proj.tasks];
   tasks.splice(index, 1);
 
- if (tasks.length === 0) {
-    if (confirm("⚠️ 刪除此細項後，專案將沒有任何任務。\n是否要連同「整個主專案」一起刪除？\n(按【確定】刪除專案，按【取消】則保留空專案)")) {
-      await deleteDoc(doc(db, "projects", projId));
-      selectedProjectId = 'SUMMARY';
-      alert("專案已刪除！");
-      renderProjects();
-      return;
+  // 3. 檢查剩餘的實質任務（排除系統通知）
+  const realRemainingTasks = tasks.filter(t => !t.name?.includes("[系統通知]"));
+
+  // 4. 關鍵防護：檢查是否有「任何歷史進度」或「100% 結案」或「子專案」
+  const hasAnyProgressOrDone = proj.tasks.some(t => {
+    if (t.name?.includes("[系統通知]")) return false;
+    const prog = t.progress || 0;
+    const isDone = t.isCompleted === true;
+    const hasHistory = Array.isArray(t.history) && t.history.some(h => h.type === 'update' || h.type === 'complete');
+    return prog > 0 || isDone || hasHistory;
+  });
+
+  const hasRemainingSubProject = realRemainingTasks.some(t => t.isSubProjectTask);
+
+  // 🌟 5. 只有在「真正零細項、零子專案」且「從未有過任何進度」的純草稿狀態，才引導刪除主專案
+  if (realRemainingTasks.length === 0 && !hasRemainingSubProject) {
+    if (!hasAnyProgressOrDone) {
+      if (confirm("⚠️ 專案內已無任何細項或子專案，且從未開始執行。\n是否要連同「整個主專案」一起刪除？\n\n(按【確定】刪除主專案；按【取消】則保留空白專案主檔)")) {
+        await deleteDoc(doc(db, "projects", projId));
+        selectedProjectId = 'SUMMARY';
+        alert("🗑️ 專案已完全刪除！");
+        renderProjects();
+        return;
+      }
+    } else {
+      alert("ℹ️ 該細項已刪除。因專案內曾有歷史執行進度或結案紀錄，系統已為您保留專案主檔！");
     }
   }
-  
+
+  // 6. 更新資料庫細項清單
   await updateDoc(doc(db, "projects", projId), { tasks });
-  alert("已刪除該任務細項！");
+  alert("✅ 細項已刪除！");
+  renderProjects();
 };
 
 window.openAddProjectTaskModal = () => {
