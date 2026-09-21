@@ -481,13 +481,13 @@ function initDynamicUI() {
         font-size: 14px !important;
         padding: 6px 14px !important;
       }
-      /* 🌟 左側人員切換：部門名稱與圖示固定加大 (僅微調加深半階，清晰不刺眼) */
+      /* 🌟 左側人員切換：深色側邊欄專用 - 部門名稱與圖示固定加大且高對比提亮 */
       .nav-sub-dept-header,
       body.font-md .nav-sub-dept-header,
       body.font-lg .nav-sub-dept-header {
         font-size: 16px !important;
-        font-weight: 600 !important;        /* 維持原本柔和粗細 */
-        color: #3b4758 !important;          /* 👈 僅比 #475569 微調加深一點點，兼顧舒適與易讀 */
+        font-weight: 600 !important;
+        color: #e2e8f0 !important;          /* 👈 亮銀白灰（深底高對比，清晰銳利） */
         padding: 10px 14px !important;
         display: flex !important;
         align-items: center !important;
@@ -504,26 +504,27 @@ function initDynamicUI() {
         color: inherit !important;
       }
   
-      /* 🏢 圖示固定尺寸，稍微降低一點點不透明度呼應文字 */
+      /* 🏢 圖示固定 20px，保持 100% 飽和度 */
       .nav-sub-dept-header > div > span:first-child,
       body.font-md .nav-sub-dept-header > div > span:first-child,
       body.font-lg .nav-sub-dept-header > div > span:first-child {
         font-size: 20px !important;
         line-height: 1 !important;
         display: inline-block !important;
-        opacity: 0.95 !important;            /* 微調更清晰 */
+        opacity: 1 !important;
         zoom: 1 !important;
       }
   
-      /* 部門人數徽章微調 */
+      /* 部門人數徽章同步提亮 */
       .nav-sub-dept-header .dept-count-badge {
         font-size: 12px !important;
         padding: 2px 7px !important;
         border-radius: 10px !important;
-        color: #64748b !important;
+        color: #cbd5e1 !important;
+        background: rgba(255, 255, 255, 0.12) !important;
       }
   
-      /* 右側箭頭 (▶) 尺寸與淡化 */
+      /* 右側箭頭 (▶) 提亮 */
       .nav-sub-dept-header .dept-arrow {
         font-size: 13px !important;
         color: #94a3b8 !important;
