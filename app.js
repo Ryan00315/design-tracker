@@ -1253,7 +1253,7 @@ function loadSidebarSubordinates() {
     const list = document.getElementById("nav-sub-list");
     if (!list) return;
 
-    list.innerHTML = `<li class="nav-sub-item active" id="sub-li-${auth.currentUser.uid}" onclick="switchViewingUser('${auth.currentUser.uid}', '自己 (個人專案)')">個人專案</li>`;
+    list.innerHTML = `<li class="nav-sub-item active" id="sub-li-${auth.currentUser.uid}" onclick="switchViewingUser('${auth.currentUser.uid}', '自己 (回到個人專案)')">回到個人專案</li>`;
     const visibleUsers = [];
     const myUid = auth.currentUser.uid;
     const myRole = currentUserData.role; 
