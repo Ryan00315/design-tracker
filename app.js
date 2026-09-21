@@ -481,6 +481,48 @@ function initDynamicUI() {
         font-size: 14px !important;
         padding: 6px 14px !important;
       }
+      /* 🌟 左側人員切換：部門名稱與圖示固定加大 (不受小中大字體縮放影響) */
+      .nav-sub-dept-header,
+      body.font-md .nav-sub-dept-header,
+      body.font-lg .nav-sub-dept-header {
+        font-size: 16px !important;        /* 部門文字固定 16px */
+        font-weight: 700 !important;
+        padding: 10px 14px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        line-height: 1.4 !important;
+        zoom: 1 !important;                /* 阻止外層 zoom 縮放影響 */
+      }
+  
+      /* 包含 🏢 圖示與文字的容器 */
+      .nav-sub-dept-header > div {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+      }
+  
+      /* 🏢 圖示直接加大並固定尺寸 */
+      .nav-sub-dept-header > div > span:first-child,
+      body.font-md .nav-sub-dept-header > div > span:first-child,
+      body.font-lg .nav-sub-dept-header > div > span:first-child {
+        font-size: 20px !important;        /* 圖示固定 20px */
+        line-height: 1 !important;
+        display: inline-block !important;
+        zoom: 1 !important;
+      }
+  
+      /* 部門人數徽章微調 */
+      .nav-sub-dept-header .dept-count-badge {
+        font-size: 12px !important;
+        padding: 2px 7px !important;
+        border-radius: 10px !important;
+      }
+  
+      /* 右側箭頭 (▶) 尺寸 */
+      .nav-sub-dept-header .dept-arrow {
+        font-size: 13px !important;
+      }
     }
   `;
   document.head.appendChild(style);
