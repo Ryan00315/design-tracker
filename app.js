@@ -121,15 +121,62 @@ function initDynamicUI() {
     .tab-pane { zoom: var(--font-scale, 1.2); }
     body.font-md { --font-scale: 1.5 !important; }
     body.font-lg { --font-scale: 1.8 !important; }
-    /* 🌟 讓系統手冊彈窗內容支援外層字體縮放 (小 / 中 / 大) */
+    
+    /* 🌟 全系統彈跳視窗 (Modal) 自動隨「小、中、大」等比放大字體與視窗寬度 */
+    .modal-box {
+      font-size: calc(14px * (var(--font-scale, 1.2) / 1.2)) !important;
+      transition: width 0.2s ease, max-width 0.2s ease, font-size 0.2s ease;
+      box-sizing: border-box !important;
+    }
+
+    /* 視窗內所有輸入框、標籤、按鈕的字級與高度等比調大 */
+    .modal-box .form-label,
+    .modal-box .input-control,
+    .modal-box select,
+    .modal-box textarea,
+    .modal-box button,
+    .modal-box .modal-header span,
+    .modal-box table {
+      font-size: 1em !important;
+    }
+
+    .modal-box .modal-header span {
+      font-size: 1.15em !important;
+    }
+
+    /* 🌟 當外層選「中」：彈窗寬度自動放大 1.15 倍，最大不超過 94vw */
+    body.font-md .modal-box {
+      width: calc(100% * 1.15) !important;
+      max-width: min(94vw, calc(var(--modal-orig-max, 600px) * 1.15)) !important;
+    }
+    /* 專案週報/大彈窗專用 */
+    body.font-md #general-edit-modal .modal-box,
+    body.font-md #weekly-detail-modal .modal-box,
+    body.font-md #project-subproject-modal .modal-box {
+      max-width: min(94vw, 850px) !important;
+    }
+
+    /* 🌟 當外層選「大」：彈窗寬度自動放大 1.35 倍，最大不超過 96vw */
+    body.font-lg .modal-box {
+      width: calc(100% * 1.35) !important;
+      max-width: min(96vw, calc(var(--modal-orig-max, 600px) * 1.35)) !important;
+    }
+    /* 專案週報/大彈窗專用 */
+    body.font-lg #general-edit-modal .modal-box,
+    body.font-lg #weekly-detail-modal .modal-box,
+    body.font-lg #project-subproject-modal .modal-box {
+      max-width: min(96vw, 1000px) !important;
+    }
+
+    /* 🌟 系統手冊彈窗專屬尺寸連動 */
     #system-manual-box {
       font-size: calc(13.5px * (var(--font-scale, 1.2) / 1.2)) !important;
     }
     body.font-md #system-manual-box {
-      zoom: 1.25 !important;
+      width: min(65vw, 1080px) !important;
     }
     body.font-lg #system-manual-box {
-      zoom: 1.5 !important;
+      width: min(78vw, 1200px) !important;
     }
     
     /* 🌟 KPI 區塊：彈性換行，設定最小寬度防止擠扁成直排 */
