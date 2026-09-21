@@ -545,19 +545,19 @@ function initDynamicUI() {
       .nav-sub-dept-members .nav-sub-item:hover {
         color: #ffffff !important;
       }
-      /* 🌟 「回到個人專案」按鈕：改為半透明淡藍色質感背景 */
+      /* 🌟 「回到個人專案」按鈕：半透明淡藍色底 + 文字維持純白 */
       #nav-sub-list .nav-sub-item.active:first-child {
-        background: rgba(59, 130, 246, 0.18) !important; /* 👈 18% 透明度的淡藍色 */
-        color: #93c5fd !important;                      /* 👈 搭配柔和亮淡藍字體 */
-        border: 1px solid rgba(147, 197, 253, 0.3) !important; /* 👈 細緻淡藍微光邊框 */
+        background: rgba(59, 130, 246, 0.18) !important; /* 👈 淡藍微透底色 */
+        color: #ffffff !important;                      /* 👈 文字維持純白色 */
+        border: 1px solid rgba(147, 197, 253, 0.3) !important; /* 👈 柔和淡藍邊框 */
         backdrop-filter: blur(4px) !important;
         font-weight: 700 !important;
       }
   
-      /* 滑鼠懸停時微調亮度 */
+      /* 滑鼠懸停時微調底色，文字依然維持純白 */
       #nav-sub-list .nav-sub-item.active:first-child:hover {
-        background: rgba(59, 130, 246, 0.25) !important;
-        color: #bfdbfe !important;
+        background: rgba(59, 130, 246, 0.28) !important;
+        color: #ffffff !important;
       }
     }
   `;
