@@ -168,15 +168,35 @@ function initDynamicUI() {
       max-width: min(96vw, 1000px) !important;
     }
 
-    /* 🌟 系統手冊彈窗專屬尺寸連動 */
+    /* 🌟 系統手冊彈窗專屬：強制全內文、表格、清單隨外層等比放大縮小 */
     #system-manual-box {
       font-size: calc(13.5px * (var(--font-scale, 1.2) / 1.2)) !important;
     }
+
+    /* 穿透覆蓋行內寫死的 13.5px / 12.5px，讓所有內文直接以 1em 繼承外層放大 */
+    #system-manual-box div,
+    #system-manual-box table,
+    #system-manual-box td,
+    #system-manual-box th,
+    #system-manual-box ol,
+    #system-manual-box li,
+    #system-manual-box p,
+    #system-manual-box span {
+      font-size: inherit !important;
+    }
+
+    #system-manual-box h3 {
+      font-size: 1.15em !important;
+    }
+
+    /* 寬度與高度防爆連動 */
     body.font-md #system-manual-box {
       width: min(65vw, 1080px) !important;
+      font-size: calc(15px) !important;
     }
     body.font-lg #system-manual-box {
       width: min(78vw, 1200px) !important;
+      font-size: calc(17px) !important;
     }
     
     /* 🌟 KPI 區塊：彈性換行，設定最小寬度防止擠扁成直排 */
