@@ -481,19 +481,25 @@ function initDynamicUI() {
         font-size: 14px !important;
         padding: 6px 14px !important;
       }
-      /* 🌟 左側人員切換：深色側邊欄專用 - 部門名稱與圖示固定加大且高對比提亮 */
+      /* 🌟 左側人員切換：部門標題固定加大 + 暖琥珀金高對比 */
       .nav-sub-dept-header,
       body.font-md .nav-sub-dept-header,
       body.font-lg .nav-sub-dept-header {
         font-size: 16px !important;
-        font-weight: 600 !important;
-        color: #e2e8f0 !important;          /* 👈 亮銀白灰（深底高對比，清晰銳利） */
+        font-weight: 700 !important;
+        color: #fde68a !important;          /* 👈 暖金黃色，與深底及下方人員徹底區隔 */
         padding: 10px 14px !important;
         display: flex !important;
         align-items: center !important;
         justify-content: space-between !important;
         line-height: 1.4 !important;
         zoom: 1 !important;
+        transition: background 0.15s ease;
+      }
+  
+      /* 滑鼠懸停時微調底色 */
+      .nav-sub-dept-header:hover {
+        background: rgba(255, 255, 255, 0.05) !important;
       }
   
       /* 包含 🏢 圖示與文字的容器 */
@@ -504,30 +510,40 @@ function initDynamicUI() {
         color: inherit !important;
       }
   
-      /* 🏢 圖示固定 20px，保持 100% 飽和度 */
+      /* 🏢 圖示固定 20px */
       .nav-sub-dept-header > div > span:first-child,
       body.font-md .nav-sub-dept-header > div > span:first-child,
       body.font-lg .nav-sub-dept-header > div > span:first-child {
         font-size: 20px !important;
         line-height: 1 !important;
         display: inline-block !important;
-        opacity: 1 !important;
         zoom: 1 !important;
       }
   
-      /* 部門人數徽章同步提亮 */
+      /* 部門人數徽章 (搭配金黃風格) */
       .nav-sub-dept-header .dept-count-badge {
         font-size: 12px !important;
         padding: 2px 7px !important;
         border-radius: 10px !important;
-        color: #cbd5e1 !important;
-        background: rgba(255, 255, 255, 0.12) !important;
+        color: #fde68a !important;
+        background: rgba(253, 230, 138, 0.15) !important;
+        border: 1px solid rgba(253, 230, 138, 0.3) !important;
       }
   
-      /* 右側箭頭 (▶) 提亮 */
+      /* 右側展開箭頭 */
       .nav-sub-dept-header .dept-arrow {
         font-size: 13px !important;
-        color: #94a3b8 !important;
+        color: #fcd34d !important;
+      }
+  
+      /* 🌟 底下成員名單：保持清爽亮白灰，與部門形成強烈層次 */
+      .nav-sub-dept-members .nav-sub-item {
+        color: #cbd5e1 !important;
+        font-size: 14px !important;
+        padding-left: 36px !important;       /* 增加內縮層次 */
+      }
+      .nav-sub-dept-members .nav-sub-item:hover {
+        color: #ffffff !important;
       }
     }
   `;
