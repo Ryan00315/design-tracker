@@ -481,18 +481,19 @@ function initDynamicUI() {
         font-size: 14px !important;
         padding: 6px 14px !important;
       }
-      /* 🌟 左側人員切換：部門名稱與圖示固定加大 (不受小中大字體縮放影響) */
+      /* 🌟 左側人員切換：部門名稱與圖示固定加大 (字體顏色微調淡一點點) */
       .nav-sub-dept-header,
       body.font-md .nav-sub-dept-header,
       body.font-lg .nav-sub-dept-header {
-        font-size: 16px !important;        /* 部門文字固定 16px */
-        font-weight: 700 !important;
+        font-size: 16px !important;
+        font-weight: 600 !important;        /* 稍降一點點粗細，更顯柔和舒適 */
+        color: #475569 !important;          /* 👈 稍微淡一點的質感深灰藍 (原為 #0f172a 或純黑) */
         padding: 10px 14px !important;
         display: flex !important;
         align-items: center !important;
         justify-content: space-between !important;
         line-height: 1.4 !important;
-        zoom: 1 !important;                /* 阻止外層 zoom 縮放影響 */
+        zoom: 1 !important;
       }
   
       /* 包含 🏢 圖示與文字的容器 */
@@ -500,15 +501,17 @@ function initDynamicUI() {
         display: flex !important;
         align-items: center !important;
         gap: 8px !important;
+        color: inherit !important;
       }
   
-      /* 🏢 圖示直接加大並固定尺寸 */
+      /* 🏢 圖示固定尺寸，稍微降低一點點不透明度呼應文字 */
       .nav-sub-dept-header > div > span:first-child,
       body.font-md .nav-sub-dept-header > div > span:first-child,
       body.font-lg .nav-sub-dept-header > div > span:first-child {
-        font-size: 20px !important;        /* 圖示固定 20px */
+        font-size: 20px !important;
         line-height: 1 !important;
         display: inline-block !important;
+        opacity: 0.9 !important;             /* 圖示亮度柔化 */
         zoom: 1 !important;
       }
   
@@ -517,11 +520,13 @@ function initDynamicUI() {
         font-size: 12px !important;
         padding: 2px 7px !important;
         border-radius: 10px !important;
+        color: #64748b !important;
       }
   
-      /* 右側箭頭 (▶) 尺寸 */
+      /* 右側箭頭 (▶) 尺寸與淡化 */
       .nav-sub-dept-header .dept-arrow {
         font-size: 13px !important;
+        color: #94a3b8 !important;
       }
     }
   `;
