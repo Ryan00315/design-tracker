@@ -481,13 +481,13 @@ function initDynamicUI() {
         font-size: 14px !important;
         padding: 6px 14px !important;
       }
-      /* 🌟 左側人員切換：部門名稱與圖示固定加大 (字體顏色微調淡一點點) */
+      /* 🌟 左側人員切換：部門名稱與圖示固定加大 (僅微調加深半階，清晰不刺眼) */
       .nav-sub-dept-header,
       body.font-md .nav-sub-dept-header,
       body.font-lg .nav-sub-dept-header {
         font-size: 16px !important;
-        font-weight: 600 !important;        /* 稍降一點點粗細，更顯柔和舒適 */
-        color: #475569 !important;          /* 👈 稍微淡一點的質感深灰藍 (原為 #0f172a 或純黑) */
+        font-weight: 600 !important;        /* 維持原本柔和粗細 */
+        color: #3b4758 !important;          /* 👈 僅比 #475569 微調加深一點點，兼顧舒適與易讀 */
         padding: 10px 14px !important;
         display: flex !important;
         align-items: center !important;
@@ -511,7 +511,7 @@ function initDynamicUI() {
         font-size: 20px !important;
         line-height: 1 !important;
         display: inline-block !important;
-        opacity: 0.9 !important;             /* 圖示亮度柔化 */
+        opacity: 0.95 !important;            /* 微調更清晰 */
         zoom: 1 !important;
       }
   
