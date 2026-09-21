@@ -545,6 +545,20 @@ function initDynamicUI() {
       .nav-sub-dept-members .nav-sub-item:hover {
         color: #ffffff !important;
       }
+      /* 🌟 「回到個人專案」按鈕：改為半透明淡藍色質感背景 */
+      #nav-sub-list .nav-sub-item.active:first-child {
+        background: rgba(59, 130, 246, 0.18) !important; /* 👈 18% 透明度的淡藍色 */
+        color: #93c5fd !important;                      /* 👈 搭配柔和亮淡藍字體 */
+        border: 1px solid rgba(147, 197, 253, 0.3) !important; /* 👈 細緻淡藍微光邊框 */
+        backdrop-filter: blur(4px) !important;
+        font-weight: 700 !important;
+      }
+  
+      /* 滑鼠懸停時微調亮度 */
+      #nav-sub-list .nav-sub-item.active:first-child:hover {
+        background: rgba(59, 130, 246, 0.25) !important;
+        color: #bfdbfe !important;
+      }
     }
   `;
   document.head.appendChild(style);
