@@ -122,10 +122,15 @@ function updateAllDeptDropdowns() {
     if (departmentList.includes(curVal)) editUserDept.value = curVal;
   }
 
-  // 3) 重新整理側邊欄、專案瀏覽部門選單與組織圖
+  // 3) 重新整理各處選單
   if (typeof renderCollabCheckboxes === 'function') renderCollabCheckboxes();
   if (typeof renderOrgChart === 'function') renderOrgChart();
   if (typeof renderProjects === 'function') renderProjects();
+
+  // 🌟 關鍵新增：部門變更時，立即重繪左側「人員檢視切換」列表！
+  if (typeof loadSidebarSubordinates === 'function' && currentUserData.role !== 'staff') {
+    loadSidebarSubordinates();
+  }
 }
 
 function getTodayStr() {
@@ -1334,11 +1339,14 @@ onAuthStateChanged(auth, async (user) => {
 
 function loadSidebarSubordinates() {
   const rolePriority = { admin: 1, top_manager: 2, senior_manager: 3, manager: 4, assistant_manager: 5, staff: 6 };
+  
   onSnapshot(collection(db, "users"), (snapshot) => {
     const list = document.getElementById("nav-sub-list");
     if (!list) return;
 
+    // 1. 最頂部固定維持「回到個人專案」
     list.innerHTML = `<li class="nav-sub-item active" id="sub-li-${auth.currentUser.uid}" onclick="switchViewingUser('${auth.currentUser.uid}', '自己 (回到個人專案)')">回到個人專案</li>`;
+    
     const visibleUsers = [];
     const myUid = auth.currentUser.uid;
     const myRole = currentUserData.role; 
@@ -1358,6 +1366,7 @@ function loadSidebarSubordinates() {
       return false;
     };
 
+    // 2. 依照管理權限過濾可見同仁名單
     allUsersList.forEach(u => {
       if (u.uid === myUid) return;
       const targetRole = u.role; 
@@ -1373,36 +1382,54 @@ function loadSidebarSubordinates() {
       if (canView || isSubordinate(myUid, u.uid)) visibleUsers.push(u);
     });
 
+    // 3. 🌟 遍歷全體部門 (保證新部門 100% 渲染)
     departmentList.forEach((dept, dIdx) => {
+      // 抓出屬於該部門的成員
       const deptMembers = visibleUsers.filter(u => (u.dept || "設計部") === dept);
-      if (deptMembers.length === 0) return;
+
+      // 排序同仁職級
       deptMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99));
 
       const deptGroupId = `dept-group-${dIdx}`;
       const isViewingMemberInDept = deptMembers.some(m => m.uid === viewingUserId);
       const isExpanded = isViewingMemberInDept;
 
+      // 🌟 印出部門標題列：即便 deptMembers.length 為 0 也正常產生
       list.innerHTML += `
         <li class="nav-sub-dept-header ${isExpanded ? 'open' : ''}" onclick="toggleDeptSubList('${deptGroupId}', this)">
-          <div style="display:flex; align-items:center; gap:6px;">
+          <div style="display:flex; align-items:center; gap:8px;">
             <span>🏢</span><span>${dept}</span><span class="dept-count-badge">${deptMembers.length}</span>
           </div>
           <span class="dept-arrow">▶</span>
         </li>
       `;
 
+      // 🌟 印出內部成員折疊容器
       let membersHtml = `<div class="nav-sub-dept-members" id="${deptGroupId}" style="display:${isExpanded ? 'flex' : 'none'};">`;
-      deptMembers.forEach(u => {
-        const isActive = (viewingUserId === u.uid) ? 'active' : '';
+      
+      if (deptMembers.length > 0) {
+        // 該部門有成員：正常列出同仁
+        deptMembers.forEach(u => {
+          const isActive = (viewingUserId === u.uid) ? 'active' : '';
+          membersHtml += `
+            <li class="nav-sub-item ${isActive}" id="sub-li-${u.uid}" onclick="switchViewingUser('${u.uid}', '${u.name}')">
+              ${u.name || '未命名'} <small style="color:#94a3b8; font-size:11px; margin-left:4px;">(${roleNames[u.role] || '人員'})</small>
+            </li>
+          `;
+        });
+      } else {
+        // 🌟 新部門尚無同仁時的防呆提示（避免點開一片空白）
         membersHtml += `
-          <li class="nav-sub-item ${isActive}" id="sub-li-${u.uid}" onclick="switchViewingUser('${u.uid}', '${u.name}')">
-            ${u.name || '未命名'} <small style="color:#94a3b8; font-size:11px; margin-left:4px;">(${roleNames[u.role] || '人員'})</small>
+          <li class="nav-sub-item" style="color:#64748b; font-size:12px; cursor:default; padding-left:36px; user-select:none;">
+            (尚無指派人員)
           </li>
         `;
-      });
+      }
+      
       membersHtml += `</div>`;
       list.innerHTML += membersHtml;
     });
+
     renderProjects();
   });
 }
