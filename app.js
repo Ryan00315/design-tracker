@@ -1382,10 +1382,16 @@ function loadSidebarSubordinates() {
       if (canView || isSubordinate(myUid, u.uid)) visibleUsers.push(u);
     });
 
-    // 3. 🌟 遍歷全體部門 (保證新部門 100% 渲染)
+    // 3. 🌟 遍歷全體部門
     departmentList.forEach((dept, dIdx) => {
       // 抓出屬於該部門的成員
       const deptMembers = visibleUsers.filter(u => (u.dept || "設計部") === dept);
+
+      // 🌟【新增這段判斷】一般部門主管：若該部門內沒有可見下屬 (人數為 0)，直接隱藏不顯示！
+      const isGlobalAdminOrTop = (myRole === 'admin' || myRole === 'top_manager' || myRole === 'senior_manager');
+      if (!isGlobalAdminOrTop && deptMembers.length === 0) {
+        return; // 👈 非全域主管且沒有任何下屬成員時，直接略過該部門！
+      }
 
       // 排序同仁職級
       deptMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99));
