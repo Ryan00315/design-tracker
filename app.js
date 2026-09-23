@@ -25,7 +25,7 @@ setPersistence(auth, browserLocalPersistence).catch((error) => console.log("Pers
 const db = getFirestore(app);
 
 const roleNames = { admin: "系統管理員", top_manager: "最高級主管", senior_manager: "高級主管", manager: "主管", assistant_manager: "副主管", staff: "人員" };
-const departmentList = ["總經理室", "企劃部", "業務部", "設計部", "品檢部", "採購部", "廠部"];
+let departmentList = ["總經理室", "企劃部", "業務部", "設計部", "品檢部", "採購部", "廠部"];
 
 let currentUserData = { role: "staff", name: "", dept: "設計部", canEdit: false };
 let allUsersList = [];
@@ -66,6 +66,66 @@ function isHolidayOrWeekend(dateObj) {
   const d = String(dateObj.getDate()).padStart(2, '0');
   const mmdd = `${m}-${d}`;
   return !!taiwanHolidayMap[mmdd]; // 國定假日
+}
+
+// 🌟 1. 監聽並即時同步雲端部門清單
+function initDepartmentsListener() {
+  const deptDocRef = doc(db, "settings", "departments");
+  onSnapshot(deptDocRef, (docSnap) => {
+    if (docSnap.exists() && Array.isArray(docSnap.data().list)) {
+      departmentList = docSnap.data().list;
+    } else {
+      // 若雲端尚未初始化，則將預設部門寫入
+      setDoc(deptDocRef, { list: departmentList });
+    }
+    // 更新所有相關介面（人員選單、開案勾選框、組織架構等）
+    updateAllDeptDropdowns();
+  });
+}
+
+// 🌟 2. 新增部門功能 (供管理員點擊)
+window.addNewDepartment = async () => {
+  if (currentUserData.role !== 'admin') return alert("權限不足：只有系統管理員可以新增部門！");
+  
+  const input = document.getElementById("new-dept-name-input");
+  const newDeptName = input ? input.value.trim() : "";
+  
+  if (!newDeptName) return alert("請輸入欲新增的部門名稱！");
+  if (departmentList.includes(newDeptName)) return alert("該部門已存在！");
+
+  try {
+    const updatedList = [...departmentList, newDeptName];
+    await setDoc(doc(db, "settings", "departments"), { list: updatedList }, { merge: true });
+    
+    if (input) input.value = "";
+    alert(`🎉 部門【${newDeptName}】已成功新增！`);
+  } catch (err) {
+    alert("新增部門失敗：" + err.message);
+  }
+};
+
+// 🌟 3. 動態更新畫面上的所有部門選單
+function updateAllDeptDropdowns() {
+  // 1) 更新「新增人員」彈窗/表單的部門下拉選單
+  const newUserDept = document.getElementById("new-user-dept");
+  if (newUserDept) {
+    const curVal = newUserDept.value;
+    newUserDept.innerHTML = departmentList.map(d => `<option value="${d}">${d}</option>`).join('');
+    if (departmentList.includes(curVal)) newUserDept.value = curVal;
+  }
+
+  // 2) 更新「編輯人員」彈窗的部門下拉選單
+  const editUserDept = document.getElementById("edit-user-dept");
+  if (editUserDept) {
+    const curVal = editUserDept.value;
+    editUserDept.innerHTML = departmentList.map(d => `<option value="${d}">${d}</option>`).join('');
+    if (departmentList.includes(curVal)) editUserDept.value = curVal;
+  }
+
+  // 3) 重新整理側邊欄、專案瀏覽部門選單與組織圖
+  if (typeof renderCollabCheckboxes === 'function') renderCollabCheckboxes();
+  if (typeof renderOrgChart === 'function') renderOrgChart();
+  if (typeof renderProjects === 'function') renderProjects();
 }
 
 function getTodayStr() {
@@ -923,19 +983,25 @@ window.switchNav = (tabId, title, elem) => {
   
   if (tabId === 'tab-projects') window.triggerProjectsUpdate();
   if (tabId === 'tab-weekly') {
-    if (allWeeklyData.length === 0) loadWeeklyReports(); // 👈 點到週報才撈
+    if (allWeeklyData.length === 0) loadWeeklyReports();
     initWeeklyDateAndLeave(); 
   }
   if (tabId === 'tab-calendar') {
-    if (myCalendarTodos.length === 0 && auth.currentUser) loadMyCalendarTodos(auth.currentUser.uid); // 👈 點到行事曆才撈
+    if (myCalendarTodos.length === 0 && auth.currentUser) loadMyCalendarTodos(auth.currentUser.uid);
     initCalendarSelectors();
     renderCalendar();
   }
   if (tabId === 'tab-notifications') {
     if (window.renderNotifications) window.renderNotifications();
   }
-};
 
+  // 🌟 點到組織管理時，若尚未注入則自動掛載
+  if (tabId === 'tab-org-manage' || tabId === 'tab-org') {
+    if (currentUserData.role === 'admin' && window.injectDeptManageUI) {
+      window.injectDeptManageUI();
+    }
+  }
+};
 document.getElementById("btn-toggle-edit-mode").addEventListener("click", () => {
   isEditMode = !isEditMode;
   const btn = document.getElementById("btn-toggle-edit-mode");
@@ -1254,6 +1320,11 @@ onAuthStateChanged(auth, async (user) => {
     window.initManualModalUI();
     window.triggerProjectsUpdate();
     if (window.renderNotifications) window.renderNotifications();
+
+    initDepartmentsListener();
+    if (currentUserData.role === 'admin' && window.injectDeptManageUI) {
+      window.injectDeptManageUI();
+    }
 
   } else {
     document.getElementById("auth-section").style.display = "flex"; 
@@ -4781,6 +4852,39 @@ document.getElementById("btn-create-user").addEventListener("click", async () =>
     alert("建立失敗: " + err.message); 
   }
 });
+
+window.injectDeptManageUI = () => {
+  // 1. 防重複檢查：如果畫面上已經有這個工具列，就不再重複建立
+  if (document.getElementById("dept-manage-bar")) return;
+
+  // 2. 鎖定錨點容器：找到「組織架構管理」的表格容器或外層面板
+  const orgPanel = document.getElementById("org-table-view-container") || document.getElementById("tab-org");
+  if (!orgPanel) return;
+
+  // 3. 建立工具列外層 div，並設定彈性排列 (Flexbox) 與美化樣式
+  const bar = document.createElement("div");
+  bar.id = "dept-manage-bar";
+  bar.style.cssText = `
+    display: flex; 
+    gap: 8px; 
+    align-items: center; 
+    background: #f8fafc; 
+    padding: 12px 16px; 
+    border-radius: 8px; 
+    border: 1px solid #e2e8f0; 
+    margin-bottom: 16px;
+  `;
+
+  // 4. 塞入標籤、文字輸入框與綁定點擊事件的按鈕
+  bar.innerHTML = `
+    <span style="font-weight: bold; color: #1e293b; font-size: 14px;">🏢 部門設定：</span>
+    <input type="text" id="new-dept-name-input" class="input-control" placeholder="輸入新部門名稱..." style="width: 200px; height: 32px; font-size: 13px;">
+    <button type="button" class="btn-primary" style="width: auto; padding: 4px 14px; font-size: 13px;" onclick="addNewDepartment()">➕ 新增部門</button>
+  `;
+
+  // 5. 插入 DOM：將此控制列放置在 orgPanel 的「正前方 (上方)」
+  orgPanel.parentNode.insertBefore(bar, orgPanel);
+};
 
 window.openEditModal = (uid) => {
   const u = allUsersList.find(x => x.uid === uid);
