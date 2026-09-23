@@ -6920,15 +6920,21 @@ window.openAddSubTaskToSubProjModal = (projId, subProjName) => {
       <div style="display:flex; gap:12px; margin-bottom:16px;">
         <div style="flex:1.2;">
           <label class="form-label" style="font-size:14px; font-weight:bold;">起始日</label>
-          <input type="date" id="new-subtask-start" class="input-control" value="${todayStr}" onchange="onTaskStartChange(this, null)" style="font-size:14px; padding:8px 10px;">
+          <input type="date" id="new-subtask-start" class="input-control" value="${todayStr}" 
+                 onchange="onTaskStartChange(this, 'new-subtask-end')" 
+                 style="font-size:14px; padding:8px 10px;">
         </div>
         <div style="width:100px;">
           <label class="form-label" style="font-size:14px; font-weight:bold;">天數</label>
-          <input type="number" id="new-subtask-days" class="input-control" value="1" min="1" oninput="onTaskDaysChange(this, null, null)" style="font-size:14px; padding:8px 10px;">
+          <input type="number" id="new-subtask-days" class="input-control task-days" value="1" min="1" 
+                 oninput="onTaskDaysChange(this, 'new-subtask-start', 'new-subtask-end')" 
+                 style="font-size:14px; padding:8px 10px;">
         </div>
         <div style="flex:1.2;">
           <label class="form-label" style="font-size:14px; font-weight:bold;">預計完成日</label>
-          <input type="date" id="new-subtask-end" class="input-control" value="${todayStr}" onchange="onTaskEndChange(this, null, null)" style="font-size:14px; padding:8px 10px;">
+          <input type="date" id="new-subtask-end" class="input-control" value="${todayStr}" min="${todayStr}" 
+                 onchange="onTaskEndChange(this, 'new-subtask-start', 'new-subtask-days')" 
+                 style="font-size:14px; padding:8px 10px;">
         </div>
       </div>
       <div class="form-group" style="margin-bottom:16px;">
