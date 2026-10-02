@@ -6415,9 +6415,7 @@ window.renderNotifications = () => {
         }
 
         // 專案開案簽核與協作歷史 (approvalHistory)
-        // 專案開案簽核、協作與子專案指派歷史 (approvalHistory)
         if (p.approvalHistory && p.approvalHistory.length > 0) {
-            // 🌟 調整檢視條件：主管、開案者、協作成員，或名下有任務者皆可看見
             const isCollaborator = (p.collaboratorUids || []).includes(myUid);
             const hasTask = (p.tasks || []).some(t => t.assigneeId === myUid);
 
@@ -6429,7 +6427,7 @@ window.renderNotifications = () => {
                         projTitle: p.title,
                         itemName: h.step.includes('子專案') ? '📦 子專案指派' : '📝 專案簽核/協作',
                         action: h.step || '簽核進程',
-                        person: `${h.operatorName || '人員'} (${h.role || '-'})`,
+                        person: h.operatorName || '人員', // 🌟 只保留操作人員姓名
                         note: h.remark || '-',
                         canDelete: false
                     });
