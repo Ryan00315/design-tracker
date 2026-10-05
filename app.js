@@ -1050,19 +1050,27 @@ document.getElementById('btn-toggle-create').addEventListener('click', () => {
   }
 });
 
-function renderCollabCheckboxes(selectedDepts = []) {
+window.renderCollabCheckboxes = (selectedDepts = null) => {
   const container = document.getElementById("collab-departments-checkboxes");
   if (!container) return;
+
+  // 若未傳入選取陣列，自動抓取當前畫面上已勾選的部門以防被清空
+  let checkedDepts = selectedDepts;
+  if (!Array.isArray(checkedDepts)) {
+    const currentChecked = container.querySelectorAll('input[name="collab_dept"]:checked');
+    checkedDepts = Array.from(currentChecked).map(cb => cb.value);
+  }
+
   container.innerHTML = "";
   departmentList.forEach(dept => {
-    const isChecked = selectedDepts.includes(dept) ? "checked" : "";
+    const isChecked = checkedDepts.includes(dept) ? "checked" : "";
     container.innerHTML += `
-      <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+      <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px; margin-right:8px; margin-bottom:4px; user-select:none;">
         <input type="checkbox" name="collab_dept" value="${dept}" ${isChecked}> <span>${dept}</span>
       </label>
     `;
   });
-}
+};
 
 window.toggleSubMenu = () => {
   const wrapper = document.getElementById('nav-sub-wrapper');
@@ -4275,13 +4283,13 @@ window.openGeneralEdit = (type, id, extra) => {
     }
 
     // 🌟 3. 產生瀏覽部門勾選框清單
-    let collabHtml = `<div class="form-group" style="margin-top:12px;"><label class="form-label">瀏覽部門 (可複選)</label><div style="display:flex; flex-direction:column; gap:6px;">`;
+    let collabHtml = `<div class="form-group" style="margin-top:12px;"><label class="form-label">開放瀏覽 (可複選)</label><div style="display:flex; flex-wrap:wrap; gap:10px; padding:4px 0;">`;
     departmentList.forEach(dept => {
       const isChecked = (p.collaborators || []).includes(dept) ? 'checked' : '';
-      collabHtml += `<label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" name="edit_collab" value="${dept}" ${isChecked}> <span>${dept}</span></label>`;
+      collabHtml += `<label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;"><input type="checkbox" name="edit_collab" value="${dept}" ${isChecked}> <span>${dept}</span></label>`;
     });
     collabHtml += `</div></div>`;
-
+    
     // 🌟 4. 組裝注入彈窗表單
     form.innerHTML = `
       <div class="form-group">
