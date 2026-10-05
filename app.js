@@ -1868,8 +1868,11 @@ function renderProjects() {
 
     const collabs = Array.isArray(p.collaborators) ? p.collaborators : [];
     const isDeptCollab = collabs.includes(targetDept);
+    
+    // 檢查是否有被手動邀請，且其所屬部門確實仍在允許範圍或為直接協作
     const isDirectCollab = Array.isArray(p.collaboratorUids) && p.collaboratorUids.includes(viewingUserId);
 
+    // 🌟 若部門未開放瀏覽，且不是指派成員，立即排除
     if (!isDeptCollab && !isDirectCollab) return false;
 
     // 🌟 核心過濾：檢查該人員在此專案中是否「已有進行中的任務」
@@ -4588,7 +4591,31 @@ window.saveGeneralEdit = async () => {
 
       if (!title) return alert("專案名稱不可為空！");
 
+      const proj = allProjectsData.find(p => p.id === id);
       const updateData = { title, collaborators };
+
+      // 🌟【修復核心】清理被取消部門的成員白名單
+      if (proj && Array.isArray(proj.collaboratorUids)) {
+        let cleanUids = proj.collaboratorUids.filter(uid => {
+          // 開案者本人保留
+          if (uid === proj.ownerId) return true;
+          
+          // 檢查該人員所屬部門是否仍在「開放瀏覽」清單中
+          const u = allUsersList.find(x => x.uid === uid);
+          const uDept = u ? (u.dept || "設計部") : "";
+          const isDeptStillAllowed = collaborators.includes(uDept);
+
+          // 檢查該人員名下是否「已有被指派的實質任務」
+          const hasAssignedTask = (proj.tasks || []).some(t => 
+            t.assigneeId === uid && 
+            !t.name?.includes("[系統通知]")
+          );
+
+          // 只要部門仍在開放清單，或該人員有接任務，就保留；否則直接踢出瀏覽名單
+          return isDeptStillAllowed || hasAssignedTask;
+        });
+        updateData.collaboratorUids = cleanUids;
+      }
 
       // 🌟 檢查更換專案負責人
       const ownerSelect = document.getElementById("edit-val-proj-owner");
