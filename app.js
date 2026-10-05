@@ -1050,11 +1050,11 @@ document.getElementById('btn-toggle-create').addEventListener('click', () => {
   }
 });
 
-window.renderCollabCheckboxes = (selectedDepts = null) => {
+window.renderCollabCheckboxes = function(selectedDepts = null) {
   const container = document.getElementById("collab-departments-checkboxes");
   if (!container) return;
 
-  // 若未傳入選取陣列，自動抓取當前畫面上已勾選的部門以防被清空
+  // 檢查當前畫面上是否已經有被勾選的部門，避免更新時被洗掉
   let checkedDepts = selectedDepts;
   if (!Array.isArray(checkedDepts)) {
     const currentChecked = container.querySelectorAll('input[name="collab_dept"]:checked');
@@ -1065,7 +1065,7 @@ window.renderCollabCheckboxes = (selectedDepts = null) => {
   departmentList.forEach(dept => {
     const isChecked = checkedDepts.includes(dept) ? "checked" : "";
     container.innerHTML += `
-      <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px; margin-right:8px; margin-bottom:4px; user-select:none;">
+      <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px; margin-bottom:2px; user-select:none;">
         <input type="checkbox" name="collab_dept" value="${dept}" ${isChecked}> <span>${dept}</span>
       </label>
     `;
@@ -1338,7 +1338,10 @@ onAuthStateChanged(auth, async (user) => {
     if (currentUserData.role === 'admin' && window.injectDeptManageUI) {
       window.injectDeptManageUI();
     }
-
+    // 🌟 加入這行：登入後立刻將最新部門名單填入開案表單的核取方塊
+    if (window.renderCollabCheckboxes) {
+      window.renderCollabCheckboxes([]);
+    }
   } else {
     document.getElementById("auth-section").style.display = "flex"; 
     document.getElementById("app-section").style.display = "none";
