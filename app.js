@@ -3325,15 +3325,45 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
 });
 
 window.deleteCurrentProject = async () => { 
-  const p = allProjectsData.find(x => x.id === selectedProjectId);
-  const inGrace = p && (auth.currentUser.uid === p.ownerId) && isWithin7DaysGracePeriod(p);
-  if (currentUserData.role !== 'admin' && !currentUserData.canEdit && !inGrace) return alert("權限不足！專案主檔已超過 7 天寬限期，請聯繫管理員刪除。");
+  const projIdToDelete = selectedProjectId;
+  if (!projIdToDelete || projIdToDelete === 'SUMMARY') {
+    return alert("請先選取要刪除的專案！");
+  }
+
+  const p = allProjectsData.find(x => x.id === projIdToDelete);
+  if (!p) return alert("找不到欲刪除的專案！");
+
+  const isOwner = (auth.currentUser?.uid === p.ownerId);
+  const inGrace = isOwner && isWithin7DaysGracePeriod(p);
+  const isAdminOrEditor = (currentUserData.role === 'admin' || currentUserData.canEdit);
+
+  if (!isAdminOrEditor && !inGrace) {
+    return alert("⚠️ 權限不足！專案主檔已超過 7 天寬限期，無法刪除，請聯繫管理員協助。");
+  }
   
-  if (!confirm("⚠️ 確定要永久刪除此專案嗎？")) return; 
-  await deleteDoc(doc(db, "projects", selectedProjectId)); 
-  alert("專案已刪除！"); 
-  selectedProjectId = 'SUMMARY'; 
-  renderProjects(); 
+  if (!confirm(`⚠️ 確定要永久刪除專案【${p.title}】嗎？\n刪除後所有部門（包含開放瀏覽與協作人員）都將無法再看到此專案！`)) {
+    return;
+  }
+
+  try {
+    // 1. 從 Firestore 雲端徹底物理刪除
+    await deleteDoc(doc(db, "projects", projIdToDelete));
+
+    // 2. 本地記憶體立即移除該筆專案，防止殘留
+    allProjectsData = allProjectsData.filter(x => x.id !== projIdToDelete);
+
+    // 3. 重設選取狀態並重新整理畫面
+    selectedProjectId = 'SUMMARY'; 
+    alert(`🗑️ 專案【${p.title}】已徹底刪除！`); 
+
+    // 4. 強制重新整理專案與通知畫面
+    renderProjects();
+    if (window.renderNotifications) window.renderNotifications();
+
+  } catch (err) {
+    console.error("刪除專案失敗：", err);
+    alert("刪除專案失敗：" + err.message);
+  }
 };
 
 function loadAdHocEvents() { 
