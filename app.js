@@ -5903,8 +5903,22 @@ window.toggleSubProjectProcure = (checkbox) => {
 
     const existingApproval = tasksContainer.querySelector('.is-approval-task');
 
+    // 🌟 找到子專案的人員下拉選單 (支援開案表單與彈窗)
+    const assigneeSelect = row.querySelector('.subproject-assignee') || document.getElementById('modal-subproject-assignee');
+
     if (checkbox.checked) {
-        // 勾選：強制在第一項插入「簽核送審」
+        // 🌟 1. 自動指定人員為採購部的陳佩琪
+        if (assigneeSelect) {
+            const targetOption = Array.from(assigneeSelect.options).find(opt => 
+                opt.text.includes("陳佩琪") && (opt.text.includes("採購") || opt.parentElement?.label?.includes("採購"))
+            ) || Array.from(assigneeSelect.options).find(opt => opt.text.includes("陳佩琪"));
+
+            if (targetOption) {
+                assigneeSelect.value = targetOption.value;
+            }
+        }
+
+        // 2. 強制在第一項插入「簽核送審」
         if (!existingApproval) {
             let defaultStart = getTodayStr();
             const projStartInput = document.getElementById("p-start");
@@ -6626,8 +6640,10 @@ window.renderNotifications = () => {
       // 🌟 3. 專案簽核中
       else if (isPendingApproval) {
         if (cfg.isApplyCollab) {
-          // 🌟 判斷級別分流通知文案：人員級別 vs 主管級別
-          if (currentUserData.role === 'staff') {
+          // 🌟 若目前登入者就是被指定的負責人，明確顯示指派確認文案
+          if (cfg.currentAssigneeUid === myUid) {
+            noticeMsg = `<span style="color:var(--primary); font-weight:600;">📦 您已被指派了協作專案【${p.title}】，請確認是否同意承接</span>`;
+          } else if (currentUserData.role === 'staff') {
             noticeMsg = `<span style="color:var(--danger); font-weight:600;">🚨 您已被指派協作專案，請確認接收。</span>`;
           } else {
             noticeMsg = `<span style="color:var(--danger); font-weight:600;">🚨 申請協作專案作業，請主管確認後簽核。</span>`;
