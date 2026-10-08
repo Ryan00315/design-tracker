@@ -4083,11 +4083,11 @@ function renderCalTodosModal(dateStr) {
       const div = document.createElement("div");
       div.className = "cal-todo-item";
       div.innerHTML = `
-        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; flex:1;">
+        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; flex:1; margin:0;">
           <input type="checkbox" onchange="toggleCalTodoStatus('${todo.id}', true)">
-          <span style="color:${todo.color || '#0f172a'}; font-weight:600;">${todo.title}</span>
+          <span style="color:${todo.color || '#0f172a'}; font-weight:600; font-size:1em; line-height:1.4; word-break:break-all;">${todo.title}</span>
         </label>
-        <button class="btn-close" style="color:var(--text-muted);" onclick="deleteCalendarTodo('${todo.id}')">×</button>
+        <button class="btn-close" style="color:var(--text-muted); font-size:1.1em; padding:2px 8px;" onclick="deleteCalendarTodo('${todo.id}')">×</button>
       `;
       uncompletedList.appendChild(div);
     });
@@ -4100,11 +4100,11 @@ function renderCalTodosModal(dateStr) {
       const div = document.createElement("div");
       div.className = "cal-todo-item done";
       div.innerHTML = `
-        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; flex:1;">
+        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; flex:1; margin:0;">
           <input type="checkbox" checked onchange="toggleCalTodoStatus('${todo.id}', false)">
-          <span style="color:${todo.color || '#0f172a'};">${todo.title}</span>
+          <span style="color:${todo.color || '#0f172a'}; font-size:1em; line-height:1.4; word-break:break-all;">${todo.title}</span>
         </label>
-        <button class="btn-close" style="color:var(--text-muted);" onclick="deleteCalendarTodo('${todo.id}')">×</button>
+        <button class="btn-close" style="color:var(--text-muted); font-size:1.1em; padding:2px 8px;" onclick="deleteCalendarTodo('${todo.id}')">×</button>
       `;
       completedList.appendChild(div);
     });
