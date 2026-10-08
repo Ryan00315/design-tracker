@@ -6731,15 +6731,28 @@ window.renderNotifications = () => {
         }
 
         if (cfg.isApplyCollab) {
-          const dispatchBtn = (currentUserData.role !== 'staff') 
-            ? `<button class="action-btn" style="background:#3b82f6; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="openDispatchModal('${p.id}')">指派</button>` 
-            : '';
+          // 🌟 分流判斷：若目前登入者是被指定的執行人（本人），按鈕改為「同意 / 拒絕」
+          if (cfg.currentAssigneeUid === myUid) {
+            // 抓出屬於該同仁的子專案名稱
+            const mySubTask = (p.tasks || []).find(t => t.assigneeId === myUid && t.isSubProjectTask);
+            const subName = mySubTask ? mySubTask.parentSubProject : (p.title || '');
 
-          actionButtons = `
-            ${dispatchBtn}
-            <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="selfAcceptCollabProject('${p.id}')">承接</button>
-            <button class="action-btn danger" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">退回</button>
-          `;
+            actionButtons = `
+              <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 10px; font-size:12px; width:auto; margin-right:4px; font-weight:bold;" onclick="acceptSubProjectAssignment('${p.id}', '${subName}')">同意</button>
+              <button class="action-btn danger" style="padding:4px 10px; font-size:12px; width:auto; font-weight:bold;" onclick="rejectSubProjectAssignment('${p.id}', '${subName}')">拒絕</button>
+            `;
+          } else {
+            // 🌟 若是審核的主管，維持「指派 / 承接 / 退回」
+            const dispatchBtn = (currentUserData.role !== 'staff') 
+              ? `<button class="action-btn" style="background:#3b82f6; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="openDispatchModal('${p.id}')">指派</button>` 
+              : '';
+
+            actionButtons = `
+              ${dispatchBtn}
+              <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="selfAcceptCollabProject('${p.id}')">承接</button>
+              <button class="action-btn danger" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">退回</button>
+            `;
+          }
         } else {
           actionButtons = `
             <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="approveProjectApproval('${p.id}')">同意</button>
@@ -6747,7 +6760,6 @@ window.renderNotifications = () => {
           `;
         }
       }
-
       // 產生表格行 (tr) 保持原樣
       const tr = document.createElement("tr");
       tr.style.borderBottom = "1px solid #f1f5f9";
