@@ -6151,21 +6151,20 @@ window.submitAddSubProject = async () => {
       collabUids.push(assigneeId);
     }
 
-    // 🌟 6. 分流：已審核通過生效的專案 (status === 'active')，不打回審核狀態
-    const isAlreadyApprovedProj = (proj.status === 'active');
-
-    if (isCrossDept && !isAlreadyApprovedProj) {
+    // 🌟 6. 只要指派給其他部門（跨部門），一律強制送交最高主管審批簽核！
+    if (isCrossDept) {
       const history = proj.approvalHistory || [];
       history.push({
-        step: `提出申請協作 (跨部門子專案: ${subProjName})`,
+        step: `提出申請協作 (追加跨部門子專案: ${subProjName})`,
         operatorName: currentUserName,
         operatorUid: auth.currentUser?.uid || "",
         role: roleNames[currentUserData.role] || currentUserData.role,
         time: ts,
-        remark: `申請將子專案【${subProjName}】跨部門協作至【${targetDept} - ${assigneeName}】`,
-        targetRole: '第一道關卡：待主管審核指派'
+        remark: `在已建立專案中追加子專案【${subProjName}】，跨部門指派至【${targetDept} - ${assigneeName}】`,
+        targetRole: '第一道關卡：待最高級主管審核指派'
       });
 
+      // 將專案切回審查中，最高主管的通知與審核清單才會抓到它
       await updateDoc(doc(db, "projects", proj.id), {
         status: 'pending_approval',
         tasks: updatedTasks,
@@ -6173,7 +6172,7 @@ window.submitAddSubProject = async () => {
         approvalConfig: {
           isNeedApproval: true,
           isApplyCollab: true,
-          approvalDesc: `跨部門申請協作子專案【${subProjName}】(由 ${myDept} 的 ${currentUserName} 申請，預計指派至 ${targetDept} - ${assigneeName})`,
+          approvalDesc: `在專案【${proj.title}】中追加跨部門子專案【${subProjName}】(由 ${myDept} 的 ${currentUserName} 申請，指派至 ${targetDept} - ${assigneeName})`,
           currentStage: 'top_manager',
           currentAssigneeUid: "",
           approvalStatus: 'pending_collab_dispatch'
@@ -6181,23 +6180,22 @@ window.submitAddSubProject = async () => {
         approvalHistory: history
       });
 
-      // 🌟 [補上] 跨部門子專案送審通知主管
+      // 發送 Email 通知最高主管
       sendNotificationEmail({
         targetRole: 'top_manager',
         projTitle: proj.title,
         type: '跨部門協作審核通知',
-        reason: `跨部門申請協作子專案【${subProjName}】(由 ${myDept} 的 ${currentUserName} 申請，預計指派至 ${targetDept} - ${assigneeName})`,
+        reason: `同仁【${currentUserName}】在專案【${proj.title}】中追加了跨部門子專案【${subProjName}】並指派給【${targetDept} - ${assigneeName}】，請主管撥冗審查簽核。`,
         senderName: currentUserName
       });
 
       closeGeneralEditModal();
-
-      alert(`🎉 偵測到跨部門指派（${myDept} ➔ ${targetDept}）！\n專案已送交主管進行協作審核指派。`);
+      alert(`🎉 偵測到跨部門子專案指派（${myDept} ➔ ${targetDept}）！\n已成功送交最高級主管進行協作簽核審查。`);
       setProjectFilter('pending_approval');
       return;
     }
 
-    // 🌟 1. 建立指派歷程紀錄
+    // 🌟 同部門內部指派：不需跨部門審核，直接發通知給被指派人員
     const history = proj.approvalHistory || [];
     history.push({
       step: isPending ? '📦 子專案指派' : '📦 建立子專案',
@@ -6210,14 +6208,12 @@ window.submitAddSubProject = async () => {
         : `建立個人子專案【${subProjName}】(共 ${newTasks.length} 個細項)`
     });
 
-    // 🌟 2. 同步寫入 tasks、collaboratorUids 與 approvalHistory
     await updateDoc(doc(db, "projects", proj.id), {
       tasks: updatedTasks,
       collaboratorUids: collabUids,
       approvalHistory: history
     });
 
-    // 🌟 [新增] 若為指派他人，發送 Email 通知
     if (isPending && assigneeId !== auth.currentUser?.uid) {
       sendNotificationEmail({
         targetUid: assigneeId,
@@ -6235,7 +6231,7 @@ window.submitAddSubProject = async () => {
       setProjectFilter('ongoing');
       selectProject(proj.id);
     } else {
-      alert(`🎉 子專案【${subProjName}】已成功指派給【${assigneeName}】！已發送確認通知。`);
+      alert(`🎉 子專案【${subProjName}】已成功指派給【${assigneeName}】！已發送通知。`);
       renderProjects();
     }
 
