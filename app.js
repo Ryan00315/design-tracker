@@ -4614,6 +4614,67 @@ window.saveGeneralEdit = async () => {
   const { type, id, extra } = currentEditData;
 
   try {
+    // 🌟 1. 【新增這段】處理子專案名稱與指派人員修改
+    if (type === 'subproject_edit') {
+      const { projId, oldSubProjName, isAssigneeLocked } = currentEditData;
+      const proj = allProjectsData.find(p => p.id === projId);
+      if (!proj) return alert("找不到專案！");
+
+      const newSubName = document.getElementById("edit-subproj-name")?.value.trim();
+      const assigneeSelect = document.getElementById("edit-subproj-assignee");
+      const newAssigneeId = assigneeSelect ? assigneeSelect.value : "";
+      
+      if (!newSubName) return alert("子專案名稱不可為空！");
+
+      // 取得新指派人員的姓名
+      let newAssigneeName = proj.ownerName;
+      if (newAssigneeId) {
+        const targetUser = allUsersList.find(u => u.uid === newAssigneeId);
+        newAssigneeName = targetUser ? targetUser.name : "同仁";
+      }
+
+      const tasks = [...(proj.tasks || [])];
+
+      // 批次把屬於這個子專案的所有細項更新 (改名稱前綴、換負責人)
+      tasks.forEach(t => {
+        if (t.isSubProjectTask && t.parentSubProject === oldSubProjName) {
+          // 更新名稱：例如把 [舊零件] 採購 改成 [新零件] 採購
+          if (t.name.includes(`[${oldSubProjName}]`)) {
+            t.name = t.name.replace(`[${oldSubProjName}]`, `[${newSubName}]`);
+          }
+          t.parentSubProject = newSubName;
+
+          // 🌟 若主管尚未核准 (沒被鎖定)，才允許更新人員
+          if (!isAssigneeLocked && newAssigneeId && t.assigneeId !== newAssigneeId) {
+            t.assigneeId = newAssigneeId;
+            t.assigneeName = newAssigneeName;
+            t.isPendingAcceptance = (newAssigneeId !== auth.currentUser?.uid);
+          }
+        }
+      });
+
+      const updatePayload = { tasks };
+
+      // 若未鎖定且更換了人員，將新負責人加入專案協作成員名單
+      if (!isAssigneeLocked && newAssigneeId) {
+        let collabUids = Array.isArray(proj.collaboratorUids) ? [...proj.collaboratorUids] : [];
+        if (!collabUids.includes(newAssigneeId)) collabUids.push(newAssigneeId);
+        updatePayload.collaboratorUids = collabUids;
+
+        // 若專案正在審核中，同步更新送審備註讓主管看到
+        if (proj.status === 'pending_approval' && proj.approvalConfig) {
+          updatePayload["approvalConfig.approvalDesc"] = `子專案【${newSubName}】已更換指派人員為【${newAssigneeName}】，待主管審核。`;
+        }
+      }
+
+      // 寫入 Firebase 資料庫
+      await updateDoc(doc(db, "projects", projId), updatePayload);
+      closeGeneralEditModal();
+      alert("✅ 子專案資訊已更新！");
+      renderProjects();
+      return;
+    }
+    
     if (type === 'project') {
       const title = document.getElementById("edit-val-proj-title").value.trim();
       const checkboxes = document.querySelectorAll('input[name="edit_collab"]:checked');
@@ -6919,7 +6980,7 @@ function loadProjects() {
   ); 
 }
 
-// 🌟 開啟編輯子專案彈窗
+// 🌟 開啟編輯子專案彈窗（加入主管審核鎖定判斷）
 window.openEditSubProjectModal = (projId, subProjName) => {
     const proj = allProjectsData.find(p => p.id === projId);
     if (!proj) return;
@@ -6929,7 +6990,23 @@ window.openEditSubProjectModal = (projId, subProjName) => {
 
     let assigneeOptions = getSubProjectAssigneeOptions(currentAssigneeId);
 
-    currentEditData = { type: 'subproject_edit', projId, oldSubProjName: subProjName };
+    // 🌟 核心判斷：最高主管是否已經審核通過/已指派生效？
+    // 1. 若專案已是 active 狀態，代表審核已過關
+    // 2. 若 approvalStatus 為 approved 或已完成指派 (如 pending_staff_accept)，也視為已核准
+    const isApprovedOrDispatched = (proj.status === 'active') || 
+                                   (proj.approvalConfig?.approvalStatus === 'approved') ||
+                                   (proj.approvalConfig?.approvalStatus === 'pending_staff_accept');
+
+    const lockHint = isApprovedOrDispatched 
+      ? `<div style="font-size:12px; color:var(--danger); margin-top:4px; font-weight:bold;">🔒 最高級主管已同意/指派，指派人員已鎖定禁止變更。</div>`
+      : `<div style="font-size:12px; color:#16a34a; margin-top:4px;">🔓 主管尚未簽核指派，您仍可自由調整指派人員。</div>`;
+
+    currentEditData = { 
+      type: 'subproject_edit', 
+      projId, 
+      oldSubProjName: subProjName,
+      isAssigneeLocked: isApprovedOrDispatched // 記錄鎖定狀態傳給儲存函式
+    };
 
     document.getElementById("general-edit-title").innerText = `編輯子專案：${subProjName}`;
     const form = document.getElementById("general-edit-form");
@@ -6939,10 +7016,11 @@ window.openEditSubProjectModal = (projId, subProjName) => {
             <input type="text" id="edit-subproj-name" class="input-control" value="${subProjName}">
         </div>
         <div class="form-group">
-            <label class="form-label">指派人員 (採購部)</label>
-            <select id="edit-subproj-assignee" class="input-control">
+            <label class="form-label">指派人員</label>
+            <select id="edit-subproj-assignee" class="input-control" ${isApprovedOrDispatched ? 'disabled style="background:#f1f5f9; cursor:not-allowed;"' : ''}>
                 ${assigneeOptions}
             </select>
+            ${lockHint}
         </div>
     `;
 
