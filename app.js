@@ -4076,35 +4076,55 @@ function renderCalTodosModal(dateStr) {
   document.getElementById("cal-uncompleted-count").innerText = uncompleted.length;
   document.getElementById("cal-completed-count").innerText = completed.length;
 
+  // 🌟 動態判斷目前選擇的字級（小 / 中 / 大）
+  const currentSize = localStorage.getItem('desktop-font-size') || 'sm';
+  let itemFontSize = "15px";
+  let checkScale = "1.1";
+  let itemPadding = "8px 12px";
+
+  if (currentSize === 'md') {
+    itemFontSize = "18px";      // 選「中」時字體放大到 18px
+    checkScale = "1.35";        // 方框放大
+    itemPadding = "12px 16px";
+  } else if (currentSize === 'lg') {
+    itemFontSize = "22px";      // 選「大」時字體放大到 22px
+    checkScale = "1.6";         // 方框大幅放大
+    itemPadding = "15px 18px";
+  }
+
+  // 1. 產生未完成事項清單
   if (uncompleted.length === 0) {
-    uncompletedList.innerHTML = `<div style="color:var(--text-muted); padding:8px 0;">尚無未完成事項</div>`;
+    uncompletedList.innerHTML = `<div style="color:var(--text-muted); padding:8px 0; font-size:${itemFontSize};">尚無未完成事項</div>`;
   } else {
     uncompleted.forEach(todo => {
       const div = document.createElement("div");
       div.className = "cal-todo-item";
+      div.style.cssText = `padding: ${itemPadding} !important; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;`;
       div.innerHTML = `
-        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; flex:1; margin:0;">
-          <input type="checkbox" onchange="toggleCalTodoStatus('${todo.id}', true)">
-          <span style="color:${todo.color || '#0f172a'}; font-weight:600; font-size:1em; line-height:1.4; word-break:break-all;">${todo.title}</span>
+        <label style="display:flex; align-items:center; gap:12px; cursor:pointer; flex:1; margin:0;">
+          <input type="checkbox" onchange="toggleCalTodoStatus('${todo.id}', true)" style="transform: scale(${checkScale}); cursor: pointer; margin: 0 4px;">
+          <span style="color:${todo.color || '#0f172a'}; font-weight:600; font-size:${itemFontSize} !important; line-height: 1.4; word-break: break-all;">${todo.title}</span>
         </label>
-        <button class="btn-close" style="color:var(--text-muted); font-size:1.1em; padding:2px 8px;" onclick="deleteCalendarTodo('${todo.id}')">×</button>
+        <button class="btn-close" style="color:var(--text-muted); font-size:${itemFontSize}; padding: 0 8px; cursor:pointer;" onclick="deleteCalendarTodo('${todo.id}')">×</button>
       `;
       uncompletedList.appendChild(div);
     });
   }
 
+  // 2. 產生已完成事項清單
   if (completed.length === 0) {
-    completedList.innerHTML = `<div style="color:var(--text-muted); padding:8px 0;">尚無已完成事項</div>`;
+    completedList.innerHTML = `<div style="color:var(--text-muted); padding:8px 0; font-size:${itemFontSize};">尚無已完成事項</div>`;
   } else {
     completed.forEach(todo => {
       const div = document.createElement("div");
       div.className = "cal-todo-item done";
+      div.style.cssText = `padding: ${itemPadding} !important; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;`;
       div.innerHTML = `
-        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; flex:1; margin:0;">
-          <input type="checkbox" checked onchange="toggleCalTodoStatus('${todo.id}', false)">
-          <span style="color:${todo.color || '#0f172a'}; font-size:1em; line-height:1.4; word-break:break-all;">${todo.title}</span>
+        <label style="display:flex; align-items:center; gap:12px; cursor:pointer; flex:1; margin:0;">
+          <input type="checkbox" checked onchange="toggleCalTodoStatus('${todo.id}', false)" style="transform: scale(${checkScale}); cursor: pointer; margin: 0 4px;">
+          <span style="color:${todo.color || '#0f172a'}; font-size:${itemFontSize} !important; line-height: 1.4; word-break: break-all;">${todo.title}</span>
         </label>
-        <button class="btn-close" style="color:var(--text-muted); font-size:1.1em; padding:2px 8px;" onclick="deleteCalendarTodo('${todo.id}')">×</button>
+        <button class="btn-close" style="color:var(--text-muted); font-size:${itemFontSize}; padding: 0 8px; cursor:pointer;" onclick="deleteCalendarTodo('${todo.id}')">×</button>
       `;
       completedList.appendChild(div);
     });
