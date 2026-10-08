@@ -5983,8 +5983,14 @@ window.updateSubTaskNumbers = (container) => {
     });
 };
 
-// 🌟 追加子專案彈窗（修復 proj 未定義報錯，確保點擊必定彈出）
+// 🌟 追加子專案彈窗（修復背景重繪導致專案 ID 遺失問題）
 window.openAddSubProjectModal = () => {
+    // 1. 開啟時立刻鎖定目前選取的專案 ID
+    const currentTargetProjId = selectedProjectId;
+    if (!currentTargetProjId || currentTargetProjId === 'SUMMARY') {
+        return alert("請先選取要追加子專案的主專案！");
+    }
+
     const modal = document.getElementById("general-edit-modal");
     const form = document.getElementById("general-edit-form");
     const modalBox = modal?.querySelector('.modal-box');
@@ -6004,6 +6010,9 @@ window.openAddSubProjectModal = () => {
     const assigneeOptions = getSubProjectAssigneeOptions(auth.currentUser?.uid || "");
 
     form.innerHTML = `
+      <!-- 🌟 關鍵修正：將專案 ID 牢牢記在彈窗中，不再受全域變數跳回 SUMMARY 影響 -->
+      <input type="hidden" id="modal-subproject-target-proj-id" value="${currentTargetProjId}">
+
       <div id="add-subproject-container" class="subproject-row" style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:16px;">
         <div style="display:flex; gap:12px; align-items:center; margin-bottom:14px; flex-wrap:wrap;">
           <span style="font-weight:bold; color:var(--primary); font-size:15px; white-space:nowrap;">📦 子專案名稱</span>
@@ -6014,7 +6023,6 @@ window.openAddSubProjectModal = () => {
             🛒 採購
           </label>
 
-          <!-- 🌟 新增：時間同步開關 (可重複點擊勾選/取消) -->
           <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:bold; color:#1d4ed8; cursor:pointer; white-space:nowrap; background:#eff6ff; padding:6px 12px; border-radius:4px; border:1px solid #bfdbfe;">
             <input type="checkbox" id="modal-subproject-sync-date" class="subproject-sync-date" style="cursor:pointer; width:16px; height:16px;">
             🔄 時間同步
@@ -6025,7 +6033,6 @@ window.openAddSubProjectModal = () => {
           </select>
         </div>
         
-        <!-- 細項掛載容器 -->
         <div class="sub-tasks-container" style="padding-left:14px; border-left:3px solid #fde68a; margin-left:8px; display:flex; flex-direction:column; gap:8px;"></div>
         
         <div style="margin-top:12px; padding-left:14px;">
@@ -6048,7 +6055,6 @@ window.openAddSubProjectModal = () => {
 
     modal.classList.add("active");
 };
-
 window.closeAddSubProjectModal = () => {
     document.getElementById("project-subproject-modal").classList.remove("active");
 };
@@ -6139,8 +6145,11 @@ window.submitAddSubProject = async () => {
       return alert("請至少為此子專案建立一個細項（請點擊「+ 追加子細項」並填寫名稱，或勾選「採購」）！");
     }
 
-    const proj = allProjectsData.find(p => p.id === selectedProjectId);
-    if (!proj) return alert("找不到目前專案！");
+    // 🌟 優先從彈窗保存的隱藏欄位提取 ID，防呆防止全域變數被洗掉
+    const targetProjId = document.getElementById("modal-subproject-target-proj-id")?.value || selectedProjectId;
+    const proj = allProjectsData.find(p => p.id === targetProjId);
+    
+    if (!proj) return alert("找不到目前專案！請確認專案是否已被刪除或重新整理。");
 
     const updatedTasks = [...(proj.tasks || []), ...newTasks];
     updatedTasks.sort((a, b) => (a.start || "").localeCompare(b.start || ""));
@@ -6229,9 +6238,10 @@ window.submitAddSubProject = async () => {
     if (assigneeId === auth.currentUser?.uid) {
       alert(`🎉 子專案【${subProjName}】新增成功！專案已正式移入您的【未完成】清單。`);
       setProjectFilter('ongoing');
-      selectProject(proj.id);
+      selectProject(proj.id); // 🌟 強制重新釘住該專案，不再跳回總覽
     } else {
       alert(`🎉 子專案【${subProjName}】已成功指派給【${assigneeName}】！已發送通知。`);
+      selectProject(proj.id); // 🌟 指派他人後同樣維持在目前專案
       renderProjects();
     }
 
