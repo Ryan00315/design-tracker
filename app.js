@@ -5914,20 +5914,35 @@ window.updateSubTaskNumbers = function(containerOrChild) {
 
 window.addTemplateSubProjectRow = (defaultName = "", defaultAssignee = "", subTasks = []) => {
     const container = document.getElementById("edit-tpl-tasks-container");
+    if (!container) return;
     
     let assigneeOptions = getSubProjectAssigneeOptions(defaultAssignee);
+    const hasApproval = Array.isArray(subTasks) && subTasks.some(st => st.isApproval);
 
     const div = document.createElement('div');
     div.className = "form-row tpl-subproject-row"; 
     div.style.cssText = "margin-bottom: 8px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px; flex-direction: column; gap: 8px;";
     
     div.innerHTML = `
-      <div style="display:flex; gap:8px; align-items:center;">
-        <span style="font-weight:bold; color:#d97706;">📦 子專案</span>
-        <div class="form-group" style="margin:0; flex:2;">
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <span style="font-weight:bold; color:#d97706; white-space:nowrap;">📦 子專案</span>
+        <div class="form-group" style="margin:0; flex:2; min-width:140px;">
           <input type="text" class="input-control task-name subproject-name" placeholder="子專案名稱 (例: 零件採購)" value="${defaultName}">
         </div>
-        <div class="form-group" style="margin:0; flex:1;">
+
+        <!-- 🌟 補上「🛒 採購」按鈕 -->
+        <label style="display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:bold; color:#b45309; cursor:pointer; white-space:nowrap; background:#fef3c7; padding:4px 8px; border-radius:4px; border:1px solid #fde68a;">
+          <input type="checkbox" class="subproject-is-procure" onchange="window.toggleSubProjectProcure(this)" ${hasApproval ? 'checked' : ''} style="cursor:pointer;">
+          🛒 採購
+        </label>
+
+        <!-- 🌟 補上「🔄 時間同步」按鈕 -->
+        <label style="display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:bold; color:#1d4ed8; cursor:pointer; white-space:nowrap; background:#eff6ff; padding:4px 8px; border-radius:4px; border:1px solid #bfdbfe;">
+          <input type="checkbox" class="subproject-sync-date" style="cursor:pointer;">
+          🔄 時間同步
+        </label>
+
+        <div class="form-group" style="margin:0; flex:1; min-width:140px;">
             <select class="input-control subproject-assignee" onchange="onSubProjectAssigneeChange(this)">
                ${assigneeOptions}
             </select>
