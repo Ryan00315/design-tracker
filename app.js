@@ -6852,65 +6852,82 @@ window.dismissSystemNotif = async (projId, taskIndex) => {
     await updateDoc(doc(db, "projects", projId), { tasks });
 };
 
-// 🌟 同意子專案指派 (寫入歷程)
+// 🌟 徹底修復：同意子專案指派 (自動解除審核狀態並納入未完成)
 window.acceptSubProjectAssignment = async (projId, subProjName) => {
     const p = allProjectsData.find(x => x.id === projId);
-    if (!p) return;
-    const tasks = [...p.tasks];
+    if (!p) return alert("找不到該專案！");
+
+    const tasks = [...(p.tasks || [])];
     const ts = new Date().toLocaleString('zh-TW', { hour12: false });
     const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
     const myUid = auth.currentUser.uid;
     
+    // 1. 解除屬於該同仁的子專案鎖定
     tasks.forEach(t => {
-        if (t.isSubProjectTask && t.parentSubProject === subProjName && t.isPendingAcceptance) {
-            t.isPendingAcceptance = false; // 🌟 正式解除鎖定
+        // 比對子專案名稱，或者比對該同仁名下待接收的任務
+        const isMatchSub = !subProjName || t.parentSubProject === subProjName || t.name.includes(`[${subProjName}]`);
+        if (t.isSubProjectTask && isMatchSub && (t.assigneeId === myUid || t.isPendingAcceptance)) {
+            t.assigneeId = myUid;
+            t.assigneeName = myName;
+            t.isPendingAcceptance = false; // 🌟 解除鎖定
             if (!t.history) t.history = [];
             t.history.push({
                 timestamp: ts,
-                progress: t.progress, type: 'update', daysPassed: 0, delayReason: '',
-                remark: '✅ 已同意指派'
+                progress: t.progress || 0,
+                type: 'update',
+                daysPassed: 0,
+                delayReason: '',
+                remark: '✅ 已同意接收指派'
             });
         }
     });
 
-    // 🌟 只有在點擊「同意」後，才正式把該人員加入專案成員白名單
+    // 2. 將該同仁加入專案成員白名單
     let collabUids = Array.isArray(p.collaboratorUids) ? [...p.collaboratorUids] : [];
     if (!collabUids.includes(myUid)) {
       collabUids.push(myUid);
     }
 
-    // 🌟 寫入專案簽核歷程
+    // 3. 寫入專案簽核歷程
     const history = p.approvalHistory || [];
     history.push({
-      step: '✅ 同意子專案指派',
+      step: '✅ 同意接收指派',
       operatorName: myName,
       operatorUid: myUid,
       role: roleNames[currentUserData.role] || currentUserData.role,
       time: ts,
-      remark: `同意接收子專案【${subProjName}】`
+      remark: `同意接收子專案【${subProjName || '指定任務'}】`
     });
 
+    // 🌟 4. 關鍵修復：將專案狀態強制切為 active，並清空 currentAssigneeUid！
+    // 這樣通知清單才會正式消除此筆審核，未完成專案才會即刻抓到它！
     await updateDoc(doc(db, "projects", projId), { 
-      tasks, 
+      status: 'active', // 👈 專案正式生效！
+      tasks: tasks, 
       collaboratorUids: collabUids, 
-      approvalHistory: history 
+      approvalHistory: history,
+      "approvalConfig.approvalStatus": 'approved',
+      "approvalConfig.currentAssigneeUid": "" // 👈 清空指派人，通知立即消失
     });
     
-    alert(`已同意子專案 [${subProjName}]！所有相關細項已正式納入您的【未完成】清單。`);
-    renderProjects();
+    alert(`🎉 已成功同意子專案【${subProjName || '指定任務'}】！專案已正式加入您的【未完成】清單。`);
+    
+    // 切換至未完成檢視並鎖定該專案
+    setProjectFilter('ongoing');
+    selectProject(projId);
     if (window.renderNotifications) window.renderNotifications();
 };
 
-// 🌟 拒絕子專案指派 (寫入歷程)
+// 🌟 徹底修復：拒絕子專案指派 (退回開案者，專案退回通知消除)
 window.rejectSubProjectAssignment = async (projId, subProjName) => {
-    const reason = prompt(`請輸入拒絕子專案 [${subProjName}] 的原因 (必填)：`, "");
+    const reason = prompt(`請輸入拒絕子專案 [${subProjName || ''}] 的原因 (必填)：`, "");
     if (reason === null) return; 
     if (!reason.trim()) return alert("⚠️ 拒絕指派必須填寫具體原因！");
 
     const p = allProjectsData.find(x => x.id === projId);
-    if (!p) return;
+    if (!p) return alert("找不到該專案！");
     
-    const tasks = [...p.tasks];
+    const tasks = [...(p.tasks || [])];
     const ts = new Date().toLocaleString('zh-TW', { hour12: false });
     const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
     
@@ -6918,7 +6935,8 @@ window.rejectSubProjectAssignment = async (projId, subProjName) => {
     let targetAssignerName = p.ownerName;
 
     tasks.forEach(t => {
-        if (t.isSubProjectTask && t.parentSubProject === subProjName && t.isPendingAcceptance) {
+        const isMatchSub = !subProjName || t.parentSubProject === subProjName || t.name.includes(`[${subProjName}]`);
+        if (t.isSubProjectTask && isMatchSub) {
             targetAssignerId = t.assignedByUid || p.ownerId;
             targetAssignerName = t.assignedByName || p.ownerName;
             
@@ -6929,16 +6947,15 @@ window.rejectSubProjectAssignment = async (projId, subProjName) => {
             if (!t.history) t.history = [];
             t.history.push({
                 timestamp: ts,
-                progress: t.progress, 
+                progress: t.progress || 0, 
                 type: 'update', 
                 daysPassed: 0, 
                 delayReason: '',
-                remark: `❌ 退回指派 (原因: ${reason.trim()})`
+                remark: `❌ 拒絕指派 (原因: ${reason.trim()})`
             });
         }
     });
 
-    // 🌟 寫入專案簽核歷程
     const history = p.approvalHistory || [];
     history.push({
       step: '❌ 拒絕子專案指派',
@@ -6946,11 +6963,18 @@ window.rejectSubProjectAssignment = async (projId, subProjName) => {
       operatorUid: auth.currentUser.uid,
       role: roleNames[currentUserData.role] || currentUserData.role,
       time: ts,
-      remark: `拒絕子專案【${subProjName}】(原因: ${reason.trim()})`
+      remark: `拒絕子專案【${subProjName || ''}】(原因: ${reason.trim()})`
     });
 
-    await updateDoc(doc(db, "projects", projId), { tasks, approvalHistory: history });
-    // 🌟 [新增] 發送 Email 給當初發起指派的人
+    // 🌟 將專案狀態標記為 rejected 或 active (交回給開案者)，並清空 currentAssigneeUid
+    await updateDoc(doc(db, "projects", projId), { 
+      status: 'active', // 回復正常狀態由開案者處理
+      tasks: tasks, 
+      approvalHistory: history,
+      "approvalConfig.approvalStatus": 'rejected',
+      "approvalConfig.currentAssigneeUid": "" // 👈 清空指派人，通知立即消失
+    });
+
     sendNotificationEmail({
       targetUid: targetAssignerId,
       projTitle: p.title,
@@ -6959,7 +6983,7 @@ window.rejectSubProjectAssignment = async (projId, subProjName) => {
       senderName: myName
     });
   
-    alert(`已拒絕子專案 [${subProjName}]！細項已退回給開案者。`);
+    alert(`已拒絕子專案【${subProjName}】！細項已退回給開案者。`);
     renderProjects();
     if (window.renderNotifications) window.renderNotifications();
 };
