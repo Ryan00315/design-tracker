@@ -7643,9 +7643,32 @@ window.openDispatchModal = (projId) => {
     return alert("目前沒有可供指派的名單！若需執行請直接點選【承接】。");
   }
 
+  // 🌟 1. 設定職級排序權重 (職級由高至低排)
+  const rolePriority = { top_manager: 1, senior_manager: 2, manager: 3, assistant_manager: 4, staff: 5, admin: 6 };
+
+  // 🌟 2. 依照部門與職級結構化產生分組選單
   let options = '<option value="">-- 請選擇指派對象 --</option>';
-  eligibleUsers.forEach(u => {
-    options += `<option value="${u.uid}">${u.name} (${u.dept || '設計部'} - ${roleNames[u.role] || u.role})</option>`;
+
+  // 抓出系統所有有效部門（包含新建立的車頭課）
+  const allDepts = Array.isArray(departmentList) && departmentList.length > 0 
+    ? departmentList 
+    : [...new Set(eligibleUsers.map(u => u.dept || "未指定部門"))];
+
+  allDepts.forEach(dept => {
+    // 找出該部門內符合指派條件的同仁
+    const deptMembers = eligibleUsers.filter(u => (u.dept || "設計部") === dept);
+
+    if (deptMembers.length > 0) {
+      // 部門內成員按職級排序
+      deptMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99));
+
+      // 以粗體群組標籤區隔各個部門
+      options += `<optgroup label="🏢 ${dept} (${deptMembers.length} 人)">`;
+      deptMembers.forEach(u => {
+        options += `<option value="${u.uid}">${u.name} ── ${roleNames[u.role] || u.role}</option>`;
+      });
+      options += `</optgroup>`;
+    }
   });
 
   const modal = document.getElementById("general-edit-modal");
