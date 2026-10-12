@@ -496,8 +496,9 @@ tr:hover td { background: #fafafa; }
 
 /* 🌟 登入視窗：長寬多 0.5 倍 (1.5倍)，字體全部放大 1 倍 (2倍) */
 .login-box {
-  width: min(92vw, 600px) !important;      /* 寬度放大 1.5 倍 (原約 380~400px ➔ 600px) */
-  padding: 48px 40px !important;            /* 內距拉大，高度自然延伸 1.5 倍 */
+  width: min(94vw, 640px) !important;      /* 寬度擴大為 640px (原本約 400px * 1.5) */
+  max-width: 640px !important;
+  padding: 40px 48px !important;            /* 左右內距拉寬，視覺更寬敞舒適 */
   border-radius: 16px !important;
 }
 
