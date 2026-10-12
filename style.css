@@ -493,3 +493,62 @@ tr:hover td { background: #fafafa; }
     display: table-cell !important;
     vertical-align: middle !important;
 }
+
+/* 🌟 登入視窗：長寬多 0.5 倍 (1.5倍)，字體全部放大 1 倍 (2倍) */
+.login-box {
+  width: min(92vw, 600px) !important;      /* 寬度放大 1.5 倍 (原約 380~400px ➔ 600px) */
+  padding: 48px 40px !important;            /* 內距拉大，高度自然延伸 1.5 倍 */
+  border-radius: 16px !important;
+}
+
+/* 1. Logo 圖示與標題放大 */
+.login-box .logo-icon {
+  width: 56px !important;
+  height: 56px !important;
+  font-size: 28px !important;
+}
+.login-box .brand-title {
+  font-size: 32px !important;               /* 原約 16px ➔ 放大 1 倍為 32px */
+  line-height: 1.2 !important;
+}
+.login-box .brand-logo-area div div:last-child {
+  font-size: 20px !important;               /* 原 12px ➔ 放大至 20px */
+  margin-top: 4px !important;
+}
+
+/* 2. 輸入框標籤文字 (登入帳號、密碼) */
+.login-box .form-label {
+  font-size: 24px !important;               /* 原約 12~13px ➔ 放大 1 倍為 24px */
+  margin-bottom: 10px !important;
+  font-weight: 600 !important;
+}
+
+/* 3. 輸入框本體與 placeholder 提示文字 */
+.login-box .input-control {
+  height: 60px !important;                  /* 高度放大 1.5 倍 */
+  font-size: 22px !important;               /* 輸入文字放大 1 倍 */
+  padding: 10px 18px !important;
+  border-radius: 10px !important;
+}
+.login-box .input-control::placeholder {
+  font-size: 20px !important;
+}
+
+/* 4. 各欄位之間的間距放大 */
+.login-box .form-group {
+  margin-bottom: 24px !important;
+}
+.login-box .brand-logo-area {
+  margin-bottom: 32px !important;
+  gap: 16px !important;
+}
+
+/* 5. 「登入系統」按鈕 */
+.login-box #btn-login,
+.login-box .btn-primary {
+  height: 62px !important;                  /* 按鈕高度放大 1.5 倍 */
+  font-size: 26px !important;               /* 按鈕字體放大 1 倍 */
+  font-weight: 700 !important;
+  border-radius: 10px !important;
+  margin-top: 16px !important;
+}
