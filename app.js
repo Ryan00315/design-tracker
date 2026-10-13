@@ -1473,7 +1473,13 @@ window.switchViewingUser = (uid, name) => {
     document.getElementById('adhoc-form-panel').style.display = isSelf ? 'block' : 'none';
     document.getElementById('weekly-form-panel').style.display = isSelf ? 'block' : 'none';
 
+    // 🌟 關鍵修復：切換人員時，重置專案 ID 為總覽，並將分類強制切回預設的「未完成 (ongoing)」
     selectedProjectId = 'SUMMARY'; 
+    currentFilter = 'ongoing';
+    document.querySelectorAll('.kpi-card').forEach(el => el.classList.remove('active'));
+    const defaultKpiBtn = document.getElementById('filter-ongoing');
+    if (defaultKpiBtn) defaultKpiBtn.classList.add('active');
+
     isEditMode = false;
     const editBtn = document.getElementById("btn-toggle-edit-mode");
     if(editBtn) {
