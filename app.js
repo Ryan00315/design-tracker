@@ -1703,14 +1703,13 @@ window.moveTaskRow = (btn, direction) => {
 window.setProjectFilter = (status) => {
   currentFilter = status;
   document.querySelectorAll('.kpi-card').forEach(el => el.classList.remove('active'));
-  // 🌟 修正 ID 轉換：處理 pending_approval
-  const domId = status === 'pending_approval' ? 'filter-pending-approval' : 'filter-' + status;
-  const activeBtn = document.getElementById(domId);
+  const activeBtn = document.getElementById('filter-' + status);
   if(activeBtn) activeBtn.classList.add('active');
   
   selectedProjectId = 'SUMMARY'; 
   renderProjects();
 };
+
 window.selectProject = (projId) => { 
   selectedProjectId = projId; 
   isEditMode = false;
@@ -1931,33 +1930,13 @@ function renderProjects() {
       return { ...p, tasks: cleanTasks };
   });
 
-  let countOngoing = 0, countCompleted = 0, countDelayed = 0, countPendingApproval = 0, countDraft = 0, countDeleted = 0;
-  let projectsOngoing = [], projectsCompleted = [], projectsDelayed = [], projectsPendingApproval = [], projectsDraft = [], projectsDeleted = [];
+  let countOngoing = 0, countCompleted = 0, countDelayed = 0, countPendingApproval = 0;
+  let projectsOngoing = [], projectsCompleted = [], projectsDelayed = [], projectsPendingApproval = [];
 
   allInvolvedProjects.forEach(p => {
-    // 🌟 核心防呆 1：開案者比對 (容錯字串型態)
-    const isRealOwner = String(p.ownerId) === String(viewingUserId);
-    const projStatus = p.status || 'active'; // 舊專案若無 status 欄位，一律視為 active
+    const isRealOwner = (p.ownerId === viewingUserId);
 
-    // 🌟 1. 回收筒專案：只有明確被標記為 deleted 才進回收筒
-    if (projStatus === 'deleted') {
-      if (isRealOwner || currentUserData.role === 'admin' || currentUserData.role === 'top_manager') {
-        countDeleted++;
-        projectsDeleted.push(p);
-      }
-      return; // 排除在一般清單外
-    }
-
-    // 🌟 2. 草稿專案：只有明確被標記為 draft 才進草稿匣
-    if (projStatus === 'draft') {
-      if (isRealOwner) {
-        countDraft++;
-        projectsDraft.push(p);
-      }
-      return; // 排除在一般清單外
-    }
-
-    // 🌟 3. 關鍵字搜尋過濾
+    // 🌟 1. 關鍵字搜尋防呆：只有在使用者真正有輸入字詞時才過濾
     if (searchKeyword && searchKeyword.length > 0) {
       const pTitle = (p.title || "").toLowerCase();
       const matchTitle = pTitle.includes(searchKeyword);
@@ -1968,14 +1947,14 @@ function renderProjects() {
       });
 
       if (!matchTitle && !matchTask) {
-        return; // 不符合關鍵字才跳過
+        return; // 確實不包含關鍵字才略過
       }
     }
 
-    const isApproval = (projStatus === 'pending_approval');
-    const isRejected = (projStatus === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
+    const isApproval = (p.status === 'pending_approval');
+    const isRejected = (p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
 
-    // 🌟 4. 退回專案
+    // 🌟 2. 退回案件：只有開案者計算並列入
     if (isRejected) {
       if (isRealOwner) {
         countPendingApproval++;
@@ -1984,20 +1963,18 @@ function renderProjects() {
       return;
     }
 
-    // 🌟 5. 簽核中專案
+    // 🌟 3. 簽核中案件：開案者自己、或輪到的審核人列入
     if (isApproval) {
       const cfg = p.approvalConfig || {};
-      const isMyTurn = cfg.currentAssigneeUid 
-        ? (cfg.currentAssigneeUid === auth.currentUser?.uid) 
-        : (currentUserData.role === 'admin' || currentUserData.role === 'top_manager');
+      const isMyTurn = cfg.currentAssigneeUid ? (cfg.currentAssigneeUid === auth.currentUser?.uid) : (currentUserData.role === 'admin' || currentUserData.role === 'top_manager');
       if (isRealOwner || isMyTurn) {
         countPendingApproval++;
         projectsPendingApproval.push(p);
       }
-      return;
+      return; // 審核中專案到此為止，不進入下方未完成
     }
 
-    // 🌟 6. 正常專案 (未完成 / 已完成)：確保每個人的專案 100% 都會被推入清單！
+    // 🌟 4. 任務完成與未完成計算 (開案者看全部細項，協作者只看分派給自己的細項)
     let relevantTasks = [];
     if (isRealOwner) {
       relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
@@ -2009,17 +1986,16 @@ function renderProjects() {
       );
     }
 
-    // 若非開案者，且此專案名下沒有指派給他的任務，但此專案有開放給他看 (開放瀏覽)，則不推入未完成
+    // 若非開案者且名下無任何任務，不計入未完成
     if (!isRealOwner && relevantTasks.length === 0) {
       return; 
     }
 
-    // 計算是否全數完成與是否有 Delay
     const isAllDone = relevantTasks.length > 0 ? relevantTasks.every(t => t.isCompleted) : false;
     const hasDelay = relevantTasks.length > 0 ? relevantTasks.some(t => !t.isCompleted && todayStr > t.end) : false;
     const inYear = spansYear(p, selectedYear);
 
-    // 🌟 關鍵：只要未全部完成，必定推入未完成清單！
+    // 🌟 5. 正式推入未完成
     if (!isAllDone) {
       countOngoing++; 
       projectsOngoing.push(p); 
@@ -2054,13 +2030,9 @@ function renderProjects() {
   const elDelay = document.getElementById('stat-delay');
   if(elDelay) elDelay.innerText = countDelayed;
   const elCollab = document.getElementById('stat-collab');
-  if(elCollab) elCollab.innerText = viewOnlyProjects.length;
+  if(elCollab) elCollab.innerText = viewOnlyProjects.length; // 開放瀏覽數量
   const elPendingApp = document.getElementById('stat-pending-approval');
   if(elPendingApp) elPendingApp.innerText = countPendingApproval;
-  const elDraft = document.getElementById('stat-draft');
-  if(elDraft) elDraft.innerText = countDraft;
-  const elDeleted = document.getElementById('stat-deleted');
-  if(elDeleted) elDeleted.innerText = countDeleted;
 
   let activeList = [];
   let activeAdHocs = [];
@@ -2079,12 +2051,6 @@ function renderProjects() {
       activeAdHocs = [];
   } else if (currentFilter === 'pending_approval') {
       activeList = projectsPendingApproval;
-      activeAdHocs = [];
-  } else if (currentFilter === 'draft') {
-      activeList = projectsDraft;
-      activeAdHocs = [];
-  } else if (currentFilter === 'deleted') {
-      activeList = projectsDeleted;
       activeAdHocs = [];
   }
   activeList = Array.from(new Set(activeList)); 
@@ -2160,8 +2126,6 @@ function renderProjects() {
     else if (currentFilter === 'delayed') summaryLabel = "Delay";
     else if (currentFilter === 'collab') summaryLabel = "開放瀏覽";
     else if (currentFilter === 'pending_approval') summaryLabel = "簽核中";
-    else if (currentFilter === 'draft') summaryLabel = "草稿匣";
-    else if (currentFilter === 'deleted') summaryLabel = "資源回收筒";
     
     const panelHeadSpan = document.querySelector('#project-summary-view .panel-head span');
     if (panelHeadSpan) panelHeadSpan.innerText = `⭐ 專案清單 (${summaryLabel})`;
@@ -2344,19 +2308,6 @@ function renderProjects() {
     : '';
 
   let statusBadge = "";
-  if (activeProj.status === 'draft') {
-      statusBadge = `<span class="pill" style="background:#fef3c7; color:#92400e; margin-left:8px; font-weight:bold;">📝 專案草稿</span>`;
-      pauseBtnHtml = `
-        <button class="action-btn" onclick="editDraftProject('${activeProj.id}')" style="margin-left:8px; background:#4f46e5; color:#fff; border:none; padding:4px 12px; font-weight:bold; cursor:pointer;">✏️ 繼續編輯此草稿</button>
-        <button class="action-btn danger" onclick="discardDraft('${activeProj.id}')" style="margin-left:4px; padding:4px 10px; font-weight:bold;">🗑️ 捨棄草稿</button>
-      `;
-  } else if (activeProj.status === 'deleted') {
-      statusBadge = `<span class="pill pill-danger" style="margin-left:8px; font-weight:bold;">🗑️ 已在回收筒中 (刪除者: ${activeProj.deletedByName || '未知'})</span>`;
-      pauseBtnHtml = `
-        <button class="action-btn" onclick="restoreProject('${activeProj.id}')" style="margin-left:8px; background:#10b981; color:#fff; border:none; padding:4px 12px; font-weight:bold; cursor:pointer;">♻️ 復原專案</button>
-        <button class="action-btn danger" onclick="permanentDeleteProject('${activeProj.id}')" style="margin-left:4px; padding:4px 10px; font-weight:bold;">❌ 永久清除</button>
-      `;
-  }
   let pauseBtnHtml = "";
   let resubmitBtnHtml = ""; // 🌟 新增：重新送審按鈕容器
   const isAdminOrTop = currentUserData.role === 'admin' || currentUserData.role === 'top_manager';
@@ -3313,8 +3264,8 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
     }
   }
 
-  // 🌟 3. 寫入 Firebase (若為載入草稿送出，則直接轉正覆蓋原草稿；否則新增專案)
-  const projectPayload = { 
+  // 🌟 3. 寫入 Firebase (注意欄位變更為 finalIsNeedApproval 與 finalIsApplyCollab)
+  const docRef = await addDoc(collection(db, "projects"), { 
     title, 
     color, 
     collaborators, 
@@ -3327,24 +3278,13 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
       isNeedApproval: finalIsNeedApproval,
       isApplyCollab: finalIsApplyCollab,
       approvalDesc: approvalDesc || (hasCrossDeptSubProject ? `跨部門子專案協作：${crossDeptTargetInfo.join('、')}` : ''),
-      currentStage: finalIsNeedApproval ? 'top_manager' : 'done',
-      currentAssigneeUid: "",
+      currentStage: finalIsNeedApproval ? 'top_manager' : 'done', // 進入第一關：最高主管
+      currentAssigneeUid: "",                                     // 清空待指派
       approvalStatus: finalIsNeedApproval ? (finalIsApplyCollab ? 'pending_collab_dispatch' : 'pending_top_approval') : 'none'
     },
     approvalHistory: approvalHistory
-  };
+  });
 
-  let finalProjId = null;
-  if (window.currentEditingDraftId) {
-    // 🌟 原本是草稿：直接更新覆蓋並轉正，不產生重複文件
-    await updateDoc(doc(db, "projects", window.currentEditingDraftId), projectPayload);
-    finalProjId = window.currentEditingDraftId;
-    window.currentEditingDraftId = null; // 清空草稿 ID 標記
-  } else {
-    // 🌟 全新專案：新增文件
-    const docRef = await addDoc(collection(db, "projects"), projectPayload);
-    finalProjId = docRef.id;
-  }
   // 🌟 [補上] 若專案需審核或跨部門協作，即時寄信通知所有最高主管
   if (finalIsNeedApproval) {
     sendNotificationEmail({
@@ -3380,11 +3320,10 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   } else {
     setProjectFilter('ongoing');
   }
-  selectedProjectId = finalProjId;
+  selectedProjectId = docRef.id;
   renderProjects(); 
 });
 
-// 🌟 1. 改為軟刪除 (移入資源回收筒)
 window.deleteCurrentProject = async () => { 
   const projIdToDelete = selectedProjectId;
   if (!projIdToDelete || projIdToDelete === 'SUMMARY') {
@@ -3394,11 +3333,6 @@ window.deleteCurrentProject = async () => {
   const p = allProjectsData.find(x => x.id === projIdToDelete);
   if (!p) return alert("找不到欲刪除的專案！");
 
-  // 若目前是草稿，引導直接捨棄
-  if (p.status === 'draft') {
-    return window.discardDraft(projIdToDelete);
-  }
-
   const isOwner = (auth.currentUser?.uid === p.ownerId);
   const inGrace = isOwner && isWithin7DaysGracePeriod(p);
   const isAdminOrEditor = (currentUserData.role === 'admin' || currentUserData.canEdit);
@@ -3407,312 +3341,28 @@ window.deleteCurrentProject = async () => {
     return alert("⚠️ 權限不足！專案主檔已超過 7 天寬限期，無法刪除，請聯繫管理員協助。");
   }
   
-  if (!confirm(`確定要將專案【${p.title}】移至【資源回收筒】嗎？\n（稍後若有需要，可在回收筒中隨時復原）`)) {
+  if (!confirm(`⚠️ 確定要永久刪除專案【${p.title}】嗎？\n刪除後所有部門（包含開放瀏覽與協作人員）都將無法再看到此專案！`)) {
     return;
   }
 
   try {
-    const ts = new Date().toLocaleString('zh-TW', { hour12: false });
-    const myName = currentUserData.name || auth.currentUser?.email?.split('@')[0] || "人員";
-    const history = p.approvalHistory || [];
-    history.push({
-      step: '🗑️ 移至資源回收筒',
-      operatorName: myName,
-      operatorUid: auth.currentUser?.uid || "",
-      role: roleNames[currentUserData.role] || currentUserData.role,
-      time: ts,
-      remark: '使用者將專案移入回收筒'
-    });
+    // 1. 從 Firestore 雲端徹底物理刪除
+    await deleteDoc(doc(db, "projects", projIdToDelete));
 
-    // 🌟 軟刪除：記錄 originalStatus，將 status 改為 deleted
-    await updateDoc(doc(db, "projects", projIdToDelete), {
-      status: 'deleted',
-      originalStatus: p.status || 'active',
-      deletedAt: new Date().toISOString(),
-      deletedByName: myName,
-      approvalHistory: history
-    });
+    // 2. 本地記憶體立即移除該筆專案，防止殘留
+    allProjectsData = allProjectsData.filter(x => x.id !== projIdToDelete);
 
+    // 3. 重設選取狀態並重新整理畫面
     selectedProjectId = 'SUMMARY'; 
-    alert(`🗑️ 專案【${p.title}】已成功移入資源回收筒！`); 
+    alert(`🗑️ 專案【${p.title}】已徹底刪除！`); 
+
+    // 4. 強制重新整理專案與通知畫面
     renderProjects();
     if (window.renderNotifications) window.renderNotifications();
 
   } catch (err) {
-    console.error("移入回收筒失敗：", err);
-    alert("刪除失敗：" + err.message);
-  }
-};
-
-// 🌟 2. 儲存專案為草稿
-window.saveProjectAsDraft = async () => {
-  const title = document.getElementById("proj-name")?.value.trim();
-  if (!title) return alert("⚠️ 儲存草稿至少需填寫【主專案名稱】！");
-
-  const color = document.getElementById("proj-color")?.value || "bar-primary";
-  const collabCheckboxes = document.querySelectorAll('input[name="collab_dept"]:checked');
-  const collaborators = Array.from(collabCheckboxes).map(cb => cb.value);
-
-  const isNeedApproval = document.getElementById("chk-need-approval")?.checked || false;
-  const isApplyCollab = document.getElementById("chk-apply-collab")?.checked || false;
-  let approvalDesc = approvalQuill ? approvalQuill.root.innerHTML.trim() : "";
-  if (approvalDesc === '<p><br></p>') approvalDesc = "";
-
-  const tasks = [];
-  const todayStr = getTodayStr(); 
-  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
-  const myName = currentUserData.name || auth.currentUser.email.split('@')[0];
-
-  const allRows = document.querySelectorAll('#task-list-container > .form-row');
-  for (let row of allRows) {
-    if (row.classList.contains('task-row')) {
-      const name = row.querySelector('.task-name')?.value.trim() || "";
-      const start = row.querySelector('.task-start')?.value || "";
-      const end = row.querySelector('.task-end')?.value || "";
-      if (name || start || end) {
-        tasks.push({
-          name: name || "草稿細項",
-          start: start || todayStr,
-          end: end || todayStr,
-          progress: 0,
-          isCompleted: false,
-          assigneeId: auth.currentUser.uid,
-          assigneeName: myName,
-          isPendingAcceptance: false,
-          history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: 0, remark: '草稿儲存' }]
-        });
-      }
-    } else if (row.classList.contains('subproject-row')) {
-      const subProjName = row.querySelector('.subproject-name')?.value.trim() || "未命名子專案";
-      const assigneeSelect = row.querySelector('.subproject-assignee');
-      const assigneeId = assigneeSelect ? assigneeSelect.value : "";
-      const assigneeName = assigneeId ? assigneeSelect.options[assigneeSelect.selectedIndex].text.split(' ')[0] : myName;
-      const subTasks = row.querySelectorAll('.sub-task-item');
-
-      if (subTasks.length === 0) {
-        tasks.push({
-          name: `[${subProjName}] 尚未建立細項`,
-          start: todayStr, end: todayStr, progress: 0, isCompleted: false,
-          assigneeId: assigneeId || auth.currentUser.uid,
-          assigneeName: assigneeName,
-          isSubProjectTask: true,
-          parentSubProject: subProjName,
-          isPendingAcceptance: false,
-          history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: 0, remark: '草稿子專案' }]
-        });
-      } else {
-        for (let subRow of subTasks) {
-          const sName = subRow.querySelector('.sub-task-name')?.value.trim() || "子細項";
-          const sStart = subRow.querySelector('.sub-task-start')?.value || todayStr;
-          const sEnd = subRow.querySelector('.sub-task-end')?.value || todayStr;
-          tasks.push({
-            name: `[${subProjName}] ${sName}`,
-            start: sStart, end: sEnd, progress: 0, isCompleted: false,
-            assigneeId: assigneeId || auth.currentUser.uid,
-            assigneeName: assigneeName,
-            isSubProjectTask: true,
-            parentSubProject: subProjName,
-            isPendingAcceptance: false,
-            history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: 0, remark: '草稿子細項' }]
-          });
-        }
-      }
-    }
-  }
-
-  const draftData = {
-    title,
-    color,
-    collaborators,
-    ownerId: auth.currentUser.uid,
-    ownerName: myName,
-    tasks,
-    status: 'draft', // 🌟 專屬草稿狀態
-    createdAt: serverTimestamp(),
-    updatedAt: ts,
-    approvalConfig: {
-      isNeedApproval,
-      isApplyCollab,
-      approvalDesc
-    },
-    approvalHistory: [{
-      step: '📝 儲存專案草稿',
-      operatorName: myName,
-      operatorUid: auth.currentUser.uid,
-      time: ts,
-      remark: '使用者暫存草稿'
-    }]
-  };
-
-  try {
-    if (window.currentEditingDraftId) {
-      await updateDoc(doc(db, "projects", window.currentEditingDraftId), draftData);
-      alert(`✅ 草稿【${title}】已成功更新！`);
-    } else {
-      const docRef = await addDoc(collection(db, "projects"), draftData);
-      window.currentEditingDraftId = docRef.id;
-      alert(`✅ 專案【${title}】已暫存至【📝 草稿匣】！\n日後隨時可在草稿匣中點選「繼續編輯」完成並送出。`);
-    }
-
-    // 清空表單並關閉
-    document.getElementById("create-project-section").style.display = "none";
-    document.getElementById("proj-name").value = "";
-    document.getElementById("task-list-container").innerHTML = "";
-    window.currentEditingDraftId = null;
-
-    setProjectFilter('draft');
-  } catch (err) {
-    console.error("儲存草稿失敗：", err);
-    alert("儲存草稿失敗：" + err.message);
-  }
-};
-
-// 🌟 3. 繼續編輯草稿 (回填至開案表單)
-window.editDraftProject = (projId) => {
-  const proj = allProjectsData.find(p => p.id === projId);
-  if (!proj) return alert("找不到此草稿！");
-
-  const formSection = document.getElementById("create-project-section");
-  if (formSection) formSection.style.display = "block";
-
-  // 回填基本資料
-  document.getElementById("proj-name").value = proj.title || "";
-  document.getElementById("proj-color").value = proj.color || "bar-primary";
-  renderCollabCheckboxes(proj.collaborators || []);
-
-  if (proj.approvalConfig?.isNeedApproval) {
-    const chk = document.getElementById("chk-need-approval");
-    if (chk) {
-      chk.checked = true;
-      window.toggleApprovalOptions(true);
-      setTimeout(() => {
-        if (approvalQuill) approvalQuill.root.innerHTML = proj.approvalConfig.approvalDesc || "";
-      }, 100);
-    }
-  }
-
-  // 記錄正在編輯的草稿 ID
-  window.currentEditingDraftId = projId;
-
-  // 還原任務列表
-  const container = document.getElementById("task-list-container");
-  container.innerHTML = "";
-
-  const subProjGroups = {};
-  (proj.tasks || []).forEach(t => {
-    if (t.isSubProjectTask && t.parentSubProject) {
-      if (!subProjGroups[t.parentSubProject]) {
-        subProjGroups[t.parentSubProject] = { assigneeId: t.assigneeId, tasks: [] };
-      }
-      subProjGroups[t.parentSubProject].tasks.push(t);
-    } else {
-      // 一般細項
-      const div = document.createElement('div');
-      div.className = "form-row task-row";
-      div.style.marginBottom = "8px";
-      const workDays = getWorkingDays(t.start, t.end);
-      div.innerHTML = `
-        <div class="form-group" style="margin:0; flex:3;"><input type="text" class="input-control task-name" placeholder="細項名稱" value="${t.name}"></div>
-        <div class="form-group" style="margin:0; flex:1.5;"><input type="date" class="input-control task-start" value="${t.start}" onchange="onTaskStartChange(this, null)"></div>
-        <div class="form-group" style="margin:0; width:65px; flex-shrink:0;"><input type="number" min="1" class="input-control task-days" value="${workDays}" placeholder="天數" oninput="onTaskDaysChange(this, null, null)"></div>
-        <div class="form-group" style="margin:0; flex:1.5;"><input type="date" class="input-control task-end" value="${t.end}" min="${t.start}" onchange="onTaskEndChange(this, null, null)"></div>
-        <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
-          <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
-          <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
-          <button type="button" class="action-btn danger" onclick="this.closest('.task-row').remove()" style="padding:8px 10px;">X</button>
-        </div>
-      `;
-      container.appendChild(div);
-    }
-  });
-
-  // 還原各子專案
-  for (let sName in subProjGroups) {
-    const group = subProjGroups[sName];
-    const subTasksParam = group.tasks.map(st => ({
-      name: st.name.replace(`[${sName}] `, '').replace('尚未建立細項', ''),
-      start: st.start,
-      days: getWorkingDays(st.start, st.end),
-      end: st.end,
-      isApproval: st.name.includes('簽核送審')
-    }));
-    window.addSubProjectRow(sName, group.assigneeId, subTasksParam);
-  }
-
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-  alert(`📝 已成功將草稿【${proj.title}】載入上方開案表單，您可以繼續編輯或正式送出！`);
-};
-
-// 🌟 4. 捨棄草稿 (直接自資料庫刪除)
-window.discardDraft = async (projId) => {
-  if (!confirm("確定要捨棄並永久刪除此草稿嗎？")) return;
-  try {
-    await deleteDoc(doc(db, "projects", projId));
-    if (window.currentEditingDraftId === projId) window.currentEditingDraftId = null;
-    alert("🗑️ 草稿已成功捨棄刪除！");
-    selectedProjectId = 'SUMMARY';
-    renderProjects();
-  } catch (err) {
-    alert("捨棄草稿失敗：" + err.message);
-  }
-};
-
-// 🌟 5. 復原專案 (從回收筒救回)
-window.restoreProject = async (projId) => {
-  const proj = allProjectsData.find(p => p.id === projId);
-  if (!proj) return alert("找不到該專案！");
-
-  if (!confirm(`確定要復原專案【${proj.title}】嗎？\n復原後專案將放回您原先的清單中。`)) return;
-
-  const myName = currentUserData.name || auth.currentUser?.email?.split('@')[0] || "人員";
-  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
-  const history = proj.approvalHistory || [];
-  history.push({
-    step: '♻️ 復原專案',
-    operatorName: myName,
-    operatorUid: auth.currentUser?.uid || "",
-    role: roleNames[currentUserData.role] || currentUserData.role,
-    time: ts,
-    remark: '從資源回收筒復原專案'
-  });
-
-  // 還原為當初被刪除前的狀態，若無則預設為 active
-  const targetStatus = proj.originalStatus || 'active';
-
-  try {
-    await updateDoc(doc(db, "projects", projId), {
-      status: targetStatus,
-      deletedAt: null,
-      deletedByName: null,
-      approvalHistory: history
-    });
-
-    alert(`🎉 專案【${proj.title}】已成功復原！`);
-    setProjectFilter(targetStatus === 'active' ? 'ongoing' : targetStatus);
-    selectProject(projId);
-  } catch (err) {
-    console.error("復原失敗：", err);
-    alert("復原失敗：" + err.message);
-  }
-};
-
-// 🌟 6. 永久清除專案 (真正從資料庫物理抹除)
-window.permanentDeleteProject = async (projId) => {
-  const proj = allProjectsData.find(p => p.id === projId);
-  const title = proj ? proj.title : "此專案";
-
-  if (!confirm(`⚠️ 嚴重警告：\n即將【永久刪除】專案【${title}】！\n此操作「完全無法復原」，專案的所有細項與審核歷程將自資料庫徹底抹除。\n確定執行？`)) return;
-
-  try {
-    await deleteDoc(doc(db, "projects", projId));
-    allProjectsData = allProjectsData.filter(x => x.id !== projId);
-    selectedProjectId = 'SUMMARY';
-    alert(`❌ 專案【${title}】已自資料庫永久抹除！`);
-    renderProjects();
-    if (window.renderNotifications) window.renderNotifications();
-  } catch (err) {
-    console.error("永久清除失敗：", err);
-    alert("永久清除失敗：" + err.message);
+    console.error("刪除專案失敗：", err);
+    alert("刪除專案失敗：" + err.message);
   }
 };
 
