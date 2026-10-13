@@ -84,6 +84,8 @@
               <div class="kpi-card" id="filter-delayed" onclick="setProjectFilter('delayed')"><div class="kpi-title">(Delay)</div><div class="kpi-number" id="stat-delay" style="color: var(--danger);">0</div></div>
               <div class="kpi-card" id="filter-collab" onclick="setProjectFilter('collab')"><div class="kpi-title">開放瀏覽</div><div class="kpi-number" id="stat-collab" style="color: var(--primary);">0</div></div>
               <div class="kpi-card" id="filter-pending-approval" onclick="setProjectFilter('pending_approval')"><div class="kpi-title">簽核中</div><div class="kpi-number" id="stat-pending-approval" style="color: var(--warning);">0</div></div>
+              <div class="kpi-card" id="filter-draft" onclick="setProjectFilter('draft')"><div class="kpi-title">📝 草稿匣</div><div class="kpi-number" id="stat-draft" style="color: #d97706;">0</div></div>
+              <div class="kpi-card" id="filter-deleted" onclick="setProjectFilter('deleted')"><div class="kpi-title">🗑️ 回收筒</div><div class="kpi-number" id="stat-deleted" style="color: #ef4444;">0</div></div>
             </div>
             <div style="display: flex; align-items: center;" id="btn-create-wrapper">
               <button id="btn-toggle-create" class="btn-primary" style="height: 100%; padding: 0 24px; font-size: 15px;">➕ 新增專案規劃</button>
@@ -139,7 +141,7 @@
               <button type="button" class="action-btn" onclick="addTaskRow()" style="margin-top: 10px; border-style: dashed;">+ 新增任務細項</button>
               <button type="button" class="action-btn" onclick="addSubProjectRow()" style="margin-top: 10px; border-style: dashed; border-color: #d97706; color: #d97706;">+ 新增子專案</button>
             </div>
-            <div style="margin-top: 24px; border-top: 1px solid var(--border); padding-top: 20px;"><button id="btn-add-project" class="btn-primary" style="width: 180px;">送出並建立專案</button></div>
+            
           </div>
 
           <div class="project-tabs-wrapper" id="project-tabs-container"></div>
