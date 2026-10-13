@@ -147,11 +147,10 @@
             <div style="margin-top: 24px; border-top: 1px solid var(--border); padding-top: 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
               <button id="btn-add-project" class="btn-primary" style="width: 180px;">送出並建立專案</button>
               
-              <!-- 🌟 新增：草稿操作按鈕組 -->
-              <button type="button" class="action-btn" onclick="saveProjectDraft()" style="border-color: #3b82f6; color: #2563eb; font-weight: bold; padding: 8px 16px;">💾 儲存草稿 (下次繼續)</button>
-              <button type="button" class="action-btn" id="btn-load-draft" onclick="loadProjectDraft()" style="border-color: #059669; color: #059669; font-weight: bold; padding: 8px 16px; display: none;">📂 載入草稿</button>
-              <button type="button" class="action-btn danger" onclick="clearProjectDraft()" style="padding: 8px 14px;">🗑️ 放棄草稿</button>
-              <span id="draft-status-hint" style="font-size: 12px; color: #64748b; margin-left: 6px;"></span>
+              <!-- 🌟 草稿操作按鈕組：名稱改為「💾 儲存草稿」並支援多草稿選擇 -->
+              <button type="button" class="action-btn" onclick="saveProjectDraft()" style="border-color: #3b82f6; color: #2563eb; font-weight: bold; padding: 8px 16px;">💾 儲存草稿</button>
+              <button type="button" class="action-btn" id="btn-load-draft" onclick="openDraftListModal()" style="border-color: #059669; color: #059669; font-weight: bold; padding: 8px 16px; display: none;">📂 載入草稿 (<span id="draft-count-num">0</span>)</button>
+              <button type="button" class="action-btn danger" onclick="clearCurrentFormDraft()" style="padding: 8px 14px;">清空目前表單</button>
             </div>
           </div>
 
