@@ -1047,6 +1047,7 @@ document.getElementById('btn-toggle-create').addEventListener('click', () => {
     document.getElementById("task-list-container").innerHTML = "";
     document.getElementById("task-list-container").dataset.cascadeMode = ""; 
     addTaskRow();
+    window.checkDraftStatus(); // 🌟 檢查是否有草稿並顯示載入按鈕
   }
 });
 
@@ -1858,6 +1859,23 @@ function renderProjects() {
   const todayStr = getTodayStr();
   // 🌟 抓取搜尋關鍵字 (轉小寫便於比對)
   const searchKeyword = (document.getElementById('project-search-keyword')?.value || "").trim().toLowerCase();
+  // 🌟 1. 先將「正常專案」與「已刪除專案 (回收筒)」分流
+  const normalProjects = allProjectsData.filter(p => p.isDeleted !== true);
+  
+  // 抓出屬於當前檢視人員的回收筒專案 (管理員可看全部)
+  const trashedProjects = allProjectsData.filter(p => p.isDeleted === true && (p.ownerId === viewingUserId || currentUserData.role === 'admin'));
+  
+  // 更新 KPI 卡片上的「回收筒」數字
+  const elTrash = document.getElementById('stat-trash');
+  if (elTrash) elTrash.innerText = trashedProjects.length;
+
+  // 1. 自己開案的正常專案 (使用 normalProjects，排除已刪除)
+  const userProjects = normalProjects.filter(p => p.ownerId === viewingUserId);
+  const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
+
+  // 2. 開放瀏覽專案 (使用 normalProjects)
+  const viewOnlyProjects = normalProjects.filter(p => {
+    if (p.ownerId === viewingUserId) return false;
   // 1. 自己開案的專案
   const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
@@ -2047,12 +2065,21 @@ function renderProjects() {
       activeList = projectsDelayed;
       activeAdHocs = adHocsDelayed;
   } else if (currentFilter === 'collab') {
-      activeList = viewOnlyProjects; // 🌟 點選「開放瀏覽」只看開放瀏覽的專案
+      activeList = viewOnlyProjects;
       activeAdHocs = [];
   } else if (currentFilter === 'pending_approval') {
       activeList = projectsPendingApproval;
       activeAdHocs = [];
   }
+  } else if (currentFilter === 'pending_approval') {
+      activeList = projectsPendingApproval;
+      activeAdHocs = [];
+  } else if (currentFilter === 'trash') {
+      // 🌟 新增：點選回收筒時，只列出已刪除的專案
+      activeList = trashedProjects;
+      activeAdHocs = [];
+  }
+  
   activeList = Array.from(new Set(activeList)); 
 
   if (selectedProjectId !== 'SUMMARY') {
@@ -2126,6 +2153,7 @@ function renderProjects() {
     else if (currentFilter === 'delayed') summaryLabel = "Delay";
     else if (currentFilter === 'collab') summaryLabel = "開放瀏覽";
     else if (currentFilter === 'pending_approval') summaryLabel = "簽核中";
+    else if (currentFilter === 'trash') summaryLabel = "🗑️ 回收筒"; // 🌟 新增這行
     
     const panelHeadSpan = document.querySelector('#project-summary-view .panel-head span');
     if (panelHeadSpan) panelHeadSpan.innerText = `⭐ 專案清單 (${summaryLabel})`;
@@ -2354,11 +2382,21 @@ function renderProjects() {
     ? `<button class="action-btn" onclick="openCollaboratorsModal('${activeProj.id}')" style="margin-left:8px; border-color:#3b82f6; color:#2563eb; font-weight:bold; padding:2px 6px;" title="查看/管理協作成員">👥</button>`
     : '';
 
+  // 🌟 若專案處於回收筒，顯示「已刪除標籤」、「復原專案」按鈕與「徹底銷毀」按鈕
+  let trashActionHtml = "";
+  if (activeProj.isDeleted) {
+    trashActionHtml = `
+      <span class="pill pill-danger" style="margin-left:8px;">🗑️ 已移至回收筒 (${activeProj.deletedAt || ''})</span>
+      <button class="action-btn" onclick="restoreProject('${activeProj.id}')" style="margin-left:8px; background:#10b981; color:#fff; border:none; padding:3px 10px; font-weight:bold; cursor:pointer;">♻️ 復原此專案</button>
+      <button class="action-btn danger" onclick="purgeProjectPermanently('${activeProj.id}')" style="margin-left:4px; padding:3px 10px; font-weight:bold; cursor:pointer;">🔥 徹底抹除</button>
+    `;
+  }
+
   const currentTitleEl = document.getElementById("current-gantt-title");
   if (currentTitleEl) currentTitleEl.innerHTML = `
       <span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} 
       <span style="display:inline-flex; flex-wrap:wrap; align-items:center; gap:4px; margin-top:2px;">
-          ${viewOnlyBadge} ${statusBadge} ${resubmitBtnHtml} ${graceBadge} ${approvalLogBtn} ${collabManageBtn} ${pauseBtnHtml} ${editProjBtn} ${inlineDelBtn}
+          ${viewOnlyBadge} ${statusBadge} ${resubmitBtnHtml} ${trashActionHtml} ${graceBadge} ${approvalLogBtn} ${collabManageBtn} ${pauseBtnHtml} ${editProjBtn} ${inlineDelBtn}
       </span>
   `;
   
@@ -3315,6 +3353,10 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   addTaskRow(); 
   document.getElementById('create-project-section').style.display = 'none';
   
+  // 🌟 新增這兩行：專案正式建立後，清空已儲存的草稿
+  localStorage.removeItem(getDraftStorageKey());
+  window.checkDraftStatus();
+
   if (isNeedApproval) {
     setProjectFilter('pending_approval');
   } else {
@@ -3341,28 +3383,29 @@ window.deleteCurrentProject = async () => {
     return alert("⚠️ 權限不足！專案主檔已超過 7 天寬限期，無法刪除，請聯繫管理員協助。");
   }
   
-  if (!confirm(`⚠️ 確定要永久刪除專案【${p.title}】嗎？\n刪除後所有部門（包含開放瀏覽與協作人員）都將無法再看到此專案！`)) {
+  if (!confirm(`⚠️ 確定要將專案【${p.title}】移入回收筒嗎？\n專案將移至「🗑️ 回收筒」，您隨時可以前往復原！`)) {
     return;
   }
 
   try {
-    // 1. 從 Firestore 雲端徹底物理刪除
-    await deleteDoc(doc(db, "projects", projIdToDelete));
+    const ts = new Date().toLocaleString('zh-TW', { hour12: false });
 
-    // 2. 本地記憶體立即移除該筆專案，防止殘留
-    allProjectsData = allProjectsData.filter(x => x.id !== projIdToDelete);
+    // 🌟 核心：改為軟刪除，只打上標籤，所有細項與進度毫髮無損
+    await updateDoc(doc(db, "projects", projIdToDelete), {
+      isDeleted: true,
+      deletedAt: ts,
+      deletedByUid: auth.currentUser?.uid,
+      deletedByName: currentUserData.name || "使用者"
+    });
 
-    // 3. 重設選取狀態並重新整理畫面
     selectedProjectId = 'SUMMARY'; 
-    alert(`🗑️ 專案【${p.title}】已徹底刪除！`); 
-
-    // 4. 強制重新整理專案與通知畫面
+    alert(`🗑️ 專案【${p.title}】已移入回收筒！`); 
     renderProjects();
     if (window.renderNotifications) window.renderNotifications();
 
   } catch (err) {
-    console.error("刪除專案失敗：", err);
-    alert("刪除專案失敗：" + err.message);
+    console.error("移入回收筒失敗：", err);
+    alert("移入回收筒失敗：" + err.message);
   }
 };
 
@@ -8246,3 +8289,223 @@ if (document.readyState === "loading") {
 } else {
   setTimeout(window.initManualModalUI, 300);
 }
+
+// ===================================================
+// 🌟 專案草稿儲存、載入與清空實作函式 (獨立使用 UID 隔離)
+// ===================================================
+function getDraftStorageKey() {
+  const uid = auth.currentUser?.uid || "guest";
+  return `pms_project_draft_${uid}`;
+}
+
+// 檢查是否有儲存的草稿並控制按鈕顯示
+window.checkDraftStatus = function() {
+  const key = getDraftStorageKey();
+  const draftRaw = localStorage.getItem(key);
+  const btnLoad = document.getElementById("btn-load-draft");
+  const hint = document.getElementById("draft-status-hint");
+
+  if (draftRaw) {
+    try {
+      const draft = JSON.parse(draftRaw);
+      if (btnLoad) btnLoad.style.display = "inline-block";
+      if (hint) hint.innerText = `(已存草稿: ${draft.savedAt || ''})`;
+    } catch(e) {
+      if (btnLoad) btnLoad.style.display = "none";
+      if (hint) hint.innerText = "";
+    }
+  } else {
+    if (btnLoad) btnLoad.style.display = "none";
+    if (hint) hint.innerText = "";
+  }
+};
+
+// 儲存草稿
+window.saveProjectDraft = function() {
+  const title = document.getElementById("proj-name")?.value.trim() || "";
+  const color = document.getElementById("proj-color")?.value || "bar-primary";
+  
+  const collabCheckboxes = document.querySelectorAll('input[name="collab_dept"]:checked');
+  const collaborators = Array.from(collabCheckboxes).map(cb => cb.value);
+
+  const isNeedApproval = document.getElementById("chk-need-approval")?.checked || false;
+  const isApplyCollab = document.getElementById("chk-apply-collab")?.checked || false;
+  const approvalDesc = approvalQuill ? approvalQuill.root.innerHTML.trim() : "";
+
+  const tasks = [];
+  const allRows = document.querySelectorAll('#task-list-container > .form-row');
+
+  for (let row of allRows) {
+    if (row.classList.contains('task-row')) {
+      tasks.push({
+        type: 'task',
+        name: row.querySelector('.task-name')?.value || "",
+        start: row.querySelector('.task-start')?.value || "",
+        days: row.querySelector('.task-days')?.value || "1",
+        end: row.querySelector('.task-end')?.value || ""
+      });
+    } else if (row.classList.contains('subproject-row')) {
+      const subName = row.querySelector('.subproject-name')?.value || "";
+      const assigneeSelect = row.querySelector('.subproject-assignee');
+      const assigneeId = assigneeSelect ? assigneeSelect.value : "";
+      const isProcure = row.querySelector('.subproject-is-procure')?.checked || false;
+      const isSyncDate = row.querySelector('.subproject-sync-date')?.checked || false;
+
+      const subTasks = [];
+      row.querySelectorAll('.sub-task-item').forEach(st => {
+        subTasks.push({
+          name: st.querySelector('.sub-task-name')?.value || "",
+          start: st.querySelector('.sub-task-start')?.value || "",
+          days: st.querySelector('.sub-task-days')?.value || "1",
+          end: st.querySelector('.sub-task-end')?.value || "",
+          isApproval: st.classList.contains('is-approval-task')
+        });
+      });
+
+      tasks.push({
+        type: 'subproject',
+        name: subName,
+        assigneeId: assigneeId,
+        isProcure: isProcure,
+        isSyncDate: isSyncDate,
+        subTasks: subTasks
+      });
+    }
+  }
+
+  const draftData = {
+    title,
+    color,
+    collaborators,
+    isNeedApproval,
+    isApplyCollab,
+    approvalDesc,
+    tasks,
+    savedAt: new Date().toLocaleString('zh-TW', { hour12: false })
+  };
+
+  localStorage.setItem(getDraftStorageKey(), JSON.stringify(draftData));
+  window.checkDraftStatus();
+  alert("💾 專案草稿已成功儲存！隨時點開新增面板點「📂 載入草稿」即可繼續打。");
+};
+
+// 載入草稿
+window.loadProjectDraft = function() {
+  const draftRaw = localStorage.getItem(getDraftStorageKey());
+  if (!draftRaw) return alert("目前沒有已儲存的草稿！");
+
+  if (!confirm("確定要載入草稿嗎？這將覆蓋目前表單上的內容。")) return;
+
+  try {
+    const draft = JSON.parse(draftRaw);
+    document.getElementById("proj-name").value = draft.title || "";
+    document.getElementById("proj-color").value = draft.color || "bar-primary";
+
+    if (typeof renderCollabCheckboxes === 'function') {
+      renderCollabCheckboxes(draft.collaborators || []);
+    }
+
+    const chkApproval = document.getElementById("chk-need-approval");
+    const chkCollab = document.getElementById("chk-apply-collab");
+    if (chkApproval) {
+      chkApproval.checked = !!draft.isNeedApproval;
+      window.toggleApprovalOptions(draft.isNeedApproval);
+    }
+    if (chkCollab) chkCollab.checked = !!draft.isApplyCollab;
+    if (approvalQuill && draft.approvalDesc) {
+      setTimeout(() => {
+        if (approvalQuill) approvalQuill.root.innerHTML = draft.approvalDesc;
+      }, 100);
+    }
+
+    const container = document.getElementById("task-list-container");
+    container.innerHTML = "";
+
+    if (Array.isArray(draft.tasks) && draft.tasks.length > 0) {
+      draft.tasks.forEach(t => {
+        if (t.type === 'task') {
+          const div = document.createElement('div');
+          div.className = "form-row task-row";
+          div.style.marginBottom = "8px";
+          div.innerHTML = `
+            <div class="form-group" style="margin:0; flex:3;"><input type="text" class="input-control task-name" placeholder="細項名稱" value="${t.name}"></div>
+            <div class="form-group" style="margin:0; flex:1.5;"><input type="date" class="input-control task-start" value="${t.start}" onchange="onTaskStartChange(this, null)"></div>
+            <div class="form-group" style="margin:0; width:65px; flex-shrink:0;"><input type="number" min="1" class="input-control task-days" value="${t.days || 1}" placeholder="天數" title="工作天數" oninput="onTaskDaysChange(this, null, null)"></div>
+            <div class="form-group" style="margin:0; flex:1.5;"><input type="date" class="input-control task-end" value="${t.end}" min="${t.start}" onchange="onTaskEndChange(this, null, null)"></div>
+            <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
+              <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
+              <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
+              <button type="button" class="action-btn danger" onclick="this.closest('.task-row').remove()" style="padding:8px 10px;">X</button>
+            </div>
+          `;
+          container.appendChild(div);
+        } else if (t.type === 'subproject') {
+          window.addSubProjectRow(t.name, t.assigneeId, t.subTasks || []);
+          const lastSubRow = container.querySelector('.subproject-row:last-child');
+          if (lastSubRow) {
+            const procureCb = lastSubRow.querySelector('.subproject-is-procure');
+            if (procureCb) procureCb.checked = !!t.isProcure;
+            const syncCb = lastSubRow.querySelector('.subproject-sync-date');
+            if (syncCb) syncCb.checked = !!t.isSyncDate;
+          }
+        }
+      });
+    } else {
+      addTaskRow();
+    }
+
+    alert(`✅ 已成功載入於 ${draft.savedAt} 儲存的草稿！`);
+  } catch(e) {
+    alert("載入草稿失敗：" + e.message);
+  }
+};
+
+// 放棄與清空草稿
+window.clearProjectDraft = function() {
+  if (!confirm("⚠️ 確定要放棄並刪除儲存的草稿嗎？此動作無法復原！")) return;
+  localStorage.removeItem(getDraftStorageKey());
+  window.checkDraftStatus();
+  
+  document.getElementById("proj-name").value = "";
+  document.getElementById("task-list-container").innerHTML = "";
+  addTaskRow();
+  alert("🗑️ 草稿已清除！");
+};
+
+// ===================================================
+// 🌟 專案復原與徹底銷毀實作函式
+// ===================================================
+window.restoreProject = async (projId) => {
+  const p = allProjectsData.find(x => x.id === projId);
+  if (!p) return;
+
+  if (!confirm(`確定要復原專案【${p.title}】嗎？\n復原後將重新回歸到正常的專案清單與甘特圖中！`)) return;
+
+  try {
+    await updateDoc(doc(db, "projects", projId), {
+      isDeleted: false,
+      restoredAt: new Date().toLocaleString('zh-TW', { hour12: false })
+    });
+    alert(`🎉 專案【${p.title}】已成功復原！`);
+    setProjectFilter('ongoing');
+    selectProject(projId);
+  } catch (err) {
+    alert("復原失敗：" + err.message);
+  }
+};
+
+window.purgeProjectPermanently = async (projId) => {
+  const p = allProjectsData.find(x => x.id === projId);
+  if (!p) return;
+
+  if (!confirm(`🚨 警告：這將徹底在雲端抹除專案【${p.title}】！\n抹除後將「永久無法復原」，確定執行嗎？`)) return;
+
+  try {
+    await deleteDoc(doc(db, "projects", projId));
+    alert(`🗑️ 專案【${p.title}】已永久抹除！`);
+    selectedProjectId = 'SUMMARY';
+    renderProjects();
+  } catch (err) {
+    alert("永久刪除失敗：" + err.message);
+  }
+};
