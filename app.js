@@ -1703,13 +1703,14 @@ window.moveTaskRow = (btn, direction) => {
 window.setProjectFilter = (status) => {
   currentFilter = status;
   document.querySelectorAll('.kpi-card').forEach(el => el.classList.remove('active'));
-  const activeBtn = document.getElementById('filter-' + status);
+  // 🌟 修正 ID 轉換：處理 pending_approval
+  const domId = status === 'pending_approval' ? 'filter-pending-approval' : 'filter-' + status;
+  const activeBtn = document.getElementById(domId);
   if(activeBtn) activeBtn.classList.add('active');
   
   selectedProjectId = 'SUMMARY'; 
   renderProjects();
 };
-
 window.selectProject = (projId) => { 
   selectedProjectId = projId; 
   isEditMode = false;
@@ -1935,6 +1936,27 @@ function renderProjects() {
 
   allInvolvedProjects.forEach(p => {
     const isRealOwner = (p.ownerId === viewingUserId);
+
+    // 🌟 容錯：若舊專案無 status，預設視為 'active'
+    const projStatus = p.status || 'active';
+
+    // 1. 只有明確被標記為 'deleted' 的專案才進回收筒
+    if (projStatus === 'deleted') {
+      if (isRealOwner || currentUserData.role === 'admin' || currentUserData.role === 'top_manager') {
+        countDeleted++;
+        projectsDeleted.push(p);
+      }
+      return; // 排除在一般清單外
+    }
+
+    // 2. 只有明確被標記為 'draft' 的專案才進草稿匣
+    if (projStatus === 'draft') {
+      if (isRealOwner) {
+        countDraft++;
+        projectsDraft.push(p);
+      }
+      return; // 排除在一般清單外
+    }
 
     // 🌟 1. 軟刪除 (回收筒) 分流：不計入未完成、簽核中等正常清單
     if (p.status === 'deleted') {
