@@ -3341,8 +3341,10 @@ document.getElementById("btn-add-project").addEventListener("click", async () =>
   addTaskRow(); 
   document.getElementById('create-project-section').style.display = 'none';
   
-  // 🌟 新增這兩行：專案正式建立後，清空已儲存的草稿
-  localStorage.removeItem(getDraftStorageKey());
+  // 🌟 就是換這裡：只刪除剛才成功送出的那份草稿，其他正在編輯的草稿繼續保留！
+  let currentDrafts = getAllDrafts();
+  currentDrafts = currentDrafts.filter(d => d.title !== title);
+  localStorage.setItem(getDraftStorageKey(), JSON.stringify(currentDrafts));
   window.checkDraftStatus();
 
   if (isNeedApproval) {
@@ -8279,40 +8281,49 @@ if (document.readyState === "loading") {
 }
 
 // ===================================================
-// 🌟 專案草稿儲存、載入與清空實作函式 (獨立使用 UID 隔離)
+// 🌟 多專案草稿管理系統 (支援多專案草稿選擇、載入與刪除)
 // ===================================================
 function getDraftStorageKey() {
   const uid = auth.currentUser?.uid || "guest";
-  return `pms_project_draft_${uid}`;
+  return `pms_project_drafts_v2_${uid}`;
 }
 
-// 檢查是否有儲存的草稿並控制按鈕顯示
-window.checkDraftStatus = function() {
+// 取得本機所有草稿陣列
+function getAllDrafts() {
   const key = getDraftStorageKey();
-  const draftRaw = localStorage.getItem(key);
-  const btnLoad = document.getElementById("btn-load-draft");
-  const hint = document.getElementById("draft-status-hint");
+  const raw = localStorage.getItem(key);
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) || [];
+  } catch (e) {
+    return [];
+  }
+}
 
-  if (draftRaw) {
-    try {
-      const draft = JSON.parse(draftRaw);
-      if (btnLoad) btnLoad.style.display = "inline-block";
-      if (hint) hint.innerText = `(已存草稿: ${draft.savedAt || ''})`;
-    } catch(e) {
-      if (btnLoad) btnLoad.style.display = "none";
-      if (hint) hint.innerText = "";
-    }
+// 檢查草稿數量並控制「📂 載入草稿」按鈕狀態
+window.checkDraftStatus = function() {
+  const drafts = getAllDrafts();
+  const btnLoad = document.getElementById("btn-load-draft");
+  const countSpan = document.getElementById("draft-count-num");
+
+  if (drafts.length > 0) {
+    if (btnLoad) btnLoad.style.display = "inline-block";
+    if (countSpan) countSpan.innerText = drafts.length;
   } else {
     if (btnLoad) btnLoad.style.display = "none";
-    if (hint) hint.innerText = "";
+    if (countSpan) countSpan.innerText = "0";
   }
 };
 
-// 儲存草稿
+// 🌟 1. 儲存草稿 (同名專案更新覆蓋，新名稱新增獨立草稿)
 window.saveProjectDraft = function() {
   const title = document.getElementById("proj-name")?.value.trim() || "";
   const color = document.getElementById("proj-color")?.value || "bar-primary";
   
+  if (!title) {
+    return alert("請先填寫「主專案名稱」，以便系統為您分類儲存這份草稿！");
+  }
+
   const collabCheckboxes = document.querySelectorAll('input[name="collab_dept"]:checked');
   const collaborators = Array.from(collabCheckboxes).map(cb => cb.value);
 
@@ -8320,6 +8331,7 @@ window.saveProjectDraft = function() {
   const isApplyCollab = document.getElementById("chk-apply-collab")?.checked || false;
   const approvalDesc = approvalQuill ? approvalQuill.root.innerHTML.trim() : "";
 
+  // 抓取表單細項與子專案結構
   const tasks = [];
   const allRows = document.querySelectorAll('#task-list-container > .form-row');
 
@@ -8361,7 +8373,13 @@ window.saveProjectDraft = function() {
     }
   }
 
-  const draftData = {
+  let drafts = getAllDrafts();
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+
+  // 檢查是否已有相同名稱的草稿
+  const existingIdx = drafts.findIndex(d => d.title === title);
+  const newDraft = {
+    id: existingIdx >= 0 ? drafts[existingIdx].id : 'draft_' + Date.now(),
     title,
     color,
     collaborators,
@@ -8369,23 +8387,95 @@ window.saveProjectDraft = function() {
     isApplyCollab,
     approvalDesc,
     tasks,
-    savedAt: new Date().toLocaleString('zh-TW', { hour12: false })
+    savedAt: ts
   };
 
-  localStorage.setItem(getDraftStorageKey(), JSON.stringify(draftData));
+  if (existingIdx >= 0) {
+    drafts[existingIdx] = newDraft;
+  } else {
+    drafts.unshift(newDraft); // 新草稿放最前面
+  }
+
+  localStorage.setItem(getDraftStorageKey(), JSON.stringify(drafts));
   window.checkDraftStatus();
-  alert("💾 專案草稿已成功儲存！隨時點開新增面板點「📂 載入草稿」即可繼續打。");
+  alert(`💾 草稿【${title}】已成功儲存！共保留 ${drafts.length} 個草稿。下次點「📂 載入草稿」即可選擇編輯。`);
 };
 
-// 載入草稿
-window.loadProjectDraft = function() {
-  const draftRaw = localStorage.getItem(getDraftStorageKey());
-  if (!draftRaw) return alert("目前沒有已儲存的草稿！");
+// 🌟 2. 開啟草稿清單彈窗（供使用者挑選要編輯哪一個專案）
+window.openDraftListModal = function() {
+  const drafts = getAllDrafts();
+  if (drafts.length === 0) return alert("目前沒有已儲存的專案草稿！");
 
-  if (!confirm("確定要載入草稿嗎？這將覆蓋目前表單上的內容。")) return;
+  const modal = document.getElementById("general-edit-modal");
+  const form = document.getElementById("general-edit-form");
+  const modalBox = modal.querySelector('.modal-box');
+  
+  if (modalBox) {
+    modalBox.style.maxWidth = "760px";
+    modalBox.style.width = "90vw";
+  }
+
+  document.getElementById("general-edit-title").innerText = `📂 選擇要繼續編輯的專案草稿 (${drafts.length} 份)`;
+
+  // 隱藏一般彈窗的預設「儲存修改」按鈕
+  const defaultSaveBtn = Array.from(modal.querySelectorAll("button")).find(b => 
+    b.getAttribute("onclick")?.includes("saveGeneralEdit") || b.textContent.includes("儲存修改")
+  );
+  const defaultFooter = defaultSaveBtn ? defaultSaveBtn.closest("div") : null;
+  if (defaultFooter && defaultFooter !== form && !form.contains(defaultFooter)) {
+    defaultFooter.style.display = "none";
+  }
+
+  let tableRows = "";
+  drafts.forEach((d, idx) => {
+    const taskCount = (d.tasks || []).length;
+    tableRows += `
+      <tr style="border-bottom: 1px solid var(--border-light);">
+        <td style="padding: 10px 8px; font-weight: bold; color: var(--primary);">🗂️ ${d.title}</td>
+        <td style="padding: 10px 8px; font-size: 13px; color: #475569;">${taskCount} 個項目/子專案</td>
+        <td style="padding: 10px 8px; font-size: 12px; color: #64748b;">${d.savedAt}</td>
+        <td style="padding: 10px 8px; text-align: center; white-space: nowrap;">
+          <button type="button" class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 10px; font-weight:bold; margin-right:4px;" onclick="loadSpecificDraft('${d.id}')">✏️ 載入編輯</button>
+          <button type="button" class="action-btn danger" style="padding:4px 8px; font-size:12px;" onclick="deleteSpecificDraft('${d.id}', '${d.title}')">🗑️ 刪除</button>
+        </td>
+      </tr>
+    `;
+  });
+
+  form.innerHTML = `
+    <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="background: #f8fafc; text-align: left;">
+            <th style="width: 35%; padding: 8px;">草稿專案名稱</th>
+            <th style="width: 25%; padding: 8px;">規劃內容</th>
+            <th style="width: 25%; padding: 8px;">最後儲存時間</th>
+            <th style="width: 15%; padding: 8px; text-align: center;">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px;">
+      <button type="button" class="action-btn danger" onclick="clearAllDrafts()" style="padding: 6px 12px; font-size: 12px;">🗑️ 清空所有草稿</button>
+      <button type="button" class="action-btn" onclick="closeGeneralEditModal()" style="padding: 6px 18px;">關閉</button>
+    </div>
+  `;
+
+  modal.classList.add("active");
+};
+
+// 🌟 3. 載入特定選定的草稿進開案表單
+window.loadSpecificDraft = function(draftId) {
+  const drafts = getAllDrafts();
+  const draft = drafts.find(d => d.id === draftId);
+  if (!draft) return alert("找不到此份草稿！");
+
+  if (!confirm(`確定要載入專案草稿【${draft.title}】嗎？\n這將會替換您目前開案表單中的所有內容。`)) return;
 
   try {
-    const draft = JSON.parse(draftRaw);
     document.getElementById("proj-name").value = draft.title || "";
     document.getElementById("proj-color").value = draft.color || "bar-primary";
 
@@ -8442,22 +8532,45 @@ window.loadProjectDraft = function() {
       addTaskRow();
     }
 
-    alert(`✅ 已成功載入於 ${draft.savedAt} 儲存的草稿！`);
-  } catch(e) {
+    closeGeneralEditModal();
+    alert(`✅ 已成功載入草稿【${draft.title}】！`);
+  } catch (e) {
     alert("載入草稿失敗：" + e.message);
   }
 };
 
-// 放棄與清空草稿
-window.clearProjectDraft = function() {
-  if (!confirm("⚠️ 確定要放棄並刪除儲存的草稿嗎？此動作無法復原！")) return;
+// 🌟 4. 單獨刪除某一筆草稿
+window.deleteSpecificDraft = function(draftId, title) {
+  if (!confirm(`確定要刪除草稿【${title}】嗎？`)) return;
+
+  let drafts = getAllDrafts();
+  drafts = drafts.filter(d => d.id !== draftId);
+  localStorage.setItem(getDraftStorageKey(), JSON.stringify(drafts));
+  
+  window.checkDraftStatus();
+  if (drafts.length > 0) {
+    window.openDraftListModal(); // 重新整理彈窗
+  } else {
+    closeGeneralEditModal();
+    alert("所有草稿已清空！");
+  }
+};
+
+// 🌟 5. 清空所有草稿
+window.clearAllDrafts = function() {
+  if (!confirm("⚠️ 確定要刪除所有已儲存的草稿嗎？此動作無法復原！")) return;
   localStorage.removeItem(getDraftStorageKey());
   window.checkDraftStatus();
-  
+  closeGeneralEditModal();
+  alert("🗑️ 所有草稿已全部清空！");
+};
+
+// 🌟 6. 清空目前畫面上正在打的表單
+window.clearCurrentFormDraft = function() {
+  if (!confirm("確定要清空目前開案表單上輸入的內容嗎？")) return;
   document.getElementById("proj-name").value = "";
   document.getElementById("task-list-container").innerHTML = "";
   addTaskRow();
-  alert("🗑️ 草稿已清除！");
 };
 
 // ===================================================
