@@ -1873,15 +1873,8 @@ function renderProjects() {
   const userProjects = normalProjects.filter(p => p.ownerId === viewingUserId);
   const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
 
-  // 2. 開放瀏覽專案 (使用 normalProjects)
-  const viewOnlyProjects = normalProjects.filter(p => {
-    if (p.ownerId === viewingUserId) return false;
-  // 1. 自己開案的專案
-  const userProjects = allProjectsData.filter(p => p.ownerId === viewingUserId);
-  const userAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
-
   // 2. 開放瀏覽專案：部門被開放瀏覽，或透過「協作成員管理(👥)」指定加入者 (非開案者)
-  const viewOnlyProjects = allProjectsData.filter(p => {
+  const viewOnlyProjects = normalProjects.filter(p => {
     if (p.ownerId === viewingUserId) return false;
 
     const collabs = Array.isArray(p.collaborators) ? p.collaborators : [];
@@ -1904,9 +1897,8 @@ function renderProjects() {
     // 若名下已有未完成任務，專案自動移至「未完成」，不再留在「開放瀏覽」
     return !hasMyOngoingTasks;
   });
-
   // 3. 有細項指派給自己的專案 (必須是「已同意承接」且非開案者，未同意前不列入專案列表)
-  const assignedProjects = allProjectsData.filter(p => {
+  const assignedProjects = normalProjects.filter(p => {
     const hasMyAcceptedTask = (p.tasks || []).some(t => t.assigneeId === viewingUserId && !t.name?.includes("[系統通知]") && !t.isPendingAcceptance);
     return hasMyAcceptedTask && p.ownerId !== viewingUserId;
   });
@@ -2067,10 +2059,6 @@ function renderProjects() {
   } else if (currentFilter === 'collab') {
       activeList = viewOnlyProjects;
       activeAdHocs = [];
-  } else if (currentFilter === 'pending_approval') {
-      activeList = projectsPendingApproval;
-      activeAdHocs = [];
-  }
   } else if (currentFilter === 'pending_approval') {
       activeList = projectsPendingApproval;
       activeAdHocs = [];
