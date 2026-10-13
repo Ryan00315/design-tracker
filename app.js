@@ -1935,12 +1935,11 @@ function renderProjects() {
   let projectsOngoing = [], projectsCompleted = [], projectsDelayed = [], projectsPendingApproval = [], projectsDraft = [], projectsDeleted = [];
 
   allInvolvedProjects.forEach(p => {
-    const isRealOwner = (p.ownerId === viewingUserId);
+    // 🌟 核心防呆 1：開案者比對 (容錯字串型態)
+    const isRealOwner = String(p.ownerId) === String(viewingUserId);
+    const projStatus = p.status || 'active'; // 舊專案若無 status 欄位，一律視為 active
 
-    // 🌟 容錯：若舊專案無 status，預設視為 'active'
-    const projStatus = p.status || 'active';
-
-    // 1. 只有明確被標記為 'deleted' 的專案才進回收筒
+    // 🌟 1. 回收筒專案：只有明確被標記為 deleted 才進回收筒
     if (projStatus === 'deleted') {
       if (isRealOwner || currentUserData.role === 'admin' || currentUserData.role === 'top_manager') {
         countDeleted++;
@@ -1949,7 +1948,7 @@ function renderProjects() {
       return; // 排除在一般清單外
     }
 
-    // 2. 只有明確被標記為 'draft' 的專案才進草稿匣
+    // 🌟 2. 草稿專案：只有明確被標記為 draft 才進草稿匣
     if (projStatus === 'draft') {
       if (isRealOwner) {
         countDraft++;
@@ -1958,25 +1957,7 @@ function renderProjects() {
       return; // 排除在一般清單外
     }
 
-    // 🌟 1. 軟刪除 (回收筒) 分流：不計入未完成、簽核中等正常清單
-    if (p.status === 'deleted') {
-      if (isRealOwner || currentUserData.role === 'admin' || currentUserData.role === 'top_manager') {
-        countDeleted++;
-        projectsDeleted.push(p);
-      }
-      return;
-    }
-
-    // 🌟 2. 草稿匣分流：只有開案者本人可見
-    if (p.status === 'draft') {
-      if (isRealOwner) {
-        countDraft++;
-        projectsDraft.push(p);
-      }
-      return;
-    }
-
-    // 🌟 1. 關鍵字搜尋防呆：只有在使用者真正有輸入字詞時才過濾
+    // 🌟 3. 關鍵字搜尋過濾
     if (searchKeyword && searchKeyword.length > 0) {
       const pTitle = (p.title || "").toLowerCase();
       const matchTitle = pTitle.includes(searchKeyword);
@@ -1987,14 +1968,14 @@ function renderProjects() {
       });
 
       if (!matchTitle && !matchTask) {
-        return; // 確實不包含關鍵字才略過
+        return; // 不符合關鍵字才跳過
       }
     }
 
-    const isApproval = (p.status === 'pending_approval');
-    const isRejected = (p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
+    const isApproval = (projStatus === 'pending_approval');
+    const isRejected = (projStatus === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
 
-    // 🌟 2. 退回案件：只有開案者計算並列入
+    // 🌟 4. 退回專案
     if (isRejected) {
       if (isRealOwner) {
         countPendingApproval++;
@@ -2003,18 +1984,20 @@ function renderProjects() {
       return;
     }
 
-    // 🌟 3. 簽核中案件：開案者自己、或輪到的審核人列入
+    // 🌟 5. 簽核中專案
     if (isApproval) {
       const cfg = p.approvalConfig || {};
-      const isMyTurn = cfg.currentAssigneeUid ? (cfg.currentAssigneeUid === auth.currentUser?.uid) : (currentUserData.role === 'admin' || currentUserData.role === 'top_manager');
+      const isMyTurn = cfg.currentAssigneeUid 
+        ? (cfg.currentAssigneeUid === auth.currentUser?.uid) 
+        : (currentUserData.role === 'admin' || currentUserData.role === 'top_manager');
       if (isRealOwner || isMyTurn) {
         countPendingApproval++;
         projectsPendingApproval.push(p);
       }
-      return; // 審核中專案到此為止，不進入下方未完成
+      return;
     }
 
-    // 🌟 4. 任務完成與未完成計算 (開案者看全部細項，協作者只看分派給自己的細項)
+    // 🌟 6. 正常專案 (未完成 / 已完成)：確保每個人的專案 100% 都會被推入清單！
     let relevantTasks = [];
     if (isRealOwner) {
       relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
@@ -2026,16 +2009,17 @@ function renderProjects() {
       );
     }
 
-    // 若非開案者且名下無任何任務，不計入未完成
+    // 若非開案者，且此專案名下沒有指派給他的任務，但此專案有開放給他看 (開放瀏覽)，則不推入未完成
     if (!isRealOwner && relevantTasks.length === 0) {
       return; 
     }
 
+    // 計算是否全數完成與是否有 Delay
     const isAllDone = relevantTasks.length > 0 ? relevantTasks.every(t => t.isCompleted) : false;
     const hasDelay = relevantTasks.length > 0 ? relevantTasks.some(t => !t.isCompleted && todayStr > t.end) : false;
     const inYear = spansYear(p, selectedYear);
 
-    // 🌟 5. 正式推入未完成
+    // 🌟 關鍵：只要未全部完成，必定推入未完成清單！
     if (!isAllDone) {
       countOngoing++; 
       projectsOngoing.push(p); 
@@ -2070,7 +2054,9 @@ function renderProjects() {
   const elDelay = document.getElementById('stat-delay');
   if(elDelay) elDelay.innerText = countDelayed;
   const elCollab = document.getElementById('stat-collab');
-  if(elCollab) elCollab.innerText = viewOnlyProjects.length; // 開放瀏覽數量
+  if(elCollab) elCollab.innerText = viewOnlyProjects.length;
+  const elPendingApp = document.getElementById('stat-pending-approval');
+  if(elPendingApp) elPendingApp.innerText = countPendingApproval;
   const elDraft = document.getElementById('stat-draft');
   if(elDraft) elDraft.innerText = countDraft;
   const elDeleted = document.getElementById('stat-deleted');
