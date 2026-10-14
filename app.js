@@ -2768,14 +2768,14 @@ function renderProjects() {
             const row = document.createElement("div"); 
             row.className = "gantt-row";
             row.innerHTML = `
-              <div class="col-name" title="${task.name \vert{}\vert{} '未命名任務'}" style="${nameIndent}"><span style="overflow:hidden; text-overflow:ellipsis;">${displayName}</span>${editHtml}</div>${expectedDateHtml}
+              <div class="col-name" title="${task.name || '未命名任務'}" style="${nameIndent}"><span style="overflow:hidden; text-overflow:ellipsis;">${displayName}</span>${editHtml}</div>${expectedDateHtml}
               <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
               <div class="col-prog">
                 <input type="number" 
                        value="${currentProgress}" 
                        id="prog_input_${index}" 
                        ${isInputLocked ? 'disabled readonly' : ''} 
-                       style="${progressInputStyle}${lockedStyle}"
+                       style="${progressInputStyle} ${lockedStyle}"
                        ${wheelAndKeyEvents}>
                 <span style="font-weight:bold; margin-left:2px; color:${numColor};">%</span>
               </div>
@@ -8271,103 +8271,9 @@ window.initManualModalUI = function() {
           <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 10px 14px; border-radius: 4px; margin-bottom: 16px;">
             <b style="color: #1d4ed8;">📌 核心原則：</b> 系統採嚴格工作日推算（自動排除國定假日與六日），支援開案 7 日寬限期、跨部門階層審核指派、動態停復工時程展延與週報已閱結轉鎖定。
           </div>
-
-          <!-- 第一章：按鍵與互動元件索引 -->
-          <h3 style="color: #0f172a; margin-top: 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px;">一、 各模組按鍵與控制元件索引</h3>
-          
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12.5px;">
-            <thead>
-              <tr style="background: #f1f5f9; text-align: left;">
-                <th style="border: 1px solid #cbd5e1; padding: 6px 8px; width: 22%;">按鍵 / 控制元件</th>
-                <th style="border: 1px solid #cbd5e1; padding: 6px 8px; width: 14%;">所屬模組</th>
-                <th style="border: 1px solid #cbd5e1; padding: 6px 8px;">業務邏輯與功能行為說明</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr><td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: bold; color: #4338ca;">字體 (小 / 中 / 大)</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">頂部導航</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">切換全站字體縮放比例，偏好自動保存在瀏覽器 localStorage。</td></tr>
-              <tr><td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: bold; color: #b45309;">✏️ 開啟/關閉編輯模式</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">頂部導航</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">限 Admin/獲權者。開啟後可強制繞過 7 天寬限期修改歷史專案與細項。</td></tr>
-              <tr><td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: bold; color: #dc2626;">登出</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">頂部導航</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">清除本機 Firebase Auth 憑證，安全登出並切換至登入畫面。</td></tr>
-              <tr><td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: bold;">人員檢視切換</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">側邊欄</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">主管專用。折疊展開部門下屬名單，點擊可穿透檢視同仁專案看板。</td></tr>
-              <tr><td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: bold; color: #4338ca;">➕ 新增專案規劃</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">專案進度</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">展開開案表單，設定名稱、標籤色、協作部門、模板及子專案。</td></tr>
-              <tr><td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: bold;">KPI 看板卡片</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">專案進度</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">依「未完成」、「完成」、「(Delay)」、「開放瀏覽」、「簽核中」過濾專案。</td></tr>
-              <tr><td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: bold;">🔍 關鍵字搜尋 / 年份</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">專案進度</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">即時模糊搜尋專案、子專案與任務名稱，並可篩選特定年份。</td></tr>
-              <tr><td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: bold; color: #b45309;">🛒 採購 (勾選框)</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">子專案規劃</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">勾選時強制首項插入紅字「簽核送審」，後續細項起始日自動連動。</td></tr>
-              <tr><td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: bold; color: #1d4ed8;">🔄 時間同步 (勾選框)</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">子專案規劃</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">勾選時追加細項自動複製前項起訖與天數；取消則為下一個工作天順延。</td></tr>
-              <tr><td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: bold;">進度輸入框 (0~100%)</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">甘特圖細項</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">按鍵或滾輪在最小值時「↓」跳轉 100%；達 100% 時「↑」循環回最小值；手動打字嚴格鎖定於 100 內且不可倒退。</td></tr>
-              <tr><td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: bold; color: #16a34a;">確認 / 完成</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">甘特圖細項</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">提交進度更新。若達成 100% 且逾期，強制彈出填報「Delay 原因」。</td></tr>
-              <tr><td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: bold; color: #2563eb;">👥 協作成員 (圖示)</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">專案標題列</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">已生效協作專案專用。開案者可管理白名單（邀請同仁加入或剔除）。</td></tr>
-              <tr><td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: bold; color: #dc2626;">⏸️ 申請暫停 / ▶️ 申請恢復</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">專案標題列</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">填寫停工原因送審。主管同意恢復後，系統自動結算工作天並遞延後續任務。</td></tr>
-              <tr><td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: bold; color: #4338ca;">🔄 重新送審</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">專案標題列</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">專案被退回時出現，開案者可檢視退回原因並重新修改送審。</td></tr>
-              <tr><td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: bold; color: #059669;">✔️ 主管 / 最高主管已閱</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">工作週報</td><td style="border: 1px solid #cbd5e1; padding: 6px 8px;">簽核鎖死週報，該期已完成細項標記結轉，日後週報選單不再重複列出。</td></tr>
-            </tbody>
-          </table>
-
-          <!-- 第二章：標準作業程序 (SOP) -->
-          <h3 style="color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px;">二、 標準作業程序 (SOP)</h3>
-
-          <div style="background: #fafafa; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <b style="color: #1e40af;">SOP 1：專案建立、子專案與送審流程</b>
-            <ol style="padding-left: 18px; margin: 4px 0 0 0;">
-              <li>點選「➕ 新增專案規劃」，輸入名稱、代表色系與開放瀏覽部門。</li>
-              <li>點選「+ 新增任務細項」建立個人任務；若需分工，點選「+ 新增子專案」指派負責同仁。</li>
-              <li>採購件請勾選「🛒 採購」，系統強制插入「簽核送審」並鎖定排序；多項平行作業可勾選「🔄 時間同步」。</li>
-              <li>送審機制：若勾選「簽核流程」或含「跨部門子專案」，專案轉入「⏳ 簽核中」並通知主管；個人或同部門專案直接生效納入「未完成」，享有 7 日自由編輯期。</li>
-            </ol>
-          </div>
-
-          <div style="background: #fafafa; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <b style="color: #1e40af;">SOP 2：日常進度維護與逾期 (Delay) 提報</b>
-            <ol style="padding-left: 18px; margin: 4px 0 0 0;">
-              <li>進入甘特圖清單找到名下負責細項，於輸入框修改進度百分比並點擊「確認」。</li>
-              <li>防倒退與循環：若上次已達成 11%，本次最低只能從 12% 起跳；按「↓」或滾輪可快速跳至 100%。</li>
-              <li>完成結案：進度達 100% 時，若未逾期可選填結案備註；若已逾期，系統強制彈出視窗要求輸入「Delay 原因」方可結案。</li>
-              <li>修正寬限：進度更新後 2 天內，負責人可點擊備註紀錄旁的「✏️ 修改」補正說明。</li>
-            </ol>
-          </div>
-
-          <div style="background: #fafafa; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <b style="color: #1e40af;">SOP 3：跨部門協作審核與階層指派</b>
-            <ol style="padding-left: 18px; margin: 4px 0 0 0;">
-              <li>主管接獲 Email 或系統通知紅點，於「系統通知」檢視申請案。</li>
-              <li>主管決策：可點「👥 指派」下派同仁，或點「自行承接」將未完成任務轉為主管親自執行，或點「❌ 退回」輸入退回原因。</li>
-              <li>同仁接收：被指派同仁於系統通知點「同意」正式承接，或點「拒絕」填寫原因退回主管。</li>
-              <li>開案者處置：若專案被退回，開案者修正後點擊「🔄 重新送審」再次送審。</li>
-            </ol>
-          </div>
-
-          <div style="background: #fafafa; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <b style="color: #1e40af;">SOP 4：專案停工申請與復工時程展延</b>
-            <ol style="padding-left: 18px; margin: 4px 0 0 0;">
-              <li>申請停工：負責人點選「⏸️ 申請暫停」，設定停工起始日與原因送審。</li>
-              <li>主管批准：主管點選「同意暫停」，專案標記為「🛑 暫停」，甘特圖繪製紅色停工區間。</li>
-              <li>申請復工：停工原因消滅後，負責人點選「▶️ 申請恢復」，設定預計復工日送審。</li>
-              <li>自動展延：主管點選「同意恢復」，系統精算停工工作天數，後續未完成細項之時程全數自動向後順延。</li>
-            </ol>
-          </div>
-
-          <div style="background: #fafafa; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <b style="color: #1e40af;">SOP 5：工作週報填寫與主管審閱結轉</b>
-            <ol style="padding-left: 18px; margin: 4px 0 0 0;">
-              <li>常規提報：每週五進入「週報填寫」；若週一至週四提前提交，強制勾選「請假」或填寫特殊理由。</li>
-              <li>編輯送出：點擊「+ 新增進度項目」選取本週執行任務，輸入進度說明後點擊「送出週報」。</li>
-              <li>修改緩衝：送出後 2 天內且主管未讀前，同仁可點「✏️ 編輯」或「刪除」重新抽換。</li>
-              <li>審閱封存：主管點擊「瀏覽報告」並按下「✔️ 主管已閱 (Noted)」後，週報徹底鎖死禁止修改，當期 100% 完成細項正式結轉封存。</li>
-            </ol>
-          </div>
-
-          <div style="background: #fafafa; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 8px;">
-            <b style="color: #1e40af;">SOP 6：組織架構與人員管理 (Admin 專用)</b>
-            <ol style="padding-left: 18px; margin: 4px 0 0 0;">
-              <li>帳號建立：進入「組織架構管理」，輸入姓名、帳號、密碼，指定部門、階層職稱與直屬主管。</li>
-              <li>暫時解鎖：勾選同仁旁「開放編輯」，可授權其暫時解除 7 天限制修改過期資料。</li>
-              <li>密碼重置：點擊「重設密碼」，系統寄送 Firebase 官方安全重設信件至該員信箱。</li>
-              <li>資料救援：同仁重辦帳號時，點擊「找回資料」，一鍵將同名歷史專案與週報綁回新 UID。</li>
-            </ol>
-          </div>
-
         </div>
 
-        <!-- 彈窗底部 Footer (固定鎖定在底部，不被擠出視窗) -->
+        <!-- 彈窗底部 Footer -->
         <div style="
           padding: 10px 20px;
           background: #f8fafc;
@@ -8409,7 +8315,7 @@ window.initManualModalUI = function() {
   }
 };
 
-// 🌟 全域 ESC 鍵監聽：只要按下 ESC 鍵，立刻關閉說明書
+// 🌟 全域 ESC 鍵監聽
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" || e.key === "Esc") {
     const manualModal = document.getElementById("system-manual-modal");
@@ -8421,19 +8327,14 @@ document.addEventListener("keydown", (e) => {
 
 window.openSystemManualModal = function() {
   const modal = document.getElementById("system-manual-modal");
-  if (modal) {
-    modal.style.display = "flex";
-  }
+  if (modal) modal.style.display = "flex";
 };
 
 window.closeSystemManualModal = function() {
   const modal = document.getElementById("system-manual-modal");
-  if (modal) {
-    modal.style.display = "none";
-  }
+  if (modal) modal.style.display = "none";
 };
 
-// 🌟 自動掛載：畫面載入與身分確認後自動初始化
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", () => setTimeout(window.initManualModalUI, 300));
 } else {
@@ -8441,14 +8342,13 @@ if (document.readyState === "loading") {
 }
 
 // ===================================================
-// 🌟 多專案草稿管理系統 (支援多專案草稿選擇、載入與刪除)
+// 🌟 多專案草稿管理系統
 // ===================================================
 function getDraftStorageKey() {
   const uid = auth.currentUser?.uid || "guest";
   return `pms_project_drafts_v2_${uid}`;
 }
 
-// 取得本機所有草稿陣列
 function getAllDrafts() {
   const key = getDraftStorageKey();
   const raw = localStorage.getItem(key);
@@ -8460,7 +8360,6 @@ function getAllDrafts() {
   }
 }
 
-// 檢查草稿數量並控制「📂 載入草稿」按鈕狀態
 window.checkDraftStatus = function() {
   const drafts = getAllDrafts();
   const btnLoad = document.getElementById("btn-load-draft");
@@ -8475,7 +8374,6 @@ window.checkDraftStatus = function() {
   }
 };
 
-// 🌟 1. 儲存草稿 (同名專案更新覆蓋，新名稱新增獨立草稿)
 window.saveProjectDraft = function() {
   const title = document.getElementById("proj-name")?.value.trim() || "";
   const color = document.getElementById("proj-color")?.value || "bar-primary";
@@ -8491,7 +8389,6 @@ window.saveProjectDraft = function() {
   const isApplyCollab = document.getElementById("chk-apply-collab")?.checked || false;
   const approvalDesc = approvalQuill ? approvalQuill.root.innerHTML.trim() : "";
 
-  // 抓取表單細項與子專案結構
   const tasks = [];
   const allRows = document.querySelectorAll('#task-list-container > .form-row');
 
@@ -8535,8 +8432,6 @@ window.saveProjectDraft = function() {
 
   let drafts = getAllDrafts();
   const ts = new Date().toLocaleString('zh-TW', { hour12: false });
-
-  // 檢查是否已有相同名稱的草稿
   const existingIdx = drafts.findIndex(d => d.title === title);
   const newDraft = {
     id: existingIdx >= 0 ? drafts[existingIdx].id : 'draft_' + Date.now(),
@@ -8553,7 +8448,7 @@ window.saveProjectDraft = function() {
   if (existingIdx >= 0) {
     drafts[existingIdx] = newDraft;
   } else {
-    drafts.unshift(newDraft); // 新草稿放最前面
+    drafts.unshift(newDraft);
   }
 
   localStorage.setItem(getDraftStorageKey(), JSON.stringify(drafts));
@@ -8561,7 +8456,6 @@ window.saveProjectDraft = function() {
   alert(`💾 草稿【${title}】已成功儲存！共保留 ${drafts.length} 個草稿。下次點「📂 載入草稿」即可選擇編輯。`);
 };
 
-// 🌟 2. 開啟草稿清單彈窗（供使用者挑選要編輯哪一個專案）
 window.openDraftListModal = function() {
   const drafts = getAllDrafts();
   if (drafts.length === 0) return alert("目前沒有已儲存的專案草稿！");
@@ -8577,7 +8471,6 @@ window.openDraftListModal = function() {
 
   document.getElementById("general-edit-title").innerText = `📂 選擇要繼續編輯的專案草稿 (${drafts.length} 份)`;
 
-  // 隱藏一般彈窗的預設「儲存修改」按鈕
   const defaultSaveBtn = Array.from(modal.querySelectorAll("button")).find(b => 
     b.getAttribute("onclick")?.includes("saveGeneralEdit") || b.textContent.includes("儲存修改")
   );
@@ -8587,7 +8480,7 @@ window.openDraftListModal = function() {
   }
 
   let tableRows = "";
-  drafts.forEach((d, idx) => {
+  drafts.forEach((d) => {
     const taskCount = (d.tasks || []).length;
     tableRows += `
       <tr style="border-bottom: 1px solid var(--border-light);">
@@ -8627,7 +8520,6 @@ window.openDraftListModal = function() {
   modal.classList.add("active");
 };
 
-// 🌟 3. 載入特定選定的草稿進開案表單
 window.loadSpecificDraft = function(draftId) {
   const drafts = getAllDrafts();
   const draft = drafts.find(d => d.id === draftId);
@@ -8699,7 +8591,6 @@ window.loadSpecificDraft = function(draftId) {
   }
 };
 
-// 🌟 4. 單獨刪除某一筆草稿
 window.deleteSpecificDraft = function(draftId, title) {
   if (!confirm(`確定要刪除草稿【${title}】嗎？`)) return;
 
@@ -8709,14 +8600,13 @@ window.deleteSpecificDraft = function(draftId, title) {
   
   window.checkDraftStatus();
   if (drafts.length > 0) {
-    window.openDraftListModal(); // 重新整理彈窗
+    window.openDraftListModal();
   } else {
     closeGeneralEditModal();
     alert("所有草稿已清空！");
   }
 };
 
-// 🌟 5. 清空所有草稿
 window.clearAllDrafts = function() {
   if (!confirm("⚠️ 確定要刪除所有已儲存的草稿嗎？此動作無法復原！")) return;
   localStorage.removeItem(getDraftStorageKey());
@@ -8725,7 +8615,6 @@ window.clearAllDrafts = function() {
   alert("🗑️ 所有草稿已全部清空！");
 };
 
-// 🌟 6. 清空目前畫面上正在打的表單
 window.clearCurrentFormDraft = function() {
   if (!confirm("確定要清空目前開案表單上輸入的內容嗎？")) return;
   document.getElementById("proj-name").value = "";
@@ -8738,7 +8627,7 @@ window.clearCurrentFormDraft = function() {
 // ===================================================
 window.restoreProject = async (projId) => {
   const p = allProjectsData.find(x => x.id === projId);
-  if (!p) return;
+  if (!p) return alert("找不到欲復原的專案！");
 
   if (!confirm(`確定要復原專案【${p.title}】嗎？\n復原後將重新回歸到正常的專案清單與甘特圖中！`)) return;
 
@@ -8757,7 +8646,11 @@ window.restoreProject = async (projId) => {
 
 window.purgeProjectPermanently = async (projId) => {
   const p = allProjectsData.find(x => x.id === projId);
-  if (!p) return;
+  if (!p) return alert("找不到欲刪除的專案！");
+
+  if (p.ownerId !== auth.currentUser?.uid && currentUserData.role !== 'admin') {
+    return alert("權限不足：只有專案建立者或系統管理員可以徹底抹除專案！");
+  }
 
   if (!confirm(`🚨 警告：這將徹底在雲端抹除專案【${p.title}】！\n抹除後將「永久無法復原」，確定執行嗎？`)) return;
 
