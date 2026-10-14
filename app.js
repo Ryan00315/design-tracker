@@ -2141,6 +2141,21 @@ function renderProjects() {
     btn.title = p.title || '未命名專案';
     
     let tabText = p.title || '未命名專案';
+
+    // 🌟 若為其他採購人員瀏覽陳珮琪的採購專案，Tab 按鈕名稱前加上 👁️
+    const myCurrentDept = currentUserData.dept || "設計部";
+    const myCurrentName = currentUserData.name || "";
+    const isOtherProcureViewer = (myCurrentDept === "採購部") && 
+      !myCurrentName.includes("陳珮琪") && !myCurrentName.includes("陳佩琪") && 
+      p.ownerId !== auth.currentUser?.uid && currentUserData.role !== 'admin';
+
+    const isPeichiProcure = (p.tasks || []).some(t => 
+      t.isSubProjectTask && (t.assigneeName?.includes("陳珮琪") || t.assigneeName?.includes("陳佩琪"))
+    );
+
+    if (isOtherProcureViewer && isPeichiProcure) {
+      tabText = `👁️ ` + tabText;
+    }
     if (isApproval) tabText = `⏳ ` + tabText;
     if (isRejected) tabText = `❌ ` + tabText; // 🌟 標註退回圖示
     if (isPendingPause) tabText += ` 🔔`;
@@ -2261,7 +2276,24 @@ function renderProjects() {
         const origProj = allProjectsData.find(p => p.id === item.projId);
         const isCollab = origProj?.approvalConfig?.isApplyCollab || 
                  (origProj?.tasks || []).some(t => t.name?.includes("協作流程") || t.name?.includes("簽核流程") || t.parentSubProject?.includes("審核"));
-        const projIcon = isCollab ? "👥" : "🗂️";
+        
+        // 🌟 判斷是否為「其他採購人員」正在檢視陳珮琪的採購專案
+        const myCurrentDept = currentUserData.dept || "設計部";
+        const myCurrentName = currentUserData.name || "";
+        const isOtherProcureViewer = (myCurrentDept === "採購部") && 
+          !myCurrentName.includes("陳珮琪") && !myCurrentName.includes("陳佩琪") && 
+          origProj?.ownerId !== auth.currentUser?.uid && 
+          currentUserData.role !== 'admin';
+
+        const isPeichiProcureProj = (origProj?.tasks || []).some(t => 
+          t.isSubProjectTask && (t.assigneeName?.includes("陳珮琪") || t.assigneeName?.includes("陳佩琪"))
+        );
+
+        // 🌟 如果是其他採購人員同步過來的案子，在圖示前加上 👁️
+        let projIcon = isCollab ? "👥" : "🗂️";
+        if (isOtherProcureViewer && isPeichiProcureProj) {
+          projIcon = isCollab ? "👁️👥" : "👁️🗂️";
+        }
         
         // 🌟 協作專案字體設為藍色 (#2563eb)，一般專案維持原深色 (#0f172a)
         const titleColor = isCollab ? "#2563eb" : "#0f172a";
