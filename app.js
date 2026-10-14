@@ -1909,10 +1909,24 @@ function renderProjects() {
     return hasMyAcceptedTask && p.ownerId !== viewingUserId;
   });
 
+  // 🌟 4. 新增：若為採購部人員，自動同步「指派給陳珮琪」的採購專案 (供唯讀共享)
+  const isViewingUserProcure = (targetDept === "採購部");
+  const procureSharedProjects = normalProjects.filter(p => {
+    if (p.ownerId === viewingUserId) return false;
+    if (!isViewingUserProcure) return false;
+
+    // 檢查專案中是否含有「指派給陳珮琪」且包含「簽核送審」的採購子專案
+    return (p.tasks || []).some(t => 
+      t.isSubProjectTask && 
+      (t.assigneeName?.includes("陳珮琪") || t.assigneeName?.includes("陳佩琪"))
+    );
+  });
+
   const allInvolvedProjectsMap = new Map();
   userProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
   viewOnlyProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
   assignedProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p));
+  procureSharedProjects.forEach(p => allInvolvedProjectsMap.set(p.id, p)); // 🌟 注入採購共享專案
 
   // 🌟 修復核心漏洞 1：若為管理員/主管，或專案當前審核人是自己，將所有簽核中與退回中的專案納入檢視
   allProjectsData.forEach(p => {
@@ -1990,10 +2004,22 @@ function renderProjects() {
       return; // 審核中專案到此為止，不進入下方未完成
     }
 
-    // 🌟 4. 任務完成與未完成計算 (開案者看全部細項，協作者只看分派給自己的細項)
+    // 🌟 4. 任務完成與未完成計算
     let relevantTasks = [];
+    // 判斷是否為採購共享專案（目前為採購部人員且專案屬於陳珮琪的採購案件）
+    const isSharedProcureProj = isViewingUserProcure && (p.tasks || []).some(t => 
+      t.isSubProjectTask && (t.assigneeName?.includes("陳珮琪") || t.assigneeName?.includes("陳佩琪"))
+    );
+
     if (isRealOwner) {
       relevantTasks = (p.tasks || []).filter(t => !t.name || !t.name.includes("[系統通知]"));
+    } else if (isSharedProcureProj) {
+      // 🌟 其他採購人員：以陳珮琪名下的採購子專案細項狀態作為計算依據
+      relevantTasks = (p.tasks || []).filter(t => 
+        t.isSubProjectTask && 
+        (t.assigneeName?.includes("陳珮琪") || t.assigneeName?.includes("陳佩琪")) && 
+        !t.name?.includes("[系統通知]")
+      );
     } else {
       relevantTasks = (p.tasks || []).filter(t => 
         t.assigneeId === viewingUserId && 
@@ -2316,9 +2342,18 @@ function renderProjects() {
   // 🌟 協作成員判定：已被開案者加入名單者
   const isCollabMember = Array.isArray(activeProj.collaboratorUids) && activeProj.collaboratorUids.includes(auth.currentUser.uid);
 
-  // 🌟 控制權限：開案者、管理員、或是受邀的協作成員，皆可新增細項與子專案
-  let canOperateProject = (isGlobalAdmin || isProjOwner || isCollabMember);
-  let canEditMainProj = (isGlobalAdmin && isEditMode) || (isProjOwner && inGracePeriod);
+  // 🌟 判定是否為「其他採購人員」檢視陳珮琪的專案（純瀏覽身分）
+  const myCurrentDept = currentUserData.dept || "設計部";
+  const myCurrentName = currentUserData.name || "";
+  const isOtherProcureViewer = (myCurrentDept === "採購部") && 
+    !myCurrentName.includes("陳珮琪") && !myCurrentName.includes("陳佩琪") && 
+    !isProjOwner && !isGlobalAdmin;
+
+  // 🌟 控制權限：若為其他採購瀏覽者，強制鎖為 false，禁止新增細項/子專案與編輯主資訊
+  let canOperateProject = isOtherProcureViewer ? false : (isGlobalAdmin || isProjOwner || isCollabMember);
+  let canEditMainProj = isOtherProcureViewer ? false : ((isGlobalAdmin && isEditMode) || (isProjOwner && inGracePeriod));
+
+  let procureViewBadge = isOtherProcureViewer ? `<span class="pill" style="background:#e0e7ff; color:#3730a3; margin-left:8px; font-weight:bold;">👁️ 採購部唯讀檢視</span>` : '';
 
   let editProjBtn = canEditMainProj ? `<button class="action-btn" onclick="openGeneralEdit('project', '${activeProj.id}')" style="margin-left:8px; padding:2px 6px;">✏️ 編輯主資訊</button>` : '';
   let viewOnlyBadge = hasViewOnly ? `<span class="pill" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; margin-left:8px;">👁️ 開放瀏覽：<span style="color:#0f172a; font-weight:600;">${collabList.join(', ')}</span></span>` : '';
@@ -2390,7 +2425,7 @@ function renderProjects() {
   if (currentTitleEl) currentTitleEl.innerHTML = `
       <span style="color:#0f172a; font-weight:700;">專案：</span>${titleDisplayName} 
       <span style="display:inline-flex; flex-wrap:wrap; align-items:center; gap:4px; margin-top:2px;">
-          ${viewOnlyBadge} ${statusBadge} ${resubmitBtnHtml} ${trashActionHtml} ${graceBadge} ${approvalLogBtn} ${collabManageBtn} ${pauseBtnHtml} ${editProjBtn} ${inlineDelBtn}
+          ${procureViewBadge} ${viewOnlyBadge} ${statusBadge} ${resubmitBtnHtml} ${trashActionHtml} ${graceBadge} ${approvalLogBtn} ${collabManageBtn} ${pauseBtnHtml} ${editProjBtn} ${inlineDelBtn}
       </span>
   `;
   
