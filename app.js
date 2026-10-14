@@ -2755,21 +2755,28 @@ function renderProjects() {
               ? 0 
               : (currentProgress > 0 ? Math.min(100, currentProgress + 1) : 0);
 
+            // 🌟 若為鎖定/唯讀狀態，徹底移除滾輪與按鍵事件，並阻斷指針事件
+            const wheelAndKeyEvents = isInputLocked ? '' : `
+              onkeydown="handleProgressKeyLoop(event, this, ${minAllowedProg})"
+              onwheel="event.preventDefault(); handleProgressKeyLoop({key: event.deltaY < 0 ? 'ArrowUp' : 'ArrowDown', preventDefault: ()=>{}, stopPropagation: ()=>{}}, this, ${minAllowedProg})"
+              oninput="handleProgressInputLimit(this, ${minAllowedProg})"
+              onblur="handleProgressBlurLimit(this, ${minAllowedProg})"
+            `;
+
+            const lockedStyle = isInputLocked ? 'cursor: not-allowed; pointer-events: none; background: #f8fafc;' : '';
+
             const row = document.createElement("div"); 
             row.className = "gantt-row";
             row.innerHTML = `
-              <div class="col-name" title="${task.name || '未命名任務'}" style="${nameIndent}"><span style="overflow:hidden; text-overflow:ellipsis;">${displayName}</span>${editHtml}</div>${expectedDateHtml}
+              <div class="col-name" title="${task.name \vert{}\vert{} '未命名任務'}" style="${nameIndent}"><span style="overflow:hidden; text-overflow:ellipsis;">${displayName}</span>${editHtml}</div>${expectedDateHtml}
               <div class="col-date" style="color: #64748b;"><span>${workDays} 天</span></div>
               <div class="col-prog">
                 <input type="number" 
                        value="${currentProgress}" 
                        id="prog_input_${index}" 
-                       ${isInputLocked ? 'disabled' : ''} 
-                       style="${progressInputStyle}"
-                       onkeydown="handleProgressKeyLoop(event, this, ${minAllowedProg})"
-                       onwheel="event.preventDefault(); handleProgressKeyLoop({key: event.deltaY < 0 ? 'ArrowUp' : 'ArrowDown', preventDefault: ()=>{}, stopPropagation: ()=>{}}, this, ${minAllowedProg})"
-                       oninput="handleProgressInputLimit(this, ${minAllowedProg})"
-                       onblur="handleProgressBlurLimit(this, ${minAllowedProg})">
+                       ${isInputLocked ? 'disabled readonly' : ''} 
+                       style="${progressInputStyle}${lockedStyle}"
+                       ${wheelAndKeyEvents}>
                 <span style="font-weight:bold; margin-left:2px; color:${numColor};">%</span>
               </div>
               <div class="col-act"><button class="action-btn btn-sm" ${isInputLocked ? 'disabled' : ''} style="${confirmBtnStyle}" onclick="confirmProgress('${activeProj.id}',${index}, '${safeEnd}')">${task.isCompleted ? '完成' : '確認'}</button></div>
@@ -3080,12 +3087,15 @@ window.submitDelayReason = () => {
 
 // 🌟 強化版：處理上下鍵與滾輪步進循環跳轉 (0/min <-> 100)
 window.handleProgressKeyLoop = (e, input, minVal) => {
+  // 🌟 雙重防護：如果輸入框已被鎖定或唯讀，直接中斷，不作任何數字跳轉
+  if (input.disabled || input.readOnly) return;
+
   if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
 
   // 徹底阻斷瀏覽器原生 number 的干擾
   e.preventDefault();
   e.stopPropagation();
-
+  
   let val = parseInt(input.value, 10);
   if (isNaN(val)) val = minVal;
 
