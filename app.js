@@ -2595,23 +2595,35 @@ function renderProjects() {
                 taskCreatedTime = typeof activeProj.createdAt.toMillis === 'function' ? activeProj.createdAt.toMillis() : Date.now();
             }
 
+            // 🌟 判定是否屬於「採購子專案」
+            const isProcureSubProject = (activeProj.tasks || []).some(t => 
+              t.isSubProjectTask && t.parentSubProject === task.parentSubProject && t.name?.includes("簽核送審")
+            );
+
             let isTaskInGrace = true;
-            if (task.isSubProjectTask && !task.name?.includes("簽核流程")) {
-                if (task.datesSetAt) {
-                    isTaskInGrace = ((Date.now() - task.datesSetAt) / (1000 * 60 * 60 * 24)) <= 14;
-                } else {
-                    isTaskInGrace = true; 
-                }
-            } else {
+            let canEditTask = false;
+
+            if (task.isSubProjectTask && isProcureSubProject) {
+              if (task.name?.includes("簽核送審")) {
+                // 簽核送審本身：維持開案 7 天內，開案者或管理員可編輯
                 isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+                canEditTask = (isGlobalAdmin && isEditMode) || (isProjOwner && isTaskInGrace);
+              } else {
+                // 採購後續細項：只有被指派的採購人員 (或管理員) 享有 15 天修改期
+                const baseTime = task.procureApprovedAt || taskCreatedTime;
+                isTaskInGrace = ((Date.now() - baseTime) / (1000 * 60 * 60 * 24)) <= 15;
+                canEditTask = (isGlobalAdmin && isEditMode) || (isMyTask && isTaskInGrace);
+              }
+            } else {
+              // 一般任務或一般子專案細項：維持原本 7 天限制
+              isTaskInGrace = ((Date.now() - taskCreatedTime) / (1000 * 60 * 60 * 24)) <= 7;
+              canEditTask = (isGlobalAdmin && isEditMode) || ((isProjOwner || isMyTask) && isTaskInGrace);
             }
 
-            // 🌟 只有開案者、管理員、或被指派該任務的負責人才能操作此細項
+            // 只有開案者、管理員、或被指派該任務的負責人才能操作此細項進度
             const canOperateThisTask = (isGlobalAdmin || isProjOwner || isMyTask);
             const isProjectPaused = activeProj.status === 'paused' || activeProj.status === 'pause_requested' || activeProj.status === 'pending_approval';
-            const isInputLocked = task.isCompleted || !canOperateThisTask || isProjectPaused; 
-
-            let canEditTask = canOperateThisTask && ((isGlobalAdmin && isEditMode) || ((isProjOwner || isMyTask) && isTaskInGrace));
+            const isInputLocked = task.isCompleted || !canOperateThisTask || isProjectPaused;
             
             let editHtml = canEditTask ? `
               <div style="display:inline-flex; align-items:center; gap:2px; margin-left:auto; flex-shrink:0;">
@@ -3083,34 +3095,34 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
     targetTask.completedAt = ts; 
     targetTask.delayReason = delayReason;
     
-    // 🌟 協作/簽核流程結案自動推延同子專案後續任務
+    // 🌟 採購簽核送審 / 流程結案：自動推延同子專案後續任務，並啟動 30 天採購編輯期
     const isFlowTask = targetTask.isSubProjectTask && 
-      (targetTask.name.includes("協作流程") || targetTask.name.includes("簽核流程"));
+      (targetTask.name.includes("簽核送審") || targetTask.name.includes("協作流程") || targetTask.name.includes("簽核流程"));
 
     if (isFlowTask) {
-        const flowTypeName = targetTask.name.includes("協作流程") ? "協作流程" : "簽核流程";
         const parentSubName = targetTask.parentSubProject;
         const nextWorkingDay = getNextWorkingDayStr(todayStr); 
+        const nowMs = Date.now();
         let modifiedCount = 0;
         
         tasks.forEach(t => {
-            if (t.isSubProjectTask && t.parentSubProject === parentSubName && !t.name.includes("協作流程") && !t.name.includes("簽核流程")) {
+            if (t.isSubProjectTask && t.parentSubProject === parentSubName && 
+                !t.name.includes("簽核送審") && !t.name.includes("協作流程") && !t.name.includes("簽核流程")) {
+                
+                t.procureApprovedAt = nowMs; // 🌟 記錄通過時間，啟動專屬 30 天修改期起算點
+                
                 if (!t.isCompleted) {
+                    const days = getWorkingDays(t.start, t.end) || 1;
                     t.start = nextWorkingDay;
-                    if (t.end < t.start) t.end = nextWorkingDay;
+                    t.end = calculateEndDateByDays(nextWorkingDay, days);
                     modifiedCount++;
                 }
             }
         });
-        if (modifiedCount > 0) {
-            alert(`🎉 ${flowTypeName}已結案！後續 ${modifiedCount} 個細項的起始日，已自動展延至下一個工作日 (${nextWorkingDay})。`);
-        } else {
-            alert(`🎉 ${flowTypeName}已結案！`);
-        }
+        alert(`🎉 簽核送審已完成結案！後續 ${modifiedCount} 個細項的起始日已自動設為下一個工作日 (${nextWorkingDay})，並已開放採購人員 15 天細項調整期。`);
     } else {
         alert("🎉 進度已達 100%！該任務已結案。");
     }
-
   } else { 
     currentRemark = await window.openCustomPrompt("📝 進度更新", "請輸入此次進度更新的備註事項 (選填)：", false);
     if (currentRemark === null) { inputElem.value = oldProg; return; }
@@ -4403,18 +4415,42 @@ window.openGeneralEdit = (type, id, extra) => {
     const taskDays = getWorkingDays(task.start, task.end);
     document.getElementById("general-edit-title").innerText = "編輯專案細項";
 
+    // 🌟 判斷是否為採購子專案任務
+    const isProcureSubProject = (proj.tasks || []).some(t => 
+      t.isSubProjectTask && t.parentSubProject === task.parentSubProject && t.name?.includes("簽核送審")
+    );
+    const isStartLocked = task.name?.includes("簽核送審") || (task.isSubProjectTask && isProcureSubProject);
+
     // 🌟 自動過濾掉名稱中的 [子專案名稱] 前綴，讓編輯時只顯示純細項名稱
     let cleanTaskName = task.name || '';
     if (task.isSubProjectTask && task.parentSubProject) {
         cleanTaskName = cleanTaskName.replace(`[${task.parentSubProject}] `, '');
     }
 
+    const startFieldHtml = isStartLocked 
+      ? `<input type="date" id="edit-val-start" class="input-control" value="${task.start}" disabled style="background:#f1f5f9; color:#64748b; cursor:not-allowed;" title="採購細項開始日期已鎖定連動，禁止手動修改">`
+      : `<input type="date" id="edit-val-start" class="input-control" value="${task.start}" onchange="onTaskStartChange(this, 'edit-val-end')">`;
+
+    const lockHint = isStartLocked 
+      ? `<div style="font-size:11px; color:#dc2626; margin-top:2px;">* 開始日期已依送審結果鎖定，僅可修改天數與結束日</div>`
+      : ``;
+
     form.innerHTML = `
       <div class="form-group"><label class="form-label">細項名稱</label><input type="text" id="edit-val-name" class="input-control" value="${cleanTaskName}"></div>
       <div class="form-row">
-        <div class="form-group" style="flex:1.5;"><label class="form-label">開始日期</label><input type="date" id="edit-val-start" class="input-control" value="${task.start}" onchange="onTaskStartChange(this, 'edit-val-end')"></div>
-        <div class="form-group" style="width:65px; flex-shrink:0;"><label class="form-label">天數</label><input type="number" min="1" id="edit-val-days" class="input-control task-days" value="${taskDays}" oninput="onTaskDaysChange(this, 'edit-val-start', 'edit-val-end')"></div>
-        <div class="form-group" style="flex:1.5;"><label class="form-label">結束日期</label><input type="date" id="edit-val-end" class="input-control" value="${task.end}" min="${task.start}" onchange="onTaskEndChange(this, 'edit-val-start', 'edit-val-days')"></div>
+        <div class="form-group" style="flex:1.5;">
+          <label class="form-label">開始日期</label>
+          ${startFieldHtml}
+          ${lockHint}
+        </div>
+        <div class="form-group" style="width:65px; flex-shrink:0;">
+          <label class="form-label">天數</label>
+          <input type="number" min="1" id="edit-val-days" class="input-control task-days" value="${taskDays}" oninput="onTaskDaysChange(this, 'edit-val-start', 'edit-val-end')">
+        </div>
+        <div class="form-group" style="flex:1.5;">
+          <label class="form-label">結束日期</label>
+          <input type="date" id="edit-val-end" class="input-control" value="${task.end}" min="${task.start}" onchange="onTaskEndChange(this, 'edit-val-start', 'edit-val-days')">
+        </div>
       </div>
     `;
   } else if (type === 'adhoc') {
