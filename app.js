@@ -2620,8 +2620,19 @@ function renderProjects() {
               canEditTask = (isGlobalAdmin && isEditMode) || ((isProjOwner || isMyTask) && isTaskInGrace);
             }
 
-            // 只有開案者、管理員、或被指派該任務的負責人才能操作此細項進度
-            const canOperateThisTask = (isGlobalAdmin || isProjOwner || isMyTask);
+            // 🌟 判定是否為採購專屬的「簽核送審」細項
+            const isProcureApprovalTask = task.isSubProjectTask && task.name?.includes("簽核送審");
+
+            // 🌟 核心權限分流：
+            // 若為「簽核送審」：強制只有被指派的採購人員 (isMyTask) 或 管理員 (isGlobalAdmin) 可以填寫 % 數
+            // 其他一般細項：維持原本 (管理員、開案者、指派同仁皆可)
+            let canOperateThisTask = false;
+            if (isProcureApprovalTask) {
+                canOperateThisTask = (isGlobalAdmin || isMyTask);
+            } else {
+                canOperateThisTask = (isGlobalAdmin || isProjOwner || isMyTask);
+            }
+
             const isProjectPaused = activeProj.status === 'paused' || activeProj.status === 'pause_requested' || activeProj.status === 'pending_approval';
             const isInputLocked = task.isCompleted || !canOperateThisTask || isProjectPaused;
             
@@ -3056,9 +3067,20 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   const isProjOwner = (proj.ownerId === auth.currentUser.uid);
   const taskAssigneeId = targetTask.assigneeId || proj.ownerId;
   const isMyTask = (auth.currentUser.uid === taskAssigneeId);
-  
-  if (!isProjOwner && !isMyTask && currentUserData.role !== 'admin') {
-    return alert("權限不足：您並非此任務細項之負責人或專案建立者，無法更新進度！");
+  const isAdmin = (currentUserData.role === 'admin');
+
+  // 🌟 1. 採購「簽核送審」專屬卡關：只允許被指派的採購人員或管理員
+  const isProcureApprovalTask = targetTask.isSubProjectTask && targetTask.name?.includes("簽核送審");
+  if (isProcureApprovalTask) {
+    if (!isMyTask && !isAdmin) {
+      return alert("⚠️ 權限不足！");
+    }
+  } 
+  // 🌟 2. 一般任務驗證：開案者、指派者或管理員
+  else {
+    if (!isProjOwner && !isMyTask && !isAdmin) {
+      return alert("權限不足：您並非此任務細項之負責人或專案建立者，無法更新進度！");
+    }
   }
 
   const inputElem = document.getElementById(`prog_input_${taskIndex}`);
