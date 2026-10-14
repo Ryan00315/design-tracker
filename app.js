@@ -3547,35 +3547,49 @@ function renderAdHocEvents() {
     let actionHtml = !evt.isCompleted && isOwner ? `<button class="action-btn" onclick="completeAdHoc('${evt.id}')">完成</button>` : '';
     let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || canEditEvent) ? `<button class="action-btn danger" style="margin-left:4px;" onclick="deleteAdHoc('${evt.id}')">刪除</button>` : '';
 
-    // 🌟 新增：精算事件共計時數 (使用 startDateTime 與 completedAt 比對)
-    let durationHtml = "";
+    // 🌟 解析並格式化「實際完成時間」：拆成兩行 (24小時制，不含上下午)
+    // 🌟 解析並格式化「實際完成時間」：拆成兩行 (24小時制，不含上下午，已移除共計時數)
+    let completedTimeHtml = "-";
+
     if (evt.isCompleted && evt.completedAt) {
-        try {
-            let startStr = evt.startDateTime || (evt.startDate + ' 00:00:00');
-            let startMs = new Date(startStr.replace(/-/g, '/')).getTime();
-            let endMs = new Date(evt.completedAt.replace(/-/g, '/')).getTime();
-            if (!isNaN(startMs) && !isNaN(endMs) && endMs >= startMs) {
-                let diffHours = ((endMs - startMs) / (1000 * 60 * 60)).toFixed(1);
-                durationHtml = `<div style="font-size:12px; color:var(--success); font-weight:bold; margin-top:4px;">共計 ${diffHours} 小時</div>`;
-            }
-        } catch (e) { console.error("時數解析錯誤:", e); }
+      try {
+        // 清除舊資料中可能殘留的上下午字樣
+        let cleanTs = evt.completedAt.replace(/(上午|下午|AM|PM|\s)+/g, ' ').trim();
+        let parts = cleanTs.split(' ');
+        
+        let datePart = parts[0] || "";
+        let timePart = parts[1] || "";
+
+        if (datePart && timePart) {
+          completedTimeHtml = `<div style="font-weight: 600; line-height: 1.25;">${datePart}</div><div style="color: #64748b; font-size: 11px; margin-top: 2px;">${timePart}</div>`;
+        } else {
+          completedTimeHtml = `<div style="font-weight: 600;">${evt.completedAt}</div>`;
+        }
+      } catch (e) {
+        completedTimeHtml = evt.completedAt;
+      }
     }
 
     const tr = document.createElement("tr"); 
     tr.innerHTML = `
-      <td style="white-space: nowrap; width: 1%;"><strong>${evt.title}</strong></td>
-      <td style="word-break: break-all; width: 100%; min-width: 200px;">
-          <!-- 🌟 包在 ql-snow / ql-editor 內，才能正確套用 Quill 的多層次清單縮排樣式 -->
+      <!-- 🌟 事項名稱：設定寬度限制並允許自動折行，超過時向下換行不撐寬 -->
+      <td style="width: 160px; max-width: 180px; word-break: break-all; line-height: 1.4;">
+        <strong>${evt.title}</strong>
+      </td>
+      <td style="word-break: break-all; width: auto;">
+          <!-- 🌟 原因說明：寬度最大化展開 -->
           <div class="ql-snow" style="border: none;">
               <div class="ql-editor" style="padding: 0; min-height: auto; font-size: inherit;">
                   ${evt.reason}
               </div>
           </div>
       </td>
-      <td style="white-space: nowrap; width: 1%;">${evt.startDate || '-'}</td>
-      <td style="white-space: nowrap; width: 1%;">${evt.completedAt || '-'}${durationHtml}</td>
-      <td style="white-space: nowrap; width: 1%;">${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td>
-      <td style="white-space: nowrap; width: 1%;">${actionHtml}${editHtml}${delHtml}</td>
+      <td style="white-space: nowrap; width: 1%; text-align: center;">${evt.startDate || '-'}</td>
+      <td style="white-space: nowrap; width: 95px; text-align: center; vertical-align: middle;">
+          ${completedTimeHtml}
+      </td>
+      <td style="white-space: nowrap; width: 1%; text-align: center;">${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td>
+      <td style="white-space: nowrap; width: 1%; text-align: center;">${actionHtml}${editHtml}${delHtml}</td>
     `; 
     tbody.appendChild(tr);
   });
@@ -3609,7 +3623,9 @@ document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
 });
 
 window.completeAdHoc = async (id) => { 
-  await updateDoc(doc(db, "ad_hoc_events", id), { isCompleted: true, completedAt: new Date().toLocaleString() }); 
+  // 🌟 使用 24 小時制，不帶上下午字樣
+  const nowTs = new Date().toLocaleString('zh-TW', { hour12: false });
+  await updateDoc(doc(db, "ad_hoc_events", id), { isCompleted: true, completedAt: nowTs }); 
 };
 
 window.deleteAdHoc = async (id) => { 
