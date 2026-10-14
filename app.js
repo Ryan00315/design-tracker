@@ -2659,8 +2659,11 @@ function renderProjects() {
             }
             const nameIndent = item.isChild ? 'padding-left: 22px; color: var(--text-muted);' : '';
 
-            // 🌟 1. 在外面計算門檻（若上次已送出 11%，則下次只能從 12% 起跳；若原為 0% 則從 0 起跳）
-            const minAllowedProg = currentProgress > 0 ? Math.min(100, currentProgress + 1) : 0;
+            // 🌟 1. 計算門檻：管理員 (admin) 允許倒退 (從 0 起跳)，一般人員維持原門檻
+            const isAdminUser = (currentUserData.role === 'admin');
+            const minAllowedProg = isAdminUser 
+              ? 0 
+              : (currentProgress > 0 ? Math.min(100, currentProgress + 1) : 0);
 
             const row = document.createElement("div"); 
             row.className = "gantt-row";
@@ -3052,9 +3055,9 @@ window.confirmProgress = async (projId, taskIndex, plannedEnd) => {
   if (isNaN(newProg) || newProg < 0) newProg = 0; 
   if (newProg > 100) newProg = 100;
 
-  // 🌟 核心防倒退：若先前已有進度 (例如 11%)，下次送出必須嚴格大於前次 (至少 12% 起跳)
-  if (oldProg > 0 && newProg <= oldProg && !targetTask.isCompleted) { 
-    alert(`錯誤：進度不能倒退或維持原進度！目前已達成 ${oldProg}%，下次更新需大於等於 ${oldProg + 1}%。`); 
+  // 🌟 核心防倒退：一般人員禁止倒退，只有系統管理員 (admin) 可以下修進度
+  if (currentUserData.role !== 'admin' && oldProg > 0 && newProg <= oldProg && !targetTask.isCompleted) { 
+    alert(`錯誤：進度不能倒退或維持原進度！目前已達成 ${oldProg}%，下次更新需大於等於 ${oldProg + 1}%。(如需調降請聯繫系統管理員協助)`); 
     inputElem.value = Math.min(100, oldProg + 1); 
     return; 
   }
