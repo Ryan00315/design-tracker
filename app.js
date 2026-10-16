@@ -8439,8 +8439,15 @@ window.saveProjectDraft = function() {
   }
 
   let drafts = getAllDrafts();
-  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   const existingIdx = drafts.findIndex(d => d.title === title);
+
+  // 🌟 若已存在相同專案名稱的草稿，跳出詢問視窗
+  if (existingIdx >= 0) {
+    const isConfirmOverwrite = confirm(`⚠️ 已存在專案名稱為【${title}】的草稿（儲存於 ${drafts[existingIdx].savedAt}）。\n\n是否確定要覆蓋此草稿？`);
+    if (!isConfirmOverwrite) return; // 使用者按取消，終止儲存
+  }
+
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   const newDraft = {
     id: existingIdx >= 0 ? drafts[existingIdx].id : 'draft_' + Date.now(),
     title,
@@ -8710,9 +8717,15 @@ window.saveAdHocDraft = function() {
   }
 
   let drafts = getAllAdHocDrafts();
-  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   const existingIdx = drafts.findIndex(d => d.title === title);
 
+  // 🌟 若已存在相同事項名稱的草稿，跳出詢問視窗
+  if (existingIdx >= 0) {
+    const isConfirmOverwrite = confirm(`⚠️ 已存在事項名稱為【${title}】的事件草稿（儲存於 ${drafts[existingIdx].savedAt}）。\n\n是否確定要覆蓋此草稿？`);
+    if (!isConfirmOverwrite) return;
+  }
+
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   const newDraft = {
     id: existingIdx >= 0 ? drafts[existingIdx].id : 'adhoc_draft_' + Date.now(),
     title,
@@ -8880,9 +8893,15 @@ window.saveWeeklyDraft = function() {
   });
 
   let drafts = getAllWeeklyDrafts();
-  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   const existingIdx = drafts.findIndex(d => d.dateStr === dateStr);
 
+  // 🌟 若已存在相同週報日期的草稿，跳出詢問視窗
+  if (existingIdx >= 0) {
+    const isConfirmOverwrite = confirm(`⚠️ 已存在【${dateStr}】的週報草稿（儲存於 ${drafts[existingIdx].savedAt}）。\n\n是否確定要覆蓋此週報草稿？`);
+    if (!isConfirmOverwrite) return;
+  }
+
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   const newDraft = {
     id: existingIdx >= 0 ? drafts[existingIdx].id : 'weekly_draft_' + Date.now(),
     dateStr,
