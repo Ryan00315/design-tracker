@@ -194,14 +194,18 @@ function initDynamicUI() {
       box-sizing: border-box !important;
     }
 
-    /* 視窗內所有輸入框、標籤、按鈕的字級與高度等比調大 */
+    /* 視窗內所有輸入框、標籤、按鈕、表格與單元格的字級等比調大 */
     .modal-box .form-label,
     .modal-box .input-control,
     .modal-box select,
     .modal-box textarea,
     .modal-box button,
     .modal-box .modal-header span,
-    .modal-box table {
+    .modal-box table,
+    .modal-box table th,
+    .modal-box table td,
+    .modal-box table td span,
+    .modal-box table tr {
       font-size: 1em !important;
     }
 
@@ -8499,12 +8503,12 @@ window.openDraftListModal = function() {
     const taskCount = (d.tasks || []).length;
     tableRows += `
       <tr style="border-bottom: 1px solid var(--border-light);">
-        <td style="padding: 10px 8px; font-weight: bold; color: var(--primary);">🗂️ ${d.title}</td>
-        <td style="padding: 10px 8px; font-size: 13px; color: #475569;">${taskCount} 個項目/子專案</td>
-        <td style="padding: 10px 8px; font-size: 12px; color: #64748b;">${d.savedAt}</td>
-        <td style="padding: 10px 8px; text-align: center; white-space: nowrap;">
-          <button type="button" class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 10px; font-weight:bold; margin-right:4px;" onclick="loadSpecificDraft('${d.id}')">✏️ 載入編輯</button>
-          <button type="button" class="action-btn danger" style="padding:4px 8px; font-size:12px;" onclick="deleteSpecificDraft('${d.id}', '${d.title}')">🗑️ 刪除</button>
+        <td style="padding: 12px 8px; font-weight: bold; color: var(--primary); font-size: inherit;">🗂️ ${d.title}</td>
+        <td style="padding: 12px 8px; color: #334155; font-size: inherit;">${taskCount} 個項目/子專案</td>
+        <td style="padding: 12px 8px; color: #475569; font-size: inherit;">${d.savedAt}</td>
+        <td style="padding: 12px 8px; text-align: center; white-space: nowrap;">
+          <button type="button" class="action-btn" style="background:#10b981; color:#fff; border:none; padding:5px 12px; font-weight:bold; margin-right:4px;" onclick="loadSpecificDraft('${d.id}')">✏️ 載入編輯</button>
+          <button type="button" class="action-btn danger" style="padding:5px 10px;" onclick="deleteSpecificDraft('${d.id}', '${d.title}')">🗑️ 刪除</button>
         </td>
       </tr>
     `;
@@ -8771,12 +8775,12 @@ window.openAdHocDraftListModal = function() {
   drafts.forEach(d => {
     tableRows += `
       <tr style="border-bottom: 1px solid var(--border-light);">
-        <td style="padding: 10px 8px; font-weight: bold; color: var(--primary);">📝 ${d.title}</td>
-        <td style="padding: 10px 8px; font-size: 12px; color: #64748b;">${d.start || '未指定日期'}</td>
-        <td style="padding: 10px 8px; font-size: 12px; color: #64748b;">${d.savedAt}</td>
-        <td style="padding: 10px 8px; text-align: center; white-space: nowrap;">
-          <button type="button" class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 10px; font-weight:bold; margin-right:4px;" onclick="loadSpecificAdHocDraft('${d.id}')">✏️ 載入</button>
-          <button type="button" class="action-btn danger" style="padding:4px 8px; font-size:12px;" onclick="deleteSpecificAdHocDraft('${d.id}', '${d.title}')">🗑️ 刪除</button>
+        <td style="padding: 12px 8px; font-weight: bold; color: var(--primary); font-size: inherit;">📝 ${d.title}</td>
+        <td style="padding: 12px 8px; color: #334155; font-size: inherit;">${d.start || '未指定日期'}</td>
+        <td style="padding: 12px 8px; color: #475569; font-size: inherit;">${d.savedAt}</td>
+        <td style="padding: 12px 8px; text-align: center; white-space: nowrap;">
+          <button type="button" class="action-btn" style="background:#10b981; color:#fff; border:none; padding:5px 12px; font-weight:bold; margin-right:4px;" onclick="loadSpecificAdHocDraft('${d.id}')">✏️ 載入</button>
+          <button type="button" class="action-btn danger" style="padding:5px 10px;" onclick="deleteSpecificAdHocDraft('${d.id}', '${d.title}')">🗑️ 刪除</button>
         </td>
       </tr>
     `;
@@ -8949,12 +8953,12 @@ window.openWeeklyDraftListModal = function() {
     const itemCount = (d.items || []).length;
     tableRows += `
       <tr style="border-bottom: 1px solid var(--border-light);">
-        <td style="padding: 10px 8px; font-weight: bold; color: var(--primary);">📋 ${d.dateStr}</td>
-        <td style="padding: 10px 8px; font-size: 13px; color: #475569;">${itemCount} 項進度說明 ${d.leaveType ? `(${d.leaveType})` : ''}</td>
-        <td style="padding: 10px 8px; font-size: 12px; color: #64748b;">${d.savedAt}</td>
-        <td style="padding: 10px 8px; text-align: center; white-space: nowrap;">
-          <button type="button" class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 10px; font-weight:bold; margin-right:4px;" onclick="loadSpecificWeeklyDraft('${d.id}')">✏️ 載入</button>
-          <button type="button" class="action-btn danger" style="padding:4px 8px; font-size:12px;" onclick="deleteSpecificWeeklyDraft('${d.id}', '${d.dateStr}')">🗑️ 刪除</button>
+        <td style="padding: 12px 8px; font-weight: bold; color: var(--primary); font-size: inherit;">📋 ${d.dateStr}</td>
+        <td style="padding: 12px 8px; color: #334155; font-size: inherit;">${itemCount} 項進度說明 ${d.leaveType ? `(${d.leaveType})` : ''}</td>
+        <td style="padding: 12px 8px; color: #475569; font-size: inherit;">${d.savedAt}</td>
+        <td style="padding: 12px 8px; text-align: center; white-space: nowrap;">
+          <button type="button" class="action-btn" style="background:#10b981; color:#fff; border:none; padding:5px 12px; font-weight:bold; margin-right:4px;" onclick="loadSpecificWeeklyDraft('${d.id}')">✏️ 載入</button>
+          <button type="button" class="action-btn danger" style="padding:5px 10px;" onclick="deleteSpecificWeeklyDraft('${d.id}', '${d.dateStr}')">🗑️ 刪除</button>
         </td>
       </tr>
     `;
