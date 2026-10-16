@@ -8663,3 +8663,360 @@ window.purgeProjectPermanently = async (projId) => {
     alert("永久刪除失敗：" + err.message);
   }
 };
+
+// ===================================================
+// 🌟 事件紀錄 (Ad-hoc) 多草稿管理系統
+// ===================================================
+function getAdHocDraftStorageKey() {
+  const uid = auth.currentUser?.uid || "guest";
+  return `pms_adhoc_drafts_v1_${uid}`;
+}
+
+function getAllAdHocDrafts() {
+  const raw = localStorage.getItem(getAdHocDraftStorageKey());
+  if (!raw) return [];
+  try { return JSON.parse(raw) || []; } catch (e) { return []; }
+}
+
+window.checkAdHocDraftStatus = function() {
+  const drafts = getAllAdHocDrafts();
+  const btnLoad = document.getElementById("btn-load-adhoc-draft");
+  const countSpan = document.getElementById("adhoc-draft-count-num");
+  if (drafts.length > 0) {
+    if (btnLoad) btnLoad.style.display = "inline-block";
+    if (countSpan) countSpan.innerText = drafts.length;
+  } else {
+    if (btnLoad) btnLoad.style.display = "none";
+    if (countSpan) countSpan.innerText = "0";
+  }
+};
+
+window.saveAdHocDraft = function() {
+  const title = document.getElementById("adhoc-title")?.value.trim() || "";
+  const start = document.getElementById("adhoc-start")?.value || "";
+  let reason = adhocQuill ? adhocQuill.root.innerHTML.trim() : "";
+  if (reason === '<p><br></p>') reason = "";
+
+  if (!title) {
+    return alert("請先填寫「事項名稱」，以便系統依名稱儲存這份草稿！");
+  }
+
+  let drafts = getAllAdHocDrafts();
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+  const existingIdx = drafts.findIndex(d => d.title === title);
+
+  const newDraft = {
+    id: existingIdx >= 0 ? drafts[existingIdx].id : 'adhoc_draft_' + Date.now(),
+    title,
+    start,
+    reason,
+    savedAt: ts
+  };
+
+  if (existingIdx >= 0) {
+    drafts[existingIdx] = newDraft;
+  } else {
+    drafts.unshift(newDraft);
+  }
+
+  localStorage.setItem(getAdHocDraftStorageKey(), JSON.stringify(drafts));
+  window.checkAdHocDraftStatus();
+  alert(`💾 事件紀錄草稿【${title}】已成功儲存！共保留 ${drafts.length} 份草稿。`);
+};
+
+window.openAdHocDraftListModal = function() {
+  const drafts = getAllAdHocDrafts();
+  if (drafts.length === 0) return alert("目前沒有已儲存的事件紀錄草稿！");
+
+  const modal = document.getElementById("general-edit-modal");
+  const form = document.getElementById("general-edit-form");
+  const modalBox = modal.querySelector('.modal-box');
+  if (modalBox) {
+    modalBox.style.maxWidth = "760px";
+    modalBox.style.width = "90vw";
+  }
+
+  document.getElementById("general-edit-title").innerText = `📂 選擇要繼續編輯的事件紀錄草稿 (${drafts.length} 份)`;
+
+  const defaultSaveBtn = Array.from(modal.querySelectorAll("button")).find(b => 
+    b.getAttribute("onclick")?.includes("saveGeneralEdit") || b.textContent.includes("儲存修改")
+  );
+  const defaultFooter = defaultSaveBtn ? defaultSaveBtn.closest("div") : null;
+  if (defaultFooter && defaultFooter !== form && !form.contains(defaultFooter)) {
+    defaultFooter.style.display = "none";
+  }
+
+  let tableRows = "";
+  drafts.forEach(d => {
+    tableRows += `
+      <tr style="border-bottom: 1px solid var(--border-light);">
+        <td style="padding: 10px 8px; font-weight: bold; color: var(--primary);">📝 ${d.title}</td>
+        <td style="padding: 10px 8px; font-size: 12px; color: #64748b;">${d.start || '未指定日期'}</td>
+        <td style="padding: 10px 8px; font-size: 12px; color: #64748b;">${d.savedAt}</td>
+        <td style="padding: 10px 8px; text-align: center; white-space: nowrap;">
+          <button type="button" class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 10px; font-weight:bold; margin-right:4px;" onclick="loadSpecificAdHocDraft('${d.id}')">✏️ 載入</button>
+          <button type="button" class="action-btn danger" style="padding:4px 8px; font-size:12px;" onclick="deleteSpecificAdHocDraft('${d.id}', '${d.title}')">🗑️ 刪除</button>
+        </td>
+      </tr>
+    `;
+  });
+
+  form.innerHTML = `
+    <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="background: #f8fafc; text-align: left;">
+            <th style="width: 40%; padding: 8px;">事項名稱</th>
+            <th style="width: 25%; padding: 8px;">預計開始日</th>
+            <th style="width: 25%; padding: 8px;">最後儲存時間</th>
+            <th style="width: 10%; padding: 8px; text-align: center;">操作</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+    <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+      <button type="button" class="action-btn" onclick="closeGeneralEditModal()" style="padding: 6px 18px;">關閉</button>
+    </div>
+  `;
+  modal.classList.add("active");
+};
+
+window.loadSpecificAdHocDraft = function(draftId) {
+  const drafts = getAllAdHocDrafts();
+  const draft = drafts.find(d => d.id === draftId);
+  if (!draft) return alert("找不到此份草稿！");
+
+  if (!confirm(`確定要載入事件草稿【${draft.title}】嗎？這將會替換目前表單輸入的內容。`)) return;
+
+  document.getElementById("adhoc-title").value = draft.title || "";
+  document.getElementById("adhoc-start").value = draft.start || "";
+  if (adhocQuill) {
+    adhocQuill.root.innerHTML = draft.reason || "";
+  }
+  closeGeneralEditModal();
+  alert(`✅ 已成功載入事件草稿【${draft.title}】！`);
+};
+
+window.deleteSpecificAdHocDraft = function(draftId, title) {
+  if (!confirm(`確定要刪除事件草稿【${title}】嗎？`)) return;
+  let drafts = getAllAdHocDrafts();
+  drafts = drafts.filter(d => d.id !== draftId);
+  localStorage.setItem(getAdHocDraftStorageKey(), JSON.stringify(drafts));
+  window.checkAdHocDraftStatus();
+  if (drafts.length > 0) window.openAdHocDraftListModal();
+  else { closeGeneralEditModal(); alert("所有事件紀錄草稿已清空！"); }
+};
+
+window.clearCurrentAdHocForm = function() {
+  if (!confirm("確定要清空目前事件紀錄表單嗎？")) return;
+  document.getElementById("adhoc-title").value = "";
+  document.getElementById("adhoc-start").value = "";
+  if (adhocQuill) adhocQuill.root.innerHTML = "";
+};
+
+// ===================================================
+// 🌟 工作週報 (Weekly Report) 多草稿管理系統
+// ===================================================
+function getWeeklyDraftStorageKey() {
+  const uid = auth.currentUser?.uid || "guest";
+  return `pms_weekly_drafts_v1_${uid}`;
+}
+
+function getAllWeeklyDrafts() {
+  const raw = localStorage.getItem(getWeeklyDraftStorageKey());
+  if (!raw) return [];
+  try { return JSON.parse(raw) || []; } catch (e) { return []; }
+}
+
+window.checkWeeklyDraftStatus = function() {
+  const drafts = getAllWeeklyDrafts();
+  const btnLoad = document.getElementById("btn-load-weekly-draft");
+  const countSpan = document.getElementById("weekly-draft-count-num");
+  if (drafts.length > 0) {
+    if (btnLoad) btnLoad.style.display = "inline-block";
+    if (countSpan) countSpan.innerText = drafts.length;
+  } else {
+    if (btnLoad) btnLoad.style.display = "none";
+    if (countSpan) countSpan.innerText = "0";
+  }
+};
+
+window.saveWeeklyDraft = function() {
+  const dateStr = document.getElementById("rep-date")?.value || "";
+  if (!dateStr) return alert("無法取得週報日期！");
+
+  let leaveType = "";
+  let leaveReason = "";
+  const leaveChecked = document.querySelector('input[name="leave_type"]:checked');
+  if (leaveChecked) {
+    leaveType = leaveChecked.value;
+    if (leaveType === "other") {
+      leaveReason = document.getElementById("leave-other-reason")?.value.trim() || "";
+    }
+  }
+
+  const rows = document.querySelectorAll('.weekly-item-row');
+  const items = [];
+  rows.forEach(r => {
+    const pSel = r.querySelector('.weekly-proj-select');
+    const tSel = r.querySelector('.weekly-task-select');
+    const content = r.querySelector('.weekly-content')?.value || "";
+    if (pSel && pSel.value) {
+      items.push({
+        projId: pSel.value,
+        taskId: tSel ? tSel.value : "",
+        content: content
+      });
+    }
+  });
+
+  let drafts = getAllWeeklyDrafts();
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+  const existingIdx = drafts.findIndex(d => d.dateStr === dateStr);
+
+  const newDraft = {
+    id: existingIdx >= 0 ? drafts[existingIdx].id : 'weekly_draft_' + Date.now(),
+    dateStr,
+    leaveType,
+    leaveReason,
+    items,
+    savedAt: ts
+  };
+
+  if (existingIdx >= 0) {
+    drafts[existingIdx] = newDraft;
+  } else {
+    drafts.unshift(newDraft);
+  }
+
+  localStorage.setItem(getWeeklyDraftStorageKey(), JSON.stringify(drafts));
+  window.checkWeeklyDraftStatus();
+  alert(`💾 週報草稿【${dateStr}】已成功儲存！共保留 ${drafts.length} 份草稿。`);
+};
+
+window.openWeeklyDraftListModal = function() {
+  const drafts = getAllWeeklyDrafts();
+  if (drafts.length === 0) return alert("目前沒有已儲存的週報草稿！");
+
+  const modal = document.getElementById("general-edit-modal");
+  const form = document.getElementById("general-edit-form");
+  const modalBox = modal.querySelector('.modal-box');
+  if (modalBox) {
+    modalBox.style.maxWidth = "760px";
+    modalBox.style.width = "90vw";
+  }
+
+  document.getElementById("general-edit-title").innerText = `📂 選擇要繼續編輯的週報草稿 (${drafts.length} 份)`;
+
+  const defaultSaveBtn = Array.from(modal.querySelectorAll("button")).find(b => 
+    b.getAttribute("onclick")?.includes("saveGeneralEdit") || b.textContent.includes("儲存修改")
+  );
+  const defaultFooter = defaultSaveBtn ? defaultSaveBtn.closest("div") : null;
+  if (defaultFooter && defaultFooter !== form && !form.contains(defaultFooter)) {
+    defaultFooter.style.display = "none";
+  }
+
+  let tableRows = "";
+  drafts.forEach(d => {
+    const itemCount = (d.items || []).length;
+    tableRows += `
+      <tr style="border-bottom: 1px solid var(--border-light);">
+        <td style="padding: 10px 8px; font-weight: bold; color: var(--primary);">📋 ${d.dateStr}</td>
+        <td style="padding: 10px 8px; font-size: 13px; color: #475569;">${itemCount} 項進度說明 ${d.leaveType ? `(${d.leaveType})` : ''}</td>
+        <td style="padding: 10px 8px; font-size: 12px; color: #64748b;">${d.savedAt}</td>
+        <td style="padding: 10px 8px; text-align: center; white-space: nowrap;">
+          <button type="button" class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 10px; font-weight:bold; margin-right:4px;" onclick="loadSpecificWeeklyDraft('${d.id}')">✏️ 載入</button>
+          <button type="button" class="action-btn danger" style="padding:4px 8px; font-size:12px;" onclick="deleteSpecificWeeklyDraft('${d.id}', '${d.dateStr}')">🗑️ 刪除</button>
+        </td>
+      </tr>
+    `;
+  });
+
+  form.innerHTML = `
+    <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="background: #f8fafc; text-align: left;">
+            <th style="width: 35%; padding: 8px;">週報日期</th>
+            <th style="width: 25%; padding: 8px;">填寫內容</th>
+            <th style="width: 25%; padding: 8px;">最後儲存時間</th>
+            <th style="width: 15%; padding: 8px; text-align: center;">操作</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+    <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+      <button type="button" class="action-btn" onclick="closeGeneralEditModal()" style="padding: 6px 18px;">關閉</button>
+    </div>
+  `;
+  modal.classList.add("active");
+};
+
+window.loadSpecificWeeklyDraft = function(draftId) {
+  const drafts = getAllWeeklyDrafts();
+  const draft = drafts.find(d => d.id === draftId);
+  if (!draft) return alert("找不到此份草稿！");
+
+  if (!confirm(`確定要載入【${draft.dateStr}】的週報草稿嗎？這將會替換目前表單輸入的內容。`)) return;
+
+  document.querySelectorAll('input[name="leave_type"]').forEach(r => {
+    r.checked = (r.value === draft.leaveType);
+  });
+  const reasonInput = document.getElementById("leave-other-reason");
+  if (reasonInput) {
+    reasonInput.value = draft.leaveReason || "";
+    reasonInput.style.display = (draft.leaveType === "other") ? "block" : "none";
+  }
+
+  const container = document.getElementById("weekly-items-container");
+  container.innerHTML = "";
+
+  if (Array.isArray(draft.items) && draft.items.length > 0) {
+    draft.items.forEach(item => {
+      window.addWeeklyRow();
+      const lastRow = container.querySelector('.weekly-item-row:last-child');
+      if (lastRow) {
+        const pSel = lastRow.querySelector('.weekly-proj-select');
+        const contentArea = lastRow.querySelector('.weekly-content');
+        if (pSel) {
+          pSel.value = item.projId;
+          window.updateWeeklyTaskSelect(pSel);
+          const tSel = lastRow.querySelector('.weekly-task-select');
+          if (tSel && item.taskId) {
+            tSel.value = item.taskId;
+          }
+        }
+        if (contentArea) contentArea.value = item.content || "";
+      }
+    });
+  } else {
+    window.addWeeklyRow();
+  }
+
+  closeGeneralEditModal();
+  alert(`✅ 已成功載入【${draft.dateStr}】的週報草稿！`);
+};
+
+window.deleteSpecificWeeklyDraft = function(draftId, dateStr) {
+  if (!confirm(`確定要刪除週報草稿【${dateStr}】嗎？`)) return;
+  let drafts = getAllWeeklyDrafts();
+  drafts = drafts.filter(d => d.id !== draftId);
+  localStorage.setItem(getWeeklyDraftStorageKey(), JSON.stringify(drafts));
+  window.checkWeeklyDraftStatus();
+  if (drafts.length > 0) window.openWeeklyDraftListModal();
+  else { closeGeneralEditModal(); alert("所有週報草稿已清空！"); }
+};
+
+window.clearCurrentWeeklyForm = function() {
+  if (!confirm("確定要清空目前週報表單嗎？")) return;
+  document.querySelectorAll('input[name="leave_type"]').forEach(r => r.checked = false);
+  const reasonInput = document.getElementById("leave-other-reason");
+  if (reasonInput) {
+    reasonInput.value = "";
+    reasonInput.style.display = "none";
+  }
+  document.getElementById("weekly-items-container").innerHTML = "";
+  window.addWeeklyRow();
+};
