@@ -990,6 +990,10 @@ window.switchNav = (tabId, title, elem) => {
   if (tabId === 'tab-weekly') {
     if (allWeeklyData.length === 0) loadWeeklyReports();
     initWeeklyDateAndLeave(); 
+    if (window.checkWeeklyDraftStatus) window.checkWeeklyDraftStatus(); // 🌟 切換到週報時更新按鈕顯示
+  }
+  if (tabId === 'tab-adhoc') {
+    if (window.checkAdHocDraftStatus) window.checkAdHocDraftStatus(); // 🌟 切換到事件紀錄時更新按鈕顯示
   }
   if (tabId === 'tab-calendar') {
     if (myCalendarTodos.length === 0 && auth.currentUser) loadMyCalendarTodos(auth.currentUser.uid);
@@ -1334,6 +1338,10 @@ onAuthStateChanged(auth, async (user) => {
     window.initManualModalUI();
     window.triggerProjectsUpdate();
     if (window.renderNotifications) window.renderNotifications();
+
+    // 🌟 新增這兩行：登入後立刻檢查週報與事件紀錄是否有草稿
+    if (window.checkWeeklyDraftStatus) window.checkWeeklyDraftStatus();
+    if (window.checkAdHocDraftStatus) window.checkAdHocDraftStatus();
 
     initDepartmentsListener();
     if (currentUserData.role === 'admin' && window.injectDeptManageUI) {
