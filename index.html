@@ -244,7 +244,13 @@
               <label class="form-label">原因說明</label>
               <div id="adhoc-editor-container" style="background: #fff; min-height: 120px;"></div>
             </div>
-            <button id="btn-add-adhoc" class="btn-primary" style="width: 160px; margin-top: 6px;">紀錄臨時事件</button>
+            <!-- 🌟 替換這裡：事件紀錄的草稿按鈕組 -->
+            <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap;">
+              <button id="btn-add-adhoc" class="btn-primary" style="width: 160px;">紀錄臨時事件</button>
+              <button type="button" class="action-btn" onclick="saveAdHocDraft()" style="border-color: #3b82f6; color: #2563eb; font-weight: bold; padding: 6px 14px;">💾 儲存草稿</button>
+              <button type="button" class="action-btn" id="btn-load-adhoc-draft" onclick="openAdHocDraftListModal()" style="border-color: #059669; color: #059669; font-weight: bold; padding: 6px 14px; display: none;">📂 載入草稿 (<span id="adhoc-draft-count-num">0</span>)</button>
+              <button type="button" class="action-btn danger" onclick="clearCurrentAdHocForm()" style="padding: 6px 12px;">清空目前表單</button>
+            </div>
           </div>
           <div class="section-panel">
             <div class="panel-head">事件紀錄清單</div>
@@ -292,8 +298,12 @@
 
             <div id="weekly-items-container"></div>
             <button class="action-btn" onclick="addWeeklyRow()" style="margin-bottom: 24px; border-style: dashed;">+ 新增進度項目</button>
-            <div style="border-top: 1px solid var(--border); padding-top: 20px;">
+            <!-- 🌟 替換這裡：週報填寫的草稿按鈕組 -->
+            <div style="border-top: 1px solid var(--border); padding-top: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
               <button id="btn-add-weekly" class="btn-primary" style="width: 160px;">送出週報</button>
+              <button type="button" class="action-btn" onclick="saveWeeklyDraft()" style="border-color: #3b82f6; color: #2563eb; font-weight: bold; padding: 6px 14px;">💾 儲存草稿</button>
+              <button type="button" class="action-btn" id="btn-load-weekly-draft" onclick="openWeeklyDraftListModal()" style="border-color: #059669; color: #059669; font-weight: bold; padding: 6px 14px; display: none;">📂 載入草稿 (<span id="weekly-draft-count-num">0</span>)</button>
+              <button type="button" class="action-btn danger" onclick="clearCurrentWeeklyForm()" style="padding: 6px 12px;">清空目前表單</button>
             </div>
           </div>
           
