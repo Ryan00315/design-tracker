@@ -5424,18 +5424,30 @@ window.submitPauseRequest = async () => {
   if (!startDate) return alert("請選擇暫停起始日期！");
   if (!reason) return alert("請務必填寫暫停原因！");
 
+  const proj = allProjectsData.find(p => p.id === projId);
+  const myName = currentUserData.name || auth.currentUser?.email?.split('@')[0] || "人員";
+
   try {
     await updateDoc(doc(db, "projects", projId), {
       status: "pause_requested",
       pauseReason: reason,
       pauseStartDate: startDate, 
-      pauseRequestedBy: currentUserData.name || "人員",
+      pauseRequestedBy: myName,
       pauseRequestedAt: getNowTimeStr(),
       lastPauseRequestedUid: auth.currentUser.uid
     });
     
+    // 🌟 寄信通知最高級主管與系統管理員
+    sendNotificationEmail({
+      targetRole: 'top_manager',
+      projTitle: proj?.title || '未命名專案',
+      type: '專案暫停申請審核通知',
+      reason: `申請人：${myName}\n暫停起始日：${startDate}\n暫停原因：${reason}`,
+      senderName: myName
+    });
+
     window.closePauseModal(); 
-    alert("已送出暫停申請，請等待最高主管或管理員審核！");
+    alert("已送出暫停申請，並已寄發信件通知最高主管與管理員審核！");
   } catch (err) {
     alert("送出失敗：" + err.message);
   }
@@ -5916,16 +5928,29 @@ window.submitResumeRequest = async () => {
   
   if (!resumeDate) return alert("請選擇預計恢復日期！");
 
+  const proj = allProjectsData.find(p => p.id === projId);
+  const myName = currentUserData.name || auth.currentUser?.email?.split('@')[0] || "人員";
+
   try {
     await updateDoc(doc(db, "projects", projId), {
       status: "resume_requested",
       resumeRequestedDate: resumeDate,
-      resumeRequestedBy: currentUserData.name || "人員",
+      resumeRequestedBy: myName,
       resumeRequestedAt: getNowTimeStr(),
       lastResumeRequestedUid: auth.currentUser.uid
     });
+
+    // 🌟 寄信通知最高級主管與系統管理員
+    sendNotificationEmail({
+      targetRole: 'top_manager',
+      projTitle: proj?.title || '未命名專案',
+      type: '專案恢復執行審核通知',
+      reason: `申請人：${myName}\n預計恢復執行日期：${resumeDate}`,
+      senderName: myName
+    });
+
     window.closeResumeModal(); 
-    alert("已送出恢復執行申請，請等待最高主管或管理員審核！");
+    alert("已送出恢復執行申請，並已寄發信件通知最高主管與管理員審核！");
   } catch (err) {
     alert("送出失敗：" + err.message);
   }
