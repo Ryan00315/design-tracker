@@ -1995,6 +1995,8 @@ function renderProjects() {
 
     const isApproval = (p.status === 'pending_approval');
     const isRejected = (p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
+    // 🌟 1. 新增：判斷是否為暫停申請中、或恢復申請中
+    const isPauseOrResumeRequested = (p.status === 'pause_requested' || p.status === 'resume_requested');
 
     // 🌟 2. 退回案件：只有開案者計算並列入
     if (isRejected) {
@@ -2005,15 +2007,26 @@ function renderProjects() {
       return;
     }
 
-    // 🌟 3. 簽核中案件：開案者自己、或輪到的審核人列入
-    if (isApproval) {
-      const cfg = p.approvalConfig || {};
-      const isMyTurn = cfg.currentAssigneeUid ? (cfg.currentAssigneeUid === auth.currentUser?.uid) : (currentUserData.role === 'admin' || currentUserData.role === 'top_manager');
-      if (isRealOwner || isMyTurn) {
-        countPendingApproval++;
-        projectsPendingApproval.push(p);
+    // 🌟 3. 簽核中案件（包含：開案簽核、申請暫停審核中、申請恢復審核中）
+    if (isApproval || isPauseOrResumeRequested) {
+      const isTopOrAdmin = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager');
+      
+      if (isPauseOrResumeRequested) {
+        // 暫停/恢復審核：開案者本人、或具備審核權限的最高主管/管理員，都會在「簽核中」看到它
+        if (isRealOwner || isTopOrAdmin) {
+          countPendingApproval++;
+          projectsPendingApproval.push(p);
+        }
+      } else {
+        // 一般開案簽核流程
+        const cfg = p.approvalConfig || {};
+        const isMyTurn = cfg.currentAssigneeUid ? (cfg.currentAssigneeUid === auth.currentUser?.uid) : isTopOrAdmin;
+        if (isRealOwner || isMyTurn) {
+          countPendingApproval++;
+          projectsPendingApproval.push(p);
+        }
       }
-      return; // 審核中專案到此為止，不進入下方未完成
+      return; // 👈 關鍵：直接截斷，不進入下方的未完成清單！
     }
 
     // 🌟 4. 任務完成與未完成計算
