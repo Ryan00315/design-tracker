@@ -235,8 +235,18 @@
           <div class="section-panel" id="adhoc-form-panel">
             <div class="panel-head">紀錄臨時事件</div>
             <div class="form-row" style="margin-bottom: 8px;">
-              <div class="form-group" style="flex:1.5; margin-bottom:0;"><label class="form-label">事項名稱</label><input type="text" id="adhoc-title" class="input-control" placeholder="緊急樣品修改"></div>
-              <div class="form-group" style="flex:1; margin-bottom:0;"><label class="form-label">預計開始日期</label><input type="date" id="adhoc-start" class="input-control" onchange="checkWorkingDay(this)"></div>
+              <div class="form-group" style="flex:2; margin-bottom:0;">
+                <label class="form-label">事項名稱</label>
+                <input type="text" id="adhoc-title" class="input-control" placeholder="緊急樣品修改">
+              </div>
+              <div class="form-group" style="flex:1.2; margin-bottom:0;">
+                <label class="form-label">事件開始日期</label>
+                <input type="date" id="adhoc-start" class="input-control" onchange="checkWorkingDay(this)">
+              </div>
+              <div class="form-group" style="width: 100px; flex-shrink: 0; margin-bottom:0;">
+                <label class="form-label">預計工時(hr)</label>
+                <input type="number" id="adhoc-est-hours" class="input-control" min="1" step="1" value="1" placeholder="小時" title="以 1 小時為單位">
+              </div>
             </div>
             
             <!-- 獨立成全新的一列，佔據 100% 寬度 -->
