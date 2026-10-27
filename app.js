@@ -187,7 +187,7 @@ function initDynamicUI() {
     body.font-md { --font-scale: 1.5 !important; }
     body.font-lg { --font-scale: 1.8 !important; }
     
-    /* 🌟 天數輸入框：移除微調按鈕，高度完全由行內樣式鎖定 */
+    /* 🌟 天數輸入框：僅移除微調按鈕，寬高交由 HTML 結構統一控制 */
     input.task-days::-webkit-inner-spin-button, 
     input.task-days::-webkit-outer-spin-button { 
       -webkit-appearance: none !important; 
@@ -196,24 +196,6 @@ function initDynamicUI() {
     input.task-days {
       -moz-appearance: textfield !important;
       text-align: center !important;
-    }
-
-    /* 🌟 字體選中/大時，天數欄位寬度自動加大 */
-    body.font-md .task-days-group,
-    body.font-md #edit-val-days,
-    body.font-md .task-days {
-      width: 90px !important;
-      min-width: 90px !important;
-      height: 42px !important;            /* 👈 選中時等比微調高度 */
-      line-height: 42px !important;
-    }
-    body.font-lg .task-days-group,
-    body.font-lg #edit-val-days,
-    body.font-lg .task-days {
-      width: 105px !important;
-      min-width: 105px !important;
-      height: 46px !important;            /* 👈 選大時等比微調高度 */
-      line-height: 46px !important;
     }
     
     /* 🌟 全系統彈跳視窗 (Modal) 自動隨「小、中、大」等比放大字體與視窗寬度 */
@@ -4834,10 +4816,10 @@ window.openGeneralEdit = (type, id, extra) => {
         cleanTaskName = cleanTaskName.replace(`[${task.parentSubProject}] `, '');
     }
 
-    // 🌟 開始日期輸入框：強制鎖定 42px 高度與 100% 寬度
+    // 🌟 開始日期框：統一高度 38px
     const startFieldHtml = isStartLocked 
-      ? `<input type="date" id="edit-val-start" class="input-control" value="${task.start}" disabled style="background:#f1f5f9; color:#64748b; cursor:not-allowed; width: 100%; height: 42px; line-height: 42px; box-sizing: border-box; margin: 0;" title="採購細項開始日期已鎖定連動，禁止手動修改">`
-      : `<input type="date" id="edit-val-start" class="input-control" value="${task.start}" style="width: 100%; height: 42px; line-height: 42px; box-sizing: border-box; margin: 0;" onchange="onTaskStartChange(this, 'edit-val-end')">`;
+      ? `<input type="date" id="edit-val-start" class="input-control" value="${task.start}" disabled style="background:#f1f5f9; color:#64748b; cursor:not-allowed; width: 100%; height: 38px; box-sizing: border-box; margin: 0;" title="採購細項開始日期已鎖定連動，禁止手動修改">`
+      : `<input type="date" id="edit-val-start" class="input-control" value="${task.start}" style="width: 100%; height: 38px; box-sizing: border-box; margin: 0;" onchange="onTaskStartChange(this, 'edit-val-end')">`;
 
     const lockHint = isStartLocked 
       ? `<div style="font-size:11px; color:#dc2626; margin-top:4px; line-height: 1.3;">* 開始日期已依送審結果鎖定，僅可修改天數與結束日</div>`
@@ -4849,42 +4831,29 @@ window.openGeneralEdit = (type, id, extra) => {
         <input type="text" id="edit-val-name" class="input-control" value="${cleanTaskName}">
       </div>
 
-      <!-- 🌟 第一列：標籤列 (獨立 Flex 容器，強制確保上方文字齊平) -->
-      <div style="display: flex; gap: 16px; margin-bottom: 6px; align-items: flex-end;">
-        <div style="flex: 1; min-width: 0;">
-          <label class="form-label" style="margin: 0; font-weight: 600; display: block;">開始日期</label>
-        </div>
-        <div style="width: 85px; flex-shrink: 0;">
-          <label class="form-label" style="margin: 0; font-weight: 600; display: block; text-align: center;">天數</label>
-        </div>
-        <div style="flex: 1; min-width: 0;">
-          <label class="form-label" style="margin: 0; font-weight: 600; display: block;">結束日期</label>
-        </div>
-      </div>
-
-      <!-- 🌟 第二列：輸入框列 (獨立 Flex 容器，繼承相同 16px 間距，保證不黏邊) -->
-      <div style="display: flex; gap: 16px; align-items: flex-start; margin-bottom: 16px;">
+      <!-- 🌟 單一 CSS Grid：同時管理標籤與輸入框，徹底解決對齊與間距 -->
+      <div style="display: grid; grid-template-columns: 1fr 80px 1fr; gap: 6px 16px; margin-bottom: 16px;">
         
-        <!-- 左側：開始日期 -->
-        <div style="flex: 1; min-width: 0;">
+        <!-- 第一列：標籤 (align-self: end 保證底部文字基準線切齊) -->
+        <div style="align-self: end;"><label class="form-label" style="margin: 0; font-weight: 600;">開始日期</label></div>
+        <div style="align-self: end; text-align: center;"><label class="form-label" style="margin: 0; font-weight: 600;">天數</label></div>
+        <div style="align-self: end;"><label class="form-label" style="margin: 0; font-weight: 600;">結束日期</label></div>
+
+        <!-- 第二列：輸入框 (全部綁定 height: 38px 保證實體高度一致) -->
+        <div style="min-width: 0;">
           ${startFieldHtml.trim()}
           ${lockHint}
         </div>
-        
-        <!-- 中間：天數 (固定 85px 寬) -->
-        <div style="width: 85px; flex-shrink: 0;">
+        <div style="min-width: 0;">
           <input type="number" min="1" max="999" id="edit-val-days" class="input-control task-days" value="${taskDays}" 
-                 style="text-align: center; width: 100%; height: 42px; line-height: 42px; padding: 0 4px; box-sizing: border-box; margin: 0;" 
+                 style="text-align: center; width: 100%; height: 38px; padding: 0 4px; box-sizing: border-box; margin: 0;" 
                  oninput="onTaskDaysChange(this, 'edit-val-start', 'edit-val-end')">
         </div>
-        
-        <!-- 右側：結束日期 -->
-        <div style="flex: 1; min-width: 0;">
+        <div style="min-width: 0;">
           <input type="date" id="edit-val-end" class="input-control" value="${task.end}" min="${task.start}" 
-                 style="width: 100%; height: 42px; line-height: 42px; box-sizing: border-box; margin: 0;" 
+                 style="width: 100%; height: 38px; box-sizing: border-box; margin: 0;" 
                  onchange="onTaskEndChange(this, 'edit-val-start', 'edit-val-days')">
         </div>
-        
       </div>
     `;
   } else if (type === 'adhoc') {
