@@ -2293,8 +2293,15 @@ function renderProjects() {
 
       if (item.type === 'project') {
         const origProj = allProjectsData.find(p => p.id === item.projId);
-        const isCollab = origProj?.approvalConfig?.isApplyCollab || 
-                 (origProj?.tasks || []).some(t => t.name?.includes("協作流程") || t.name?.includes("簽核流程") || t.parentSubProject?.includes("審核"));
+
+        // 🌟 正確判定：排除系統通知干擾，只依據專案本質判斷是否為協作
+        const isCollab = (origProj?.approvalConfig?.isApplyCollab === true) || 
+                 (origProj?.tasks || []).some(t => 
+                   !t.name?.includes("[系統通知]") && 
+                   t.parentSubProject !== "專案審核通知" && 
+                   t.parentSubProject !== "專案指派確認" && 
+                   (t.name?.includes("協作流程") || t.parentSubProject?.includes("協作"))
+                 );
         
         // 🌟 判斷是否為「其他採購人員」正在檢視陳珮琪的採購專案
         const myCurrentDept = currentUserData.dept || "設計部";
