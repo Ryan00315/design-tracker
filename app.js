@@ -188,6 +188,7 @@ function initDynamicUI() {
     body.font-lg { --font-scale: 1.8 !important; }
     
     /* 🌟 天數輸入框：高度與日期輸入框完全切齊 (38px)，移除原生微調按鈕 */
+    /* 🌟 天數輸入框：移除微調按鈕，高度完全由行內樣式鎖定 */
     input.task-days::-webkit-inner-spin-button, 
     input.task-days::-webkit-outer-spin-button { 
       -webkit-appearance: none !important; 
@@ -196,10 +197,6 @@ function initDynamicUI() {
     input.task-days {
       -moz-appearance: textfield !important;
       text-align: center !important;
-      height: 38px !important;            /* 👈 與 date 輸入框預設高度完全切齊 */
-      line-height: 38px !important;
-      box-sizing: border-box !important;
-      padding: 0 4px !important;
     }
 
     /* 🌟 字體選中/大時，天數欄位寬度自動加大 */
@@ -4847,31 +4844,32 @@ window.openGeneralEdit = (type, id, extra) => {
       : ``;
 
     form.innerHTML = `
-      <div class="form-group" style="margin-bottom: 14px;">
-        <label class="form-label">細項名稱</label>
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label class="form-label" style="display: block; margin-bottom: 6px;">細項名稱</label>
         <input type="text" id="edit-val-name" class="input-control" value="${cleanTaskName}">
       </div>
-      <div class="form-row" style="display: flex; gap: 10px; margin-bottom: 16px;">
-        <!-- 開始日期 -->
-        <div class="form-group" style="flex: 1.5; margin-bottom: 0;">
-          <label class="form-label" style="margin-bottom: 6px; display: block;">開始日期</label>
+
+      <!-- 🌟 第一列：三欄標題，完全齊頭 -->
+      <div style="display: flex; gap: 12px; margin-bottom: 6px;">
+        <div style="flex: 1.5;"><label class="form-label" style="margin: 0; display: block;">開始日期</label></div>
+        <div class="task-days-group" style="width: 85px; flex-shrink: 0; text-align: center;"><label class="form-label" style="margin: 0; display: block; text-align: center;">天數</label></div>
+        <div style="flex: 1.5;"><label class="form-label" style="margin: 0; display: block;">結束日期</label></div>
+      </div>
+
+      <!-- 🌟 第二列：三欄輸入框，完全等高且在同一水平線 -->
+      <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 16px;">
+        <div style="flex: 1.5; min-width: 0;">
           ${startFieldHtml}
           ${lockHint}
         </div>
-        
-        <!-- 天數 -->
-        <div class="form-group task-days-group" style="width: 85px; flex-shrink: 0; margin-bottom: 0; text-align: center;">
-          <label class="form-label" style="margin-bottom: 6px; display: block; text-align: center;">天數</label>
+        <div class="task-days-group" style="width: 85px; flex-shrink: 0; display: flex; justify-content: center;">
           <input type="number" min="1" max="999" id="edit-val-days" class="input-control task-days" value="${taskDays}" 
-                 style="text-align: center; width: 100%; height: 40px; box-sizing: border-box; padding: 4px;" 
+                 style="text-align: center; width: 100%; height: 42px; line-height: 42px; margin: 0; padding: 0 4px; box-sizing: border-box; font-size: inherit;" 
                  oninput="onTaskDaysChange(this, 'edit-val-start', 'edit-val-end')">
         </div>
-
-        <!-- 結束日期 -->
-        <div class="form-group" style="flex: 1.5; margin-bottom: 0;">
-          <label class="form-label" style="margin-bottom: 6px; display: block;">結束日期</label>
+        <div style="flex: 1.5; min-width: 0;">
           <input type="date" id="edit-val-end" class="input-control" value="${task.end}" min="${task.start}" 
-                 style="width: 100%; height: 40px; box-sizing: border-box;" 
+                 style="width: 100%; height: 42px; line-height: 42px; margin: 0; box-sizing: border-box; font-size: inherit;" 
                  onchange="onTaskEndChange(this, 'edit-val-start', 'edit-val-days')">
         </div>
       </div>
