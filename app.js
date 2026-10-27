@@ -2260,7 +2260,14 @@ function renderProjects() {
     activeAdHocs.forEach(evt => {
       let eDate = getAdHocDateStr(evt);
       let prog = evt.isCompleted ? 100 : 0;
-      let hasDelay = !evt.isCompleted && eDate < todayStr;
+      
+      // 🌟 依預計工時換算所需工作天數 (每天 8 小時)
+      const hours = evt.estHours || 1;
+      const daysNeeded = Math.max(1, Math.ceil(hours / 8));
+      const estEndDate = calculateEndDateByDays(eDate, daysNeeded);
+      
+      // 超過預計天數才算 Delay
+      let hasDelay = !evt.isCompleted && (todayStr > estEndDate);
       
       combinedItems.push({
         type: 'adhoc', 
@@ -2268,7 +2275,7 @@ function renderProjects() {
         idStr: `s_e_${sIdx++}`,
         title: evt.title || '未命名事件', 
         start: eDate, 
-        end: eDate, 
+        end: estEndDate, 
         progress: prog, 
         isDone: evt.isCompleted, 
         hasDelay: hasDelay, 
@@ -3569,6 +3576,60 @@ function renderAdHocEvents() {
     let actionHtml = !evt.isCompleted && isOwner ? `<button class="action-btn" onclick="completeAdHoc('${evt.id}')">完成</button>` : '';
     let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || canEditEvent) ? `<button class="action-btn danger" style="margin-left:4px;" onclick="deleteAdHoc('${evt.id}')">刪除</button>` : '';
 
+    // 🌟 1. 在這裡加入這段：計算工時天數與判斷是否 Delay
+    const eDate = evt.startDate || getTodayStr();
+    const hours = evt.estHours || 1;
+    const daysNeeded = Math.max(1, Math.ceil(hours / 8));
+    const estEndDate = calculateEndDateByDays(eDate, daysNeeded);
+    const isDelay = !evt.isCompleted && (getTodayStr() > estEndDate);
+
+    let statusPill = '<span class="pill pill-warning">處理中</span>';
+    if (evt.isCompleted) {
+      statusPill = '<span class="pill pill-success">已完成</span>';
+    } else if (isDelay) {
+      statusPill = '<span class="pill pill-danger">Delay</span>';
+    }
+
+    // 🌟 解析並格式化「實際完成時間」：拆成兩行 (24小時制，不含上下午)
+    let completedTimeHtml = "-";
+    if (evt.isCompleted && evt.completedAt) {
+      try {
+        let cleanTs = evt.completedAt.replace(/(上午|下午|AM|PM|\s)+/g, ' ').trim();
+        let parts = cleanTs.split(' ');
+        let datePart = parts[0] || "";
+        let timePart = parts[1] || "";
+        if (datePart && timePart) {
+          completedTimeHtml = `<div style="font-weight: 600; line-height: 1.25;">${datePart}</div><div style="color: #64748b; font-size: 11px; margin-top: 2px;">${timePart}</div>`;
+        } else {
+          completedTimeHtml = `<div style="font-weight: 600;">${evt.completedAt}</div>`;
+        }
+      } catch (e) {
+        completedTimeHtml = evt.completedAt;
+      }
+    }
+
+    const tr = document.createElement("tr"); 
+    tr.innerHTML = `
+      <td style="width: 160px; max-width: 180px; word-break: break-all; line-height: 1.4;">
+        <strong>${evt.title}</strong>
+      </td>
+      <td style="word-break: break-all; width: auto;">
+          <div class="ql-snow" style="border: none;">
+              <div class="ql-editor" style="padding: 0; min-height: auto; font-size: inherit;">
+                  ${evt.reason}
+              </div>
+          </div>
+      </td>
+      <td style="white-space: nowrap; width: 1%; text-align: center;">${evt.startDate || '-'}</td>
+      <td style="white-space: nowrap; width: 95px; text-align: center; vertical-align: middle;">
+          ${completedTimeHtml}
+      </td>
+      <!-- 🌟 2. 這裡原本是寫死的地方，換成 statusPill -->
+      <td style="white-space: nowrap; width: 1%; text-align: center;">${statusPill}</td>
+      <td style="white-space: nowrap; width: 1%; text-align: center;">${actionHtml}${editHtml}${delHtml}</td>
+    `; 
+    tbody.appendChild(tr);
+
     // 🌟 解析並格式化「實際完成時間」：拆成兩行 (24小時制，不含上下午)
     // 🌟 解析並格式化「實際完成時間」：拆成兩行 (24小時制，不含上下午，已移除共計時數)
     let completedTimeHtml = "-";
@@ -3625,18 +3686,27 @@ document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
   if (reason === '<p><br></p>') reason = ""; // Quill 預設空內容防呆
 
   const start = document.getElementById("adhoc-start").value;
-  if (!title || !reason || !start) return alert("請填寫完整名稱、開始日期與原因！");
+  const estHours = parseInt(document.getElementById("adhoc-est-hours")?.value) || 1;
+  // newDraft 物件加入：
+  estHours,
+
+  if (!title || !reason || !start) return alert("請填寫完整名稱、事件開始日期與原因！");
   
   const targetUser = allUsersList.find(u => u.uid === viewingUserId) || { name: currentUserData.name };
   await addDoc(collection(db, "ad_hoc_events"), { 
     ownerId: viewingUserId, 
     ownerName: targetUser.name || '', 
     title, 
-    reason, // 存入包含格式的 HTML
-    startDate: start, startDateTime: new Date().toLocaleString(), isCompleted: false, createdAt: serverTimestamp() 
+    reason,
+    estHours: estHours, // 🌟 存入預計工時
+    startDate: start, 
+    startDateTime: new Date().toLocaleString('zh-TW', { hour12: false }), 
+    isCompleted: false, 
+    createdAt: serverTimestamp() 
   });
   document.getElementById("adhoc-title").value = ""; 
   document.getElementById("adhoc-start").value = ""; 
+  if (document.getElementById("adhoc-est-hours")) document.getElementById("adhoc-est-hours").value = "1"; 
 
   // 🌟 存檔後清空 Quill 編輯器
   if (adhocQuill) adhocQuill.root.innerHTML = "";
@@ -3991,8 +4061,21 @@ window.openWeeklyModal = (id) => {
   if (report.items && report.items.length > 0) {
     report.items.forEach((item, i) => { 
       let icon = item.projectId === 'SPECIAL_ADHOC' ? '📝' : (item.projectId === 'SPECIAL_OTHER' ? '📌' : '🗂️');
-      let taskHtml = item.taskName ? `<div style="word-break: break-all;">📌 ${item.taskName}</div>` : '';
-      contentHtml += `<div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;"><div style="flex:1; font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px;"><div style="margin-bottom:6px; word-break: break-all;">${icon} ${item.projectName}</div>${taskHtml}</div><div style="flex:2.5; white-space:pre-wrap; line-height:1.6; padding-left:4px;">${item.content}</div></div>`; 
+      let taskHtml = item.taskName ? `<div style="word-break: break-word; font-size: inherit; margin-top: 4px;">📌 ${item.taskName}</div>` : '';
+      
+      contentHtml += `
+        <div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;">
+          <!-- 🌟 左側專案/細項標題：固定寬度與防止被擠扁 -->
+          <div style="flex: 0 0 160px; min-width: 160px; max-width: 180px; flex-shrink: 0; font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px;">
+            <div style="word-break: break-word; line-height: 1.4;">${icon} ${item.projectName}</div>
+            ${taskHtml}
+          </div>
+          <!-- 🌟 右側說明內容：允許自適應折行，避免連續英文數字把左邊擠爆 -->
+          <div style="flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; line-height: 1.6; padding-left: 4px;">
+            ${item.content}
+          </div>
+        </div>
+      `; 
     });
   } else if (report.content) {
     contentHtml += `<div style="padding: 12px; white-space:pre-wrap; background: #f8fafc; border-radius: 8px; line-height:1.6;">${report.content}</div>`;
@@ -8713,6 +8796,8 @@ window.checkAdHocDraftStatus = function() {
 window.saveAdHocDraft = function() {
   const title = document.getElementById("adhoc-title")?.value.trim() || "";
   const start = document.getElementById("adhoc-start")?.value || "";
+  // 🌟 1. 抓取預計工時 (若沒填或小於 1 則預設為 1)
+  const estHours = parseInt(document.getElementById("adhoc-est-hours")?.value) || 1;
   let reason = adhocQuill ? adhocQuill.root.innerHTML.trim() : "";
   if (reason === '<p><br></p>') reason = "";
 
@@ -8734,6 +8819,7 @@ window.saveAdHocDraft = function() {
     id: existingIdx >= 0 ? drafts[existingIdx].id : 'adhoc_draft_' + Date.now(),
     title,
     start,
+    estHours, // 🌟 2. 將預計工時存進草稿
     reason,
     savedAt: ts
   };
@@ -8816,6 +8902,13 @@ window.loadSpecificAdHocDraft = function(draftId) {
 
   document.getElementById("adhoc-title").value = draft.title || "";
   document.getElementById("adhoc-start").value = draft.start || "";
+  
+  // 🌟 將草稿記錄的工時填回輸入框 (若舊草稿無此欄位則預設 1)
+  const hoursInput = document.getElementById("adhoc-est-hours");
+  if (hoursInput) {
+    hoursInput.value = draft.estHours || 1;
+  }
+
   if (adhocQuill) {
     adhocQuill.root.innerHTML = draft.reason || "";
   }
@@ -8837,6 +8930,13 @@ window.clearCurrentAdHocForm = function() {
   if (!confirm("確定要清空目前事件紀錄表單嗎？")) return;
   document.getElementById("adhoc-title").value = "";
   document.getElementById("adhoc-start").value = "";
+  
+  // 🌟 清空表單時，工時輸入框重設為預設值 1
+  const hoursInput = document.getElementById("adhoc-est-hours");
+  if (hoursInput) {
+    hoursInput.value = "1";
+  }
+
   if (adhocQuill) adhocQuill.root.innerHTML = "";
 };
 
