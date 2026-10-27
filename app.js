@@ -1030,7 +1030,11 @@ window.switchNav = (tabId, title, elem) => {
   if (tabId === 'tab-weekly') {
     if (allWeeklyData.length === 0) loadWeeklyReports();
     initWeeklyDateAndLeave(); 
-    if (window.checkWeeklyDraftStatus) window.checkWeeklyDraftStatus(); // 🌟 切換到週報時更新按鈕顯示
+    if (window.checkWeeklyDraftStatus) window.checkWeeklyDraftStatus();
+    
+    // 🌟 新增這兩行：切換到週報分頁時，立刻重新整理專案與事件選單
+    if (typeof refreshAllWeeklyProjSelects === 'function') refreshAllWeeklyProjSelects();
+    if (typeof window.refreshAllWeeklyTaskSelects === 'function') window.refreshAllWeeklyTaskSelects();
   }
   if (tabId === 'tab-adhoc') {
     if (window.checkAdHocDraftStatus) window.checkAdHocDraftStatus(); // 🌟 切換到事件紀錄時更新按鈕顯示
@@ -3816,7 +3820,14 @@ document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
     if (window.checkAdHocDraftStatus) window.checkAdHocDraftStatus();
   }
 
+  // 🌟 送出後清空 Quill 編輯器
   if (adhocQuill) adhocQuill.root.innerHTML = "";
+
+  // 🌟 新增這行：事件新增完成後，立刻刷新週報的選單資料快取
+  if (window.refreshAllWeeklyTaskSelects) {
+    window.refreshAllWeeklyTaskSelects();
+  }
+
   alert("事件紀錄完成！");
 });
 
@@ -3981,14 +3992,25 @@ window.addWeeklyRow = () => {
   });
 };
 
-function refreshAllWeeklyProjSelects() {
-  const selects = document.querySelectorAll('.weekly-proj-select');
-  selects.forEach(sel => { 
-    const currentVal = sel.value; 
-    populateWeeklyProjSelect(sel); 
-    sel.value = currentVal; 
+// 🌟 新增：即時動態刷新所有細項選單（包含最新事件紀錄）
+window.refreshAllWeeklyTaskSelects = function() {
+  const rows = document.querySelectorAll('.weekly-item-row');
+  rows.forEach(r => {
+    const pSel = r.querySelector('.weekly-proj-select');
+    const tSel = r.querySelector('.weekly-task-select');
+    if (pSel && tSel && pSel.value === 'SPECIAL_ADHOC') {
+      const currentSelectedTaskId = tSel.value; // 記住同仁剛選的
+      tSel.innerHTML = '<option value="">-- 請選擇事件紀錄 --</option>';
+      const availableAdHocs = window.getAvailableAdHocEvents();
+      availableAdHocs.forEach(evt => {
+        tSel.innerHTML += `<option value="${evt.id}">${evt.title}</option>`;
+      });
+      if (currentSelectedTaskId) {
+        tSel.value = currentSelectedTaskId;
+      }
+    }
   });
-}
+};
 
 function loadWeeklyReports() { 
   onSnapshot(query(collection(db, "weekly_reports")), (snapshot) => { 
