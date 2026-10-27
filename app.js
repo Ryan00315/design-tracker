@@ -5437,17 +5437,17 @@ window.submitPauseRequest = async () => {
       lastPauseRequestedUid: auth.currentUser.uid
     });
     
-    // 🌟 寄信通知最高級主管與系統管理員
+    // 🌟 發送 Mail 通知所有最高級主管 (top_manager) 與管理員 (admin)
     sendNotificationEmail({
       targetRole: 'top_manager',
       projTitle: proj?.title || '未命名專案',
       type: '專案暫停申請審核通知',
-      reason: `申請人：${myName}\n暫停起始日：${startDate}\n暫停原因：${reason}`,
+      reason: `申請同仁：${myName}\n暫停起始日：${startDate}\n暫停原因：${reason}`,
       senderName: myName
     });
 
     window.closePauseModal(); 
-    alert("已送出暫停申請，並已寄發信件通知最高主管與管理員審核！");
+    alert("已送出暫停申請，並已寄發信件通知最高級主管與管理員審核！");
   } catch (err) {
     alert("送出失敗：" + err.message);
   }
@@ -5980,17 +5980,17 @@ window.submitResumeRequest = async () => {
       lastResumeRequestedUid: auth.currentUser.uid
     });
 
-    // 🌟 寄信通知最高級主管與系統管理員
+    // 🌟 發送 Mail 通知所有最高級主管 (top_manager) 與管理員 (admin)
     sendNotificationEmail({
       targetRole: 'top_manager',
       projTitle: proj?.title || '未命名專案',
       type: '專案恢復執行審核通知',
-      reason: `申請人：${myName}\n預計恢復執行日期：${resumeDate}`,
+      reason: `申請同仁：${myName}\n預計恢復執行日期：${resumeDate}`,
       senderName: myName
     });
 
     window.closeResumeModal(); 
-    alert("已送出恢復執行申請，並已寄發信件通知最高主管與管理員審核！");
+    alert("已送出恢復執行申請，並已寄發信件通知最高級主管與管理員審核！");
   } catch (err) {
     alert("送出失敗：" + err.message);
   }
