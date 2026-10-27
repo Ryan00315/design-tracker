@@ -4132,24 +4132,27 @@ window.openWeeklyModal = (id) => {
     report.items.forEach((item, i) => { 
       let icon = item.projectId === 'SPECIAL_ADHOC' ? '📝' : (item.projectId === 'SPECIAL_OTHER' ? '📌' : '🗂️');
       
-      // 🌟 清除 projectName 開頭可能重複存在的圖示符號，確保只保留純文字
+      // 清除開頭重複的圖示符號
       let cleanProjName = (item.projectName || '').replace(/^[📝📌🗂️\s]+/g, '').trim();
-
-      // 細項任務名稱開頭若已有 📌 也先清除再補，避免重複
       let cleanTaskName = (item.taskName || '').replace(/^[📌\s]+/g, '').trim();
-      let taskHtml = cleanTaskName ? `<div style="word-break: break-word; font-size: inherit; margin-top: 4px;">📌 ${cleanTaskName}</div>` : '';
+      let taskHtml = cleanTaskName ? `<div style="word-break: break-word; font-size: inherit; margin-top: 4px; line-height: 1.4;">📌 ${cleanTaskName}</div>` : '';
       
+      // 🌟 核心清洗：清除同仁輸入或貼上時每行開頭多餘的空格/Tab，確保每行齊頭靠左
+      let cleanContent = (item.content || '')
+        .split('\n')
+        .map(line => line.trimStart())
+        .join('\n')
+        .trim();
+
       contentHtml += `
         <div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;">
-          <!-- 🌟 左側專案/細項標題 -->
-          <div style="flex: 0 0 160px; min-width: 160px; max-width: 180px; flex-shrink: 0; font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px;">
+          <!-- 🌟 左側專案/細項標題：固定寬度、靠左對齊 -->
+          <div style="flex: 0 0 160px; min-width: 160px; max-width: 180px; flex-shrink: 0; font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px; text-align: left;">
             <div style="word-break: break-word; line-height: 1.4;">${icon} ${cleanProjName}</div>
             ${taskHtml}
           </div>
-          <!-- 🌟 右側說明內容 -->
-          <div style="flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; line-height: 1.6; padding-left: 4px;">
-            ${item.content}
-          </div>
+          <!-- 🌟 右側說明內容：強制靠左、文字緊貼標籤避免被模板字串換行縮排干擾 -->
+          <div style="flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; line-height: 1.6; padding-left: 4px; text-align: left; color: #1e293b;">${cleanContent}</div>
         </div>
       `; 
     });
