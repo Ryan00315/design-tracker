@@ -2582,12 +2582,63 @@ function renderProjects() {
               handledGroups.add(task.parentSubProject);
               const group = subProjMap[task.parentSubProject];
 
-              // 🌟 1. 過濾出實質有效的子細項（排除尚未建立細項與系統通知）
+              // 🌟 1. 檢查子專案內是否有「簽核送審」前置關卡
+              const approvalTask = group.tasks.find(t => 
+                t.name && (t.name.includes("簽核送審") || t.name.includes("簽核流程"))
+              );
+              const isApprovalDone = approvalTask ? (approvalTask.isCompleted === true || (approvalTask.progress || 0) >= 100) : true;
+
+              // 🌟 2. 過濾出實質細項（排除系統通知、未建立佔位列，且強制排除「簽核送審」）
               const validTasks = group.tasks.filter(t => 
                 t.name && 
                 !t.name.includes("[系統通知]") && 
-                !t.name.includes("尚未建立細項")
+                !t.name.includes("尚未建立細項") && 
+                !t.name.includes("簽核送審") &&
+                !t.name.includes("簽核流程")
               );
+
+              // 🌟 3. 核心判斷：若簽核送審尚未達 100%，採購實質進度尚未啟動，直接歸 0%
+              if (approvalTask && !isApprovalDone) {
+                group.progress = 0;
+                group.isCompleted = false;
+              } else if (validTasks.length === 0) {
+                // 若只有簽核送審，尚無後續採購細項，進度保持 0%
+                group.progress = 0;
+                group.isCompleted = false;
+              } else {
+                let totalWeightedProgress = 0;
+                let totalWorkDays = 0;
+                let simpleProgressSum = 0;
+
+                validTasks.forEach(t => {
+                  const prog = Math.min(100, Math.max(0, parseInt(t.progress) || 0));
+                  simpleProgressSum += prog;
+
+                  const s = t.start || getTodayStr();
+                  const e = t.end || s;
+                  const days = (typeof getWorkingDays === 'function') ? getWorkingDays(s, e) : 1;
+
+                  totalWorkDays += days;
+                  totalWeightedProgress += (prog * days);
+                });
+
+                // 依實質採購細項之工作天數加權計算
+                if (totalWorkDays > 0) {
+                  group.progress = Math.round(totalWeightedProgress / totalWorkDays);
+                } else {
+                  group.progress = Math.round(simpleProgressSum / validTasks.length);
+                }
+
+                // 防呆：只要實質細項中還有未完成者，母列最多只顯示 99%
+                const isAllActuallyDone = validTasks.every(t => t.isCompleted === true || t.progress >= 100);
+                if (isAllActuallyDone) {
+                  group.progress = 100;
+                  group.isCompleted = true;
+                } else if (group.progress >= 100) {
+                  group.progress = 99;
+                  group.isCompleted = false;
+                }
+              }
 
               if (validTasks.length === 0) {
                 group.progress = 0;
