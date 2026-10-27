@@ -2581,9 +2581,51 @@ function renderProjects() {
           if (!handledGroups.has(task.parentSubProject)) {
               handledGroups.add(task.parentSubProject);
               const group = subProjMap[task.parentSubProject];
-              let totalProg = 0;
-              group.tasks.forEach(t => totalProg += (t.progress || 0));
-              group.progress = group.tasks.length ? Math.round(totalProg / group.tasks.length) : 0;
+
+              // 🌟 1. 過濾出實質有效的子細項（排除尚未建立細項與系統通知）
+              const validTasks = group.tasks.filter(t => 
+                t.name && 
+                !t.name.includes("[系統通知]") && 
+                !t.name.includes("尚未建立細項")
+              );
+
+              if (validTasks.length === 0) {
+                group.progress = 0;
+              } else {
+                let totalWeightedProgress = 0;
+                let totalWorkDays = 0;
+                let simpleProgressSum = 0;
+
+                validTasks.forEach(t => {
+                  const prog = Math.min(100, Math.max(0, parseInt(t.progress) || 0));
+                  simpleProgressSum += prog;
+
+                  // 計算該細項的實質工作天數（至少 1 天）
+                  const s = t.start || getTodayStr();
+                  const e = t.end || s;
+                  const days = (typeof getWorkingDays === 'function') ? getWorkingDays(s, e) : 1;
+
+                  totalWorkDays += days;
+                  totalWeightedProgress += (prog * days);
+                });
+
+                // 🌟 2. 優先採用「工期天數加權」；若天數異常則回退至「純細項平均」
+                if (totalWorkDays > 0) {
+                  group.progress = Math.round(totalWeightedProgress / totalWorkDays);
+                } else {
+                  group.progress = Math.round(simpleProgressSum / validTasks.length);
+                }
+
+                // 🌟 3. 極限防呆：只要還有細項未 100% 完成，母列進度上限為 99%，絕不能提前顯示 100%
+                const isAllActuallyDone = validTasks.every(t => t.isCompleted === true || t.progress >= 100);
+                if (isAllActuallyDone) {
+                  group.progress = 100;
+                  group.isCompleted = true;
+                } else if (group.progress >= 100) {
+                  group.progress = 99;
+                  group.isCompleted = false;
+                }
+              }
               
               if(group.start === "9999-12-31") group.start = getTodayStr();
               if(group.end === "0000-01-01") group.end = getTodayStr();
