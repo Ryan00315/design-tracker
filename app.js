@@ -4834,10 +4834,10 @@ window.openGeneralEdit = (type, id, extra) => {
         cleanTaskName = cleanTaskName.replace(`[${task.parentSubProject}] `, '');
     }
 
-    // 🌟 移除多餘 inline 高度，統一交由 class 與外層撐滿
+    // 🌟 開始日期框：強制高度 42px，與天數、結束日完全一致
     const startFieldHtml = isStartLocked 
-      ? `<input type="date" id="edit-val-start" class="input-control" value="${task.start}" disabled style="background:#f1f5f9; color:#64748b; cursor:not-allowed; width: 100%; box-sizing: border-box;" title="採購細項開始日期已鎖定連動，禁止手動修改">`
-      : `<input type="date" id="edit-val-start" class="input-control" value="${task.start}" style="width: 100%; box-sizing: border-box;" onchange="onTaskStartChange(this, 'edit-val-end')">`;
+      ? `<input type="date" id="edit-val-start" class="input-control" value="${task.start}" disabled style="background:#f1f5f9; color:#64748b; cursor:not-allowed; width: 100%; height: 42px !important; box-sizing: border-box !important; margin: 0 !important;" title="採購細項開始日期已鎖定連動，禁止手動修改">`
+      : `<input type="date" id="edit-val-start" class="input-control" value="${task.start}" style="width: 100%; height: 42px !important; box-sizing: border-box !important; margin: 0 !important;" onchange="onTaskStartChange(this, 'edit-val-end')">`;
 
     const lockHint = isStartLocked 
       ? `<div style="font-size:11px; color:#dc2626; margin-top:4px; line-height: 1.3;">* 開始日期已依送審結果鎖定，僅可修改天數與結束日</div>`
@@ -4849,36 +4849,28 @@ window.openGeneralEdit = (type, id, extra) => {
         <input type="text" id="edit-val-name" class="input-control" value="${cleanTaskName}">
       </div>
 
-      <!-- 🌟 三欄獨立容器：gap 確保間距，align-items: stretch 確保高度一致 -->
-      <div style="display: flex; gap: 16px; align-items: stretch; margin-bottom: 16px;">
+      <!-- 🌟 使用 3 欄 Grid：左欄 1fr、中欄 85px、右欄 1fr，間距 14px -->
+      <div style="display: grid; grid-template-columns: 1fr 85px 1fr; gap: 8px 14px; margin-bottom: 16px; align-items: end;">
         
-        <!-- 左欄：開始日期 -->
-        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
-          <label class="form-label" style="display: block; margin-bottom: 6px; font-weight: 600;">開始日期</label>
-          <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-start;">
-            ${startFieldHtml.trim()}
-            ${lockHint}
-          </div>
-        </div>
+        <!-- Row 1: 標籤列（同一個水平基準線） -->
+        <label class="form-label" style="margin: 0; font-weight: 600; line-height: 1.2;">開始日期</label>
+        <label class="form-label" style="margin: 0; font-weight: 600; line-height: 1.2; text-align: center;">天數</label>
+        <label class="form-label" style="margin: 0; font-weight: 600; line-height: 1.2;">結束日期</label>
 
-        <!-- 中欄：天數 (固定 85px，左右都有 gap: 16px 間隔，不貼邊) -->
-        <div class="task-days-group" style="width: 85px; flex-shrink: 0; display: flex; flex-direction: column;">
-          <label class="form-label" style="display: block; margin-bottom: 6px; font-weight: 600; text-align: center;">天數</label>
-          <div style="flex: 1; display: flex; align-items: flex-start;">
-            <input type="number" min="1" max="999" id="edit-val-days" class="input-control task-days" value="${taskDays}" 
-                   style="text-align: center; width: 100%; box-sizing: border-box; padding: 0 4px;" 
-                   oninput="onTaskDaysChange(this, 'edit-val-start', 'edit-val-end')">
-          </div>
+        <!-- Row 2: 輸入框列（強制全部 42px 高度，頂底全切齊） -->
+        <div style="min-width: 0;">
+          ${startFieldHtml.trim()}
+          ${lockHint}
         </div>
-
-        <!-- 右欄：結束日期 -->
-        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
-          <label class="form-label" style="display: block; margin-bottom: 6px; font-weight: 600;">結束日期</label>
-          <div style="flex: 1; display: flex; align-items: flex-start;">
-            <input type="date" id="edit-val-end" class="input-control" value="${task.end}" min="${task.start}" 
-                   style="width: 100%; box-sizing: border-box;" 
-                   onchange="onTaskEndChange(this, 'edit-val-start', 'edit-val-days')">
-          </div>
+        <div style="min-width: 0;">
+          <input type="number" min="1" max="999" id="edit-val-days" class="input-control task-days" value="${taskDays}" 
+                 style="text-align: center; width: 100%; height: 42px !important; line-height: 42px !important; margin: 0 !important; padding: 0 4px !important; box-sizing: border-box !important; font-size: inherit;" 
+                 oninput="onTaskDaysChange(this, 'edit-val-start', 'edit-val-end')">
+        </div>
+        <div style="min-width: 0;">
+          <input type="date" id="edit-val-end" class="input-control" value="${task.end}" min="${task.start}" 
+                 style="width: 100%; height: 42px !important; line-height: 42px !important; margin: 0 !important; box-sizing: border-box !important; font-size: inherit;" 
+                 onchange="onTaskEndChange(this, 'edit-val-start', 'edit-val-days')">
         </div>
 
       </div>
