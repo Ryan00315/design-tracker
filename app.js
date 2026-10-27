@@ -5509,6 +5509,16 @@ window.approvePause = async (projId) => {
             pauseReason: ""
             // 🌟 保留 lastPauseRequestedUid，千萬不要刪除！
         });
+
+        // 🌟 補上：寄信通知申請人（主管已同意暫停）
+        sendNotificationEmail({
+          targetUid: reqByUid,
+          projTitle: proj.title,
+          type: '專案暫停申請審核核准通知',
+          reason: `主管【${managerName}】已同意您的專案暫停申請！(暫停原因: ${reason || '無'})`,
+          senderName: managerName
+        });
+      
         alert("已同意暫停申請，並已發送系統通知給申請人！");
     } 
     else if (proj.status === 'resume_requested') {
@@ -5565,6 +5575,16 @@ window.approvePause = async (projId) => {
                 resumeRequestedAt: ""
                 // 🌟 保留 lastResumeRequestedUid，千萬不要刪除！
             });
+
+            // 🌟 補上：寄信通知申請人（主管已同意恢復執行）
+            sendNotificationEmail({
+              targetUid: targetResumeUid,
+              projTitle: proj.title,
+              type: '專案恢復執行審核核准通知',
+              reason: `主管【${managerName}】已同意您的專案恢復執行申請！時程已自動向後遞延 ${actualShift} 天。`,
+              senderName: managerName
+            });
+          
             alert("已同意恢復執行，並已發送系統通知給申請人！");
         }
     }
@@ -5610,6 +5630,16 @@ window.rejectPause = async (projId) => {
         await updateDoc(doc(db, "projects", projId), {
             status: "active", pauseReason: "", pauseRequestedBy: "", pauseStartDate: "", pauseRequestedAt: "", auditLogs: logs, tasks: tasks
         });
+
+        // 🌟 補上：寄信通知申請人（暫停申請被退回）
+        sendNotificationEmail({
+          targetUid: targetApplicantUid,
+          projTitle: proj.title,
+          type: '專案暫停申請退回通知',
+          reason: `主管【${managerName}】退回了您的專案暫停申請。退回原因：${reason || '無'}`,
+          senderName: managerName
+        });
+      
         alert("已退回暫停申請，並已發送系統通知給申請人！");
         
     } else if (proj.status === 'resume_requested') {
@@ -5640,6 +5670,16 @@ window.rejectPause = async (projId) => {
         await updateDoc(doc(db, "projects", projId), {
             status: "paused", resumeRequestedDate: "", resumeRequestedBy: "", resumeRequestedAt: "", auditLogs: logs, tasks: tasks
         });
+
+        // 🌟 補上：寄信通知申請人（恢復申請被退回）
+        sendNotificationEmail({
+          targetUid: targetApplicantUid,
+          projTitle: proj.title,
+          type: '專案恢復申請退回通知',
+          reason: `主管【${managerName}】退回了您的專案恢復申請。退回原因：${reason || '無'}`,
+          senderName: managerName
+        });
+      
         alert("已退回恢復執行申請，並已發送系統通知給申請人！");
     }
 };
