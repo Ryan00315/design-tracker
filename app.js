@@ -614,6 +614,34 @@ function initDynamicUI() {
       .nav-sub-dept-members .nav-sub-item:hover {
         color: #ffffff !important;
       }
+      /* 🌟 週報專用 Quill：極致緊湊，整體高度維持原 textarea 尺寸 */
+    .weekly-quill-wrapper .ql-toolbar.ql-snow {
+      padding: 2px 6px !important;
+      border-color: #cbd5e1 !important;
+      background: #f8fafc !important;
+      border-top-left-radius: 6px !important;
+      border-top-right-radius: 6px !important;
+      line-height: 1 !important;
+    }
+    .weekly-quill-wrapper .ql-toolbar button {
+      width: 22px !important;
+      height: 22px !important;
+      padding: 2px !important;
+    }
+    .weekly-quill-wrapper .ql-container.ql-snow {
+      border-color: #cbd5e1 !important;
+      background: #ffffff !important;
+      border-bottom-left-radius: 6px !important;
+      border-bottom-right-radius: 6px !important;
+      font-size: 13.5px !important;
+    }
+    .weekly-quill-wrapper .ql-editor {
+      min-height: 65px !important;
+      max-height: 85px !important;
+      padding: 6px 10px !important;
+      overflow-y: auto !important;
+      line-height: 1.5 !important;
+    }
       /* 🌟 「回到個人專案」按鈕：半透明淡藍色底 + 文字維持純白 */
       #nav-sub-list .nav-sub-item.active:first-child {
         background: rgba(59, 130, 246, 0.18) !important; /* 👈 淡藍微透底色 */
@@ -687,13 +715,21 @@ initDynamicUI();
 let adhocQuill;      // 用於「事件紀錄」的原因說明
 let approvalQuill;   // 👈 新增：用於「專案簽核說明」
 
-// 工具列只顯示需要的功能
+// 🌟 1. 通用工具列（加入文字底色 background）
 const toolbarOptions = [
-  ['bold', 'underline', 'strike'],        // 加粗、底線、刪除線
-  [{ 'color': [] }],                      // 字體顏色
-  [{ 'list': 'ordered'}, { 'list': 'bullet' }], // 數字編號、項目點點
-  [{ 'indent': '-1'}, { 'indent': '+1' }],      // 減少縮排、增加縮排 (多層次清單)
-  ['clean']                               // 一鍵清除格式
+  ['bold', 'underline', 'strike'],
+  [{ 'color': [] }, { 'background': [] }],      // 👈 加入文字底色
+  [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+  [{ 'indent': '-1'}, { 'indent': '+1' }],
+  ['clean']
+];
+
+// 🌟 2. 週報專用微型工具列（功能精簡，避免佔用垂直高度）
+const weeklyToolbarOptions = [
+  ['bold', 'underline'],
+  [{ 'color': [] }, { 'background': [] }],      // 👈 文字顏色與文字底色
+  [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+  ['clean']
 ];
 
 // 用 setTimeout 確保 #adhoc-editor-container 元素已經存在於 DOM 中
@@ -3868,17 +3904,16 @@ window.onWeeklyTaskSelectChange = (selectElem) => {
   const row = selectElem.closest('.weekly-item-row');
   if (!row) return;
   const projSelect = row.querySelector('.weekly-proj-select');
-  const contentArea = row.querySelector('.weekly-content');
   
   if (projSelect.value === 'SPECIAL_ADHOC') {
      const eventId = selectElem.value;
      if (eventId) {
         const evt = allAdHocData.find(e => e.id === eventId);
         if (evt) {
-           contentArea.value = evt.reason || '';
+          if (row._quill) row._quill.root.innerHTML = evt.reason || '';
         }
      } else {
-        contentArea.value = '';
+        if (row._quill) row._quill.root.innerHTML = '';
      }
   }
 };
@@ -3917,23 +3952,33 @@ window.updateWeeklyTaskSelect = (selectElem) => {
 
 window.addWeeklyRow = () => {
   const container = document.getElementById("weekly-items-container");
+  const rowId = 'weekly_editor_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+
   const div = document.createElement('div'); 
   div.className = "weekly-item-row"; 
-  div.style.cssText = "display:flex; gap:16px; margin-bottom:12px; align-items:flex-start; border: 1px solid var(--border-light); padding: 14px; border-radius: 8px; background: #fafafa;";
+  div.style.cssText = "display:flex; gap:16px; margin-bottom:12px; align-items:flex-start; border: 1px solid var(--border-light); padding: 12px; border-radius: 8px; background: #fafafa;";
+  
   div.innerHTML = `
-    <div style="flex:1; display:flex; flex-direction:column; gap:10px; border-right: 1px dashed var(--border); padding-right:16px;">
+    <div style="flex:1; display:flex; flex-direction:column; gap:8px; border-right: 1px dashed var(--border); padding-right:16px;">
       <select class="input-control weekly-proj-select" onchange="updateWeeklyTaskSelect(this)" style="background:#fff;"></select>
       <select class="input-control weekly-task-select" onchange="onWeeklyTaskSelectChange(this)" style="background:#fff;">
         <option value="">-- 請先選擇主專案 --</option>
       </select>
     </div>
-    <div style="flex:2.5;">
-      <textarea class="input-control weekly-content" rows="3" placeholder="請填寫此任務的進度說明..." style="background:#fff;"></textarea>
+    <div style="flex:2.5; min-width:0;" class="weekly-quill-wrapper">
+      <div id="${rowId}"></div>
     </div>
-    <button class="action-btn danger" onclick="this.parentElement.remove()" style="padding: 10px; margin-left: 8px;">X</button>
+    <button type="button" class="action-btn danger" onclick="this.parentElement.remove()" style="padding: 6px 10px; margin-left: 4px; align-self: center;">X</button>
   `;
   container.appendChild(div); 
   populateWeeklyProjSelect(div.querySelector('.weekly-proj-select'));
+
+  // 🌟 初始化週報欄位的微型 Quill 實例
+  div._quill = new Quill(`#${rowId}`, {
+    modules: { toolbar: weeklyToolbarOptions },
+    theme: 'snow',
+    placeholder: '請填寫此任務的進度說明...'
+  });
 };
 
 function refreshAllWeeklyProjSelects() {
@@ -4034,7 +4079,15 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
     rows.forEach(r => {
       const pSel = r.querySelector('.weekly-proj-select'); 
       const tSel = r.querySelector('.weekly-task-select'); 
-      const content = r.querySelector('.weekly-content').value.trim();
+      
+      // 🌟 從 Quill 抓取內容（若空標籤防呆視為空字串）
+      let content = "";
+      if (r._quill) {
+        content = r._quill.root.innerHTML.trim();
+        if (content === '<p><br></p>') content = "";
+      } else {
+        content = r.querySelector('.weekly-content')?.value.trim() || "";
+      }
       
       if (pSel.value || content) {
         if (pSel.value === 'SPECIAL_OTHER') {
@@ -4132,27 +4185,41 @@ window.openWeeklyModal = (id) => {
     report.items.forEach((item, i) => { 
       let icon = item.projectId === 'SPECIAL_ADHOC' ? '📝' : (item.projectId === 'SPECIAL_OTHER' ? '📌' : '🗂️');
       
-      // 清除開頭重複的圖示符號
+      // 1. 清除專案名稱與任務細項名稱開頭可能重複的符號
       let cleanProjName = (item.projectName || '').replace(/^[📝📌🗂️\s]+/g, '').trim();
       let cleanTaskName = (item.taskName || '').replace(/^[📌\s]+/g, '').trim();
       let taskHtml = cleanTaskName ? `<div style="word-break: break-word; font-size: inherit; margin-top: 4px; line-height: 1.4;">📌 ${cleanTaskName}</div>` : '';
       
-      // 🌟 核心清洗：清除同仁輸入或貼上時每行開頭多餘的空格/Tab，確保每行齊頭靠左
-      let cleanContent = (item.content || '')
-        .split('\n')
-        .map(line => line.trimStart())
-        .join('\n')
-        .trim();
+      // 2. 判斷是 HTML (Quill 富文本) 還是 舊版純文字
+      let rawContent = item.content || '';
+      let isHtml = /<[a-z][\s\S]*>/i.test(rawContent);
+      let renderHtml = '';
+
+      if (isHtml) {
+        // 富文本：直接輸出 HTML (Quill 會自帶顏色、文字底色與清單標籤)
+        renderHtml = rawContent;
+      } else {
+        // 純文字：清除每行行首異常縮排，並保留換行相容舊資料
+        renderHtml = rawContent
+          .split('\n')
+          .map(line => line.trimStart())
+          .join('\n')
+          .trim();
+      }
 
       contentHtml += `
         <div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;">
-          <!-- 🌟 左側專案/細項標題：固定寬度、靠左對齊 -->
+          <!-- 🌟 左側專案/細項標題：固定寬度、靠左齊頭 -->
           <div style="flex: 0 0 160px; min-width: 160px; max-width: 180px; flex-shrink: 0; font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px; text-align: left;">
             <div style="word-break: break-word; line-height: 1.4;">${icon} ${cleanProjName}</div>
             ${taskHtml}
           </div>
-          <!-- 🌟 右側說明內容：強制靠左、文字緊貼標籤避免被模板字串換行縮排干擾 -->
-          <div style="flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; line-height: 1.6; padding-left: 4px; text-align: left; color: #1e293b;">${cleanContent}</div>
+          <!-- 🌟 右側說明內容：套用 Quill Snow 容器渲染底色與樣式，消除邊框與內距 -->
+          <div style="flex: 1; min-width: 0; padding-left: 4px; text-align: left; color: #1e293b;" class="ql-snow">
+            <div class="ql-editor" style="padding: 0; min-height: auto; font-size: inherit; line-height: 1.6; border: none; word-break: break-word; ${!isHtml ? 'white-space: pre-wrap;' : ''}">
+              ${renderHtml}
+            </div>
+          </div>
         </div>
       `; 
     });
