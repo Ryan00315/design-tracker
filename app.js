@@ -4847,26 +4847,31 @@ window.openGeneralEdit = (type, id, extra) => {
       : ``;
 
     form.innerHTML = `
-      <div class="form-group">
+      <div class="form-group" style="margin-bottom: 14px;">
         <label class="form-label">細項名稱</label>
         <input type="text" id="edit-val-name" class="input-control" value="${cleanTaskName}">
       </div>
-      <div class="form-row" style="display: flex; align-items: flex-end; gap: 8px; margin-bottom: 0;">
+      <div class="form-row" style="display: flex; gap: 10px; margin-bottom: 16px;">
+        <!-- 開始日期 -->
         <div class="form-group" style="flex: 1.5; margin-bottom: 0;">
-          <label class="form-label">開始日期</label>
+          <label class="form-label" style="margin-bottom: 6px; display: block;">開始日期</label>
           ${startFieldHtml}
           ${lockHint}
         </div>
+        
+        <!-- 天數 -->
         <div class="form-group task-days-group" style="width: 85px; flex-shrink: 0; margin-bottom: 0; text-align: center;">
-          <label class="form-label" style="text-align: center; display: block;">天數</label>
+          <label class="form-label" style="margin-bottom: 6px; display: block; text-align: center;">天數</label>
           <input type="number" min="1" max="999" id="edit-val-days" class="input-control task-days" value="${taskDays}" 
-                 style="text-align: center; width: 100%; height: 38px; line-height: 38px; padding: 0 4px; box-sizing: border-box;" 
+                 style="text-align: center; width: 100%; height: 40px; box-sizing: border-box; padding: 4px;" 
                  oninput="onTaskDaysChange(this, 'edit-val-start', 'edit-val-end')">
         </div>
+
+        <!-- 結束日期 -->
         <div class="form-group" style="flex: 1.5; margin-bottom: 0;">
-          <label class="form-label">結束日期</label>
+          <label class="form-label" style="margin-bottom: 6px; display: block;">結束日期</label>
           <input type="date" id="edit-val-end" class="input-control" value="${task.end}" min="${task.start}" 
-                 style="box-sizing: border-box; height: 38px;" 
+                 style="width: 100%; height: 40px; box-sizing: border-box;" 
                  onchange="onTaskEndChange(this, 'edit-val-start', 'edit-val-days')">
         </div>
       </div>
