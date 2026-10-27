@@ -4018,16 +4018,22 @@ window.openWeeklyModal = (id) => {
   if (report.items && report.items.length > 0) {
     report.items.forEach((item, i) => { 
       let icon = item.projectId === 'SPECIAL_ADHOC' ? '📝' : (item.projectId === 'SPECIAL_OTHER' ? '📌' : '🗂️');
-      let taskHtml = item.taskName ? `<div style="word-break: break-word; font-size: inherit; margin-top: 4px;">📌 ${item.taskName}</div>` : '';
+      
+      // 🌟 清除 projectName 開頭可能重複存在的圖示符號，確保只保留純文字
+      let cleanProjName = (item.projectName || '').replace(/^[📝📌🗂️\s]+/g, '').trim();
+
+      // 細項任務名稱開頭若已有 📌 也先清除再補，避免重複
+      let cleanTaskName = (item.taskName || '').replace(/^[📌\s]+/g, '').trim();
+      let taskHtml = cleanTaskName ? `<div style="word-break: break-word; font-size: inherit; margin-top: 4px;">📌 ${cleanTaskName}</div>` : '';
       
       contentHtml += `
         <div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;">
-          <!-- 🌟 左側專案/細項標題：固定寬度與防止被擠扁 -->
+          <!-- 🌟 左側專案/細項標題 -->
           <div style="flex: 0 0 160px; min-width: 160px; max-width: 180px; flex-shrink: 0; font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px;">
-            <div style="word-break: break-word; line-height: 1.4;">${icon} ${item.projectName}</div>
+            <div style="word-break: break-word; line-height: 1.4;">${icon} ${cleanProjName}</div>
             ${taskHtml}
           </div>
-          <!-- 🌟 右側說明內容：允許自適應折行，避免連續英文數字把左邊擠爆 -->
+          <!-- 🌟 右側說明內容 -->
           <div style="flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; line-height: 1.6; padding-left: 4px;">
             ${item.content}
           </div>
