@@ -186,6 +186,31 @@ function initDynamicUI() {
     .tab-pane { zoom: var(--font-scale, 1.2); }
     body.font-md { --font-scale: 1.5 !important; }
     body.font-lg { --font-scale: 1.8 !important; }
+    /* 🌟 天數輸入框：隱藏原生微調箭頭，文字水平置中 */
+    input.task-days::-webkit-inner-spin-button, 
+    input.task-days::-webkit-outer-spin-button { 
+      -webkit-appearance: none !important; 
+      margin: 0 !important; 
+    }
+    input.task-days {
+      -moz-appearance: textfield !important;
+      text-align: center !important;
+      padding: 4px 6px !important;
+    }
+
+    /* 🌟 字體選中/大時，天數欄位自動加大寬度，確保 3 位數完全顯示 */
+    body.font-md .task-days-group,
+    body.font-md #edit-val-days,
+    body.font-md .task-days {
+      width: 90px !important;
+      min-width: 90px !important;
+    }
+    body.font-lg .task-days-group,
+    body.font-lg #edit-val-days,
+    body.font-lg .task-days {
+      width: 105px !important;
+      min-width: 105px !important;
+    }
     
     /* 🌟 全系統彈跳視窗 (Modal) 自動隨「小、中、大」等比放大字體與視窗寬度 */
     .modal-box {
@@ -4815,15 +4840,17 @@ window.openGeneralEdit = (type, id, extra) => {
 
     form.innerHTML = `
       <div class="form-group"><label class="form-label">細項名稱</label><input type="text" id="edit-val-name" class="input-control" value="${cleanTaskName}"></div>
-      <div class="form-row">
+      <div class="form-row" style="align-items: flex-start; gap: 8px;">
         <div class="form-group" style="flex:1.5;">
           <label class="form-label">開始日期</label>
           ${startFieldHtml}
           ${lockHint}
         </div>
-        <div class="form-group" style="width:65px; flex-shrink:0;">
-          <label class="form-label">天數</label>
-          <input type="number" min="1" id="edit-val-days" class="input-control task-days" value="${taskDays}" oninput="onTaskDaysChange(this, 'edit-val-start', 'edit-val-end')">
+        <div class="form-group task-days-group" style="width:85px; flex-shrink:0; text-align:center;">
+          <label class="form-label" style="text-align:center; display:block;">天數</label>
+          <input type="number" min="1" max="999" id="edit-val-days" class="input-control task-days" value="${taskDays}" 
+                 style="text-align:center; padding: 6px 4px; box-sizing: border-box;" 
+                 oninput="onTaskDaysChange(this, 'edit-val-start', 'edit-val-end')">
         </div>
         <div class="form-group" style="flex:1.5;">
           <label class="form-label">結束日期</label>
