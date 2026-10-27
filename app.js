@@ -3576,7 +3576,7 @@ function renderAdHocEvents() {
     let actionHtml = !evt.isCompleted && isOwner ? `<button class="action-btn" onclick="completeAdHoc('${evt.id}')">完成</button>` : '';
     let delHtml = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || canEditEvent) ? `<button class="action-btn danger" style="margin-left:4px;" onclick="deleteAdHoc('${evt.id}')">刪除</button>` : '';
 
-    // 🌟 1. 在這裡加入這段：計算工時天數與判斷是否 Delay
+    // 🌟 計算工時天數與判斷是否 Delay (每天 8 小時)
     const eDate = evt.startDate || getTodayStr();
     const hours = evt.estHours || 1;
     const daysNeeded = Math.max(1, Math.ceil(hours / 8));
@@ -3624,54 +3624,7 @@ function renderAdHocEvents() {
       <td style="white-space: nowrap; width: 95px; text-align: center; vertical-align: middle;">
           ${completedTimeHtml}
       </td>
-      <!-- 🌟 2. 這裡原本是寫死的地方，換成 statusPill -->
       <td style="white-space: nowrap; width: 1%; text-align: center;">${statusPill}</td>
-      <td style="white-space: nowrap; width: 1%; text-align: center;">${actionHtml}${editHtml}${delHtml}</td>
-    `; 
-    tbody.appendChild(tr);
-
-    // 🌟 解析並格式化「實際完成時間」：拆成兩行 (24小時制，不含上下午)
-    // 🌟 解析並格式化「實際完成時間」：拆成兩行 (24小時制，不含上下午，已移除共計時數)
-    let completedTimeHtml = "-";
-
-    if (evt.isCompleted && evt.completedAt) {
-      try {
-        // 清除舊資料中可能殘留的上下午字樣
-        let cleanTs = evt.completedAt.replace(/(上午|下午|AM|PM|\s)+/g, ' ').trim();
-        let parts = cleanTs.split(' ');
-        
-        let datePart = parts[0] || "";
-        let timePart = parts[1] || "";
-
-        if (datePart && timePart) {
-          completedTimeHtml = `<div style="font-weight: 600; line-height: 1.25;">${datePart}</div><div style="color: #64748b; font-size: 11px; margin-top: 2px;">${timePart}</div>`;
-        } else {
-          completedTimeHtml = `<div style="font-weight: 600;">${evt.completedAt}</div>`;
-        }
-      } catch (e) {
-        completedTimeHtml = evt.completedAt;
-      }
-    }
-
-    const tr = document.createElement("tr"); 
-    tr.innerHTML = `
-      <!-- 🌟 事項名稱：設定寬度限制並允許自動折行，超過時向下換行不撐寬 -->
-      <td style="width: 160px; max-width: 180px; word-break: break-all; line-height: 1.4;">
-        <strong>${evt.title}</strong>
-      </td>
-      <td style="word-break: break-all; width: auto;">
-          <!-- 🌟 原因說明：寬度最大化展開 -->
-          <div class="ql-snow" style="border: none;">
-              <div class="ql-editor" style="padding: 0; min-height: auto; font-size: inherit;">
-                  ${evt.reason}
-              </div>
-          </div>
-      </td>
-      <td style="white-space: nowrap; width: 1%; text-align: center;">${evt.startDate || '-'}</td>
-      <td style="white-space: nowrap; width: 95px; text-align: center; vertical-align: middle;">
-          ${completedTimeHtml}
-      </td>
-      <td style="white-space: nowrap; width: 1%; text-align: center;">${evt.isCompleted ? '<span class="pill pill-success">已完成</span>' : '<span class="pill pill-warning">處理中</span>'}</td>
       <td style="white-space: nowrap; width: 1%; text-align: center;">${actionHtml}${editHtml}${delHtml}</td>
     `; 
     tbody.appendChild(tr);
@@ -3681,14 +3634,12 @@ function renderAdHocEvents() {
 document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
   const title = document.getElementById("adhoc-title").value.trim(); 
 
-  // 🌟 從 Quill 抓取 HTML 內容 (而非純文字 input)
+  // 從 Quill 抓取 HTML 內容
   let reason = adhocQuill ? adhocQuill.root.innerHTML.trim() : "";
-  if (reason === '<p><br></p>') reason = ""; // Quill 預設空內容防呆
+  if (reason === '<p><br></p>') reason = "";
 
   const start = document.getElementById("adhoc-start").value;
   const estHours = parseInt(document.getElementById("adhoc-est-hours")?.value) || 1;
-  // newDraft 物件加入：
-  estHours,
 
   if (!title || !reason || !start) return alert("請填寫完整名稱、事件開始日期與原因！");
   
@@ -3698,7 +3649,7 @@ document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
     ownerName: targetUser.name || '', 
     title, 
     reason,
-    estHours: estHours, // 🌟 存入預計工時
+    estHours: estHours,
     startDate: start, 
     startDateTime: new Date().toLocaleString('zh-TW', { hour12: false }), 
     isCompleted: false, 
@@ -3706,11 +3657,17 @@ document.getElementById("btn-add-adhoc").addEventListener("click", async () => {
   });
   document.getElementById("adhoc-title").value = ""; 
   document.getElementById("adhoc-start").value = ""; 
-  if (document.getElementById("adhoc-est-hours")) document.getElementById("adhoc-est-hours").value = "1"; 
+  if (document.getElementById("adhoc-est-hours")) document.getElementById("adhoc-est-hours").value = "1";
 
-  // 🌟 存檔後清空 Quill 編輯器
+  // 送出時若存在同名草稿，自動清除
+  if (typeof getAllAdHocDrafts === 'function') {
+    let adhocDrafts = getAllAdHocDrafts();
+    adhocDrafts = adhocDrafts.filter(d => d.title !== title);
+    localStorage.setItem(getAdHocDraftStorageKey(), JSON.stringify(adhocDrafts));
+    if (window.checkAdHocDraftStatus) window.checkAdHocDraftStatus();
+  }
+
   if (adhocQuill) adhocQuill.root.innerHTML = "";
-
   alert("事件紀錄完成！");
 });
 
@@ -8796,7 +8753,6 @@ window.checkAdHocDraftStatus = function() {
 window.saveAdHocDraft = function() {
   const title = document.getElementById("adhoc-title")?.value.trim() || "";
   const start = document.getElementById("adhoc-start")?.value || "";
-  // 🌟 1. 抓取預計工時 (若沒填或小於 1 則預設為 1)
   const estHours = parseInt(document.getElementById("adhoc-est-hours")?.value) || 1;
   let reason = adhocQuill ? adhocQuill.root.innerHTML.trim() : "";
   if (reason === '<p><br></p>') reason = "";
@@ -8808,7 +8764,6 @@ window.saveAdHocDraft = function() {
   let drafts = getAllAdHocDrafts();
   const existingIdx = drafts.findIndex(d => d.title === title);
 
-  // 🌟 若已存在相同事項名稱的草稿，跳出詢問視窗
   if (existingIdx >= 0) {
     const isConfirmOverwrite = confirm(`⚠️ 已存在事項名稱為【${title}】的事件草稿（儲存於 ${drafts[existingIdx].savedAt}）。\n\n是否確定要覆蓋此草稿？`);
     if (!isConfirmOverwrite) return;
@@ -8819,7 +8774,7 @@ window.saveAdHocDraft = function() {
     id: existingIdx >= 0 ? drafts[existingIdx].id : 'adhoc_draft_' + Date.now(),
     title,
     start,
-    estHours, // 🌟 2. 將預計工時存進草稿
+    estHours,
     reason,
     savedAt: ts
   };
@@ -8903,7 +8858,6 @@ window.loadSpecificAdHocDraft = function(draftId) {
   document.getElementById("adhoc-title").value = draft.title || "";
   document.getElementById("adhoc-start").value = draft.start || "";
   
-  // 🌟 將草稿記錄的工時填回輸入框 (若舊草稿無此欄位則預設 1)
   const hoursInput = document.getElementById("adhoc-est-hours");
   if (hoursInput) {
     hoursInput.value = draft.estHours || 1;
@@ -8930,13 +8884,10 @@ window.clearCurrentAdHocForm = function() {
   if (!confirm("確定要清空目前事件紀錄表單嗎？")) return;
   document.getElementById("adhoc-title").value = "";
   document.getElementById("adhoc-start").value = "";
-  
-  // 🌟 清空表單時，工時輸入框重設為預設值 1
   const hoursInput = document.getElementById("adhoc-est-hours");
   if (hoursInput) {
     hoursInput.value = "1";
   }
-
   if (adhocQuill) adhocQuill.root.innerHTML = "";
 };
 
@@ -8999,7 +8950,6 @@ window.saveWeeklyDraft = function() {
   let drafts = getAllWeeklyDrafts();
   const existingIdx = drafts.findIndex(d => d.dateStr === dateStr);
 
-  // 🌟 若已存在相同週報日期的草稿，跳出詢問視窗
   if (existingIdx >= 0) {
     const isConfirmOverwrite = confirm(`⚠️ 已存在【${dateStr}】的週報草稿（儲存於 ${drafts[existingIdx].savedAt}）。\n\n是否確定要覆蓋此週報草稿？`);
     if (!isConfirmOverwrite) return;
