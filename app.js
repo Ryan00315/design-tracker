@@ -1428,7 +1428,7 @@ function loadSidebarSubordinates() {
     const myRole = currentUserData.role; 
     const myDept = currentUserData.dept || "設計部";
 
-    allUsersList = [];
+    allUsersList.forEach(u => {
     snapshot.forEach(docSnap => allUsersList.push({ uid: docSnap.id, ...docSnap.data() }));
 
     const isSubordinate = (bossUid, targetUid) => {
@@ -5385,6 +5385,16 @@ window.toggleUserEditPermission = async (uid, checked) => {
   }
 };
 
+  // 🌟 儲存人員是否為「卷宗」人員
+window.toggleUserDossier = async (uid, checked) => {
+  if (currentUserData.role !== 'admin') return alert('權限不足！');
+  try { 
+    await updateDoc(doc(db, "users", uid), { isDossier: checked }); 
+  } catch(err) { 
+    alert('設定失敗：'+err.message); 
+  }
+};
+
 window.resetUserPassword = (email) => {
   if (confirm(`確定要發送「重設密碼」信件至 ${email} 嗎？\n系統將寄送一封專屬連結信件，員工點擊後即可自行重設密碼。`)) {
     sendPasswordResetEmail(auth, email).then(() => alert(`✅ 重設密碼信件已成功發送至：${email}\n請員工前往信箱收信。`)).catch(err => alert("發送失敗: " + err.message));
@@ -5427,7 +5437,25 @@ function loadOrgUsers() {
     const supervisorSelect = document.getElementById("new-user-supervisor");
     tbody.innerHTML = ""; 
     supervisorSelect.innerHTML = '<option value="">-- 無 --</option>'; 
+    
     allUsersList = [];
+    
+    // 🌟 動態插入「卷宗」表頭 (確保列表上會出現欄位名稱)
+    const table = document.getElementById("user-list-tbody")?.closest("table");
+    if (table) {
+        const theadTr = table.querySelector("thead tr");
+        if (theadTr && !theadTr.querySelector(".dossier-th")) {
+            const ths = theadTr.querySelectorAll("th");
+            if (ths.length > 0) {
+                const dossierTh = document.createElement("th");
+                dossierTh.className = "dossier-th";
+                dossierTh.style.width = "6%";
+                dossierTh.style.textAlign = "center";
+                dossierTh.innerText = "卷宗";
+                ths[0].after(dossierTh); // 插入在「開放」欄位的右邊
+            }
+        }
+    }
     
     snapshot.forEach(docSnap => {
       const u = docSnap.data(); 
@@ -6323,39 +6351,6 @@ window.addSubProjectRow = (defaultName = "", defaultAssignee = "", subTasks = []
   div.className = "form-row subproject-row"; 
   div.style.cssText = "margin-bottom: 8px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px; flex-direction: column; gap: 8px;";
   
-  div.innerHTML = `
-    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-      <span style="font-weight:bold; color:#d97706; white-space:nowrap;">📦 子專案</span>
-      <div class="form-group" style="margin:0; flex:2; min-width:140px;">
-        <input type="text" class="input-control task-name subproject-name" placeholder="子專案名稱 (例: 零件採購)" value="${defaultName}">
-      </div>
-      
-      <label style="display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:bold; color:#b45309; cursor:pointer; white-space:nowrap; background:#fef3c7; padding:4px 8px; border-radius:4px; border:1px solid #fde68a;">
-        <input type="checkbox" class="subproject-is-procure" onchange="window.toggleSubProjectProcure(this)" style="cursor:pointer;">
-        🛒 採購
-      </label>
-
-      <!-- 🌟 新增：時間同步開關 (草稿規劃專用) -->
-      <label style="display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:bold; color:#1d4ed8; cursor:pointer; white-space:nowrap; background:#eff6ff; padding:4px 8px; border-radius:4px; border:1px solid #bfdbfe;">
-        <input type="checkbox" class="subproject-sync-date" style="cursor:pointer;">
-        🔄 時間同步
-      </label>
-
-      <div class="form-group" style="margin:0; flex:1; min-width:140px;">
-        <select class="input-control subproject-assignee">
-           ${assigneeOptions}
-        </select>
-      </div>
-      <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
-        <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
-        <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
-        <button type="button" class="action-btn danger" onclick="this.closest('.subproject-row').remove()" style="padding:6px 10px;">X</button>
-      </div>
-    </div>
-    <div class="sub-tasks-container" style="margin-left: 20px; border-left: 2px solid #fcd34d; padding-left: 10px; display:flex; flex-direction:column; gap:6px;">
-    </div>
-    <button type="button" class="action-btn" onclick="window.addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項</button>
-  `;
   container.appendChild(div);
   
   const tasksContainer = div.querySelector('.sub-tasks-container');
@@ -6505,41 +6500,7 @@ window.addTemplateSubProjectRow = (defaultName = "", defaultAssignee = "", subTa
     const div = document.createElement('div');
     div.className = "form-row tpl-subproject-row"; 
     div.style.cssText = "margin-bottom: 8px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px; flex-direction: column; gap: 8px;";
-    
-    div.innerHTML = `
-      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-        <span style="font-weight:bold; color:#d97706; white-space:nowrap;">📦 子專案</span>
-        <div class="form-group" style="margin:0; flex:2; min-width:140px;">
-          <input type="text" class="input-control task-name subproject-name" placeholder="子專案名稱 (例: 零件採購)" value="${defaultName}">
-        </div>
 
-        <!-- 🌟 補上「🛒 採購」按鈕 -->
-        <label style="display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:bold; color:#b45309; cursor:pointer; white-space:nowrap; background:#fef3c7; padding:4px 8px; border-radius:4px; border:1px solid #fde68a;">
-          <input type="checkbox" class="subproject-is-procure" onchange="window.toggleSubProjectProcure(this)" ${hasApproval ? 'checked' : ''} style="cursor:pointer;">
-          🛒 採購
-        </label>
-
-        <!-- 🌟 補上「🔄 時間同步」按鈕 -->
-        <label style="display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:bold; color:#1d4ed8; cursor:pointer; white-space:nowrap; background:#eff6ff; padding:4px 8px; border-radius:4px; border:1px solid #bfdbfe;">
-          <input type="checkbox" class="subproject-sync-date" style="cursor:pointer;">
-          🔄 時間同步
-        </label>
-
-        <div class="form-group" style="margin:0; flex:1; min-width:140px;">
-            <select class="input-control subproject-assignee" onchange="onSubProjectAssigneeChange(this)">
-               ${assigneeOptions}
-            </select>
-        </div>
-        <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
-          <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
-          <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
-          <button type="button" class="action-btn danger" onclick="this.closest('.tpl-subproject-row').remove()" style="padding:8px 10px;">X</button>
-        </div>
-      </div>
-      <div class="sub-tasks-container" style="margin-left: 20px; border-left: 2px solid #fcd34d; padding-left: 10px; display:flex; flex-direction:column; gap:6px;">
-      </div>
-      <button type="button" class="action-btn" onclick="window.addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項</button>
-    `;
     container.appendChild(div);
 
     const tasksContainer = div.querySelector('.sub-tasks-container');
@@ -6553,31 +6514,22 @@ window.addTemplateSubProjectRow = (defaultName = "", defaultAssignee = "", subTa
 // 🌟 1. 停用選人自動塞細項（選擇任何人員都不再自動產生「協作流程」）
 window.onSubProjectAssigneeChange = () => {};
 
-// 🌟 2. 勾選「採購」時的強制「簽核送審」邏輯
-window.toggleSubProjectProcure = (checkbox) => {
-    const row = checkbox.closest('.subproject-row') || checkbox.closest('.tpl-subproject-row') || checkbox.closest('#add-subproject-container');
+// 🌟 核心邏輯：選擇人員時自動偵測對方是否為「卷宗」人員，自動插入或移除「簽核送審」
+window.onSubProjectAssigneeChange = (selectElem) => {
+    const row = selectElem.closest('.subproject-row') || selectElem.closest('.tpl-subproject-row') || selectElem.closest('#add-subproject-container');
     if (!row) return;
     const tasksContainer = row.querySelector('.sub-tasks-container');
     if (!tasksContainer) return;
 
     const existingApproval = tasksContainer.querySelector('.is-approval-task');
+    const uid = selectElem.value;
+    
+    // 找出選擇的同仁，判定是否為「卷宗」人員
+    const targetUser = allUsersList.find(u => u.uid === uid);
+    const isDossier = targetUser ? targetUser.isDossier : false;
 
-    // 🌟 找到子專案的人員下拉選單 (支援開案表單與彈窗)
-    const assigneeSelect = row.querySelector('.subproject-assignee') || document.getElementById('modal-subproject-assignee');
-
-    if (checkbox.checked) {
-        // 🌟 1. 自動指定人員為採購部的陳佩琪
-        if (assigneeSelect) {
-            const targetOption = Array.from(assigneeSelect.options).find(opt => 
-                opt.text.includes("陳佩琪") && (opt.text.includes("採購") || opt.parentElement?.label?.includes("採購"))
-            ) || Array.from(assigneeSelect.options).find(opt => opt.text.includes("陳佩琪"));
-
-            if (targetOption) {
-                assigneeSelect.value = targetOption.value;
-            }
-        }
-
-        // 2. 強制在第一項插入「簽核送審」
+    if (isDossier) {
+        // 如果是卷宗人員，且目前沒有「簽核送審」，則強制在第一行插入
         if (!existingApproval) {
             let defaultStart = getTodayStr();
             const projStartInput = document.getElementById("p-start");
@@ -6597,7 +6549,7 @@ window.toggleSubProjectProcure = (checkbox) => {
             window.syncSubTasksDate(div.querySelector('.sub-task-end'));
         }
     } else {
-        // 取消勾選：移除「簽核送審」
+        // 如果不是卷宗人員，自動移除「簽核送審」
         if (existingApproval) {
             existingApproval.remove();
         }
