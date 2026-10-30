@@ -1917,6 +1917,10 @@ window.triggerProjectsUpdate = function() {
     if (typeof renderProjects === 'function') {
       renderProjects();
     }
+    // 🌟 核心修復：將系統通知的紅點計算也加入防抖排程，確保在資料完全穩定後與畫面同步刷新
+    if (typeof window.renderNotifications === 'function') {
+      window.renderNotifications();
+    }
   }, 80);
 };
 
@@ -7598,14 +7602,15 @@ function loadProjects() {
         window.triggerProjectsUpdate();
       } else {
         renderProjects();
+        if (typeof window.renderNotifications === 'function') window.renderNotifications();
       }
 
       refreshAllWeeklyProjSelects();
-      if (window.renderNotifications) window.renderNotifications(); 
+      // 👈 原本這裡還有一行 if (window.renderNotifications)... 已經被我們整合進上面的 triggerProjectsUpdate 裡了，所以正式移除避免打架！
     },
     (error) => {
       console.warn("手機端初次載入延遲，1.5 秒後自動重試...", error);
-      setTimeout(loadProjects, 1500); // 🌟 遇到短暫驗證延遲自動重撈，免手動重新整理
+      setTimeout(loadProjects, 1500); 
     }
   ); 
 }
