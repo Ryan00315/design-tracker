@@ -5132,7 +5132,7 @@ window.saveGeneralEdit = async () => {
   const { type, id, extra } = currentEditData;
 
   try {
-    // 🌟 1. 【新增這段】處理子專案名稱與指派人員修改
+    // 🌟 1. 處理子專案名稱與指派人員修改 (支援卷宗動態聯動)
     if (type === 'subproject_edit') {
       const { projId, oldSubProjName, isAssigneeLocked } = currentEditData;
       const proj = allProjectsData.find(p => p.id === projId);
@@ -5144,19 +5144,29 @@ window.saveGeneralEdit = async () => {
       
       if (!newSubName) return alert("子專案名稱不可為空！");
 
-      // 取得新指派人員的姓名
+      // 取得新指派人員的姓名與卷宗權限
       let newAssigneeName = proj.ownerName;
+      let isNewAssigneeDossier = false;
       if (newAssigneeId) {
         const targetUser = allUsersList.find(u => u.uid === newAssigneeId);
-        newAssigneeName = targetUser ? targetUser.name : "同仁";
+        if (targetUser) {
+           newAssigneeName = targetUser.name;
+           isNewAssigneeDossier = targetUser.isDossier === true;
+        }
       }
 
-      const tasks = [...(proj.tasks || [])];
+      let tasks = [...(proj.tasks || [])];
+      let hasExistingApproval = false;
+      let firstSubTaskIndex = -1;
 
-      // 批次把屬於這個子專案的所有細項更新 (改名稱前綴、換負責人)
-      tasks.forEach(t => {
-        if (t.isSubProjectTask && t.parentSubProject === oldSubProjName) {
-          // 更新名稱：例如把 [舊零件] 採購 改成 [新零件] 採購
+      // 批次更新屬於此子專案的細項，並尋找是否已有「簽核送審」
+      tasks.forEach((t, i) => {
+        if (t.isSubProjectTask && (t.parentSubProject === oldSubProjName || t.name.includes(`[${oldSubProjName}]`))) {
+          if (firstSubTaskIndex === -1) firstSubTaskIndex = i; // 記住第一筆細項的位置
+
+          if (t.name.includes("簽核送審")) hasExistingApproval = true;
+
+          // 更新名稱：把 [舊名稱] 改成 [新名稱]
           if (t.name.includes(`[${oldSubProjName}]`)) {
             t.name = t.name.replace(`[${oldSubProjName}]`, `[${newSubName}]`);
           }
@@ -5169,6 +5179,53 @@ window.saveGeneralEdit = async () => {
             t.isPendingAcceptance = (newAssigneeId !== auth.currentUser?.uid);
           }
         }
+      });
+
+      // 🌟 核心：卷宗人員切換邏輯 (只在人員未鎖定時執行)
+      if (!isAssigneeLocked) {
+         if (isNewAssigneeDossier && !hasExistingApproval) {
+            // 是卷宗且沒簽核 -> 補入簽核送審
+            const ts = new Date().toLocaleString('zh-TW', { hour12: false });
+            let defaultStart = getTodayStr();
+            if (firstSubTaskIndex !== -1 && tasks[firstSubTaskIndex]) {
+               defaultStart = tasks[firstSubTaskIndex].start;
+            }
+            
+            const approvalTask = {
+              name: `[${newSubName}] 簽核送審`,
+              start: defaultStart,
+              end: defaultStart,
+              progress: 0,
+              isCompleted: false,
+              completedAt: null,
+              delayReason: "",
+              lastUpdatedAt: ts,
+              reportedCompleted: false,
+              assigneeId: newAssigneeId,
+              assigneeName: newAssigneeName,
+              isSubProjectTask: true,
+              parentSubProject: newSubName,
+              createdAt: Date.now(),
+              isPendingAcceptance: false,
+              history: [{ timestamp: ts, progress: 0, type: 'create', daysPassed: 0, delayReason: '', remark: '系統自動補入簽核關卡' }]
+            };
+            
+            if (firstSubTaskIndex !== -1) {
+                tasks.splice(firstSubTaskIndex, 0, approvalTask);
+            } else {
+                tasks.push(approvalTask);
+            }
+         } else if (!isNewAssigneeDossier && hasExistingApproval) {
+            // 不是卷宗卻有簽核 -> 拔掉簽核送審
+            tasks = tasks.filter(t => !(t.isSubProjectTask && t.parentSubProject === newSubName && t.name.includes("簽核送審")));
+         }
+      }
+
+      // 確保排序正確 (排除系統通知後按時間排)
+      tasks.sort((a, b) => {
+        if (a.name && a.name.includes("[系統通知]")) return -1;
+        if (b.name && b.name.includes("[系統通知]")) return 1;
+        return (a.start || "").localeCompare(b.start || "");
       });
 
       const updatePayload = { tasks };
