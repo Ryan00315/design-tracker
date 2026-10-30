@@ -5440,21 +5440,33 @@ function loadOrgUsers() {
     
     allUsersList = [];
     
-    // 🌟 動態插入「卷宗」表頭 (確保列表上會出現欄位名稱)
-    const table = document.getElementById("user-list-tbody")?.closest("table");
-    if (table) {
-        const theadTr = table.querySelector("thead tr");
-        if (theadTr && !theadTr.querySelector(".dossier-th")) {
-            const ths = theadTr.querySelectorAll("th");
-            if (ths.length > 0) {
-                const dossierTh = document.createElement("th");
-                dossierTh.className = "dossier-th";
-                dossierTh.style.width = "6%";
-                dossierTh.style.textAlign = "center";
-                dossierTh.innerText = "卷宗";
-                ths[0].after(dossierTh); // 插入在「開放」欄位的右邊
+    // 🌟 動態插入「卷宗」表頭 (加入安全容錯，防止登入渲染卡死)
+    try {
+        const tbodyElem = document.getElementById("user-list-tbody");
+        if (tbodyElem) {
+            const table = tbodyElem.closest("table");
+            if (table) {
+                const theadTr = table.querySelector("thead tr");
+                if (theadTr && !theadTr.querySelector(".dossier-th")) {
+                    const ths = theadTr.querySelectorAll("th");
+                    if (ths.length > 0) {
+                        const dossierTh = document.createElement("th");
+                        dossierTh.className = "dossier-th";
+                        dossierTh.style.width = "6%";
+                        dossierTh.style.textAlign = "center";
+                        dossierTh.innerText = "卷宗";
+                        // 確保安全插入
+                        if (ths[0].nextSibling) {
+                            theadTr.insertBefore(dossierTh, ths[0].nextSibling);
+                        } else {
+                            theadTr.appendChild(dossierTh);
+                        }
+                    }
+                }
             }
         }
+    } catch (e) {
+        console.warn("表頭動態新增略過 (UI 尚未就緒):", e);
     }
     snapshot.forEach(docSnap => {
       const u = docSnap.data(); 
