@@ -6377,6 +6377,11 @@ window.addSubProjectRow = (defaultName = "", defaultAssignee = "", subTasks = []
          }
       });
   }
+  // 🌟 新增：初始化檢查，若預設指派就是卷宗人員，自動插入「簽核送審」
+  setTimeout(() => {
+      const assigneeSelect = div.querySelector('.subproject-assignee');
+      if (assigneeSelect) window.onSubProjectAssigneeChange(assigneeSelect);
+  }, 50);
 };
 
 // 🌟 萬用追加子細項函式 (同時相容彈窗與頁面容器，支援時間同步與排序)
@@ -6643,18 +6648,14 @@ window.openAddSubProjectModal = () => {
         <div style="display:flex; gap:12px; align-items:center; margin-bottom:14px; flex-wrap:wrap;">
           <span style="font-weight:bold; color:var(--primary); font-size:15px; white-space:nowrap;">📦 子專案名稱</span>
           <input type="text" id="modal-subproject-name" class="input-control subproject-name" placeholder="請輸入子專案名稱 (必填)" style="flex:2; min-width:180px; font-size:14px;" required>
-          
-          <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:bold; color:#b45309; cursor:pointer; white-space:nowrap; background:#fef3c7; padding:6px 12px; border-radius:4px; border:1px solid #fde68a;">
-            <input type="checkbox" id="modal-subproject-procure" class="subproject-is-procure" onchange="window.toggleSubProjectProcure(this)" style="cursor:pointer; width:16px; height:16px;">
-            🛒 採購
-          </label>
 
           <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:bold; color:#1d4ed8; cursor:pointer; white-space:nowrap; background:#eff6ff; padding:6px 12px; border-radius:4px; border:1px solid #bfdbfe;">
             <input type="checkbox" id="modal-subproject-sync-date" class="subproject-sync-date" style="cursor:pointer; width:16px; height:16px;">
             🔄 時間同步
           </label>
           
-          <select id="modal-subproject-assignee" class="input-control subproject-assignee" style="flex:1; min-width:180px; font-size:14px;">
+          <!-- 🌟 補上 onchange 事件 -->
+          <select id="modal-subproject-assignee" class="input-control subproject-assignee" onchange="window.onSubProjectAssigneeChange(this)" style="flex:1; min-width:180px; font-size:14px;">
             ${assigneeOptions}
           </select>
         </div>
@@ -6680,6 +6681,12 @@ window.openAddSubProjectModal = () => {
     }
 
     modal.classList.add("active");
+
+    // 🌟 新增：初始化檢查，若預設負責人就是卷宗人員，自動觸發插入「簽核送審」
+    setTimeout(() => {
+        const assigneeSelect = document.getElementById("modal-subproject-assignee");
+        if (assigneeSelect) window.onSubProjectAssigneeChange(assigneeSelect);
+    }, 50);
 };
 window.closeAddSubProjectModal = () => {
     document.getElementById("project-subproject-modal").classList.remove("active");
