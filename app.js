@@ -1391,7 +1391,7 @@ onAuthStateChanged(auth, async (user) => {
     loadAdHocEvents();
     initTemplateUI();
     window.injectFontSizeUI();
-    window.initManualModalUI();
+    if (typeof window.initManualModalUI === 'function') window.initManualModalUI();
     window.triggerProjectsUpdate();
     if (window.renderNotifications) window.renderNotifications();
 
@@ -6161,7 +6161,6 @@ window.renderApprovals = () => {
         // 🌟 新增：動態統計該專案目前有多少位「待確認接收」的子專案負責人
         const pendingAssignees = new Set();
         (p.tasks || []).forEach(t => {
-            // 排除開案者本人，只統計被指派的人員
             if (t.isSubProjectTask && t.isPendingAcceptance && t.assigneeName && t.assigneeId !== p.ownerId) {
                 pendingAssignees.add(t.assigneeName);
             }
@@ -6183,15 +6182,15 @@ window.renderApprovals = () => {
         }
 
         reqBy = p.ownerName || '未知';
-        reqReason = cfg.approvalDesc || (p.approvalHistory && p.approvalHistory[0]?.remark) || p.title || '無說明';
 
         // 🌟 動態修正顯示的說明：如果是多數指派，就自動把所有人名列出來
         if (cfg.isApplyCollab && pendingAssignees.size > 0) {
             reqReason = `包含 ${pendingAssignees.size} 項跨部門指派 (指派至：${Array.from(pendingAssignees).join('、')})，待主管審核放行。`;
+        } else {
+            reqReason = cfg.approvalDesc || (p.approvalHistory && p.approvalHistory[0]?.remark) || p.title || '無說明';
         }
 
         if (cfg.isApplyCollab) {
-          // 若目前登入者是負責人本人，顯示同意/拒絕
           if (cfg.currentAssigneeUid === myUid) {
             const mySubTask = (p.tasks || []).find(t => t.assigneeId === myUid && t.isSubProjectTask);
             const subName = mySubTask ? mySubTask.parentSubProject : (p.title || '');
@@ -6201,12 +6200,11 @@ window.renderApprovals = () => {
               <button class="action-btn danger" style="padding:4px 10px; font-size:12px; width:auto; font-weight:bold;" onclick="rejectSubProjectAssignment('${p.id}', '${subName}')">拒絕</button>
             `;
           } else {
-            // 🌟 主管審核區塊：顯示動態同意按鈕
             const dispatchBtn = (currentUserData.role !== 'staff') 
               ? `<button class="action-btn" style="background:#3b82f6; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="openDispatchModal('${p.id}')">重新指派</button>` 
               : '';
 
-            // 根據是否為多數指派來切換按鈕文字
+            // 🌟 根據人數自動切換「同意放行」或「同意(多指派)」
             const approveBtnText = isMultiAssign ? "✅ 同意(多指派)" : "✅ 同意放行";
 
             actionButtons = `
@@ -6217,6 +6215,12 @@ window.renderApprovals = () => {
             `;
           }
         } else {
+          actionButtons = `
+            <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="approveProjectApproval('${p.id}')">✅ 同意開案</button>
+            <button class="action-btn danger" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">❌ 退回</button>
+          `;
+        }
+      }
 
       const tr = document.createElement("tr");
       tr.style.borderBottom = "1px solid var(--border-light)";
