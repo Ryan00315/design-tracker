@@ -6076,60 +6076,43 @@ window.renderApprovals = () => {
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  // 2. 主管審核數量計算與按鈕顯示 (加入 pending_approval 案件)
-    const isTopOrAdmin = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || currentUserData.role === 'senior_manager');
-    const isDeptManager = (currentUserData.role === 'manager' || currentUserData.role === 'assistant_manager');
-    let approvalPendingCount = 0;
+  const isTopOrAdmin = (currentUserData.role === 'admin' || currentUserData.role === 'top_manager' || currentUserData.role === 'senior_manager');
+  const isDeptManager = (currentUserData.role === 'manager' || currentUserData.role === 'assistant_manager');
+  let approvalPendingCount = 0;
 
-    const myUid = auth.currentUser?.uid;
-    const btnApprovals = document.getElementById("btn-approvals");
+  const myUid = auth.currentUser?.uid;
+  const btnApprovals = document.getElementById("btn-approvals");
 
-    if (isTopOrAdmin || isDeptManager) {
-        if (btnApprovals) btnApprovals.style.display = 'inline-flex';
-        
-    // ==========================================
-    // 4. 🌟 待審核與待指派事項（精準責任指針）
-    // ==========================================
-    const pendingApprovals = allProjectsData.filter(p => {
-      // 1. 暫停與恢復申請：最高主管與管理員負責
-      if (p.status === 'pause_requested' || p.status === 'resume_requested') {
-        return isTopOrAdmin;
-      }
+  if (isTopOrAdmin || isDeptManager) {
+      if (btnApprovals) btnApprovals.style.display = 'inline-flex';
       
-      // 2. 專案開案簽核與協作申請 (pending_approval)
-      if (p.status === 'pending_approval') {
-        const cfg = p.approvalConfig || {};
-
-        // 🌟 關鍵核心：只要 currentAssigneeUid 指定給了我 (不論我是主管還是人員)，我就必定看到！
-        if (cfg.currentAssigneeUid) {
-          return cfg.currentAssigneeUid === myUid;
+      const pendingApprovals = allProjectsData.filter(p => {
+        if (p.status === 'pause_requested' || p.status === 'resume_requested') {
+          return isTopOrAdmin;
         }
-
-        // 🌟 若尚未指派出去 (第一關)：只有最高主管與管理員看得見，其他人不顯示
-        if (isTopOrAdmin && (!cfg.currentStage || cfg.currentStage === 'top_manager')) {
-          return true;
+        if (p.status === 'pending_approval') {
+          const cfg = p.approvalConfig || {};
+          if (cfg.currentAssigneeUid) {
+            return cfg.currentAssigneeUid === myUid;
+          }
+          if (isTopOrAdmin && (!cfg.currentStage || cfg.currentStage === 'top_manager')) {
+            return true;
+          }
         }
-      }
-      return false;
-    });
-      
-        approvalPendingCount = pendingApprovals.length;
-    } else {
-        if (btnApprovals) btnApprovals.style.display = 'none';
-    }
+        return false;
+      });
+      approvalPendingCount = pendingApprovals.length;
+  } else {
+      if (btnApprovals) btnApprovals.style.display = 'none';
+  }
 
-  // 🌟 抓取：1. 暫停/恢復申請 2. 新專案開案簽核/協作指派 (依照層級權限)
   const pendingProjects = allProjectsData.filter(p => {
-    // 暫停與恢復申請 (僅管理員/最高級主管審核)
     if (p.status === 'pause_requested' || p.status === 'resume_requested') {
       return isTopOrAdmin;
     }
-    // 專案開案簽核流程
     if (p.status === 'pending_approval') {
       const cfg = p.approvalConfig || {};
-      // 最高主管/管理員：接收所有頂層簽核與頂層協作指派
       if (isTopOrAdmin) return true;
-      // 部門主管：如果協作指派給了自己
       if (isDeptManager && cfg.currentAssigneeUid === auth.currentUser.uid) return true;
     }
     return false;
@@ -6145,38 +6128,38 @@ window.renderApprovals = () => {
     pendingProjects.forEach(p => {
       const isPauseResume = (p.status === 'pause_requested' || p.status === 'resume_requested');
       const isPendingApproval = (p.status === 'pending_approval');
+      const isRejected = (p.status === 'rejected' || p.approvalConfig?.approvalStatus === 'rejected');
       const cfg = p.approvalConfig || {};
 
-      let reqTitle = p.title;
-      let reqBy = p.ownerName;
+      let noticeMsg = '';
+      let reqBy = p.ownerName || '未知';
       let reqAt = '-';
-      let reqDate = '-';
+      let typeLabel = '';
       let reqReason = '';
       let actionButtons = '';
 
-      if (isPauseResume) {
+      if (isRejected && p.ownerId === myUid) {
+        noticeMsg = `<span style="color:var(--danger); font-weight:bold;">❌ 專案已被退回，請修改後重新送審</span>`;
+        typeLabel = '<span class="pill pill-danger">專案被退回</span>';
+        reqBy = p.approvalHistory?.slice(-1)[0]?.operatorName || '主管';
+        reqReason = p.approvalConfig?.rejectReason || p.approvalHistory?.slice(-1)[0]?.remark || '無備註原因';
+        reqAt = p.approvalHistory?.slice(-1)[0]?.time || '-';
+        actionButtons = `<button class="action-btn" style="background:#4f46e5; color:#fff; border:none; padding:4px 10px; font-size:12px; width:auto;" onclick="openResubmitModal('${p.id}')">🔄 重新送審</button>`;
+      } 
+      else if (isPauseResume) {
         let isResume = (p.status === 'resume_requested');
-        reqTitle = isResume ? '<span style="color:var(--success); font-weight:bold;">[申請恢復]</span> ' + p.title : '<span style="color:var(--danger); font-weight:bold;">[申請暫停]</span> ' + p.title;
-        reqDate = isResume ? (p.resumeRequestedDate || '-') : (p.pauseStartDate || '-');
+        noticeMsg = isResume ? '⏳ 專案恢復執行審核' : '⏸️ 專案暫停申請審核';
+        typeLabel = isResume ? '<span class="pill" style="background:#dcfce7; color:#166534;">專案恢復申請</span>' : '<span class="pill" style="background:#fee2e2; color:#991b1b;">專案暫停申請</span>';
         reqReason = isResume ? '預計恢復執行' : (p.pauseReason || '');
         reqBy = isResume ? p.resumeRequestedBy : p.pauseRequestedBy;
         reqAt = isResume ? p.resumeRequestedAt : p.pauseRequestedAt;
 
         actionButtons = `
-          <button class="btn-primary" style="background:var(--danger); border:none; padding:4px 10px; font-size:12px; width:auto; margin-right:4px;" onclick="approvePause('${p.id}')">同意</button>
-          <button class="action-btn" style="padding:4px 10px; font-size:12px; width:auto;" onclick="rejectPause('${p.id}')">退回</button>
+          <button class="btn-primary" style="background:var(--danger); border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="approvePause('${p.id}')">同意</button>
+          <button class="action-btn" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectPause('${p.id}')">退回</button>
         `;
-      } else if (isPendingApproval) {
-        if (cfg.isApplyCollab) {
-          reqTitle = `<span style="color:var(--primary); font-weight:bold;">[協作申請]</span> ${p.title}`;
-          reqDate = '待指派';
-        } else {
-          reqTitle = `<span style="color:#d97706; font-weight:bold;">[專案簽核]</span> ${p.title}`;
-          reqDate = '待審核同意';
-        }
-        reqBy = p.ownerName;
-        reqReason = cfg.approvalDesc || (p.approvalHistory && p.approvalHistory[0]?.remark) || '無說明';
-        
+      } 
+      else if (isPendingApproval) {
         if (p.createdAt?.toDate) {
           reqAt = p.createdAt.toDate().toLocaleString('zh-TW', { hour12: false });
         } else {
@@ -6191,16 +6174,31 @@ window.renderApprovals = () => {
             }
         });
         const isMultiAssign = pendingAssignees.size > 1;
-        
-        // 🌟 動態修正顯示的說明，如果是多數指派，就自動把所有人名列出來，不再只顯示最後一個
+
+        if (cfg.isApplyCollab) {
+          if (cfg.currentAssigneeUid === myUid) {
+            noticeMsg = `<span style="color:var(--primary); font-weight:600;">📦 您已被指派了協作專案【${p.title}】，請確認是否同意承接</span>`;
+          } else if (currentUserData.role === 'staff') {
+            noticeMsg = `<span style="color:var(--danger); font-weight:600;">🚨 您已被指派協作專案，請確認接收。</span>`;
+          } else {
+            noticeMsg = `<span style="color:var(--danger); font-weight:600;">🚨 申請協作專案作業，請主管確認後簽核。</span>`;
+          }
+          typeLabel = '<span class="pill" style="background:#dbeafe; color:#1e40af; font-weight:bold;">👑 協作指派審核</span>';
+        } else {
+          noticeMsg = `<span style="color:#d97706; font-weight:600;">👑 專案開案簽核申請</span>`;
+          typeLabel = '<span class="pill" style="background:#fef3c7; color:#92400e; font-weight:bold;">👑 專案開案簽核</span>';
+        }
+
+        reqBy = p.ownerName || '未知';
+        reqReason = cfg.approvalDesc || (p.approvalHistory && p.approvalHistory[0]?.remark) || p.title || '無說明';
+
+        // 🌟 動態修正顯示的說明，如果是多數指派，就自動把所有人名列出來
         if (cfg.isApplyCollab && isMultiAssign) {
             reqReason = `包含多筆子專案指派 (指派至：${Array.from(pendingAssignees).join('、')})，待主管審核放行。`;
         }
 
         if (cfg.isApplyCollab) {
-          // 🌟 分流判斷：若目前登入者是被指定的執行人（本人），按鈕改為「同意 / 拒絕」
           if (cfg.currentAssigneeUid === myUid) {
-            // 抓出屬於該同仁的子專案名稱
             const mySubTask = (p.tasks || []).find(t => t.assigneeId === myUid && t.isSubProjectTask);
             const subName = mySubTask ? mySubTask.parentSubProject : (p.title || '');
 
@@ -6209,12 +6207,10 @@ window.renderApprovals = () => {
               <button class="action-btn danger" style="padding:4px 10px; font-size:12px; width:auto; font-weight:bold;" onclick="rejectSubProjectAssignment('${p.id}', '${subName}')">拒絕</button>
             `;
           } else {
-            // 🌟 若是審核的主管，維持「指派 / 承接 / 退回」
             const dispatchBtn = (currentUserData.role !== 'staff') 
               ? `<button class="action-btn" style="background:#3b82f6; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="openDispatchModal('${p.id}')">重新指派</button>` 
               : '';
 
-            // 🌟 根據人數動態決定按鈕文字
             const approveBtnText = isMultiAssign ? "✅ 同意(多數指派)" : "✅ 同意";
 
             actionButtons = `
@@ -6225,14 +6221,28 @@ window.renderApprovals = () => {
             `;
           }
         } else {
+          actionButtons = `
+            <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="approveProjectApproval('${p.id}')">同意開案</button>
+            <button class="action-btn danger" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">退回</button>
+          `;
+        }
+      }
 
       const tr = document.createElement("tr");
       tr.style.borderBottom = "1px solid var(--border-light)";
+      tr.style.backgroundColor = isRejected ? "#fff5f5" : "#fffbfb";
       tr.innerHTML = `
-        <td style="padding: 12px 8px;"><span style="color:var(--primary); font-weight:bold; cursor:pointer;" onclick="switchViewingUser('${p.ownerId}', '${p.ownerName || '人員'}'); switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*=\\'tab-projects\\']')); setTimeout(() => selectProject('${p.id}'), 150);">${reqTitle}</span></td>
-        <td style="padding: 12px 8px;"><span class="pill" style="background:#eff6ff; color:#1e40af;">${reqBy || '未知'}</span></td>
-        <td style="padding: 12px 8px;"><span style="font-size:12px; color:var(--text-muted);">${reqAt || '未記錄'}</span></td>
-        <td style="padding: 12px 8px;"><strong style="color:var(--danger);">${reqDate}</strong></td>
+        <td style="padding: 12px 8px;">
+            <span style="color:var(--primary); font-weight:bold; cursor:pointer; text-decoration:underline;" 
+                  onclick="window.viewProjectFromNotif('${p.ownerId}', '${p.ownerName || '人員'}', '${p.id}', '${p.status}')" 
+                  title="點擊前往查看專案細項">
+                ${p.title}
+            </span>
+        </td>
+        <td style="padding: 12px 8px;">${noticeMsg}</td>
+        <td style="padding: 12px 8px;"><span class="pill" style="background:#eff6ff; color:#1e40af;">${reqBy}</span></td>
+        <td style="padding: 12px 8px;">${typeLabel}</td>
+        <td style="padding: 12px 8px;"><span style="font-size:12px; color:var(--text-muted);">${reqAt}</span></td>
         <td style="padding: 12px 8px; word-break: break-all; color: var(--text-muted);">${reqReason}</td>
         <td style="padding: 12px 8px; text-align: center; white-space: nowrap;">
           ${actionButtons}
@@ -6256,7 +6266,6 @@ window.renderApprovals = () => {
                 ...log 
             }));
         }
-        // 亦將簽核歷史整合進操作紀錄
         if (p.approvalHistory && p.approvalHistory.length > 1) {
           p.approvalHistory.slice(1).forEach(h => {
             allLogs.push({
@@ -6749,7 +6758,8 @@ window.syncSubTasksDate = (triggerInput) => {
             startInput.value = nextWorkDay;
             if (daysInput && endInput) {
                 const days = parseInt(daysInput.value) || 1;
-                endInput.value = addWorkingDays(nextWorkDay, days - 1);
+                // 🌟 修正原本錯誤的 addWorkingDays，改為系統已有的 calculateEndDateByDays
+                endInput.value = calculateEndDateByDays(nextWorkDay, days);
             }
         }
     });
