@@ -1428,7 +1428,7 @@ function loadSidebarSubordinates() {
     const myRole = currentUserData.role; 
     const myDept = currentUserData.dept || "設計部";
 
-    allUsersList.forEach(u => {
+    allUsersList = [];   // 🌟 修正：先清空名單陣列，再重新塞入
     snapshot.forEach(docSnap => allUsersList.push({ uid: docSnap.id, ...docSnap.data() }));
 
     const isSubordinate = (bossUid, targetUid) => {
