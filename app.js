@@ -6553,6 +6553,37 @@ window.addTemplateSubProjectRow = (defaultName = "", defaultAssignee = "", subTa
     div.className = "form-row tpl-subproject-row"; 
     div.style.cssText = "margin-bottom: 8px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px; flex-direction: column; gap: 8px;";
 
+    // 🌟 把消失的 HTML 結構補回來，並加上卷宗觸發邏輯
+    div.innerHTML = `
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <span style="font-weight:bold; color:#d97706; white-space:nowrap;">📦 子專案</span>
+        <div class="form-group" style="margin:0; flex:2; min-width:140px;">
+          <input type="text" class="input-control task-name subproject-name" placeholder="子專案名稱 (例: 零件採購)" value="${defaultName}">
+        </div>
+
+        <!-- 🌟 時間同步開關 (草稿規劃專用) -->
+        <label style="display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:bold; color:#1d4ed8; cursor:pointer; white-space:nowrap; background:#eff6ff; padding:4px 8px; border-radius:4px; border:1px solid #bfdbfe;">
+          <input type="checkbox" class="subproject-sync-date" style="cursor:pointer;">
+          🔄 時間同步
+        </label>
+
+        <!-- 🌟 觸發綁定：選擇人員時自動觸發 onSubProjectAssigneeChange -->
+        <div class="form-group" style="margin:0; flex:1; min-width:140px;">
+            <select class="input-control subproject-assignee" onchange="window.onSubProjectAssigneeChange(this)">
+               ${assigneeOptions}
+            </select>
+        </div>
+        <div style="display:flex; gap:4px; margin:0; flex-shrink:0;">
+          <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, -1)" title="上移">↑</button>
+          <button type="button" class="action-btn btn-sort" onclick="moveTaskRow(this, 1)" title="下移">↓</button>
+          <button type="button" class="action-btn danger" onclick="this.closest('.tpl-subproject-row').remove()" style="padding:8px 10px;">X</button>
+        </div>
+      </div>
+      <div class="sub-tasks-container" style="margin-left: 20px; border-left: 2px solid #fcd34d; padding-left: 10px; display:flex; flex-direction:column; gap:6px;">
+      </div>
+      <button type="button" class="action-btn" onclick="window.addInnerSubTask(this)" style="margin-left: 30px; font-size: 11px; padding: 2px 8px; width: fit-content; border-color:#fcd34d; color:#b45309;">+ 追加子細項</button>
+    `;
+
     container.appendChild(div);
 
     const tasksContainer = div.querySelector('.sub-tasks-container');
@@ -6561,6 +6592,12 @@ window.addTemplateSubProjectRow = (defaultName = "", defaultAssignee = "", subTa
            window.addPreFilledInnerSubTask(tasksContainer, st.name, st.start, st.days, st.end, st.isApproval);
         });
     }
+
+    // 🌟 初始化檢查：若預設指派的就是「卷宗人員」，自動插入「簽核送審」
+    setTimeout(() => {
+        const assigneeSelect = div.querySelector('.subproject-assignee');
+        if (assigneeSelect) window.onSubProjectAssigneeChange(assigneeSelect);
+    }, 50);
 };
 
 // 🌟 1. 停用選人自動塞細項（選擇任何人員都不再自動產生「協作流程」）
