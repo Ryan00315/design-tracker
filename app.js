@@ -154,10 +154,11 @@ function getSubProjectAssigneeOptions(selectedUid = "") {
   const activeUid = selectedUid || currentUid;
   const userList = (typeof allUsersList !== 'undefined' && Array.isArray(allUsersList)) ? allUsersList : [];
 
-  // 動態提取所有存在的使用者部門，避免 departmentList 未宣告拋錯
-  let deptArr = (typeof departmentList !== 'undefined' && Array.isArray(departmentList))
-    ? departmentList
-    : [...new Set(userList.map(u => u.dept || "未指定部門"))];
+  // 🌟 核心修復：動態合併「系統設定部門」與「人員實際所屬部門」
+  let deptArr = Array.from(new Set([
+    ...(typeof departmentList !== 'undefined' && Array.isArray(departmentList) ? departmentList : []),
+    ...userList.map(u => u.dept || "未指定部門")
+  ]));
 
   if (deptArr.length === 0) deptArr = ["企劃部", "設計部", "採購部", "品保部", "管理部"];
 
@@ -1458,10 +1459,15 @@ function loadSidebarSubordinates() {
     });
 
     // 3. 🌟 遍歷全體部門
-    departmentList.forEach((dept, dIdx) => {
+    // 🌟 核心修復：動態合併「系統設定部門」與「可見人員實際所屬部門」
+    const allActiveDepts = Array.from(new Set([
+      ...departmentList,
+      ...visibleUsers.map(u => u.dept || "設計部")
+    ]));
+
+    allActiveDepts.forEach((dept, dIdx) => {
       // 抓出屬於該部門的成員
       const deptMembers = visibleUsers.filter(u => (u.dept || "設計部") === dept);
-
       // 🌟【新增這段判斷】一般部門主管：若該部門內沒有可見下屬 (人數為 0)，直接隱藏不顯示！
       const isGlobalAdminOrTop = (myRole === 'admin' || myRole === 'top_manager' || myRole === 'senior_manager');
       if (!isGlobalAdminOrTop && deptMembers.length === 0) {
@@ -4636,7 +4642,14 @@ function renderOrgChart() {
     { key: "staff", label: "👥 部門人員", roles: ["staff"] }
   ];
 
-  departmentList.forEach(dept => {
+  // 🌟 1. 新增這段：把系統預設清單跟所有人員實際掛的部門合併，並去除重複
+  const allActiveDepts = Array.from(new Set([
+    ...departmentList,
+    ...allUsersList.map(u => u.dept || "設計部")
+  ]));
+
+  // 🌟 2. 將原本的 departmentList 改用合併後的 allActiveDepts 執行迴圈
+  allActiveDepts.forEach(dept => {
     const deptUsers = allUsersList.filter(u => (u.dept || "設計部") === dept);
     if (deptUsers.length === 0) return;
 
@@ -8215,10 +8228,11 @@ window.openDispatchModal = (projId) => {
   // 🌟 2. 依照部門與職級結構化產生分組選單
   let options = '<option value="">-- 請選擇指派對象 --</option>';
 
-  // 抓出系統所有有效部門（包含新建立的車頭課）
-  const allDepts = Array.isArray(departmentList) && departmentList.length > 0 
-    ? departmentList 
-    : [...new Set(eligibleUsers.map(u => u.dept || "未指定部門"))];
+  // 🌟 核心修復：動態合併「系統設定部門」與「人員實際所屬部門」
+  const allDepts = Array.from(new Set([
+    ...(Array.isArray(departmentList) ? departmentList : []),
+    ...eligibleUsers.map(u => u.dept || "未指定部門")
+  ]));
 
   allDepts.forEach(dept => {
     // 找出該部門內符合指派條件的同仁
