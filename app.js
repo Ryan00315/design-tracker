@@ -1428,7 +1428,7 @@ function loadSidebarSubordinates() {
     const myRole = currentUserData.role; 
     const myDept = currentUserData.dept || "設計部";
 
-    // 🌟 修正：正確清空陣列並塞入，不再有錯誤的 forEach 閉包
+    // 🌟 修正：先清空名單陣列，再重新塞入，確保不會包覆額外的迴圈
     allUsersList = [];   
     snapshot.forEach(docSnap => allUsersList.push({ uid: docSnap.id, ...docSnap.data() }));
 
