@@ -6087,17 +6087,11 @@ window.renderApprovals = () => {
       if (btnApprovals) btnApprovals.style.display = 'inline-flex';
       
       const pendingApprovals = allProjectsData.filter(p => {
-        if (p.status === 'pause_requested' || p.status === 'resume_requested') {
-          return isTopOrAdmin;
-        }
+        if (p.status === 'pause_requested' || p.status === 'resume_requested') return isTopOrAdmin;
         if (p.status === 'pending_approval') {
           const cfg = p.approvalConfig || {};
-          if (cfg.currentAssigneeUid) {
-            return cfg.currentAssigneeUid === myUid;
-          }
-          if (isTopOrAdmin && (!cfg.currentStage || cfg.currentStage === 'top_manager')) {
-            return true;
-          }
+          if (cfg.currentAssigneeUid) return cfg.currentAssigneeUid === myUid;
+          if (isTopOrAdmin && (!cfg.currentStage || cfg.currentStage === 'top_manager')) return true;
         }
         return false;
       });
@@ -6107,9 +6101,7 @@ window.renderApprovals = () => {
   }
 
   const pendingProjects = allProjectsData.filter(p => {
-    if (p.status === 'pause_requested' || p.status === 'resume_requested') {
-      return isTopOrAdmin;
-    }
+    if (p.status === 'pause_requested' || p.status === 'resume_requested') return isTopOrAdmin;
     if (p.status === 'pending_approval') {
       const cfg = p.approvalConfig || {};
       if (isTopOrAdmin) return true;
@@ -6169,7 +6161,8 @@ window.renderApprovals = () => {
         // 🌟 新增：動態統計該專案目前有多少位「待確認接收」的子專案負責人
         const pendingAssignees = new Set();
         (p.tasks || []).forEach(t => {
-            if (t.isSubProjectTask && t.isPendingAcceptance && t.assigneeName) {
+            // 排除開案者本人
+            if (t.isSubProjectTask && t.isPendingAcceptance && t.assigneeName && t.assigneeId !== p.ownerId) {
                 pendingAssignees.add(t.assigneeName);
             }
         });
@@ -6193,8 +6186,8 @@ window.renderApprovals = () => {
         reqReason = cfg.approvalDesc || (p.approvalHistory && p.approvalHistory[0]?.remark) || p.title || '無說明';
 
         // 🌟 動態修正顯示的說明，如果是多數指派，就自動把所有人名列出來
-        if (cfg.isApplyCollab && isMultiAssign) {
-            reqReason = `包含多筆子專案指派 (指派至：${Array.from(pendingAssignees).join('、')})，待主管審核放行。`;
+        if (cfg.isApplyCollab && pendingAssignees.size > 0) {
+            reqReason = `包含 ${pendingAssignees.size} 項跨部門指派 (指派至：${Array.from(pendingAssignees).join('、')})，待主管審核放行。`;
         }
 
         if (cfg.isApplyCollab) {
@@ -6211,7 +6204,8 @@ window.renderApprovals = () => {
               ? `<button class="action-btn" style="background:#3b82f6; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="openDispatchModal('${p.id}')">重新指派</button>` 
               : '';
 
-            const approveBtnText = isMultiAssign ? "✅ 同意(多數指派)" : "✅ 同意";
+            // 🌟 自動切換「多數指派」按鈕文字
+            const approveBtnText = isMultiAssign ? "✅ 同意(多指派)" : "✅ 同意放行";
 
             actionButtons = `
               ${dispatchBtn}
@@ -6222,8 +6216,8 @@ window.renderApprovals = () => {
           }
         } else {
           actionButtons = `
-            <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="approveProjectApproval('${p.id}')">同意開案</button>
-            <button class="action-btn danger" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">退回</button>
+            <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="approveProjectApproval('${p.id}')">✅ 同意開案</button>
+            <button class="action-btn danger" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">❌ 退回</button>
           `;
         }
       }
@@ -6251,6 +6245,70 @@ window.renderApprovals = () => {
       tbody.appendChild(tr);
     });
   }
+
+  // 渲染主管歷史審核與操作紀錄
+  if (historyTbody) {
+    historyTbody.innerHTML = "";
+    let allLogs = [];
+    allProjectsData.forEach(p => {
+        if (p.auditLogs) {
+            p.auditLogs.forEach(log => allLogs.push({ 
+                projId: p.id, 
+                ownerId: p.ownerId, 
+                ownerName: p.ownerName || '人員', 
+                title: p.title, 
+                ...log 
+            }));
+        }
+        if (p.approvalHistory && p.approvalHistory.length > 1) {
+          p.approvalHistory.slice(1).forEach(h => {
+            allLogs.push({
+              projId: p.id,
+              ownerId: p.ownerId,
+              ownerName: p.ownerName || '人員',
+              title: p.title,
+              time: h.time,
+              action: h.step,
+              manager: h.operatorName,
+              reqBy: p.ownerName,
+              reqAt: p.approvalHistory[0]?.time || '-',
+              reqStart: '-',
+              reqReason: h.remark || '-'
+            });
+          });
+        }
+    });
+    allLogs.sort((a, b) => new Date((b.time||'').replace(/-/g, '/')) - new Date((a.time||'').replace(/-/g, '/')));
+    
+    allLogs.forEach(log => {
+      let actionStyle = (log.action.includes('同意') || log.action.includes('承接')) ? 'color:var(--success);font-weight:bold;' : log.action.includes('退回') ? 'color:var(--danger);font-weight:bold;' : 'color:var(--primary);font-weight:bold;';
+      let delBtnHtml = `<button class="action-btn danger" style="padding: 2px 6px; font-size: 11px;" onclick="deleteAuditLog('${log.projId}', '${log.time}', '${log.action}')">刪除</button>`;
+
+      const tr = document.createElement("tr");
+      tr.style.borderBottom = "1px solid var(--border-light)";
+      tr.innerHTML = `
+        <td style="padding: 10px 8px;"><span style="font-size:12px; color:#475569;">${log.time}</span></td>
+        <td style="padding: 10px 8px;">
+          <span style="color:var(--primary); font-weight:bold; cursor:pointer;" 
+                onclick="switchViewingUser('${log.ownerId}', '${log.ownerName}'); switchNav('tab-projects', '專案進度', document.querySelector('li[onclick*=\\'tab-projects\\']')); setTimeout(() => selectProject('${log.projId}'), 150);" 
+                title="點擊前往查看此專案">
+            ${log.title}
+          </span>
+        </td>
+        <td style="padding: 10px 8px;"><span style="${actionStyle}">${log.action}</span></td>
+        <td style="padding: 10px 8px;"><span class="pill" style="background:#f1f5f9; color:#334155;">${log.manager}</span></td>
+        <td style="padding: 10px 8px;">
+          <span class="pill" style="background:#eff6ff; color:#1e40af; margin-bottom:2px; display:inline-block;">${log.reqBy || '-'}</span><br>
+          <span style="font-size:11px; color:#94a3b8;">${log.reqAt || '-'}</span>
+        </td>
+        <td style="padding: 10px 8px;"><strong style="color:var(--danger); font-size:12px;">${log.reqStart || '-'}</strong></td>
+        <td style="padding: 10px 8px; word-break:break-all; color:var(--text-muted); font-size:12px;">${log.reqReason || '-'}</td>
+        <td style="padding: 10px 8px; text-align: center;">${delBtnHtml}</td>
+      `;
+      historyTbody.appendChild(tr);
+    });
+  }
+};
 
   // 渲染主管歷史審核與操作紀錄
   if (historyTbody) {
