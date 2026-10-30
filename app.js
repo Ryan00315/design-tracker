@@ -6185,19 +6185,48 @@ window.renderApprovals = () => {
           reqAt = p.approvalHistory && p.approvalHistory[0]?.time ? p.approvalHistory[0].time : '-';
         }
 
-        if (cfg.isApplyCollab) {
-          actionButtons = `
-            <button class="action-btn" style="background:#3b82f6; color:#fff; border:none; padding:4px 10px; font-size:12px; width:auto; margin-right:4px;" onclick="openDispatchModal('${p.id}')">👥 指派</button>
-            <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 10px; font-size:12px; width:auto; margin-right:4px;" onclick="selfAcceptCollabProject('${p.id}')">自行承接</button>
-            <button class="action-btn danger" style="padding:4px 10px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">退回</button>
-          `;
-        } else {
-          actionButtons = `
-            <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 10px; font-size:12px; width:auto; margin-right:4px;" onclick="approveProjectApproval('${p.id}')">✅ 同意開案</button>
-            <button class="action-btn danger" style="padding:4px 10px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">❌ 退回</button>
-          `;
+        // 🌟 新增：動態統計該專案目前有多少位「待確認接收」的子專案負責人
+        const pendingAssignees = new Set();
+        (p.tasks || []).forEach(t => {
+            if (t.isSubProjectTask && t.isPendingAcceptance && t.assigneeName) {
+                pendingAssignees.add(t.assigneeName);
+            }
+        });
+        const isMultiAssign = pendingAssignees.size > 1;
+        
+        // 🌟 動態修正顯示的說明，如果是多數指派，就自動把所有人名列出來，不再只顯示最後一個
+        if (cfg.isApplyCollab && isMultiAssign) {
+            reqReason = `包含多筆子專案指派 (指派至：${Array.from(pendingAssignees).join('、')})，待主管審核放行。`;
         }
-      }
+
+        if (cfg.isApplyCollab) {
+          // 🌟 分流判斷：若目前登入者是被指定的執行人（本人），按鈕改為「同意 / 拒絕」
+          if (cfg.currentAssigneeUid === myUid) {
+            // 抓出屬於該同仁的子專案名稱
+            const mySubTask = (p.tasks || []).find(t => t.assigneeId === myUid && t.isSubProjectTask);
+            const subName = mySubTask ? mySubTask.parentSubProject : (p.title || '');
+
+            actionButtons = `
+              <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 10px; font-size:12px; width:auto; margin-right:4px; font-weight:bold;" onclick="acceptSubProjectAssignment('${p.id}', '${subName}')">同意</button>
+              <button class="action-btn danger" style="padding:4px 10px; font-size:12px; width:auto; font-weight:bold;" onclick="rejectSubProjectAssignment('${p.id}', '${subName}')">拒絕</button>
+            `;
+          } else {
+            // 🌟 若是審核的主管，維持「指派 / 承接 / 退回」
+            const dispatchBtn = (currentUserData.role !== 'staff') 
+              ? `<button class="action-btn" style="background:#3b82f6; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="openDispatchModal('${p.id}')">重新指派</button>` 
+              : '';
+
+            // 🌟 根據人數動態決定按鈕文字
+            const approveBtnText = isMultiAssign ? "✅ 同意(多數指派)" : "✅ 同意";
+
+            actionButtons = `
+              ${dispatchBtn}
+              <button class="action-btn" style="background:#059669; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px; font-weight:bold;" onclick="approveProjectApproval('${p.id}')">${approveBtnText}</button>
+              <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="selfAcceptCollabProject('${p.id}')">自行承接</button>
+              <button class="action-btn danger" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">退回</button>
+            `;
+          }
+        } else {
 
       const tr = document.createElement("tr");
       tr.style.borderBottom = "1px solid var(--border-light)";
