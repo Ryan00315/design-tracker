@@ -5456,7 +5456,6 @@ function loadOrgUsers() {
             }
         }
     }
-    
     snapshot.forEach(docSnap => {
       const u = docSnap.data(); 
       // 🌟 自動補齊：如果沒有 email，但有帳號且格式包含 @，自動補齊並同步至資料庫
@@ -5491,7 +5490,7 @@ function loadOrgUsers() {
       if (uDept !== currentDeptGroup) {
         currentDeptGroup = uDept;
         const deptTr = document.createElement("tr");
-        deptTr.innerHTML = `<td colspan="7" style="background: #f1f5f9; font-weight: 700; color: #334155; padding: 10px 16px;">🏢 ${currentDeptGroup}</td>`;
+        deptTr.innerHTML = `<td colspan="8" style="background: #f1f5f9; font-weight: 700; color: #334155; padding: 10px 16px;">🏢 ${currentDeptGroup}</td>`;
         tbody.appendChild(deptTr);
       }
 
@@ -5503,6 +5502,10 @@ function loadOrgUsers() {
             <input type="checkbox" onchange="toggleUserEditPermission('${u.uid}', this.checked)" ${u.canEdit ? 'checked' : ''} ${currentUserData.role === 'admin' ? '' : 'disabled'}>
             <span>開放</span>
           </label>
+        </td>
+        <!-- 🌟 新增卷宗勾選框 -->
+        <td style="text-align: center;">
+          <input type="checkbox" onchange="toggleUserDossier('${u.uid}', this.checked)" ${u.isDossier ? 'checked' : ''} ${currentUserData.role === 'admin' ? '' : 'disabled'} title="設定為卷宗人員 (自動加入簽核送審)" style="cursor:pointer; transform:scale(1.2);">
         </td>
         <td><strong>${u.name || '未命名'}</strong></td>
         <td>${u.email || '-'}</td>
