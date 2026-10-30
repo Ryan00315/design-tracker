@@ -1428,7 +1428,8 @@ function loadSidebarSubordinates() {
     const myRole = currentUserData.role; 
     const myDept = currentUserData.dept || "設計部";
 
-    allUsersList = [];   // 🌟 修正：先清空名單陣列，再重新塞入
+    // 🌟 修正：正確清空陣列並塞入，不再有錯誤的 forEach 閉包
+    allUsersList = [];   
     snapshot.forEach(docSnap => allUsersList.push({ uid: docSnap.id, ...docSnap.data() }));
 
     const isSubordinate = (bossUid, targetUid) => {
@@ -1458,8 +1459,7 @@ function loadSidebarSubordinates() {
       if (canView || isSubordinate(myUid, u.uid)) visibleUsers.push(u);
     });
 
-    // 3. 🌟 遍歷全體部門
-    // 🌟 核心修復：動態合併「系統設定部門」與「可見人員實際所屬部門」
+    // 3. 🌟 遍歷全體部門，動態合併「系統設定部門」與「可見人員實際所屬部門」
     const allActiveDepts = Array.from(new Set([
       ...departmentList,
       ...visibleUsers.map(u => u.dept || "設計部")
@@ -1468,10 +1468,10 @@ function loadSidebarSubordinates() {
     allActiveDepts.forEach((dept, dIdx) => {
       // 抓出屬於該部門的成員
       const deptMembers = visibleUsers.filter(u => (u.dept || "設計部") === dept);
-      // 🌟【新增這段判斷】一般部門主管：若該部門內沒有可見下屬 (人數為 0)，直接隱藏不顯示！
+      
       const isGlobalAdminOrTop = (myRole === 'admin' || myRole === 'top_manager' || myRole === 'senior_manager');
       if (!isGlobalAdminOrTop && deptMembers.length === 0) {
-        return; // 👈 非全域主管且沒有任何下屬成員時，直接略過該部門！
+        return; 
       }
 
       // 排序同仁職級
@@ -1481,7 +1481,7 @@ function loadSidebarSubordinates() {
       const isViewingMemberInDept = deptMembers.some(m => m.uid === viewingUserId);
       const isExpanded = isViewingMemberInDept;
 
-      // 🌟 印出部門標題列：即便 deptMembers.length 為 0 也正常產生
+      // 🌟 印出部門標題列
       list.innerHTML += `
         <li class="nav-sub-dept-header ${isExpanded ? 'open' : ''}" onclick="toggleDeptSubList('${deptGroupId}', this)">
           <div style="display:flex; align-items:center; gap:8px;">
@@ -1495,7 +1495,6 @@ function loadSidebarSubordinates() {
       let membersHtml = `<div class="nav-sub-dept-members" id="${deptGroupId}" style="display:${isExpanded ? 'flex' : 'none'};">`;
       
       if (deptMembers.length > 0) {
-        // 該部門有成員：正常列出同仁
         deptMembers.forEach(u => {
           const isActive = (viewingUserId === u.uid) ? 'active' : '';
           membersHtml += `
@@ -1505,7 +1504,6 @@ function loadSidebarSubordinates() {
           `;
         });
       } else {
-        // 🌟 新部門尚無同仁時的防呆提示（避免點開一片空白）
         membersHtml += `
           <li class="nav-sub-item" style="color:#64748b; font-size:12px; cursor:default; padding-left:36px; user-select:none;">
             (尚無指派人員)
