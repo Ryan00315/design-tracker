@@ -6185,10 +6185,10 @@ window.renderApprovals = () => {
 
         reqBy = p.ownerName || '未知';
 
-        // 🌟 動態修正顯示的說明，如果是多數指派，自動把所有人與子專案名列出來
+        // 🌟 動態修正顯示的說明，並將「子專案名稱」與「指派人員」標示為藍色
         if (cfg.isApplyCollab && pendingSubProjects.size > 0) {
-            const subProjStr = Array.from(pendingSubProjects).join('、');
-            const assigneesStr = Array.from(pendingAssignees).join('、');
+            const subProjStr = `<span style="color:#2563eb; font-weight:600;">${Array.from(pendingSubProjects).join('、')}</span>`;
+            const assigneesStr = `<span style="color:#2563eb; font-weight:600;">${Array.from(pendingAssignees).join('、')}</span>`;
             if (isMultiAssign) {
                 reqReason = `包含 ${pendingSubProjects.size} 個跨部門子專案 (${subProjStr})，分別指派至：${assigneesStr}，待主管審核放行。`;
             } else {
@@ -7470,10 +7470,10 @@ window.renderNotifications = () => {
         });
         const isMultiAssign = pendingSubProjects.size > 1;
 
-        // 🌟 動態修正顯示的說明，如果是多數指派，自動把所有人與子專案名列出來
+        // 🌟 動態修正顯示的說明，並將「子專案名稱」與「指派人員」標示為藍色
         if (cfg.isApplyCollab && pendingSubProjects.size > 0) {
-            const subProjStr = Array.from(pendingSubProjects).join('、');
-            const assigneesStr = Array.from(pendingAssignees).join('、');
+            const subProjStr = `<span style="color:#2563eb; font-weight:600;">${Array.from(pendingSubProjects).join('、')}</span>`;
+            const assigneesStr = `<span style="color:#2563eb; font-weight:600;">${Array.from(pendingAssignees).join('、')}</span>`;
             if (isMultiAssign) {
                 reqReason = `包含 ${pendingSubProjects.size} 個跨部門子專案 (${subProjStr})，分別指派至：${assigneesStr}，待主管審核放行。`;
             } else {
