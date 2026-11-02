@@ -7114,13 +7114,13 @@ window.initNotificationsUI = () => {
                         <table style="width:100%;">
                             <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 2;">
                                 <tr>
-                                    <th style="width:16%">專案名稱</th>
-                                    <th style="width:24%">通知訊息</th> <!-- 🌟 已改為「通知訊息」 -->
-                                    <th style="width:10%">發布/申請人</th>
-                                    <th style="width:12%">事項類型</th>
-                                    <th style="width:14%">時間</th>
-                                    <th style="width:14%">說明 / 原因</th>
-                                    <th style="width:10%; text-align:center;">操作</th>
+                                    <th style="width:15%">專案名稱</th>
+                                    <th style="width:18%">通知訊息</th>
+                                    <th style="width:9%">發布/申請人</th>
+                                    <th style="width:10%">事項類型</th>
+                                    <th style="width:11%">時間</th>
+                                    <th style="width:25%">說明 / 原因</th>
+                                    <th style="width:12%; text-align:center;">操作</th>
                                 </tr>
                             </thead>
                             <tbody id="notif-list-tbody"></tbody>
