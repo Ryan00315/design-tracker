@@ -6213,12 +6213,12 @@ window.renderApprovals = () => {
               : '';
 
             // 🌟 根據子專案數量自動切換「全部同意」或「同意指派」
-            const approveBtnText = isMultiAssign ? "✅ 全部同意" : "✅ 同意指派";
+            const approveBtnText = isMultiAssign ? "全部同意" : "同意指派";
 
             actionButtons = `
               ${dispatchBtn}
-              <button class="action-btn" style="background:#059669; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px; font-weight:bold;" onclick="approveProjectApproval('${p.id}')">${approveBtnText}</button>
-              <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="selfAcceptCollabProject('${p.id}')">自行承接</button>
+              <button class="action-btn" style="background:transparent; color:#059669; border:1px solid #059669; padding:4px 8px; font-size:12px; width:auto; margin-right:4px; font-weight:bold;" onclick="approveProjectApproval('${p.id}')">${approveBtnText}</button>
+              <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="selfAcceptCollabProject('${p.id}')">承接</button>
               <button class="action-btn danger" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">退回</button>
             `;
           }
@@ -7506,12 +7506,12 @@ window.renderNotifications = () => {
               ? `<button class="action-btn" style="background:#3b82f6; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="openDispatchModal('${p.id}')">指派</button>` 
               : '';
 
-            const approveBtnText = isMultiAssign ? "✅ 全部同意" : "✅ 同意指派";
+            const approveBtnText = isMultiAssign ? "全部同意" : "同意指派";
 
             actionButtons = `
               ${dispatchBtn}
-              <button class="action-btn" style="background:#059669; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px; font-weight:bold;" onclick="approveProjectApproval('${p.id}')">${approveBtnText}</button>
-              <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="selfAcceptCollabProject('${p.id}')">自行承接</button>
+              <button class="action-btn" style="background:transparent; color:#059669; border:1px solid #059669; padding:4px 8px; font-size:12px; width:auto; margin-right:4px; font-weight:bold;" onclick="approveProjectApproval('${p.id}')">${approveBtnText}</button>
+              <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="selfAcceptCollabProject('${p.id}')">承接</button>
               <button class="action-btn danger" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">退回</button>
             `;
           }
