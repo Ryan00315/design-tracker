@@ -6158,14 +6158,16 @@ window.renderApprovals = () => {
           reqAt = p.approvalHistory && p.approvalHistory[0]?.time ? p.approvalHistory[0].time : '-';
         }
 
-        // 🌟 動態統計該專案目前有多少位「待確認接收」的子專案負責人
+        // 🌟 動態統計該專案目前有多少位「待確認接收」的子專案負責人與子專案名稱
         const pendingAssignees = new Set();
+        const pendingSubProjects = new Set();
         (p.tasks || []).forEach(t => {
             if (t.isSubProjectTask && t.isPendingAcceptance && t.assigneeName && t.assigneeId !== p.ownerId) {
                 pendingAssignees.add(t.assigneeName);
+                if (t.parentSubProject) pendingSubProjects.add(t.parentSubProject);
             }
         });
-        const isMultiAssign = pendingAssignees.size > 1;
+        const isMultiAssign = pendingSubProjects.size > 1;
 
         if (cfg.isApplyCollab) {
           if (cfg.currentAssigneeUid === myUid) {
@@ -6183,9 +6185,15 @@ window.renderApprovals = () => {
 
         reqBy = p.ownerName || '未知';
 
-        // 🌟 動態修正顯示的說明，如果是多數指派，自動把所有人名列出來
-        if (cfg.isApplyCollab && pendingAssignees.size > 0) {
-            reqReason = `包含 ${pendingAssignees.size} 項跨部門指派 (指派至：${Array.from(pendingAssignees).join('、')})，待主管審核放行。`;
+        // 🌟 動態修正顯示的說明，如果是多數指派，自動把所有人與子專案名列出來
+        if (cfg.isApplyCollab && pendingSubProjects.size > 0) {
+            const subProjStr = Array.from(pendingSubProjects).join('、');
+            const assigneesStr = Array.from(pendingAssignees).join('、');
+            if (isMultiAssign) {
+                reqReason = `包含 ${pendingSubProjects.size} 個跨部門子專案 (${subProjStr})，分別指派至：${assigneesStr}，待主管審核放行。`;
+            } else {
+                reqReason = `跨部門子專案【${subProjStr}】指派至：${assigneesStr}，待主管審核放行。`;
+            }
         } else {
             reqReason = cfg.approvalDesc || (p.approvalHistory && p.approvalHistory[0]?.remark) || p.title || '無說明';
         }
@@ -6204,8 +6212,8 @@ window.renderApprovals = () => {
               ? `<button class="action-btn" style="background:#3b82f6; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="openDispatchModal('${p.id}')">重新指派</button>` 
               : '';
 
-            // 🌟 根據人數自動切換「同意放行」或「同意(多指派)」
-            const approveBtnText = isMultiAssign ? "✅ 同意(多指派)" : "✅ 同意放行";
+            // 🌟 根據子專案數量自動切換「全部同意」或「同意指派」
+            const approveBtnText = isMultiAssign ? "✅ 全部同意" : "✅ 同意指派";
 
             actionButtons = `
               ${dispatchBtn}
@@ -7450,7 +7458,30 @@ window.renderNotifications = () => {
         }
 
         reqBy = p.ownerName || '未知';
-        reqReason = cfg.approvalDesc || (p.approvalHistory && p.approvalHistory[0]?.remark) || p.title || '無說明';
+
+        // 🌟 動態統計該專案目前有多少位「待確認接收」的子專案負責人與子專案名稱
+        const pendingAssignees = new Set();
+        const pendingSubProjects = new Set();
+        (p.tasks || []).forEach(t => {
+            if (t.isSubProjectTask && t.isPendingAcceptance && t.assigneeName && t.assigneeId !== p.ownerId) {
+                pendingAssignees.add(t.assigneeName);
+                if (t.parentSubProject) pendingSubProjects.add(t.parentSubProject);
+            }
+        });
+        const isMultiAssign = pendingSubProjects.size > 1;
+
+        // 🌟 動態修正顯示的說明，如果是多數指派，自動把所有人與子專案名列出來
+        if (cfg.isApplyCollab && pendingSubProjects.size > 0) {
+            const subProjStr = Array.from(pendingSubProjects).join('、');
+            const assigneesStr = Array.from(pendingAssignees).join('、');
+            if (isMultiAssign) {
+                reqReason = `包含 ${pendingSubProjects.size} 個跨部門子專案 (${subProjStr})，分別指派至：${assigneesStr}，待主管審核放行。`;
+            } else {
+                reqReason = `跨部門子專案【${subProjStr}】指派至：${assigneesStr}，待主管審核放行。`;
+            }
+        } else {
+            reqReason = cfg.approvalDesc || (p.approvalHistory && p.approvalHistory[0]?.remark) || p.title || '無說明';
+        }
         
         if (p.createdAt?.toDate) {
           reqAt = p.createdAt.toDate().toLocaleString('zh-TW', { hour12: false });
@@ -7470,14 +7501,17 @@ window.renderNotifications = () => {
               <button class="action-btn danger" style="padding:4px 10px; font-size:12px; width:auto; font-weight:bold;" onclick="rejectSubProjectAssignment('${p.id}', '${subName}')">拒絕</button>
             `;
           } else {
-            // 🌟 若是審核的主管，維持「指派 / 承接 / 退回」
+            // 🌟 若是審核的主管，顯示「同意 / 承接 / 退回 / 指派」
             const dispatchBtn = (currentUserData.role !== 'staff') 
               ? `<button class="action-btn" style="background:#3b82f6; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="openDispatchModal('${p.id}')">指派</button>` 
               : '';
 
+            const approveBtnText = isMultiAssign ? "✅ 全部同意" : "✅ 同意指派";
+
             actionButtons = `
               ${dispatchBtn}
-              <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="selfAcceptCollabProject('${p.id}')">承接</button>
+              <button class="action-btn" style="background:#059669; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px; font-weight:bold;" onclick="approveProjectApproval('${p.id}')">${approveBtnText}</button>
+              <button class="action-btn" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:12px; width:auto; margin-right:4px;" onclick="selfAcceptCollabProject('${p.id}')">自行承接</button>
               <button class="action-btn danger" style="padding:4px 8px; font-size:12px; width:auto;" onclick="rejectProjectApproval('${p.id}')">退回</button>
             `;
           }
