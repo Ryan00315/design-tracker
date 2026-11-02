@@ -6190,9 +6190,9 @@ window.renderApprovals = () => {
             const subProjStr = `<span style="color:#2563eb; font-weight:600;">${Array.from(pendingSubProjects).join('、')}</span>`;
             const assigneesStr = `<span style="color:#2563eb; font-weight:600;">${Array.from(pendingAssignees).join('、')}</span>`;
             if (isMultiAssign) {
-                reqReason = `包含 ${pendingSubProjects.size} 個跨部門子專案 (${subProjStr})，分別指派至：${assigneesStr}，待主管審核放行。`;
+                reqReason = `包含 ${pendingSubProjects.size} 個跨部門子專案 (${subProjStr})，分別指派至：${assigneesStr}，待主管審核核准。`;
             } else {
-                reqReason = `跨部門子專案【${subProjStr}】指派至：${assigneesStr}，待主管審核放行。`;
+                reqReason = `跨部門子專案【${subProjStr}】指派至：${assigneesStr}，待主管審核核准。`;
             }
         } else {
             reqReason = cfg.approvalDesc || (p.approvalHistory && p.approvalHistory[0]?.remark) || p.title || '無說明';
@@ -7475,9 +7475,9 @@ window.renderNotifications = () => {
             const subProjStr = `<span style="color:#2563eb; font-weight:600;">${Array.from(pendingSubProjects).join('、')}</span>`;
             const assigneesStr = `<span style="color:#2563eb; font-weight:600;">${Array.from(pendingAssignees).join('、')}</span>`;
             if (isMultiAssign) {
-                reqReason = `包含 ${pendingSubProjects.size} 個跨部門子專案 (${subProjStr})，分別指派至：${assigneesStr}，待主管審核放行。`;
+                reqReason = `包含 ${pendingSubProjects.size} 個跨部門子專案 (${subProjStr})，分別指派至：${assigneesStr}，待主管審核核准。`;
             } else {
-                reqReason = `跨部門子專案【${subProjStr}】指派至：${assigneesStr}，待主管審核放行。`;
+                reqReason = `跨部門子專案【${subProjStr}】指派至：${assigneesStr}，待主管審核核准。`;
             }
         } else {
             reqReason = cfg.approvalDesc || (p.approvalHistory && p.approvalHistory[0]?.remark) || p.title || '無說明';
@@ -8260,9 +8260,9 @@ window.assignCollabProject = async (projId, nextAssigneeUid, note) => {
   alert(`已成功指派給 ${targetUser.name}！`);
 };
 
-// 🌟 1. 同意開案簽核
+// 🌟 1. 核准開案 / 協作簽核 (支援單一開案與多數指派全部核准)
 window.approveProjectApproval = async (projId) => {
-  if (!confirm("確定同意此專案開案簽核嗎？\n同意後專案將正式進入申請人的【未完成】清單中。")) return;
+  if (!confirm("確定核准此專案嗎？\n核准後，專案將正式生效，並通知相關負責人接收任務。")) return;
   const proj = allProjectsData.find(p => p.id === projId);
   if (!proj) return;
 
@@ -8270,32 +8270,78 @@ window.approveProjectApproval = async (projId) => {
   const myName = currentUserData.name || "主管";
   const history = proj.approvalHistory || [];
   
+  // 🌟 動態判斷是「一般開案核准」還是「協作核准」
+  const isCollab = proj.approvalConfig?.isApplyCollab;
+  const actionName = isCollab ? '協作核准' : '開案核准';
+
   history.push({
-    step: '✅ 同意開案簽核',
+    step: `✅ 已${actionName}`,
     operatorName: myName,
     operatorUid: auth.currentUser.uid,
     role: roleNames[currentUserData.role] || currentUserData.role,
     time: ts,
-    remark: '主管已同意專案建立'
+    remark: `主管已${actionName}`
   });
 
-  // 🌟 只更新狀態為 active，不改動 tasks 細項
+  const tasks = [...(proj.tasks || [])];
+  
+  // 🌟 給申請人的系統通知 (動態文字)
+  tasks.push({
+    name: `[系統通知] 您的專案 [${proj.title}] 已被主管【${myName}】✅ ${actionName}`,
+    start: getTodayStr(),
+    end: getTodayStr(),
+    progress: 100,
+    isCompleted: true,
+    isSubProjectTask: true,
+    parentSubProject: "專案審核通知",
+    assigneeId: proj.ownerId,
+    assigneeName: proj.ownerName || '開案人',
+    isPendingAcceptance: false,
+    isSystemNotifUnread: true, // 標記為未讀，通知紅點才會出現
+    assignedByUid: auth.currentUser.uid,
+    assignedByName: myName,
+    assignedAt: ts,
+    history: [{ timestamp: ts, progress: 100, type: 'create', daysPassed: 0, delayReason: '', remark: `主管已${actionName}` }]
+  });
+
+  // 寫入 Firebase，專案正式生效 (active)，並清空主管的待辦駐留
   await updateDoc(doc(db, "projects", projId), {
     status: 'active',
+    tasks: tasks,
     "approvalConfig.approvalStatus": 'approved',
+    "approvalConfig.currentAssigneeUid": "", // 👈 清空指派人，避免卡在主管身上
     approvalHistory: history
   });
 
-  // 🌟 [補上] 發信通知開案申請人：主管已核准開案
+  // 🌟 1. 發信通知「開案申請人」
   sendNotificationEmail({
     targetUid: proj.ownerId,
     projTitle: proj.title,
-    type: '專案開案核准通知',
-    reason: `主管【${myName}】已審核同意專案【${proj.title}】開案，專案已正式生效並納入未完成清單！`,
+    type: `專案${actionName}通知`,
+    reason: `主管【${myName}】已${actionName}專案【${proj.title}】，專案已正式生效！`,
     senderName: myName
   });
 
-  alert("✅ 已成功同意開案，專案已加入未完成！");
+  // 🌟 2. 如果是協作指派，找出所有待接收的負責人，發信通知他們來系統點擊「同意接收」
+  if (isCollab) {
+    const notifiedUids = new Set();
+    tasks.forEach(t => {
+      if (t.isSubProjectTask && t.isPendingAcceptance && t.assigneeId && t.assigneeId !== proj.ownerId) {
+        if (!notifiedUids.has(t.assigneeId)) {
+          notifiedUids.add(t.assigneeId);
+          sendNotificationEmail({
+            targetUid: t.assigneeId,
+            projTitle: proj.title,
+            type: '子專案指派通知',
+            reason: `主管【${myName}】已核准跨部門協作專案【${proj.title}】並將其中的子專案指派予您，請至系統「系統通知」確認是否接收。`,
+            senderName: myName
+          });
+        }
+      }
+    });
+  }
+
+  alert(`✅ 已成功${actionName}！相關人員皆已發送通知。`);
   renderProjects();
 };
 
