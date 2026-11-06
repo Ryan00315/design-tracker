@@ -9588,23 +9588,34 @@ window.loadSpecificWeeklyDraft = function(draftId) {
 
   const container = document.getElementById("weekly-items-container");
   container.innerHTML = "";
-
-  if (Array.isArray(draft.items) && draft.items.length > 0) {
+  
+  if (draft.items && draft.items.length > 0) {
     draft.items.forEach(item => {
+      // 1. 新增一列 (這會自動初始化該列的 div._quill)
       window.addWeeklyRow();
-      const lastRow = container.querySelector('.weekly-item-row:last-child');
-      if (lastRow) {
-        const pSel = lastRow.querySelector('.weekly-proj-select');
-        const contentArea = lastRow.querySelector('.weekly-content');
-        if (pSel) {
-          pSel.value = item.projId;
-          window.updateWeeklyTaskSelect(pSel);
-          const tSel = lastRow.querySelector('.weekly-task-select');
-          if (tSel && item.taskId) {
-            tSel.value = item.taskId;
-          }
-        }
-        if (contentArea) contentArea.value = item.content || "";
+      const rows = container.querySelectorAll('.weekly-item-row');
+      const currentRow = rows[rows.length - 1];
+  
+      const pSel = currentRow.querySelector('.weekly-proj-select');
+      const tSel = currentRow.querySelector('.weekly-task-select');
+  
+      // 2. 先設定主專案，並觸發更新細項下拉選單
+      if (pSel && item.projectId) {
+        pSel.value = item.projectId;
+        window.updateWeeklyTaskSelect(pSel);
+      }
+  
+      // 3. 設定細項下拉選單的值 (不觸發 onWeeklyTaskSelectChange，避免事件紀錄預設原因覆蓋掉草稿)
+      if (tSel && item.taskId !== undefined) {
+        tSel.value = item.taskId;
+      }
+  
+      // 🌟 4. 關鍵修正：最後才將草稿的進度說明寫入 Quill 編輯器
+      if (currentRow._quill) {
+        currentRow._quill.root.innerHTML = item.content || "";
+      } else {
+        const fallbackTextarea = currentRow.querySelector('.weekly-content');
+        if (fallbackTextarea) fallbackTextarea.value = item.content || "";
       }
     });
   } else {
