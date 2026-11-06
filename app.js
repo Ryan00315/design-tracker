@@ -9426,255 +9426,229 @@ window.clearCurrentAdHocForm = function() {
   if (adhocQuill) adhocQuill.root.innerHTML = "";
 };
 
-// ==========================================
-// 🌟 週報填寫：完整草稿儲存與載入模組 (支援 Quill 編輯器)
-// ==========================================
+// ===================================================
+// 🌟 工作週報 (Weekly Report) 多草稿管理系統 (完美對接 Quill)
+// ===================================================
 function getWeeklyDraftStorageKey() {
   const uid = auth.currentUser?.uid || "guest";
-  return `pms_weekly_drafts_${uid}`;
+  return `pms_weekly_drafts_v1_${uid}`;
 }
 
 function getAllWeeklyDrafts() {
-  try {
-    const raw = localStorage.getItem(getWeeklyDraftStorageKey());
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    console.warn("讀取週報草稿失敗:", e);
-    return [];
-  }
+  const raw = localStorage.getItem(getWeeklyDraftStorageKey());
+  if (!raw) return [];
+  try { return JSON.parse(raw) || []; } catch (e) { return []; }
 }
 
-// 1. 檢查並更新「📂 載入草稿 (N)」按鈕狀態
-window.checkWeeklyDraftStatus = () => {
+window.checkWeeklyDraftStatus = function() {
   const drafts = getAllWeeklyDrafts();
-  const btn = document.getElementById("btn-load-weekly-draft");
+  const btnLoad = document.getElementById("btn-load-weekly-draft");
   const countSpan = document.getElementById("weekly-draft-count-num");
-  if (btn && countSpan) {
-    countSpan.innerText = drafts.length;
-    btn.style.display = drafts.length > 0 ? "inline-block" : "none";
+  if (drafts.length > 0) {
+    if (btnLoad) btnLoad.style.display = "inline-block";
+    if (countSpan) countSpan.innerText = drafts.length;
+  } else {
+    if (btnLoad) btnLoad.style.display = "none";
+    if (countSpan) countSpan.innerText = "0";
   }
 };
 
-// 2. 儲存週報草稿 (完整抓取主專案、細項、Quill 內容與請假設定)
-window.saveWeeklyDraft = () => {
-  const rows = document.querySelectorAll('#weekly-items-container .weekly-item-row');
-  const items = [];
+window.saveWeeklyDraft = function() {
+  const dateStr = document.getElementById("rep-date")?.value || "";
+  if (!dateStr) return alert("無法取得週報日期！");
 
+  let leaveType = "";
+  let leaveReason = "";
+  const leaveChecked = document.querySelector('input[name="leave_type"]:checked');
+  if (leaveChecked) {
+    leaveType = leaveChecked.value;
+    if (leaveType === "other") {
+      leaveReason = document.getElementById("leave-other-reason")?.value.trim() || "";
+    }
+  }
+
+  const rows = document.querySelectorAll('.weekly-item-row');
+  const items = [];
   rows.forEach(r => {
     const pSel = r.querySelector('.weekly-proj-select');
     const tSel = r.querySelector('.weekly-task-select');
     
-    // 🌟 從 Quill 實例抓取 HTML 內容
+    // 🌟 修正：優先從 Quill 實例抓取 HTML 內容，若無則退回舊 textarea
     let content = "";
     if (r._quill) {
       content = r._quill.root.innerHTML.trim();
       if (content === '<p><br></p>') content = "";
     } else {
-      content = r.querySelector('.weekly-content')?.value.trim() || "";
+      content = r.querySelector('.weekly-content')?.value || "";
     }
 
-    const projVal = pSel ? pSel.value : "";
-    const projText = (pSel && pSel.selectedIndex >= 0 && projVal) ? pSel.options[pSel.selectedIndex].text : "";
-    const taskVal = tSel ? tSel.value : "";
-    const taskText = (tSel && tSel.selectedIndex >= 0 && taskVal) ? tSel.options[tSel.selectedIndex].text : "";
-
-    // 只要主專案、細項或說明任一有值就存入草稿
-    if (projVal || taskVal || content) {
+    if (pSel && pSel.value) {
       items.push({
-        // 同時存兩種命名，完美相容新舊格式
-        projectId: projVal,
-        projId: projVal,
-        projectName: projText,
-        taskId: taskVal,
-        taskName: taskText,
+        projId: pSel.value,
+        taskId: tSel ? tSel.value : "",
         content: content
       });
     }
   });
 
-  // 抓取請假選項
-  const checkedLeave = document.querySelector('input[name="leave_type"]:checked');
-  const leaveType = checkedLeave ? checkedLeave.value : "";
-  const leaveReason = document.getElementById("leave-other-reason")?.value.trim() || "";
+  let drafts = getAllWeeklyDrafts();
+  const existingIdx = drafts.findIndex(d => d.dateStr === dateStr);
 
-  if (items.length === 0 && !leaveType) {
-    return alert("⚠️ 目前週報表單是空白的，請至少選擇一個專案或填寫進度說明後再儲存草稿！");
+  if (existingIdx >= 0) {
+    const isConfirmOverwrite = confirm(`⚠️ 已存在【${dateStr}】的週報草稿（儲存於 ${drafts[existingIdx].savedAt}）。\n\n是否確定要覆蓋此週報草稿？`);
+    if (!isConfirmOverwrite) return;
   }
 
-  // 自動產生草稿標題
-  const dateStr = document.getElementById("rep-date")?.value || getTodayStr();
-  let firstProjName = items[0]?.projectName ? items[0].projectName.replace(/^[👥📝📌\s]+/, '') : "未選專案";
-  if (items.length === 0 && leaveType) firstProjName = leaveType === 'leave' ? '請假' : '其他原因';
-  
-  const defaultTitle = `${dateStr} - ${firstProjName}${items.length > 1 ? ` 等 ${items.length} 項` : ''}`;
-  const draftTitle = prompt("請輸入此份週報草稿的備忘名稱：", defaultTitle);
-  if (draftTitle === null) return; // 按取消則中斷
-
-  const drafts = getAllWeeklyDrafts();
+  const ts = new Date().toLocaleString('zh-TW', { hour12: false });
   const newDraft = {
-    id: 'wd_' + Date.now(),
-    title: draftTitle.trim() || defaultTitle,
-    savedAt: new Date().toLocaleString('zh-TW', { hour12: false }),
+    id: existingIdx >= 0 ? drafts[existingIdx].id : 'weekly_draft_' + Date.now(),
+    dateStr,
     leaveType,
     leaveReason,
-    items
+    items,
+    savedAt: ts
   };
 
-  // 若有同名草稿則覆蓋，否則新增在最前面
-  const existIdx = drafts.findIndex(d => d.title === newDraft.title);
-  if (existIdx !== -1) {
-    drafts[existIdx] = newDraft;
+  if (existingIdx >= 0) {
+    drafts[existingIdx] = newDraft;
   } else {
     drafts.unshift(newDraft);
   }
 
   localStorage.setItem(getWeeklyDraftStorageKey(), JSON.stringify(drafts));
   window.checkWeeklyDraftStatus();
-  alert(`💾 週報草稿【${newDraft.title}】已成功儲存！`);
+  alert(`💾 週報草稿【${dateStr}】已成功儲存！共保留 ${drafts.length} 份草稿。`);
 };
 
-// 3. 開啟草稿選擇彈窗
-window.openWeeklyDraftListModal = () => {
+window.openWeeklyDraftListModal = function() {
   const drafts = getAllWeeklyDrafts();
   if (drafts.length === 0) return alert("目前沒有已儲存的週報草稿！");
 
   const modal = document.getElementById("general-edit-modal");
   const form = document.getElementById("general-edit-form");
-  document.getElementById("general-edit-title").innerText = "📂 選擇要載入的週報草稿";
+  const modalBox = modal.querySelector('.modal-box');
+  if (modalBox) {
+    modalBox.style.maxWidth = "760px";
+    modalBox.style.width = "90vw";
+  }
 
-  // 隱藏底部預設的「儲存修改」按鈕
+  document.getElementById("general-edit-title").innerText = `📂 選擇要繼續編輯的週報草稿 (${drafts.length} 份)`;
+
   const defaultSaveBtn = Array.from(modal.querySelectorAll("button")).find(b => 
     b.getAttribute("onclick")?.includes("saveGeneralEdit") || b.textContent.includes("儲存修改")
   );
   const defaultFooter = defaultSaveBtn ? defaultSaveBtn.closest("div") : null;
-  if (defaultFooter && defaultFooter !== form) defaultFooter.style.display = "none";
+  if (defaultFooter && defaultFooter !== form && !form.contains(defaultFooter)) {
+    defaultFooter.style.display = "none";
+  }
 
-  let html = `<div style="display:flex; flex-direction:column; gap:10px; max-height:400px; overflow-y:auto; padding:4px;">`;
-  drafts.forEach((d, idx) => {
-    const itemCount = Array.isArray(d.items) ? d.items.length : 0;
-    html += `
-      <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 14px; background:#f8fafc; border:1px solid var(--border); border-radius:8px;">
-        <div>
-          <div style="font-weight:bold; color:var(--primary); font-size:14px;">📝 ${d.title || '未命名週報草稿'}</div>
-          <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">儲存時間：${d.savedAt || '-'} ｜ 共 ${itemCount} 筆進度項目</div>
-        </div>
-        <div style="display:flex; gap:6px; flex-shrink:0;">
-          <button type="button" class="btn-primary" style="width:auto; padding:6px 14px; font-size:13px;" onclick="loadSelectedWeeklyDraft(${idx})">載入</button>
-          <button type="button" class="action-btn danger" style="padding:6px 10px; font-size:13px;" onclick="deleteSelectedWeeklyDraft(${idx})">刪除</button>
-        </div>
-      </div>
+  let tableRows = "";
+  drafts.forEach(d => {
+    const itemCount = (d.items || []).length;
+    tableRows += `
+      <tr style="border-bottom: 1px solid var(--border-light);">
+        <td style="padding: 12px 8px; font-weight: bold; color: var(--primary); font-size: inherit;">📋 ${d.dateStr}</td>
+        <td style="padding: 12px 8px; color: #334155; font-size: inherit;">${itemCount} 項進度說明 ${d.leaveType ? `(${d.leaveType})` : ''}</td>
+        <td style="padding: 12px 8px; color: #475569; font-size: inherit;">${d.savedAt}</td>
+        <td style="padding: 12px 8px; text-align: center; white-space: nowrap;">
+          <button type="button" class="action-btn" style="background:#10b981; color:#fff; border:none; padding:5px 12px; font-weight:bold; margin-right:4px;" onclick="loadSpecificWeeklyDraft('${d.id}')">✏️ 載入</button>
+          <button type="button" class="action-btn danger" style="padding:5px 10px;" onclick="deleteSpecificWeeklyDraft('${d.id}', '${d.dateStr}')">🗑️ 刪除</button>
+        </td>
+      </tr>
     `;
   });
-  html += `</div>
-    <div style="display:flex; justify-content:flex-end; margin-top:16px;">
-      <button type="button" class="action-btn" onclick="closeGeneralEditModal()">關閉</button>
+
+  form.innerHTML = `
+    <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="background: #f8fafc; text-align: left;">
+            <th style="width: 35%; padding: 8px;">週報日期</th>
+            <th style="width: 25%; padding: 8px;">填寫內容</th>
+            <th style="width: 25%; padding: 8px;">最後儲存時間</th>
+            <th style="width: 15%; padding: 8px; text-align: center;">操作</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+    <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+      <button type="button" class="action-btn" onclick="closeGeneralEditModal()" style="padding: 6px 18px;">關閉</button>
     </div>
   `;
-
-  form.innerHTML = html;
   modal.classList.add("active");
 };
 
-// 4. 載入指定的週報草稿 (精準還原主專案、細項與 Quill 內容)
-window.loadSelectedWeeklyDraft = (idx) => {
+window.loadSpecificWeeklyDraft = function(draftId) {
   const drafts = getAllWeeklyDrafts();
-  const draft = drafts[idx];
-  if (!draft) return alert("找不到該筆草稿！");
+  const draft = drafts.find(d => d.id === draftId);
+  if (!draft) return alert("找不到此份草稿！");
 
-  // 還原請假選項
+  if (!confirm(`確定要載入【${draft.dateStr}】的週報草稿嗎？這將會替換目前表單輸入的內容。`)) return;
+
   document.querySelectorAll('input[name="leave_type"]').forEach(r => {
     r.checked = (r.value === draft.leaveType);
   });
   const reasonInput = document.getElementById("leave-other-reason");
   if (reasonInput) {
-    if (draft.leaveType === "other") {
-      reasonInput.style.display = "block";
-      reasonInput.value = draft.leaveReason || "";
-    } else {
-      reasonInput.style.display = "none";
-      reasonInput.value = "";
-    }
+    reasonInput.value = draft.leaveReason || "";
+    reasonInput.style.display = (draft.leaveType === "other") ? "block" : "none";
   }
 
-  // 清空並重建進度項目列
   const container = document.getElementById("weekly-items-container");
   container.innerHTML = "";
 
-  const itemsToLoad = Array.isArray(draft.items) ? draft.items : [];
-  if (itemsToLoad.length === 0) {
-    window.addWeeklyRow();
-  } else {
-    itemsToLoad.forEach(item => {
-      // (A) 新增一列 (會自動建立該列的 _quill 並載入最新主專案選單)
+  if (Array.isArray(draft.items) && draft.items.length > 0) {
+    draft.items.forEach(item => {
+      // 呼叫原本的 addWeeklyRow()，會自動建立 Quill 編輯器
       window.addWeeklyRow();
-      const rows = container.querySelectorAll('.weekly-item-row');
-      const currentRow = rows[rows.length - 1];
-
-      const pSel = currentRow.querySelector('.weekly-proj-select');
-      const tSel = currentRow.querySelector('.weekly-task-select');
-
-      const targetProjId = item.projectId || item.projId || "";
-      const targetTaskId = item.taskId !== undefined ? String(item.taskId) : "";
-
-      // (B) 選中主專案，並觸發更新細項下拉選單
-      if (pSel && targetProjId) {
-        // 防呆：如果該專案剛完成或不在清單內，動態補回選項避免變空白
-        if (!Array.from(pSel.options).some(opt => opt.value === targetProjId)) {
-          const opt = document.createElement("option");
-          opt.value = targetProjId;
-          opt.text = item.projectName || "原草稿專案";
-          pSel.appendChild(opt);
+      const lastRow = container.querySelector('.weekly-item-row:last-child');
+      if (lastRow) {
+        const pSel = lastRow.querySelector('.weekly-proj-select');
+        if (pSel) {
+          pSel.value = item.projId;
+          window.updateWeeklyTaskSelect(pSel);
+          const tSel = lastRow.querySelector('.weekly-task-select');
+          if (tSel && item.taskId) {
+            tSel.value = item.taskId;
+          }
         }
-        pSel.value = targetProjId;
-        window.updateWeeklyTaskSelect(pSel);
-      }
-
-      // (C) 選中任務細項
-      if (tSel && targetTaskId !== "") {
-        // 防呆：如果該細項不在選單內，動態補回選項
-        if (!Array.from(tSel.options).some(opt => String(opt.value) === targetTaskId)) {
-          const opt = document.createElement("option");
-          opt.value = targetTaskId;
-          opt.text = item.taskName || "原草稿細項";
-          tSel.appendChild(opt);
+        
+        // 🌟 修正：將草稿內容正確塞回 Quill 編輯器內
+        if (lastRow._quill) {
+          lastRow._quill.root.innerHTML = item.content || "";
+        } else {
+          const contentArea = lastRow.querySelector('.weekly-content');
+          if (contentArea) contentArea.value = item.content || "";
         }
-        tSel.value = targetTaskId;
-      }
-
-      // (D) 🌟 最後將草稿的進度說明塞入 Quill 編輯器
-      if (currentRow._quill) {
-        currentRow._quill.root.innerHTML = item.content || "";
       }
     });
+  } else {
+    window.addWeeklyRow();
   }
 
   closeGeneralEditModal();
-  alert(`✅ 已成功載入草稿【${draft.title}】！`);
+  alert(`✅ 已成功載入【${draft.dateStr}】的週報草稿！`);
 };
 
-// 5. 刪除單筆週報草稿
-window.deleteSelectedWeeklyDraft = (idx) => {
-  const drafts = getAllWeeklyDrafts();
-  if (!drafts[idx]) return;
-  if (!confirm(`確定要刪除草稿【${drafts[idx].title}】嗎？`)) return;
-
-  drafts.splice(idx, 1);
+window.deleteSpecificWeeklyDraft = function(draftId, dateStr) {
+  if (!confirm(`確定要刪除週報草稿【${dateStr}】嗎？`)) return;
+  let drafts = getAllWeeklyDrafts();
+  drafts = drafts.filter(d => d.id !== draftId);
   localStorage.setItem(getWeeklyDraftStorageKey(), JSON.stringify(drafts));
   window.checkWeeklyDraftStatus();
-
-  if (drafts.length === 0) {
-    closeGeneralEditModal();
-  } else {
-    window.openWeeklyDraftListModal();
-  }
+  if (drafts.length > 0) window.openWeeklyDraftListModal();
+  else { closeGeneralEditModal(); alert("所有週報草稿已清空！"); }
 };
 
-// 6. 清空目前週報表單
-window.clearCurrentWeeklyForm = () => {
-  if (!confirm("確定要清空目前正在填寫的週報表單嗎？（不會刪除已儲存的草稿）")) return;
+window.clearCurrentWeeklyForm = function() {
+  if (!confirm("確定要清空目前週報表單嗎？")) return;
+  document.querySelectorAll('input[name="leave_type"]').forEach(r => r.checked = false);
+  const reasonInput = document.getElementById("leave-other-reason");
+  if (reasonInput) {
+    reasonInput.value = "";
+    reasonInput.style.display = "none";
+  }
   document.getElementById("weekly-items-container").innerHTML = "";
   window.addWeeklyRow();
-  window.initWeeklyDateAndLeave();
 };
