@@ -3924,6 +3924,7 @@ document.querySelectorAll('input[name="leave_type"]').forEach(radio => {
 window.populateWeeklyProjSelect = (selectElem) => {
   selectElem.innerHTML = '<option value="">-- 請選擇主專案/事件/其他 --</option>';
   
+  // 撈出所有「有可用任務」的主專案
   const availableProjs = allProjectsData.filter(p => window.getAvailableTasks(p.id).length > 0);
   
   availableProjs.forEach(p => { 
@@ -3956,14 +3957,12 @@ window.onWeeklyTaskSelectChange = (selectElem) => {
 window.updateWeeklyTaskSelect = (selectElem) => {
   const row = selectElem.closest('.weekly-item-row');
   const taskSelect = selectElem.parentElement.querySelector('.weekly-task-select');
-  const contentArea = row ? row.querySelector('.weekly-content') : null;
   const projId = selectElem.value;
   
   if (projId === 'SPECIAL_OTHER') {
      taskSelect.style.display = 'none'; 
      taskSelect.innerHTML = '<option value="">-- 無需細項 --</option>';
      taskSelect.value = '';
-     if (contentArea) contentArea.value = '';
      return;
   }
   
@@ -3975,14 +3974,15 @@ window.updateWeeklyTaskSelect = (selectElem) => {
      availableAdHocs.forEach(evt => {
         taskSelect.innerHTML += `<option value="${evt.id}">${evt.title}</option>`;
      });
-     if (contentArea) contentArea.value = '';
      return;
   }
   
   taskSelect.innerHTML = '<option value="">-- 請選擇細項 --</option>';
-  if(!projId) return;
+  if (!projId) return;
   const availableTasks = window.getAvailableTasks(projId);
-  availableTasks.forEach(t => { taskSelect.innerHTML += `<option value="${t.index}">${t.name}</option>`; });
+  availableTasks.forEach(t => { 
+    taskSelect.innerHTML += `<option value="${t.index}">${t.name}</option>`; 
+  });
 };
 
 window.addWeeklyRow = () => {
