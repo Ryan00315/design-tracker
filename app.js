@@ -1797,25 +1797,27 @@ window.selectProject = (projId) => {
 
 window.getAvailableTasks = (projId) => {
   const proj = allProjectsData.find(p => p.id === projId);
-  if(!proj || !proj.tasks) return [];
-  return proj.tasks.map((t, index) => ({ ...t, index })).filter(t => {
-    // 🌟 加入這行：強制排除所有系統通知任務，不讓它出現在週報選項中
+  if (!proj || !proj.tasks) return [];
+  
+  // 優先嘗試依標準條件過濾
+  let tasks = proj.tasks.map((t, index) => ({ ...t, index })).filter(t => {
     if (t.name && t.name.includes("[系統通知]")) return false;
-
-    const isMyTask = (t.assigneeId === viewingUserId) || (!t.assigneeId && proj.ownerId === viewingUserId);
+    
+    // 支援開案者本人或被指派者
+    const isMyTask = (t.assigneeId === viewingUserId) || (!t.assigneeId && proj.ownerId === viewingUserId) || (proj.ownerId === viewingUserId);
     if (!isMyTask) return false;
     if (!t.isCompleted) return true;
     if (t.reportedCompleted === true) return false;
     
-    const taskCompletedTime = t.completedAt ? new Date(t.completedAt.replace(/-/g, '/')).getTime() : 0;
-    const alreadyReported = allWeeklyData.some(w => {
-      if(w.ownerId !== viewingUserId) return false;
-      const reportTime = w.createdAt && typeof w.createdAt.toDate === 'function' ? w.createdAt.toDate().getTime() : Date.now();
-      const hasTask = (w.items || []).some(item => item.projectId === proj.id && String(item.taskId) === String(t.index));
-      return hasTask && reportTime > (taskCompletedTime - 60000);
-    });
-    return !alreadyReported;
+    return true;
   });
+
+  // 🛡️ 防呆保險：如果該專案明明有進行中任務，但因為嚴格過濾回傳空陣列，直接放寬回傳所有未完成任務
+  if (tasks.length === 0 && proj.ownerId === viewingUserId) {
+    tasks = proj.tasks.map((t, index) => ({ ...t, index })).filter(t => !t.isCompleted && !t.name?.includes("[系統通知]"));
+  }
+
+  return tasks;
 };
 
 window.getAvailableAdHocEvents = () => {
@@ -3922,18 +3924,34 @@ document.querySelectorAll('input[name="leave_type"]').forEach(radio => {
 });
 
 window.populateWeeklyProjSelect = (selectElem) => {
+  if (!selectElem) return;
+  const currentVal = selectElem.value;
   selectElem.innerHTML = '<option value="">-- 請選擇主專案/事件/其他 --</option>';
   
-  // 撈出所有「有可用任務」的主專案
-  const availableProjs = allProjectsData.filter(p => window.getAvailableTasks(p.id).length > 0);
-  
-  availableProjs.forEach(p => { 
+  // 1. 撈出所有與當前檢視者相關的專案（包含自己開案的、或是名下有任務的）
+  const userProjs = allProjectsData.filter(p => {
+    if (p.isDeleted === true) return false;
+    if (p.ownerId === viewingUserId) return true;
+    const hasMyTask = (p.tasks || []).some(t => t.assigneeId === viewingUserId && !t.name?.includes("[系統通知]"));
+    const isCollab = Array.isArray(p.collaboratorUids) && p.collaboratorUids.includes(viewingUserId);
+    return hasMyTask || isCollab;
+  });
+
+  // 2. 如果上一步過濾出來是空的（例如剛登入或資料還在同步），退而求其次抓取所有未刪除專案
+  const targetProjs = userProjs.length > 0 ? userProjs : allProjectsData.filter(p => !p.isDeleted);
+
+  targetProjs.forEach(p => { 
     const prefix = p.ownerId !== viewingUserId ? '👥 ' : '';
-    selectElem.innerHTML += `<option value="${p.id}">${prefix}${p.title}</option>`; 
+    selectElem.innerHTML += `<option value="${p.id}">${prefix}${p.title || '未命名專案'}</option>`; 
   });
   
   selectElem.innerHTML += `<option value="SPECIAL_ADHOC">📝 事件紀錄</option>`;
   selectElem.innerHTML += `<option value="SPECIAL_OTHER">📌 其他</option>`;
+
+  // 嘗試保留原本選中的值
+  if (currentVal) {
+    selectElem.value = currentVal;
+  }
 };
 
 window.onWeeklyTaskSelectChange = (selectElem) => {
@@ -3956,7 +3974,10 @@ window.onWeeklyTaskSelectChange = (selectElem) => {
 
 window.updateWeeklyTaskSelect = (selectElem) => {
   const row = selectElem.closest('.weekly-item-row');
-  const taskSelect = selectElem.parentElement.querySelector('.weekly-task-select');
+  if (!row) return;
+  const taskSelect = row.querySelector('.weekly-task-select');
+  if (!taskSelect) return;
+  
   const projId = selectElem.value;
   
   if (projId === 'SPECIAL_OTHER') {
@@ -3979,10 +4000,15 @@ window.updateWeeklyTaskSelect = (selectElem) => {
   
   taskSelect.innerHTML = '<option value="">-- 請選擇細項 --</option>';
   if (!projId) return;
-  const availableTasks = window.getAvailableTasks(projId);
-  availableTasks.forEach(t => { 
-    taskSelect.innerHTML += `<option value="${t.index}">${t.name}</option>`; 
-  });
+  
+  const proj = allProjectsData.find(p => p.id === projId);
+  if (proj && proj.tasks) {
+    proj.tasks.forEach((t, tIndex) => {
+      if (!t.name?.includes("[系統通知]")) {
+        taskSelect.innerHTML += `<option value="${tIndex}">${t.name || '未命名細項'}</option>`;
+      }
+    });
+  }
 };
 
 window.addWeeklyRow = () => {
