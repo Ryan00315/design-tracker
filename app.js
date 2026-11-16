@@ -4061,14 +4061,29 @@ window.refreshAllWeeklyTaskSelects = function() {
   });
 };
 
-// 🌟 1. 自動刷新畫面上所有週報的主專案下拉選單 (必須補上這個函式，專案載入後選單才會更新！)
+// 🌟 主專案與細項選單同步即時刷新（免重整網頁）
 window.refreshAllWeeklyProjSelects = function() {
-  const selects = document.querySelectorAll('.weekly-proj-select');
-  selects.forEach(sel => {
-    const prevVal = sel.value;
-    window.populateWeeklyProjSelect(sel);
-    if (prevVal && Array.from(sel.options).some(opt => opt.value === prevVal)) {
-      sel.value = prevVal;
+  const rows = document.querySelectorAll('.weekly-item-row');
+  rows.forEach(r => {
+    const pSel = r.querySelector('.weekly-proj-select');
+    const tSel = r.querySelector('.weekly-task-select');
+    if (!pSel) return;
+
+    const prevProjVal = pSel.value;
+    const prevTaskVal = tSel ? tSel.value : "";
+
+    // 1. 重新載入主專案清單
+    window.populateWeeklyProjSelect(pSel);
+
+    // 2. 若原本有選中主專案，還原選中狀態，並立刻重新載入該專案的「細項選單」！
+    if (prevProjVal && Array.from(pSel.options).some(opt => opt.value === prevProjVal)) {
+      pSel.value = prevProjVal;
+      window.updateWeeklyTaskSelect(pSel);
+      
+      // 3. 若原本有選中細項，一併保留選中狀態
+      if (tSel && prevTaskVal && Array.from(tSel.options).some(opt => String(opt.value) === String(prevTaskVal))) {
+        tSel.value = prevTaskVal;
+      }
     }
   });
 };
@@ -4288,8 +4303,9 @@ window.deleteWeekly = async (id) => {
     const projectUpdates = {};
     const adhocUpdates = [];
 
-    // 檢查除了這份即將被刪除的週報外，是否還有其他週報也包含該項目
-    const remainingReports = allWeeklyData.filter(w => w.id !== id && w.ownerId === report.ownerId);
+    // 1. 先從本地 allWeeklyData 陣列移除這筆週報，確保後續判斷 100% 即時生效
+    allWeeklyData = allWeeklyData.filter(w => w.id !== id);
+    const remainingReports = allWeeklyData.filter(w => w.ownerId === report.ownerId);
 
     (report.items || []).forEach(item => {
       const pId = item.projectId || item.projId;
@@ -4298,11 +4314,12 @@ window.deleteWeekly = async (id) => {
       // (A) 恢復「事件紀錄」可選狀態
       if (pId === 'SPECIAL_ADHOC') {
         const evt = allAdHocData.find(a => a.id === item.taskId);
-        if (evt && evt.reportedCompleted) {
+        if (evt) {
           const stillInOtherReport = remainingReports.some(w => 
             (w.items || []).some(i => (i.projectId === 'SPECIAL_ADHOC' || i.projId === 'SPECIAL_ADHOC') && String(i.taskId) === String(item.taskId))
           );
           if (!stillInOtherReport) {
+            evt.reportedCompleted = false; // 🌟 立即解除本地記憶體鎖定
             adhocUpdates.push(item.taskId);
           }
         }
@@ -4313,11 +4330,12 @@ window.deleteWeekly = async (id) => {
       const p = allProjectsData.find(x => x.id === pId);
       if (p && p.tasks) {
         const tIndex = parseInt(item.taskId);
-        if (!isNaN(tIndex) && p.tasks[tIndex] && p.tasks[tIndex].reportedCompleted) {
+        if (!isNaN(tIndex) && p.tasks[tIndex]) {
           const stillInOtherReport = remainingReports.some(w => 
             (w.items || []).some(i => (i.projectId === pId || i.projId === pId) && String(i.taskId) === String(tIndex))
           );
           if (!stillInOtherReport) {
+            p.tasks[tIndex].reportedCompleted = false; // 🌟 立即解除本地記憶體鎖定
             if (!projectUpdates[p.id]) projectUpdates[p.id] = [...p.tasks];
             projectUpdates[p.id][tIndex] = { ...projectUpdates[p.id][tIndex], reportedCompleted: false };
           }
@@ -4325,22 +4343,21 @@ window.deleteWeekly = async (id) => {
       }
     });
 
-    // 1. 先將雲端資料庫的鎖定狀態解除
+    // 🌟 2. 不必等雲端回應，立刻在畫面上刷新主專案與細項選單！
+    if (typeof window.refreshAllWeeklyProjSelects === 'function') window.refreshAllWeeklyProjSelects();
+    if (typeof window.refreshAllWeeklyTaskSelects === 'function') window.refreshAllWeeklyTaskSelects();
+    renderWeeklyReports();
+
+    // 3. 背景同步寫入雲端資料庫
     for (let pId in projectUpdates) {
       await updateDoc(doc(db, "projects", pId), { tasks: projectUpdates[pId] });
     }
     for (let aId of adhocUpdates) {
       await updateDoc(doc(db, "ad_hoc_events", aId), { reportedCompleted: false });
     }
-
-    // 2. 刪除週報文件
     await deleteDoc(doc(db, "weekly_reports", id));
 
-    // 3. 立即刷新畫面上的下拉選單
-    if (typeof window.refreshAllWeeklyProjSelects === 'function') window.refreshAllWeeklyProjSelects();
-    if (typeof window.refreshAllWeeklyTaskSelects === 'function') window.refreshAllWeeklyTaskSelects();
-
-    alert("✅ 週報已刪除！該週報內的細項與事件已解除鎖定，可再次選擇。");
+    alert("✅ 週報已刪除！該週報內的細項與事件已即時解除鎖定，可直接點選。");
   } catch (err) {
     console.error("刪除週報失敗：", err);
     alert("刪除失敗：" + err.message);
