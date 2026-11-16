@@ -4062,6 +4062,18 @@ window.refreshAllWeeklyTaskSelects = function() {
   });
 };
 
+// 🌟 補回這個關鍵函式：當專案載入完成或切換到週報分頁時，自動刷新所有主專案下拉選單
+window.refreshAllWeeklyProjSelects = function() {
+  const selects = document.querySelectorAll('.weekly-proj-select');
+  selects.forEach(sel => {
+    const prevVal = sel.value; // 記住原本已經選中的專案
+    window.populateWeeklyProjSelect(sel);
+    if (prevVal) {
+      sel.value = prevVal;
+    }
+  });
+};
+
 function loadWeeklyReports() { 
   onSnapshot(query(collection(db, "weekly_reports")), (snapshot) => { 
     allWeeklyData = []; 
