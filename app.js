@@ -1800,7 +1800,7 @@ window.getAvailableTasks = (projId) => {
   if (!proj || !proj.tasks || proj.isDeleted) return [];
 
   return proj.tasks.map((t, index) => ({ ...t, index })).filter(t => {
-    // 1. 排除系統通知與未同意的指派
+    // 1. 排除系統通知與尚未同意承接的任務
     if (t.name && t.name.includes("[系統通知]")) return false;
     if (t.isPendingAcceptance === true) return false;
 
@@ -1808,29 +1808,25 @@ window.getAvailableTasks = (projId) => {
     const isMyTask = (t.assigneeId === viewingUserId) || (!t.assigneeId && proj.ownerId === viewingUserId);
     if (!isMyTask) return false;
 
-    // 3. 🌟 關鍵規則 A：進度必須 1% 以上才顯示
+    // 3. 🌟 進度必須 1% 以上才顯示
     const prog = parseInt(t.progress) || 0;
     if (prog < 1) return false;
 
-    // 4. 🌟 關鍵規則 B：若尚未 100% 完成 (1% ~ 99%)，皆可選擇
+    // 4. 若尚未 100% 完成 (1% ~ 99%)，皆可繼續選擇回報
     if (!t.isCompleted && prog < 100) return true;
 
-    // 5. 🌟 關鍵規則 C：若已達 100% 完成，檢查是否已被主管「已閱 (Noted)」鎖定
+    // 5. 🌟 若已達 100% 完成：只要送出過週報 (reportedCompleted 為 true 或存在於現有週報中)，立即鎖定不再顯示！
     if (t.reportedCompleted === true) return false;
 
-    // 雙重保險：檢查歷史週報中，是否有包含此 100% 細項且「任一主管已閱」的紀錄
     const taskCompletedTime = t.completedAt ? new Date(t.completedAt.replace(/-/g, '/')).getTime() : 0;
-    const isNotedByManager = allWeeklyData.some(w => {
+    const alreadyReported = allWeeklyData.some(w => {
       if (w.ownerId !== viewingUserId) return false;
-      // 必須是主管或最高主管任一人已點選「已閱」
-      if (!w.supervisorNoted && !w.topManagerNoted) return false;
-      
       const reportTime = w.createdAt && typeof w.createdAt.toDate === 'function' ? w.createdAt.toDate().getTime() : Date.now();
       const hasTask = (w.items || []).some(item => (item.projectId === proj.id || item.projId === proj.id) && String(item.taskId) === String(t.index));
       return hasTask && reportTime >= (taskCompletedTime - 60000);
     });
 
-    return !isNotedByManager;
+    return !alreadyReported;
   });
 };
 
@@ -1838,16 +1834,17 @@ window.getAvailableAdHocEvents = () => {
   const myAdHocs = allAdHocData.filter(e => e.ownerId === viewingUserId);
   return myAdHocs.filter(evt => {
     if (!evt.isCompleted) return true;
+    // 🌟 已完成的事件紀錄：只要送出過週報，立即鎖定不再顯示！
     if (evt.reportedCompleted === true) return false; 
     
-    const evtCompletedTime = evt.completedAt ? new Date(evt.completedAt).getTime() : 0;
-    const alreadyReportedAfterCompletion = allWeeklyData.some(w => {
-      if(w.ownerId !== viewingUserId) return false;
-      const reportTime = w.createdAt ? w.createdAt.toDate().getTime() : Date.now();
-      const hasItem = (w.items || []).some(item => item.projectId === 'SPECIAL_ADHOC' && item.taskId === evt.id);
+    const evtCompletedTime = evt.completedAt ? new Date(evt.completedAt.replace(/-/g, '/')).getTime() : 0;
+    const alreadyReported = allWeeklyData.some(w => {
+      if (w.ownerId !== viewingUserId) return false;
+      const reportTime = w.createdAt && typeof w.createdAt.toDate === 'function' ? w.createdAt.toDate().getTime() : Date.now();
+      const hasItem = (w.items || []).some(item => (item.projectId === 'SPECIAL_ADHOC' || item.projId === 'SPECIAL_ADHOC') && String(item.taskId) === String(evt.id));
       return hasItem && reportTime >= (evtCompletedTime - 60000); 
     });
-    return !alreadyReportedAfterCompletion;
+    return !alreadyReported;
   });
 };
 
@@ -4104,15 +4101,20 @@ function renderWeeklyReports() {
   filtered.forEach((w, index) => {
     let isOwner = (w.ownerId === auth.currentUser.uid);
     
-    // 🌟 核心規則：任一主管已閱 (supervisorNoted || topManagerNoted)，或已逾 2 天，立即失效
+    // 任一主管已閱或已逾 2 天，本人不可自行修改或刪除
     const hasAnyNoted = (w.supervisorNoted === true || w.topManagerNoted === true);
-    let isAllowedTime = isWeeklyReportEditable(w); // 內部已含 2 天判定與 Noted 檢查
+    let isAllowedTime = isWeeklyReportEditable(w);
     const canModify = isOwner && !hasAnyNoted && isAllowedTime;
 
+    // 🌟 主管或管理員具備協助刪除已閱週報的權限
+    const isBossOrAdmin = (
+      currentUserData.role === 'admin' || 
+      currentUserData.role === 'top_manager' || 
+      w.ownerSupervisorId === auth.currentUser.uid
+    );
+
     let editHtml = canModify ? `<button class="action-btn" style="margin-right:6px; border-color:var(--warning); color:var(--warning);" onclick="openGeneralEdit('weekly', '${w.id}')">✏️ 編輯</button>` : '';
-    
-    // 🌟 刪除按鈕：主管未閱且在 2 天內才顯示；管理員 (admin) 則保留最高刪除管理權
-    let delHtml = (canModify || currentUserData.role === 'admin') ? `<button class="action-btn danger" onclick="deleteWeekly('${w.id}')">刪除</button>` : '';
+    let delHtml = (canModify || isBossOrAdmin) ? `<button class="action-btn danger" onclick="deleteWeekly('${w.id}')">刪除</button>` : '';
     
     let supText = w.supervisorNoted ? '<span style="color:var(--success); font-weight:bold;">Noted</span>' : '<span style="color:var(--text-muted);">待閱</span>';
     let topText = w.topManagerNoted ? '<span style="color:var(--success); font-weight:bold;">Noted</span>' : '<span style="color:var(--text-muted);">待閱</span>';
@@ -4166,7 +4168,6 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
       const pSel = r.querySelector('.weekly-proj-select'); 
       const tSel = r.querySelector('.weekly-task-select'); 
       
-      // 🌟 從 Quill 抓取內容（若空標籤防呆視為空字串）
       let content = "";
       if (r._quill) {
         content = r._quill.root.innerHTML.trim();
@@ -4188,7 +4189,7 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
           } else {
             hasIncomplete = true;
           }
-        } else if (pSel.value && tSel.value && content) {
+        } else if (pSel.value && tSel.value !== "" && content) {
           items.push({ projectId: pSel.value, projectName: pSel.options[pSel.selectedIndex].text, taskId: tSel.value, taskName: tSel.options[tSel.selectedIndex].text, content: content });
         } else {
           hasIncomplete = true;
@@ -4206,6 +4207,7 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
     const supervisorId = targetUser.supervisorId || null; 
     const currentOwnerId = viewingUserId || auth.currentUser.uid;
 
+    // 1. 新增週報至資料庫
     await addDoc(collection(db, "weekly_reports"), { 
       ownerId: currentOwnerId, 
       ownerName: targetUser.name || '', 
@@ -4218,11 +4220,44 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
       supervisorNoted: false, 
       topManagerNoted: false 
     });
+
+    // 🌟 2. 送出週報瞬間：立即將此次回報中「已達 100% 完成」的專案細項與「已完成」的事件紀錄鎖定 (reportedCompleted = true)
+    const projectUpdates = {};
+    const adhocUpdates = [];
+
+    items.forEach(item => {
+      if (item.projectId === 'SPECIAL_OTHER') return;
+
+      if (item.projectId === 'SPECIAL_ADHOC') {
+        const evt = allAdHocData.find(a => a.id === item.taskId);
+        if (evt && evt.isCompleted && !evt.reportedCompleted) {
+          adhocUpdates.push(item.taskId);
+        }
+        return;
+      }
+
+      const p = allProjectsData.find(x => x.id === item.projectId);
+      if (p && p.tasks) {
+        const tIndex = parseInt(item.taskId);
+        const taskObj = p.tasks[tIndex];
+        if (taskObj && (taskObj.isCompleted || parseInt(taskObj.progress) >= 100) && !taskObj.reportedCompleted) {
+          if (!projectUpdates[p.id]) projectUpdates[p.id] = [...p.tasks];
+          projectUpdates[p.id][tIndex] = { ...projectUpdates[p.id][tIndex], reportedCompleted: true };
+        }
+      }
+    });
+
+    for (let pId in projectUpdates) {
+      await updateDoc(doc(db, "projects", pId), { tasks: projectUpdates[pId] });
+    }
+    for (let aId of adhocUpdates) {
+      await updateDoc(doc(db, "ad_hoc_events", aId), { reportedCompleted: true });
+    }
     
     initWeeklyDateAndLeave(); 
     document.getElementById("weekly-items-container").innerHTML = ""; 
     addWeeklyRow(); 
-    alert("週報已成功送出！在主管未閱讀前，您有 2 天修改寬限期。");
+    alert("🎉 週報已成功送出！已完成的細項與事件已自動鎖定。");
     
   } catch (err) {
     console.error("送出週報錯誤：", err);
@@ -4236,59 +4271,53 @@ window.deleteWeekly = async (id) => {
 
   const isOwner = (report.ownerId === auth.currentUser.uid);
   const isAllowed = isWeeklyReportEditable(report);
-  const isSupervisorOrAdmin = (
+  const isBossOrAdmin = (
     currentUserData.role === 'admin' || 
     currentUserData.role === 'top_manager' || 
     report.ownerSupervisorId === auth.currentUser.uid
   );
 
-  // 權限檢查：本人（未閱且 2 天內）或 主管/系統管理員 才能刪除
-  if (!isOwner && !isSupervisorOrAdmin) return alert("權限不足！");
-  if (isOwner && !isAllowed && !isSupervisorOrAdmin) {
-    return alert("此週報已逾 2 天或已經主管審閱鎖定，無法自行刪除！請聯繫主管或管理員協助。");
+  if (!isOwner && !isBossOrAdmin) return alert("權限不足！");
+  if (isOwner && !isAllowed && !isBossOrAdmin) {
+    return alert("此週報已逾 2 天或已經主管審閱鎖定，無法自行刪除！請聯繫主管協助刪除。");
   }
 
-  if (!confirm(`確定要永久刪除【${report.ownerName}】的此份週報嗎？\n（刪除後，該週報內已鎖定的 100% 完成細項將會自動解除鎖定，可重新選擇回報）`)) return;
+  if (!confirm(`確定要刪除【${report.ownerName}】的此份週報嗎？\n（刪除後，該週報內鎖定的細項與事件將立即恢復為可選擇狀態）`)) return;
 
   try {
-    // 🌟 1. 檢查這份被刪除的週報中，有哪些 100% 細項或事件曾經被鎖定，將它們解除鎖定 (reportedCompleted = false)
     const projectUpdates = {};
     const adhocUpdates = [];
 
-    // 取得除了這份即將刪除的週報以外，該同仁其他的「已閱」歷史週報（避免誤解鎖更早之前就已經報過的項目）
-    const otherNotedReports = allWeeklyData.filter(w => 
-      w.id !== id && 
-      w.ownerId === report.ownerId && 
-      (w.supervisorNoted || w.topManagerNoted)
-    );
+    // 檢查除了這份即將被刪除的週報外，是否還有其他週報也包含該項目
+    const remainingReports = allWeeklyData.filter(w => w.id !== id && w.ownerId === report.ownerId);
 
     (report.items || []).forEach(item => {
       const pId = item.projectId || item.projId;
       if (!pId || pId === 'SPECIAL_OTHER') return;
 
-      // (A) 解除「事件紀錄」的鎖定
+      // (A) 恢復「事件紀錄」可選狀態
       if (pId === 'SPECIAL_ADHOC') {
         const evt = allAdHocData.find(a => a.id === item.taskId);
         if (evt && evt.reportedCompleted) {
-          const stillInOtherNoted = otherNotedReports.some(w => 
+          const stillInOtherReport = remainingReports.some(w => 
             (w.items || []).some(i => (i.projectId === 'SPECIAL_ADHOC' || i.projId === 'SPECIAL_ADHOC') && String(i.taskId) === String(item.taskId))
           );
-          if (!stillInOtherNoted) {
+          if (!stillInOtherReport) {
             adhocUpdates.push(item.taskId);
           }
         }
         return;
       }
 
-      // (B) 解除「主專案細項」的鎖定
+      // (B) 恢復「主專案細項」可選狀態
       const p = allProjectsData.find(x => x.id === pId);
       if (p && p.tasks) {
         const tIndex = parseInt(item.taskId);
         if (!isNaN(tIndex) && p.tasks[tIndex] && p.tasks[tIndex].reportedCompleted) {
-          const stillInOtherNoted = otherNotedReports.some(w => 
+          const stillInOtherReport = remainingReports.some(w => 
             (w.items || []).some(i => (i.projectId === pId || i.projId === pId) && String(i.taskId) === String(tIndex))
           );
-          if (!stillInOtherNoted) {
+          if (!stillInOtherReport) {
             if (!projectUpdates[p.id]) projectUpdates[p.id] = [...p.tasks];
             projectUpdates[p.id][tIndex] = { ...projectUpdates[p.id][tIndex], reportedCompleted: false };
           }
@@ -4296,7 +4325,7 @@ window.deleteWeekly = async (id) => {
       }
     });
 
-    // 將解除鎖定的狀態寫回雲端資料庫
+    // 1. 先將雲端資料庫的鎖定狀態解除
     for (let pId in projectUpdates) {
       await updateDoc(doc(db, "projects", pId), { tasks: projectUpdates[pId] });
     }
@@ -4304,19 +4333,20 @@ window.deleteWeekly = async (id) => {
       await updateDoc(doc(db, "ad_hoc_events", aId), { reportedCompleted: false });
     }
 
-    // 🌟 2. 正式刪除該筆週報
+    // 2. 刪除週報文件
     await deleteDoc(doc(db, "weekly_reports", id));
 
-    // 🌟 3. 立即刷新畫面上的週報下拉選單
+    // 3. 立即刷新畫面上的下拉選單
     if (typeof window.refreshAllWeeklyProjSelects === 'function') window.refreshAllWeeklyProjSelects();
     if (typeof window.refreshAllWeeklyTaskSelects === 'function') window.refreshAllWeeklyTaskSelects();
 
-    alert("✅ 週報已刪除！該週報內的完成細項已解除鎖定，現在可以重新選擇填寫了。");
+    alert("✅ 週報已刪除！該週報內的細項與事件已解除鎖定，可再次選擇。");
   } catch (err) {
-    console.error("刪除週報與解鎖細項失敗：", err);
+    console.error("刪除週報失敗：", err);
     alert("刪除失敗：" + err.message);
   }
 };
+
 window.openWeeklyModal = (id) => {
   currentWeeklyReportId = id; 
   const report = allWeeklyData.find(w => w.id === id); 
