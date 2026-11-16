@@ -4233,13 +4233,90 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
 window.deleteWeekly = async (id) => { 
   const report = allWeeklyData.find(w => w.id === id);
   if (!report) return;
+
   const isOwner = (report.ownerId === auth.currentUser.uid);
   const isAllowed = isWeeklyReportEditable(report);
-  if (!isOwner && currentUserData.role !== 'admin') return alert("權限不足！");
-  if (isOwner && !isAllowed && currentUserData.role !== 'admin') return alert("此週報已逾 2 天或已經主管審閱鎖定，無法刪除！");
-  if(confirm("確定永久刪除此週報嗎？")) await deleteDoc(doc(db, "weekly_reports", id)); 
-};
+  const isSupervisorOrAdmin = (
+    currentUserData.role === 'admin' || 
+    currentUserData.role === 'top_manager' || 
+    report.ownerSupervisorId === auth.currentUser.uid
+  );
 
+  // 權限檢查：本人（未閱且 2 天內）或 主管/系統管理員 才能刪除
+  if (!isOwner && !isSupervisorOrAdmin) return alert("權限不足！");
+  if (isOwner && !isAllowed && !isSupervisorOrAdmin) {
+    return alert("此週報已逾 2 天或已經主管審閱鎖定，無法自行刪除！請聯繫主管或管理員協助。");
+  }
+
+  if (!confirm(`確定要永久刪除【${report.ownerName}】的此份週報嗎？\n（刪除後，該週報內已鎖定的 100% 完成細項將會自動解除鎖定，可重新選擇回報）`)) return;
+
+  try {
+    // 🌟 1. 檢查這份被刪除的週報中，有哪些 100% 細項或事件曾經被鎖定，將它們解除鎖定 (reportedCompleted = false)
+    const projectUpdates = {};
+    const adhocUpdates = [];
+
+    // 取得除了這份即將刪除的週報以外，該同仁其他的「已閱」歷史週報（避免誤解鎖更早之前就已經報過的項目）
+    const otherNotedReports = allWeeklyData.filter(w => 
+      w.id !== id && 
+      w.ownerId === report.ownerId && 
+      (w.supervisorNoted || w.topManagerNoted)
+    );
+
+    (report.items || []).forEach(item => {
+      const pId = item.projectId || item.projId;
+      if (!pId || pId === 'SPECIAL_OTHER') return;
+
+      // (A) 解除「事件紀錄」的鎖定
+      if (pId === 'SPECIAL_ADHOC') {
+        const evt = allAdHocData.find(a => a.id === item.taskId);
+        if (evt && evt.reportedCompleted) {
+          const stillInOtherNoted = otherNotedReports.some(w => 
+            (w.items || []).some(i => (i.projectId === 'SPECIAL_ADHOC' || i.projId === 'SPECIAL_ADHOC') && String(i.taskId) === String(item.taskId))
+          );
+          if (!stillInOtherNoted) {
+            adhocUpdates.push(item.taskId);
+          }
+        }
+        return;
+      }
+
+      // (B) 解除「主專案細項」的鎖定
+      const p = allProjectsData.find(x => x.id === pId);
+      if (p && p.tasks) {
+        const tIndex = parseInt(item.taskId);
+        if (!isNaN(tIndex) && p.tasks[tIndex] && p.tasks[tIndex].reportedCompleted) {
+          const stillInOtherNoted = otherNotedReports.some(w => 
+            (w.items || []).some(i => (i.projectId === pId || i.projId === pId) && String(i.taskId) === String(tIndex))
+          );
+          if (!stillInOtherNoted) {
+            if (!projectUpdates[p.id]) projectUpdates[p.id] = [...p.tasks];
+            projectUpdates[p.id][tIndex] = { ...projectUpdates[p.id][tIndex], reportedCompleted: false };
+          }
+        }
+      }
+    });
+
+    // 將解除鎖定的狀態寫回雲端資料庫
+    for (let pId in projectUpdates) {
+      await updateDoc(doc(db, "projects", pId), { tasks: projectUpdates[pId] });
+    }
+    for (let aId of adhocUpdates) {
+      await updateDoc(doc(db, "ad_hoc_events", aId), { reportedCompleted: false });
+    }
+
+    // 🌟 2. 正式刪除該筆週報
+    await deleteDoc(doc(db, "weekly_reports", id));
+
+    // 🌟 3. 立即刷新畫面上的週報下拉選單
+    if (typeof window.refreshAllWeeklyProjSelects === 'function') window.refreshAllWeeklyProjSelects();
+    if (typeof window.refreshAllWeeklyTaskSelects === 'function') window.refreshAllWeeklyTaskSelects();
+
+    alert("✅ 週報已刪除！該週報內的完成細項已解除鎖定，現在可以重新選擇填寫了。");
+  } catch (err) {
+    console.error("刪除週報與解鎖細項失敗：", err);
+    alert("刪除失敗：" + err.message);
+  }
+};
 window.openWeeklyModal = (id) => {
   currentWeeklyReportId = id; 
   const report = allWeeklyData.find(w => w.id === id); 
