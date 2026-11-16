@@ -1797,27 +1797,41 @@ window.selectProject = (projId) => {
 
 window.getAvailableTasks = (projId) => {
   const proj = allProjectsData.find(p => p.id === projId);
-  if (!proj || !proj.tasks) return [];
-  
-  // 優先嘗試依標準條件過濾
-  let tasks = proj.tasks.map((t, index) => ({ ...t, index })).filter(t => {
+  if (!proj || !proj.tasks || proj.isDeleted) return [];
+
+  return proj.tasks.map((t, index) => ({ ...t, index })).filter(t => {
+    // 1. 排除系統通知與未同意的指派
     if (t.name && t.name.includes("[系統通知]")) return false;
-    
-    // 支援開案者本人或被指派者
-    const isMyTask = (t.assigneeId === viewingUserId) || (!t.assigneeId && proj.ownerId === viewingUserId) || (proj.ownerId === viewingUserId);
+    if (t.isPendingAcceptance === true) return false;
+
+    // 2. 必須是自己的任務 (或未指派但自己為開案者)
+    const isMyTask = (t.assigneeId === viewingUserId) || (!t.assigneeId && proj.ownerId === viewingUserId);
     if (!isMyTask) return false;
-    if (!t.isCompleted) return true;
+
+    // 3. 🌟 關鍵規則 A：進度必須 1% 以上才顯示
+    const prog = parseInt(t.progress) || 0;
+    if (prog < 1) return false;
+
+    // 4. 🌟 關鍵規則 B：若尚未 100% 完成 (1% ~ 99%)，皆可選擇
+    if (!t.isCompleted && prog < 100) return true;
+
+    // 5. 🌟 關鍵規則 C：若已達 100% 完成，檢查是否已被主管「已閱 (Noted)」鎖定
     if (t.reportedCompleted === true) return false;
-    
-    return true;
+
+    // 雙重保險：檢查歷史週報中，是否有包含此 100% 細項且「任一主管已閱」的紀錄
+    const taskCompletedTime = t.completedAt ? new Date(t.completedAt.replace(/-/g, '/')).getTime() : 0;
+    const isNotedByManager = allWeeklyData.some(w => {
+      if (w.ownerId !== viewingUserId) return false;
+      // 必須是主管或最高主管任一人已點選「已閱」
+      if (!w.supervisorNoted && !w.topManagerNoted) return false;
+      
+      const reportTime = w.createdAt && typeof w.createdAt.toDate === 'function' ? w.createdAt.toDate().getTime() : Date.now();
+      const hasTask = (w.items || []).some(item => (item.projectId === proj.id || item.projId === proj.id) && String(item.taskId) === String(t.index));
+      return hasTask && reportTime >= (taskCompletedTime - 60000);
+    });
+
+    return !isNotedByManager;
   });
-
-  // 🛡️ 防呆保險：如果該專案明明有進行中任務，但因為嚴格過濾回傳空陣列，直接放寬回傳所有未完成任務
-  if (tasks.length === 0 && proj.ownerId === viewingUserId) {
-    tasks = proj.tasks.map((t, index) => ({ ...t, index })).filter(t => !t.isCompleted && !t.name?.includes("[系統通知]"));
-  }
-
-  return tasks;
 };
 
 window.getAvailableAdHocEvents = () => {
@@ -3923,24 +3937,16 @@ document.querySelectorAll('input[name="leave_type"]').forEach(radio => {
   });
 });
 
+// 🌟 2. 產生主專案選單：嚴格透過 getAvailableTasks 篩選 (只顯示有 1% 以上且未鎖定細項的主專案)
 window.populateWeeklyProjSelect = (selectElem) => {
   if (!selectElem) return;
   const currentVal = selectElem.value;
   selectElem.innerHTML = '<option value="">-- 請選擇主專案/事件/其他 --</option>';
   
-  // 1. 撈出所有與當前檢視者相關的專案（包含自己開案的、或是名下有任務的）
-  const userProjs = allProjectsData.filter(p => {
-    if (p.isDeleted === true) return false;
-    if (p.ownerId === viewingUserId) return true;
-    const hasMyTask = (p.tasks || []).some(t => t.assigneeId === viewingUserId && !t.name?.includes("[系統通知]"));
-    const isCollab = Array.isArray(p.collaboratorUids) && p.collaboratorUids.includes(viewingUserId);
-    return hasMyTask || isCollab;
-  });
-
-  // 2. 如果上一步過濾出來是空的（例如剛登入或資料還在同步），退而求其次抓取所有未刪除專案
-  const targetProjs = userProjs.length > 0 ? userProjs : allProjectsData.filter(p => !p.isDeleted);
-
-  targetProjs.forEach(p => { 
+  // 只撈出「未刪除」且「內部有可回報細項 (1%以上、未鎖定)」的主專案
+  const availableProjs = allProjectsData.filter(p => !p.isDeleted && window.getAvailableTasks(p.id).length > 0);
+  
+  availableProjs.forEach(p => { 
     const prefix = p.ownerId !== viewingUserId ? '👥 ' : '';
     selectElem.innerHTML += `<option value="${p.id}">${prefix}${p.title || '未命名專案'}</option>`; 
   });
@@ -3949,7 +3955,7 @@ window.populateWeeklyProjSelect = (selectElem) => {
   selectElem.innerHTML += `<option value="SPECIAL_OTHER">📌 其他</option>`;
 
   // 嘗試保留原本選中的值
-  if (currentVal) {
+  if (currentVal && Array.from(selectElem.options).some(opt => opt.value === currentVal)) {
     selectElem.value = currentVal;
   }
 };
@@ -3972,12 +3978,12 @@ window.onWeeklyTaskSelectChange = (selectElem) => {
   }
 };
 
+// 🌟 細項選單：透過 getAvailableTasks 嚴格載入可選細項
 window.updateWeeklyTaskSelect = (selectElem) => {
   const row = selectElem.closest('.weekly-item-row');
   if (!row) return;
   const taskSelect = row.querySelector('.weekly-task-select');
   if (!taskSelect) return;
-  
   const projId = selectElem.value;
   
   if (projId === 'SPECIAL_OTHER') {
@@ -4001,14 +4007,10 @@ window.updateWeeklyTaskSelect = (selectElem) => {
   taskSelect.innerHTML = '<option value="">-- 請選擇細項 --</option>';
   if (!projId) return;
   
-  const proj = allProjectsData.find(p => p.id === projId);
-  if (proj && proj.tasks) {
-    proj.tasks.forEach((t, tIndex) => {
-      if (!t.name?.includes("[系統通知]")) {
-        taskSelect.innerHTML += `<option value="${tIndex}">${t.name || '未命名細項'}</option>`;
-      }
-    });
-  }
+  const availableTasks = window.getAvailableTasks(projId);
+  availableTasks.forEach(t => { 
+    taskSelect.innerHTML += `<option value="${t.index}">${t.name} (${t.progress}%)</option>`; 
+  });
 };
 
 window.addWeeklyRow = () => {
@@ -4062,13 +4064,13 @@ window.refreshAllWeeklyTaskSelects = function() {
   });
 };
 
-// 🌟 補回這個關鍵函式：當專案載入完成或切換到週報分頁時，自動刷新所有主專案下拉選單
+// 🌟 1. 自動刷新畫面上所有週報的主專案下拉選單 (必須補上這個函式，專案載入後選單才會更新！)
 window.refreshAllWeeklyProjSelects = function() {
   const selects = document.querySelectorAll('.weekly-proj-select');
   selects.forEach(sel => {
-    const prevVal = sel.value; // 記住原本已經選中的專案
+    const prevVal = sel.value;
     window.populateWeeklyProjSelect(sel);
-    if (prevVal) {
+    if (prevVal && Array.from(sel.options).some(opt => opt.value === prevVal)) {
       sel.value = prevVal;
     }
   });
