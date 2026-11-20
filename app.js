@@ -7272,14 +7272,14 @@ window.initNotificationsUI = () => {
         tab.id = "tab-notifications";
         tab.style.display = "none";
         tab.innerHTML = `
-            <div style="display: flex; flex-direction: column; gap: 20px;">
+            <div style="display: flex; flex-direction: column; gap: 16px;">
                 
-                <!-- 上半部：整合後的待處理與待審核大表格 -->
+                <!-- 上半部：放寬高度至 390px，可完整顯示約 6 筆資料再出現捲軸 -->
                 <div class="panel" style="margin-bottom: 0;">
                     <div class="panel-head">
                         <span>🔔 待處理與待審核事項 (指派回覆 / 專案開案 / 暫停恢復與協作審核)</span>
                     </div>
-                    <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
+                    <div class="table-responsive" style="max-height: 390px; overflow-y: auto;">
                         <table style="width:100%;">
                             <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 2;">
                                 <tr>
@@ -7297,8 +7297,8 @@ window.initNotificationsUI = () => {
                     </div>
                 </div>
 
-                <!-- 下半部：歷史紀錄區塊 (位於約 2/3 處) -->
-                <div style="margin-top: 100px; border-top: 1px dashed var(--border); padding-top: 20px;">
+                <!-- 下半部：移除原本多餘的 margin-top: 100px，緊接在上方區塊之下 -->
+                <div style="margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 16px;">
                     <div class="panel" style="background: #fafafa; border: 1px solid var(--border-light);">
                         <div class="panel-head" style="color: #64748b; font-size: 14px;">
                             <span>📜 系統通知與歷史審核紀錄 (包含開案/暫停/恢復/指派所有紀錄)</span>
