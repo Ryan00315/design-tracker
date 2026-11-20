@@ -859,17 +859,28 @@ function fixHeaders() {
   const sumHeader = document.querySelector('#project-summary-view .gantt-row-header');
   if (sumHeader) {
      sumHeader.innerHTML = `
-       <div class="col-sum-name" style="font-weight:bold; color:var(--primary); display: flex; align-items: center;">主專案 / 事件名稱</div>
+       <div class="col-sum-name" style="font-weight:bold; color:var(--primary); display: flex; flex-direction: column; justify-content: center; gap: 4px; overflow: hidden;">
+         <span>主專案 / 事件名稱</span>
+         <div class="name-scroll-track" data-target="summary" style="width: 100%; overflow-x: auto; height: 12px; display: none;" onscroll="syncNameColumnScroll(this, 'summary')">
+           <div class="name-scroll-spacer" style="height: 1px;"></div>
+         </div>
+       </div>
        <div class="col-sum-date" style="font-size: 13px; color: #64748b; font-weight: normal; line-height: 1.2;">起訖<br>日期</div>
        <div class="col-sum-prog" style="font-size: 13px; color: #64748b; font-weight: normal;">總進度</div>
        <div class="col-sum-owner" style="font-size: 13px; color: #64748b; font-weight: normal;">開案者</div>
      `;
      sumHeader.style.display = "flex";
   }
+
   const detHeader = document.querySelector('#project-detail-view .gantt-row-header');
   if (detHeader) {
      detHeader.innerHTML = `
-       <div class="col-name" style="font-weight:bold; color:var(--primary); display: flex; align-items: center;">任務細項排程</div>
+       <div class="col-name" style="font-weight:bold; color:var(--primary); display: flex; flex-direction: column; justify-content: center; gap: 4px; overflow: hidden;">
+         <span>任務細項排程</span>
+         <div class="name-scroll-track" data-target="detail" style="width: 100%; overflow-x: auto; height: 12px; display: none;" onscroll="syncNameColumnScroll(this, 'detail')">
+           <div class="name-scroll-spacer" style="height: 1px;"></div>
+         </div>
+       </div>
        <div class="col-expected-date" style="font-size: 13px; color: #64748b; font-weight: normal; line-height: 1.2;">預計<br>日期</div>
        <div class="col-date" style="font-size: 13px; color: #64748b; font-weight: normal; line-height: 1.2;">預計<br>天數</div>
        <div class="col-prog" style="font-size: 13px; color: #64748b; font-weight: normal;">進度</div>
@@ -879,6 +890,70 @@ function fixHeaders() {
      detHeader.style.display = "flex";
   }
 }
+
+// 🌟 同步左右滑動名稱欄位
+window.syncNameColumnScroll = (trackElem, viewType) => {
+  const scrollLeft = trackElem.scrollLeft;
+  const selector = viewType === 'summary' 
+    ? '#gantt-summary-left-body .col-sum-name' 
+    : '#gantt-left-body .col-name';
+  
+  document.querySelectorAll(selector).forEach(cell => {
+    cell.scrollLeft = scrollLeft;
+  });
+};
+
+// 🌟 自動偵測是否有超出欄位寬度的文字，有超出才顯示該水平捲軸
+window.updateNameScrollbars = () => {
+  ['summary', 'detail'].forEach(viewType => {
+    const headerSelector = viewType === 'summary' 
+      ? '#project-summary-view .gantt-row-header' 
+      : '#project-detail-view .gantt-row-header';
+    const bodySelector = viewType === 'summary' 
+      ? '#gantt-summary-left-body .col-sum-name' 
+      : '#gantt-left-body .col-name';
+
+    const header = document.querySelector(headerSelector);
+    if (!header) return;
+    const track = header.querySelector('.name-scroll-track');
+    const spacer = header.querySelector('.name-scroll-spacer');
+    if (!track || !spacer) return;
+
+    const cells = Array.from(document.querySelectorAll(bodySelector));
+    let maxScrollWidth = 0;
+    let clientWidth = track.clientWidth || 200;
+
+    cells.forEach(cell => {
+      // 解除原本的 ... 省略號，改為可橫向捲動的容器
+      cell.style.overflowX = 'auto';
+      cell.style.textOverflow = 'clip';
+      cell.style.scrollbarWidth = 'none'; // 隱藏個別列的醜捲軸，統一由上方捲軸控制
+      
+      // 內層文字 span 也解除截斷，讓真實寬度撐開
+      const innerSpan = cell.querySelector('span');
+      if (innerSpan) {
+        innerSpan.style.textOverflow = 'clip';
+        innerSpan.style.overflow = 'visible';
+      }
+
+      if (cell.scrollWidth > maxScrollWidth) {
+        maxScrollWidth = cell.scrollWidth;
+      }
+      if (cell.clientWidth > 0) {
+        clientWidth = cell.clientWidth;
+      }
+    });
+
+    // 只有當「實際文字總寬度 > 欄位可視寬度」時，才顯示上方捲軸！
+    if (maxScrollWidth > clientWidth + 2) {
+      spacer.style.width = maxScrollWidth + 'px';
+      track.style.display = 'block';
+    } else {
+      track.style.display = 'none';
+      track.scrollLeft = 0;
+    }
+  });
+};
 
 window.injectFontSizeUI = () => {
   if (document.getElementById('font-size-control-container')) return;
@@ -2446,6 +2521,7 @@ function renderProjects() {
       }
       if(sumLeftBody) sumLeftBody.appendChild(row);
     });
+    setTimeout(window.updateNameScrollbars, 50); // 👈 新增這一行：自動檢查主專案名稱是否超寬
     
     if (ganttTasksSum.length > 0) {
       document.getElementById("gantt-chart-summary-container").innerHTML = '<div id="gantt-chart-summary"></div>';
