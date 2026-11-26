@@ -10165,17 +10165,12 @@ window.clearCurrentWeeklyForm = function() {
 };
 
 // ==========================================
-// 🌟 系統功能索引與 SOP 操作手冊 (強制接管並注入完整內容)
+// 🌟 系統功能索引與 SOP 操作手冊 (單欄垂直清爽版，已移除核心原則區塊)
 // ==========================================
 window.getFullManualInnerHtml = () => {
   return `
-    <!-- 核心原則提示框 -->
-    <div style="background: #eff6ff; border-left: 4px solid #2563eb; border-radius: 6px; padding: 12px 16px; margin-bottom: 14px; color: #1e3a8a; line-height: 1.6;">
-      <strong style="color: #1d4ed8;">📌 核心原則：</strong>系統採嚴格工作日推算（自動排除國定假日與六日），支援開案 7 日寬限期、跨部門階層審核指派、動態停復工時程展延與週報送出即鎖定機制。
-    </div>
-
     <!-- 快速章節導覽列 -->
-    <div style="display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 6px; margin-bottom: 14px;">
+    <div style="display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 12px; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 6px; margin-bottom: 14px;">
       <button type="button" class="action-btn" style="padding: 4px 10px; font-weight: bold;" onclick="scrollToManualSec('man-sec-1')">一、介面與檢視切換</button>
       <button type="button" class="action-btn" style="padding: 4px 10px; font-weight: bold;" onclick="scrollToManualSec('man-sec-2')">二、開案、模板與草稿</button>
       <button type="button" class="action-btn" style="padding: 4px 10px; font-weight: bold;" onclick="scrollToManualSec('man-sec-3')">三、子專案與簽核流程</button>
@@ -10185,7 +10180,7 @@ window.getFullManualInnerHtml = () => {
     </div>
 
     <!-- 一、系統介面與人員檢視切換 -->
-    <div id="man-sec-1" style="margin-bottom: 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+    <div id="man-sec-1" style="margin-bottom: 14px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
       <h3 style="margin: 0 0 8px 0; color: #1d4ed8; border-left: 4px solid #2563eb; padding-left: 8px;">一、系統介面、字體縮放與人員檢視切換</h3>
       <ol style="margin: 0; padding-left: 20px; line-height: 1.65;">
         <li><strong>全域字體縮放（小 / 中 / 大）</strong>：點擊右上角「字體」切換鈕，系統會自動等比放大所有頁面內容、表格與彈跳視窗（設定會自動記憶於瀏覽器）。</li>
@@ -10195,7 +10190,7 @@ window.getFullManualInnerHtml = () => {
     </div>
 
     <!-- 二、專案建立、快速模板與草稿管理 -->
-    <div id="man-sec-2" style="margin-bottom: 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+    <div id="man-sec-2" style="margin-bottom: 14px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
       <h3 style="margin: 0 0 8px 0; color: #1d4ed8; border-left: 4px solid #2563eb; padding-left: 8px;">二、建立主專案、快速模板與草稿功能</h3>
       <ol style="margin: 0; padding-left: 20px; line-height: 1.65;">
         <li><strong>智慧工作日計算</strong>：所有日期欄位皆自動避開週末與台灣國定假日（假日於甘特圖與行事曆中以紅字標示）。輸入「開始日」與「工作天數」，系統自動推算「預計完成日」；新增下一列細項時，預設自動接續上一列的下一個工作日。</li>
@@ -10211,7 +10206,7 @@ window.getFullManualInnerHtml = () => {
     </div>
 
     <!-- 三、子專案指派、卷宗關卡與跨部門簽核 -->
-    <div id="man-sec-3" style="margin-bottom: 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+    <div id="man-sec-3" style="margin-bottom: 14px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
       <h3 style="margin: 0 0 8px 0; color: #1d4ed8; border-left: 4px solid #2563eb; padding-left: 8px;">三、子專案、卷宗簽核與跨部門協作流程</h3>
       <table style="width: 100%; border-collapse: collapse; margin-top: 6px;">
         <thead>
@@ -10238,7 +10233,7 @@ window.getFullManualInnerHtml = () => {
     </div>
 
     <!-- 四、甘特圖操作、進度更新與暫停/回收筒 -->
-    <div id="man-sec-4" style="margin-bottom: 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+    <div id="man-sec-4" style="margin-bottom: 14px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
       <h3 style="margin: 0 0 8px 0; color: #1d4ed8; border-left: 4px solid #2563eb; padding-left: 8px;">四、專案進度更新、甘特圖操作與暫停/回收筒</h3>
       <ol style="margin: 0; padding-left: 20px; line-height: 1.65;">
         <li><strong>KPI 狀態篩選與年份/關鍵字搜尋</strong>：上方卡片可一鍵切換「未完成」、「已完成」、「Delay」、「開放瀏覽」、「簽核中」與「🗑️ 回收筒」，並支援依年份及專案/細項關鍵字即時篩選。</li>
@@ -10255,7 +10250,7 @@ window.getFullManualInnerHtml = () => {
     </div>
 
     <!-- 五、事件紀錄與週報填寫規範 -->
-    <div id="man-sec-5" style="margin-bottom: 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+    <div id="man-sec-5" style="margin-bottom: 14px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
       <h3 style="margin: 0 0 8px 0; color: #1d4ed8; border-left: 4px solid #2563eb; padding-left: 8px;">五、事件紀錄與工作週報填寫規範</h3>
       <ol style="margin: 0; padding-left: 20px; line-height: 1.65;">
         <li><strong>事件紀錄（臨時交辦 / 突發狀況）</strong>：支援富文本格式（粗體、底線、文字顏色與底色標記）及草稿暫存。系統依「預計工時（每天 8 小時換算）」自動推算期限，逾期未點「完成」將顯示紅色 Delay 標籤。</li>
@@ -10283,26 +10278,31 @@ window.getFullManualInnerHtml = () => {
 };
 
 window.initManualModalUI = () => {
-  // 1. 尋找 index.html 裡原本就存在的手冊視窗（例如 #system-manual-box 的父層）
   const existingBox = document.getElementById("system-manual-box");
   if (existingBox) {
-    // 尋找內容區塊（優先找已有內容容器，或 header 與 footer 中間的 div）
-    const header = existingBox.querySelector(".modal-header");
-    const footer = existingBox.querySelector(".modal-actions");
-    let bodyContainer = document.getElementById("system-manual-content") || 
-                        Array.from(existingBox.children).find(el => el !== header && el !== footer);
+    // 找出頂部標題列與底部按鈕列
+    const children = Array.from(existingBox.children);
+    const header = children[0];
+    const footer = children[children.length - 1];
 
-    if (bodyContainer) {
-      bodyContainer.id = "system-manual-content";
-      bodyContainer.style.overflowY = "auto";
-      bodyContainer.style.maxHeight = "68vh";
-      bodyContainer.style.padding = "12px 16px";
-      bodyContainer.innerHTML = window.getFullManualInnerHtml();
-    }
+    // 🌟 1. 移除中間所有舊的殘留區塊（包含原本橫向 flex 的容器與「核心原則」區塊）
+    children.forEach(el => {
+      if (el !== header && el !== footer) {
+        el.remove();
+      }
+    });
+
+    // 🌟 2. 建立全新的「單一垂直區塊 (display: block)」插入在 header 與 footer 中間
+    const cleanBody = document.createElement("div");
+    cleanBody.id = "system-manual-content";
+    cleanBody.style.cssText = "display: block !important; overflow-y: auto; max-height: 68vh; padding: 14px 18px; text-align: left; width: 100%; box-sizing: border-box;";
+    cleanBody.innerHTML = window.getFullManualInnerHtml();
+
+    existingBox.insertBefore(cleanBody, footer);
     return;
   }
 
-  // 2. 若 HTML 中完全沒有，則動態建立整組彈窗
+  // 若 HTML 中完全沒有，則動態建立整組彈窗
   if (!document.getElementById("system-manual-modal")) {
     const modal = document.createElement("div");
     modal.id = "system-manual-modal";
@@ -10313,7 +10313,7 @@ window.initManualModalUI = () => {
           <span style="font-weight: 800; color: var(--primary);">📘 專案管理進度追蹤系統 (PMS) 功能索引與 SOP 手冊</span>
           <button class="btn-close" onclick="closeManualModal()">×</button>
         </div>
-        <div id="system-manual-content" style="overflow-y: auto; padding: 12px 16px; max-height: 68vh; flex: 1;">
+        <div id="system-manual-content" style="display: block !important; overflow-y: auto; padding: 14px 18px; max-height: 68vh; flex: 1; text-align: left;">
           ${window.getFullManualInnerHtml()}
         </div>
         <div class="modal-actions" style="flex-shrink: 0; justify-content: flex-end;">
