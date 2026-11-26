@@ -469,12 +469,29 @@ function initDynamicUI() {
         position: relative !important;
         overflow: visible !important;
       }
-      /* 平常隱藏按鈕 */
-      .gantt-row .col-name > div {
+      /* 1. 強制文字裁切框永遠正常顯示、不受 hover 浮動卡片樣式影響 */
+      .gantt-row .col-name > .name-clip-box,
+      .gantt-row:hover .col-name > .name-clip-box {
+        display: flex !important;
+        position: relative !important;
+        left: auto !important;
+        top: auto !important;
+        transform: none !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        flex: 1 !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
+        align-items: center !important;
+      }
+      /* 2. 平常只隱藏「操作按鈕 div」，不隱藏文字框 */
+      .gantt-row .col-name > div:not(.name-clip-box) {
         display: none !important;
       }
-      /* 滑鼠懸浮時：左側 (頭) 精準對齊日期欄位開頭 (left: 100%) */
-      .gantt-row:hover .col-name > div {
+      /* 3. 滑鼠懸浮時：操作按鈕維持原本「頭切齊日期欄左側」的位置 */
+      .gantt-row:hover .col-name > div:not(.name-clip-box) {
         display: inline-flex !important;
         position: absolute !important;
         left: 100% !important;
