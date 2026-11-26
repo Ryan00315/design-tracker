@@ -467,26 +467,26 @@ function initDynamicUI() {
       }
       .gantt-row .col-name {
         position: relative !important;
+        overflow: visible !important;
       }
       /* 平常隱藏按鈕 */
       .gantt-row .col-name > div {
         display: none !important;
       }
-      /* 滑鼠懸浮時：貼在名稱欄最右側內部，不受橫向捲軸裁切 */
+      /* 滑鼠懸浮時：左側 (頭) 精準對齊日期欄位開頭 (left: 100%) */
       .gantt-row:hover .col-name > div {
         display: inline-flex !important;
-        position: sticky !important;
-        right: 0 !important;
-        left: auto !important;
+        position: absolute !important;
+        left: 100% !important; /* 👈 關鍵：頭部切齊日期欄位最左側 */
+        right: auto !important;
         top: 50% !important;
-        transform: none !important;
-        margin-left: auto !important;
+        transform: translateY(-50%) !important;
         white-space: nowrap !important;
         width: max-content !important;
         background: #ffffff !important;
-        padding: 2px 6px !important;
+        padding: 3px 6px !important;
         border-radius: 6px !important;
-        box-shadow: -4px 0 10px rgba(0, 0, 0, 0.12) !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18) !important;
         border: 1px solid #cbd5e1 !important;
         z-index: 9999 !important;
       }
