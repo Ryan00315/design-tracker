@@ -230,25 +230,24 @@ function initDynamicUI() {
       width: calc(100% * 1.15) !important;
       max-width: min(94vw, calc(var(--modal-orig-max, 600px) * 1.15)) !important;
     }
-    /* 專案週報/大彈窗專用 */
+    /* 專案彈窗專用 */
     body.font-md #general-edit-modal .modal-box,
-    body.font-md #weekly-detail-modal .modal-box,
     body.font-md #project-subproject-modal .modal-box {
       max-width: min(94vw, 850px) !important;
     }
-
-    /* 🌟 當外層選「大」：彈窗寬度自動放大 1.35 倍，最大不超過 96vw */
-    body.font-lg .modal-box {
-      width: calc(100% * 1.35) !important;
-      max-width: min(96vw, calc(var(--modal-orig-max, 600px) * 1.35)) !important;
-    }
-    /* 專案週報/大彈窗專用 */
     body.font-lg #general-edit-modal .modal-box,
-    body.font-lg #weekly-detail-modal .modal-box,
     body.font-lg #project-subproject-modal .modal-box {
       max-width: min(96vw, 1000px) !important;
     }
 
+    /* 🌟 週報詳細內容彈窗：維持加倍寬度 */
+    #weekly-detail-modal .modal-box,
+    body.font-md #weekly-detail-modal .modal-box,
+    body.font-lg #weekly-detail-modal .modal-box {
+      width: 96vw !important;
+      max-width: 1700px !important;
+    }
+    
     /* 🌟 系統手冊彈窗專屬：強制全內文、表格、清單隨外層等比放大縮小 */
     #system-manual-box {
       font-size: calc(13.5px * (var(--font-scale, 1.2) / 1.2)) !important;
@@ -2129,14 +2128,11 @@ window.getAvailableTasks = (projId) => {
     const isMyTask = (t.assigneeId === viewingUserId) || (!t.assigneeId && proj.ownerId === viewingUserId);
     if (!isMyTask) return false;
 
-    // 3. 🌟 進度必須 1% 以上才顯示
+    // 3. 🌟 開放 0% ~ 99% 未完成細項皆可選擇回報
     const prog = parseInt(t.progress) || 0;
-    if (prog < 1) return false;
-
-    // 4. 若尚未 100% 完成 (1% ~ 99%)，皆可繼續選擇回報
     if (!t.isCompleted && prog < 100) return true;
 
-    // 5. 🌟 若已達 100% 完成：只要送出過週報 (reportedCompleted 為 true 或存在於現有週報中)，立即鎖定不再顯示！
+    // 4. 若已達 100% 完成：只要送出過週報即鎖定不再顯示
     if (t.reportedCompleted === true) return false;
 
     const taskCompletedTime = t.completedAt ? new Date(t.completedAt.replace(/-/g, '/')).getTime() : 0;
@@ -4533,7 +4529,17 @@ document.getElementById("btn-add-weekly").addEventListener("click", async () => 
             hasIncomplete = true;
           }
         } else if (pSel.value && tSel.value !== "" && content) {
-          items.push({ projectId: pSel.value, projectName: pSel.options[pSel.selectedIndex].text, taskId: tSel.value, taskName: tSel.options[tSel.selectedIndex].text, content: content });
+          const targetProj = allProjectsData.find(p => p.id === pSel.value);
+          const targetTask = targetProj?.tasks?.[parseInt(tSel.value)];
+          const curProg = targetTask ? (parseInt(targetTask.progress) || 0) : 0;
+          items.push({ 
+            projectId: pSel.value, 
+            projectName: pSel.options[pSel.selectedIndex].text, 
+            taskId: tSel.value, 
+            taskName: tSel.options[tSel.selectedIndex].text, 
+            progress: curProg,
+            content: content 
+          });
         } else {
           hasIncomplete = true;
         }
@@ -4695,7 +4701,7 @@ window.deleteWeekly = async (id) => {
 window.openWeeklyModal = (id) => {
   currentWeeklyReportId = id; 
   const report = allWeeklyData.find(w => w.id === id); 
-  if(!report) return;
+  if (!report) return;
   
   let leaveTag = '';
   if (report.leaveType === 'leave') leaveTag = `<span class="pill pill-danger" style="margin-left:12px;">📌 原因：請假</span>`;
@@ -4720,41 +4726,50 @@ window.openWeeklyModal = (id) => {
   let contentHtml = `<div style="margin-bottom:16px;"><div style="font-weight:bold; margin-bottom:4px;">${report.ownerName} 的工作週報</div><div style="color:var(--text-muted); display:flex; align-items:center;">填寫時間：${fillTimeStr} ${leaveTag}</div></div>`;
   
   if (report.items && report.items.length > 0) {
-    report.items.forEach((item, i) => { 
-      let icon = item.projectId === 'SPECIAL_ADHOC' ? '📝' : (item.projectId === 'SPECIAL_OTHER' ? '📌' : '🗂️');
+    report.items.forEach((item) => { 
+      const pId = item.projectId || item.projId;
+      let icon = pId === 'SPECIAL_ADHOC' ? '📝' : (pId === 'SPECIAL_OTHER' ? '📌' : '🗂️');
       
-      // 1. 清除專案名稱與任務細項名稱開頭可能重複的符號
-      let cleanProjName = (item.projectName || '').replace(/^[📝📌🗂️\s]+/g, '').trim();
-      let cleanTaskName = (item.taskName || '').replace(/^[📌\s]+/g, '').trim();
-      let taskHtml = cleanTaskName ? `<div style="word-break: break-word; font-size: inherit; margin-top: 4px; line-height: 1.4;">📌 ${cleanTaskName}</div>` : '';
-      
-      // 2. 判斷是 HTML (Quill 富文本) 還是 舊版純文字
-      let rawContent = item.content || '';
-      let isHtml = /<[a-z][\s\S]*>/i.test(rawContent);
-      let renderHtml = '';
+      // 1. 清除名稱開頭重複符號與尾部可能已附帶的 (XX%) 字樣
+      let cleanProjName = (item.projectName || '').replace(/^[👥📝📌🗂️\s]+/g, '').trim();
+      let cleanTaskName = (item.taskName || '').replace(/^[📌\s]+/g, '').replace(/\s*\(\d+%\)\s*$/, '').trim();
 
-      if (isHtml) {
-        // 富文本：直接輸出 HTML (Quill 會自帶顏色、文字底色與清單標籤)
-        renderHtml = rawContent;
-      } else {
-        // 純文字：清除每行行首異常縮排，並保留換行相容舊資料
-        renderHtml = rawContent
-          .split('\n')
-          .map(line => line.trimStart())
-          .join('\n')
-          .trim();
+      // 2. 取得進度百分比（優先讀取週報當下紀錄的 progress，舊資料則即時從專案任務反查）
+      let progBadgeHtml = '';
+      if (pId && pId !== 'SPECIAL_ADHOC' && pId !== 'SPECIAL_OTHER') {
+        let progVal = item.progress;
+        if (progVal === undefined || progVal === null) {
+          const projObj = allProjectsData.find(p => p.id === pId);
+          const taskObj = projObj?.tasks?.[parseInt(item.taskId)];
+          if (taskObj) progVal = parseInt(taskObj.progress) || 0;
+        }
+        if (progVal !== undefined && progVal !== null) {
+          progBadgeHtml = `<span style="color: #9333ea; font-weight: 800; margin-left: 6px;">(${progVal}%)</span>`;
+        }
       }
 
+      // 3. 水平並排的細項區塊
+      let taskHtml = cleanTaskName 
+        ? `<span style="color: #cbd5e1; margin: 0 6px;">｜</span><span style="color: #1e293b; font-weight: 600;">📌 ${cleanTaskName}${progBadgeHtml}</span>` 
+        : '';
+      
+      // 4. 判斷富文本或純文字內容
+      let rawContent = item.content || '';
+      let isHtml = /<[a-z][\s\S]*>/i.test(rawContent);
+      let renderHtml = isHtml 
+        ? rawContent 
+        : rawContent.split('\n').map(line => line.trimStart()).join('\n').trim();
+
       contentHtml += `
-        <div style="display:flex; gap:16px; margin-bottom: 12px; padding: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; align-items:flex-start;">
-          <!-- 🌟 左側專案/細項標題：固定寬度、靠左齊頭 -->
-          <div style="flex: 0 0 160px; min-width: 160px; max-width: 180px; flex-shrink: 0; font-weight:600; color:var(--primary); border-right: 1px dashed var(--border-light); padding-right:12px; text-align: left;">
-            <div style="word-break: break-word; line-height: 1.4;">${icon} ${cleanProjName}</div>
+        <div style="display:flex; flex-direction:column; gap:10px; margin-bottom: 14px; padding: 14px 16px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px;">
+          <!-- 🌟 上半部：主專案/事件/其他 與 細項 水平並排顯示 -->
+          <div style="display:flex; flex-wrap:wrap; align-items:center; gap:4px; padding-bottom: 10px; border-bottom: 1px dashed var(--border-light); text-align: left; line-height: 1.5;">
+            <span style="font-weight:700; color:var(--primary);">${icon} ${cleanProjName}</span>
             ${taskHtml}
           </div>
-          <!-- 🌟 右側說明內容：套用 Quill Snow 容器渲染底色與樣式，消除邊框與內距 -->
-          <div style="flex: 1; min-width: 0; padding-left: 4px; text-align: left; color: #1e293b;" class="ql-snow">
-            <div class="ql-editor" style="padding: 0; min-height: auto; font-size: inherit; line-height: 1.6; border: none; word-break: break-word; ${!isHtml ? 'white-space: pre-wrap;' : ''}">
+          <!-- 🌟 下半部：進度說明獨立佔滿全寬 -->
+          <div style="width: 100%; text-align: left; color: #1e293b;" class="ql-snow">
+            <div class="ql-editor" style="padding: 0; min-height: auto; font-size: inherit; line-height: 1.65; border: none; word-break: break-word; ${!isHtml ? 'white-space: pre-wrap;' : ''}">
               ${renderHtml}
             </div>
           </div>
