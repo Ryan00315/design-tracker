@@ -669,6 +669,31 @@ function initDynamicUI() {
         color: #ffffff !important;
       }
     }
+    /* 🌟 1. 名稱欄上方控制捲軸：50% 半透明，滑鼠移入變清晰 */
+    .name-scroll-track {
+      opacity: 0.5;
+      transition: opacity 0.2s ease;
+    }
+    .name-scroll-track:hover {
+      opacity: 0.85;
+    }
+    .name-scroll-track::-webkit-scrollbar {
+      height: 8px;
+    }
+    .name-scroll-track::-webkit-scrollbar-track {
+      background: rgba(203, 213, 225, 0.35);
+      border-radius: 4px;
+    }
+    .name-scroll-track::-webkit-scrollbar-thumb {
+      background: rgba(100, 116, 139, 0.7);
+      border-radius: 4px;
+    }
+    
+    /* 🌟 2. 隱藏個別名稱列自身的捲軸線，保持畫面乾淨 */
+    .col-sum-name::-webkit-scrollbar,
+    .col-name::-webkit-scrollbar {
+      display: none;
+    }
   `;
   document.head.appendChild(style);
 
@@ -903,7 +928,7 @@ window.syncNameColumnScroll = (trackElem, viewType) => {
   });
 };
 
-// 🌟 自動偵測是否有超出欄位寬度的文字，有超出才顯示該水平捲軸
+// 🌟 自動偵測超寬文字顯示上方捲軸 ＋ 綁定「按住滾輪(中鍵)左右拖曳單獨捲動」
 window.updateNameScrollbars = () => {
   ['summary', 'detail'].forEach(viewType => {
     const headerSelector = viewType === 'summary' 
@@ -924,16 +949,17 @@ window.updateNameScrollbars = () => {
     let clientWidth = track.clientWidth || 200;
 
     cells.forEach(cell => {
-      // 解除原本的 ... 省略號，改為可橫向捲動的容器
-      cell.style.overflowX = 'auto';
-      cell.style.textOverflow = 'clip';
-      cell.style.scrollbarWidth = 'none'; // 隱藏個別列的醜捲軸，統一由上方捲軸控制
-      
-      // 內層文字 span 也解除截斷，讓真實寬度撐開
+      // 1. 強制覆蓋原本 CSS 的 overflow: visible !important，才能精準計算超出寬度
+      cell.style.setProperty('overflow-x', 'auto', 'important');
+      cell.style.setProperty('text-overflow', 'clip', 'important');
+      cell.style.scrollbarWidth = 'none';
+
+      // 內層文字解除截斷並禁止自動縮小
       const innerSpan = cell.querySelector('span');
       if (innerSpan) {
-        innerSpan.style.textOverflow = 'clip';
-        innerSpan.style.overflow = 'visible';
+        innerSpan.style.setProperty('text-overflow', 'clip', 'important');
+        innerSpan.style.setProperty('overflow', 'visible', 'important');
+        innerSpan.style.flexShrink = '0';
       }
 
       if (cell.scrollWidth > maxScrollWidth) {
@@ -942,9 +968,41 @@ window.updateNameScrollbars = () => {
       if (cell.clientWidth > 0) {
         clientWidth = cell.clientWidth;
       }
+
+      // 2. 🌟 綁定「按住滑鼠滾輪 (中鍵 button === 1) 左右滑動」單獨捲動該列名稱
+      if (!cell.dataset.middleDragBound) {
+        cell.dataset.middleDragBound = 'true';
+        let isDragging = false;
+        let startX = 0;
+        let startScrollLeft = 0;
+
+        cell.addEventListener('mousedown', (e) => {
+          if (e.button === 1) { // 滑鼠中鍵 (滾輪按下)
+            e.preventDefault();  // 阻斷瀏覽器原生的四向自動捲動圓圈圖示
+            isDragging = true;
+            startX = e.pageX;
+            startScrollLeft = cell.scrollLeft;
+            cell.style.cursor = 'grabbing';
+          }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+          if (!isDragging) return;
+          e.preventDefault();
+          const walk = (e.pageX - startX) * 1.5; // 滑動靈敏度倍率
+          cell.scrollLeft = startScrollLeft - walk;
+        });
+
+        window.addEventListener('mouseup', (e) => {
+          if (isDragging && e.button === 1) {
+            isDragging = false;
+            cell.style.cursor = '';
+          }
+        });
+      }
     });
 
-    // 只有當「實際文字總寬度 > 欄位可視寬度」時，才顯示上方捲軸！
+    // 3. 只要有任一列文字超出可視寬度，立刻顯示該區域的上方捲軸
     if (maxScrollWidth > clientWidth + 2) {
       spacer.style.width = maxScrollWidth + 'px';
       track.style.display = 'block';
