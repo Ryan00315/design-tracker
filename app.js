@@ -699,6 +699,32 @@ function initDynamicUI() {
       min-height: 100%;
       overflow-x: auto !important;
     }
+    /* 🌟 解除任務細項與總覽名稱的 ... 截斷，交由平滑裁切框控制 */
+    .col-name .name-clip-box,
+    .col-sum-name .name-clip-box {
+      flex: 1 !important;
+      min-width: 0 !important;
+      overflow: hidden !important;
+      display: flex !important;
+      align-items: center !important;
+    }
+    .col-name .name-slide-text,
+    .col-sum-name .name-slide-text {
+      display: inline-flex !important;
+      align-items: center !important;
+      white-space: nowrap !important;
+      width: max-content !important;
+      max-width: none !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+    }
+    .col-name .name-slide-text span,
+    .col-sum-name .name-slide-text span {
+      overflow: visible !important;
+      text-overflow: clip !important;
+      max-width: none !important;
+      white-space: nowrap !important;
+    }
   `;
   document.head.appendChild(style);
 
@@ -3337,6 +3363,12 @@ function renderProjects() {
           }
       }
   });
+  // 🌟 關鍵補上：在進入專案、畫完所有「任務細項排程」後，立刻計算寬度並顯示上方捲軸與綁定中鍵平移！
+  setTimeout(() => {
+    if (typeof window.updateNameScrollbars === 'function') {
+      window.updateNameScrollbars();
+    }
+  }, 60);
 
   if (ganttTasks.length > 0) {
     const chartContainer = document.getElementById("gantt-chart-container");
