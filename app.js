@@ -240,12 +240,12 @@ function initDynamicUI() {
       max-width: min(96vw, 1000px) !important;
     }
 
-    /* 🌟 週報詳細內容彈窗：維持加倍寬度 */
+    /* 🌟 週報詳細內容彈窗：縮小 1/4 寬度 (72vw / 1280px) */
     #weekly-detail-modal .modal-box,
     body.font-md #weekly-detail-modal .modal-box,
     body.font-lg #weekly-detail-modal .modal-box {
-      width: 96vw !important;
-      max-width: 1700px !important;
+      width: 72vw !important;
+      max-width: 1280px !important;
     }
     
     /* 🌟 系統手冊彈窗專屬：強制全內文、表格、清單隨外層等比放大縮小 */
