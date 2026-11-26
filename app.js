@@ -741,6 +741,15 @@ function initDynamicUI() {
       max-width: none !important;
       white-space: nowrap !important;
     }
+    /* 🌟 消除週報瀏覽視窗內 Quill 段落的預設上下留白與最小高度 */
+    #weekly-detail-content .ql-editor {
+      min-height: 0 !important;
+      padding: 0 !important;
+    }
+    #weekly-detail-content .ql-editor p {
+      margin: 0 !important;
+      padding: 0 !important;
+    }
   `;
   document.head.appendChild(style);
 
@@ -4698,43 +4707,16 @@ window.deleteWeekly = async (id) => {
   }
 };
 
-window.openWeeklyModal = (id) => {
-  currentWeeklyReportId = id; 
-  const report = allWeeklyData.find(w => w.id === id); 
-  if (!report) return;
-  
-  let leaveTag = '';
-  if (report.leaveType === 'leave') leaveTag = `<span class="pill pill-danger" style="margin-left:12px;">📌 原因：請假</span>`;
-  else if (report.leaveType === 'other') leaveTag = `<span class="pill pill-warning" style="margin-left:12px;">📌 原因：${report.leaveReason}</span>`;
-
-  const days = ['日', '一', '二', '三', '四', '五', '六'];
-  let fillTimeStr = '-';
-  if (report.createdAt) {
-    const d = report.createdAt.toDate();
-    const yyyy = d.getFullYear(); 
-    const mm = d.getMonth() + 1; 
-    const dd = d.getDate();
-    let hours = d.getHours(); 
-    let ampm = hours >= 12 ? '下午' : '上午';
-    hours = hours % 12; 
-    hours = hours ? hours : 12; 
-    let minutes = String(d.getMinutes()).padStart(2, '0'); 
-    let seconds = String(d.getSeconds()).padStart(2, '0');
-    fillTimeStr = `${yyyy}/${mm}/${dd} ${ampm}${hours}:${minutes}:${seconds} (${days[d.getDay()]})`;
-  }
-
-  let contentHtml = `<div style="margin-bottom:16px;"><div style="font-weight:bold; margin-bottom:4px;">${report.ownerName} 的工作週報</div><div style="color:var(--text-muted); display:flex; align-items:center;">填寫時間：${fillTimeStr} ${leaveTag}</div></div>`;
+let contentHtml = `<div style="margin-bottom:10px;"><div style="font-weight:bold; margin-bottom:2px;">${report.ownerName} 的工作週報</div><div style="color:var(--text-muted); display:flex; align-items:center;">填寫時間：${fillTimeStr} ${leaveTag}</div></div>`;
   
   if (report.items && report.items.length > 0) {
     report.items.forEach((item) => { 
       const pId = item.projectId || item.projId;
       let icon = pId === 'SPECIAL_ADHOC' ? '📝' : (pId === 'SPECIAL_OTHER' ? '📌' : '🗂️');
       
-      // 1. 清除名稱開頭重複符號與尾部可能已附帶的 (XX%) 字樣
       let cleanProjName = (item.projectName || '').replace(/^[👥📝📌🗂️\s]+/g, '').trim();
       let cleanTaskName = (item.taskName || '').replace(/^[📌\s]+/g, '').replace(/\s*\(\d+%\)\s*$/, '').trim();
 
-      // 2. 取得進度百分比（優先讀取週報當下紀錄的 progress，舊資料則即時從專案任務反查）
       let progBadgeHtml = '';
       if (pId && pId !== 'SPECIAL_ADHOC' && pId !== 'SPECIAL_OTHER') {
         let progVal = item.progress;
@@ -4748,30 +4730,27 @@ window.openWeeklyModal = (id) => {
         }
       }
 
-      // 3. 水平並排的細項區塊
       let taskHtml = cleanTaskName 
         ? `<span style="color: #cbd5e1; margin: 0 6px;">｜</span><span style="color: #1e293b; font-weight: 600;">📌 ${cleanTaskName}${progBadgeHtml}</span>` 
         : '';
       
-      // 4. 判斷富文本或純文字內容
-      let rawContent = item.content || '';
+      // 清除頭尾多餘空白與空段落標籤 (<p><br></p>)
+      let rawContent = (item.content || '').replace(/^(<p><br><\/p>|\s)+|(<p><br><\/p>|\s)+$/gi, '').trim();
       let isHtml = /<[a-z][\s\S]*>/i.test(rawContent);
       let renderHtml = isHtml 
         ? rawContent 
         : rawContent.split('\n').map(line => line.trimStart()).join('\n').trim();
 
       contentHtml += `
-        <div style="display:flex; flex-direction:column; gap:10px; margin-bottom: 14px; padding: 14px 16px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px;">
-          <!-- 🌟 上半部：主專案/事件/其他 與 細項 水平並排顯示 -->
-          <div style="display:flex; flex-wrap:wrap; align-items:center; gap:4px; padding-bottom: 10px; border-bottom: 1px dashed var(--border-light); text-align: left; line-height: 1.5;">
+        <div style="display:flex; flex-direction:column; gap:6px; margin-bottom: 8px; padding: 10px 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px;">
+          <!-- 🌟 上半部：主專案與細項水平並排，收緊底部間距 -->
+          <div style="display:flex; flex-wrap:wrap; align-items:center; gap:4px; padding-bottom: 6px; border-bottom: 1px dashed var(--border-light); text-align: left; line-height: 1.4;">
             <span style="font-weight:700; color:var(--primary);">${icon} ${cleanProjName}</span>
             ${taskHtml}
           </div>
-          <!-- 🌟 下半部：進度說明獨立佔滿全寬 -->
+          <!-- 🌟 下半部：進度說明去除預設 min-height 與多餘上下留白 -->
           <div style="width: 100%; text-align: left; color: #1e293b;" class="ql-snow">
-            <div class="ql-editor" style="padding: 0; min-height: auto; font-size: inherit; line-height: 1.65; border: none; word-break: break-word; ${!isHtml ? 'white-space: pre-wrap;' : ''}">
-              ${renderHtml}
-            </div>
+            <div class="ql-editor" style="padding: 0 !important; min-height: 0 !important; height: auto !important; font-size: inherit; line-height: 1.5; border: none; word-break: break-word; ${!isHtml ? 'white-space: pre-wrap;' : ''}">${renderHtml}</div>
           </div>
         </div>
       `; 
