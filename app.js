@@ -4707,6 +4707,31 @@ window.deleteWeekly = async (id) => {
   }
 };
 
+window.openWeeklyModal = (id) => {
+  currentWeeklyReportId = id; 
+  const report = allWeeklyData.find(w => w.id === id); 
+  if (!report) return;
+  
+  let leaveTag = '';
+  if (report.leaveType === 'leave') leaveTag = `<span class="pill pill-danger" style="margin-left:12px;">📌 原因：請假</span>`;
+  else if (report.leaveType === 'other') leaveTag = `<span class="pill pill-warning" style="margin-left:12px;">📌 原因：${report.leaveReason}</span>`;
+
+  const days = ['日', '一', '二', '三', '四', '五', '六'];
+  let fillTimeStr = '-';
+  if (report.createdAt) {
+    const d = report.createdAt.toDate();
+    const yyyy = d.getFullYear(); 
+    const mm = d.getMonth() + 1; 
+    const dd = d.getDate();
+    let hours = d.getHours(); 
+    let ampm = hours >= 12 ? '下午' : '上午';
+    hours = hours % 12; 
+    hours = hours ? hours : 12; 
+    let minutes = String(d.getMinutes()).padStart(2, '0'); 
+    let seconds = String(d.getSeconds()).padStart(2, '0');
+    fillTimeStr = `${yyyy}/${mm}/${dd} ${ampm}${hours}:${minutes}:${seconds} (${days[d.getDay()]})`;
+  }
+
 let contentHtml = `<div style="margin-bottom:10px;"><div style="font-weight:bold; margin-bottom:2px;">${report.ownerName} 的工作週報</div><div style="color:var(--text-muted); display:flex; align-items:center;">填寫時間：${fillTimeStr} ${leaveTag}</div></div>`;
   
   if (report.items && report.items.length > 0) {
