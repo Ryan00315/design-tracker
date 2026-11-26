@@ -966,40 +966,52 @@ window.updateNameScrollbars = () => {
     let visibleBoxWidth = 0;
 
     cells.forEach(cell => {
-      // 保持 detail 欄位的 overflow: visible，讓懸浮按鈕 (↑ ↓ ✏️ 🗑️) 100% 維持原位不遮字
+      // 1. 保持 detail 欄位的 overflow: visible，讓懸浮按鈕 (↑ ↓ ✏️ 🗑️) 100% 維持原位不遮字
       if (viewType === 'detail') {
         cell.style.setProperty('overflow', 'visible', 'important');
       }
 
-      // 建立專屬文字裁切視窗 (.name-clip-box)
+      // 2. 建立專屬文字裁切視窗 (.name-clip-box)
       let clipBox = cell.querySelector('.name-clip-box');
       let textSpan = cell.querySelector('.name-slide-text');
 
       if (!clipBox) {
-        // 找出原本放文字的元素（排除懸浮按鈕 div 與 badge）
-        const origSpan = Array.from(cell.children).find(el => el.tagName === 'SPAN' && !el.style.marginLeft?.includes('auto'));
-        if (origSpan) {
+        // 抓取內部所有文字節點與 span（排除懸浮按鈕 div 與箭頭/加號）
+        const textElements = Array.from(cell.children).filter(el => 
+          el.tagName === 'SPAN' && 
+          !el.style.marginLeft?.includes('auto') &&
+          !el.innerText.includes('▶') &&
+          !el.innerText.includes('▼')
+        );
+
+        if (textElements.length > 0) {
           clipBox = document.createElement('div');
           clipBox.className = 'name-clip-box';
-          clipBox.style.cssText = 'flex: 1; min-width: 0; overflow: hidden; display: flex; align-items: center;';
-          
-          origSpan.classList.add('name-slide-text');
-          origSpan.style.cssText += '; display: inline-block; white-space: nowrap; overflow: visible !important; text-overflow: clip !important; will-change: transform;';
-          
-          cell.insertBefore(clipBox, origSpan);
-          clipBox.appendChild(origSpan);
-          textSpan = origSpan;
+          clipBox.style.cssText = 'flex: 1; min-width: 0; overflow: hidden; display: flex; align-items: center; position: relative;';
+
+          textSpan = document.createElement('span');
+          textSpan.className = 'name-slide-text';
+          textSpan.style.cssText = 'display: inline-flex; align-items: center; white-space: nowrap; width: max-content; flex-shrink: 0; will-change: transform;';
+
+          cell.insertBefore(clipBox, textElements[0]);
+          textElements.forEach(el => {
+            el.style.setProperty('overflow', 'visible', 'important');
+            el.style.setProperty('text-overflow', 'clip', 'important');
+            textSpan.appendChild(el);
+          });
+          clipBox.appendChild(textSpan);
         }
       }
 
       if (clipBox && textSpan) {
+        // 使用 scrollWidth 取得不受裁切影響的真實文字總寬度
         const curBoxW = clipBox.getBoundingClientRect().width || cell.getBoundingClientRect().width || 220;
         const curTextW = textSpan.scrollWidth;
         if (curBoxW > visibleBoxWidth) visibleBoxWidth = curBoxW;
         if (curTextW > maxTextWidth) maxTextWidth = curTextW;
       }
 
-      // 🌟 綁定「中鍵搖桿式平移」：中鍵按下後，滑鼠往右移 -> 文字往左跑（露出右側文字）
+      // 3. 綁定「中鍵搖桿式平移」：中鍵按下後，滑鼠往右移 -> 文字往左跑（露出右側文字）
       if (!cell.dataset.middleJoystickBound) {
         cell.dataset.middleJoystickBound = 'true';
         let isAutoScrolling = false;
@@ -1013,7 +1025,6 @@ window.updateNameScrollbars = () => {
           const cBox = cell.querySelector('.name-clip-box');
           if (tSpan && cBox) {
             const maxOffset = Math.max(0, tSpan.scrollWidth - cBox.clientWidth);
-            // 死區 6px 避免手抖；滑鼠往右移 (currentDeltaX > 0) -> offset 增加 -> 文字往左跑
             if (Math.abs(currentDeltaX) > 6 && maxOffset > 0) {
               const speed = (currentDeltaX - Math.sign(currentDeltaX) * 6) * 0.18;
               let curOffset = parseFloat(cell.dataset.scrollOffset || '0');
@@ -1036,25 +1047,17 @@ window.updateNameScrollbars = () => {
 
         const onMouseMove = (e) => {
           if (!isAutoScrolling) return;
-          currentDeltaX = e.clientX - originX; // 往右為正值，往左為負值
+          currentDeltaX = e.clientX - originX;
         };
 
         const onMouseUp = (e) => {
-          if (e.button === 1) {
-            stopAutoScroll();
-          }
+          if (e.button === 1) stopAutoScroll();
         };
 
-        // 僅在該名稱欄位範圍內攔截中鍵，絕不影響右側甘特圖
         cell.addEventListener('mousedown', (e) => {
           if (e.button === 1) {
-            const tSpan = cell.querySelector('.name-slide-text');
-            const cBox = cell.querySelector('.name-clip-box');
-            if (!tSpan || !cBox) return;
-
             e.preventDefault();
             e.stopPropagation();
-
             isAutoScrolling = true;
             originX = e.clientX;
             currentDeltaX = 0;
@@ -1064,18 +1067,18 @@ window.updateNameScrollbars = () => {
             window.addEventListener('mouseup', onMouseUp);
             rafId = requestAnimationFrame(stepScroll);
           }
-        });
+        }, true);
 
         cell.addEventListener('auxclick', (e) => {
           if (e.button === 1) {
             e.preventDefault();
             e.stopPropagation();
           }
-        });
+        }, true);
       }
     });
 
-    // 🌟 只要有任一列文字超出可視寬度，立刻顯示該區域的上方 50% 半透明捲軸
+    // 4. 顯示上方 50% 半透明捲軸
     if (maxTextWidth > visibleBoxWidth + 2 && visibleBoxWidth > 0) {
       spacer.style.width = (visibleBoxWidth + (maxTextWidth - visibleBoxWidth)) + 'px';
       track.style.display = 'block';
@@ -1083,6 +1086,75 @@ window.updateNameScrollbars = () => {
       track.style.display = 'none';
       track.scrollLeft = 0;
     }
+  });
+
+  // 5. 同步啟用右側甘特圖「全區域」中鍵平移
+  window.enableGanttMiddleScroll();
+};
+// 🌟 啟用右側甘特圖「全區域」中鍵搖桿平移（不再侷限於年月上方）
+window.enableGanttMiddleScroll = () => {
+  ['#gantt-chart-summary-container', '#gantt-chart-container'].forEach(selector => {
+    const wrapper = document.querySelector(selector);
+    if (!wrapper || wrapper.dataset.ganttMiddleBound) return;
+    wrapper.dataset.ganttMiddleBound = 'true';
+
+    let isGanttScrolling = false;
+    let originX = 0;
+    let currentDeltaX = 0;
+    let rafId = null;
+
+    const getScrollTarget = () => wrapper.querySelector('.gantt-container') || wrapper;
+
+    const stepGantt = () => {
+      if (!isGanttScrolling) return;
+      const target = getScrollTarget();
+      if (target && Math.abs(currentDeltaX) > 6) {
+        const speed = (currentDeltaX - Math.sign(currentDeltaX) * 6) * 0.25;
+        target.scrollLeft += speed;
+        if (target !== wrapper) wrapper.scrollLeft += speed;
+      }
+      rafId = requestAnimationFrame(stepGantt);
+    };
+
+    const stopGanttScroll = () => {
+      if (!isGanttScrolling) return;
+      isGanttScrolling = false;
+      if (rafId) cancelAnimationFrame(rafId);
+      document.body.style.cursor = '';
+      window.removeEventListener('mousemove', onGanttMove);
+      window.removeEventListener('mouseup', onGanttUp);
+    };
+
+    const onGanttMove = (e) => {
+      if (!isGanttScrolling) return;
+      currentDeltaX = e.clientX - originX;
+    };
+
+    const onGanttUp = (e) => {
+      if (e.button === 1) stopGanttScroll();
+    };
+
+    wrapper.addEventListener('mousedown', (e) => {
+      if (e.button === 1) {
+        e.preventDefault();
+        e.stopPropagation();
+        isGanttScrolling = true;
+        originX = e.clientX;
+        currentDeltaX = 0;
+        document.body.style.cursor = 'ew-resize';
+
+        window.addEventListener('mousemove', onGanttMove);
+        window.addEventListener('mouseup', onGanttUp);
+        rafId = requestAnimationFrame(stepGantt);
+      }
+    }, true);
+
+    wrapper.addEventListener('auxclick', (e) => {
+      if (e.button === 1) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, true);
   });
 };
 
@@ -2648,7 +2720,7 @@ function renderProjects() {
         if (item.hasDelay && !item.isDone) {
             statusText = '<span style="color:var(--danger); font-weight:700;">Delay</span>';
         }
-        row.innerHTML = `<div class="col-sum-name" style="color:var(--danger); font-weight:700;" title="${item.title}">🚨 ${item.title}</div><div class="col-sum-date"><span>${item.start.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
+        row.innerHTML = `<div class="col-sum-name" title="${item.title}" style="display:flex; align-items:center; overflow:hidden;"><span style="color:var(--danger); font-weight:700; white-space:nowrap;">🚨 ${item.title}</span></div><div class="col-sum-date"><span>${item.start.substring(5)}</span></div><div class="col-sum-prog">${statusText}</div><div class="col-sum-owner" title="開案者：${item.ownerName}">${item.ownerName}</div>`;
       }
       if(sumLeftBody) sumLeftBody.appendChild(row);
     });
