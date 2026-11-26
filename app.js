@@ -10163,3 +10163,163 @@ window.clearCurrentWeeklyForm = function() {
   document.getElementById("weekly-items-container").innerHTML = "";
   window.addWeeklyRow();
 };
+
+// ==========================================
+// 🌟 系統功能索引與 SOP 操作手冊 (完整版)
+// ==========================================
+window.initManualModalUI = () => {
+  // 1. 確保頂部 Header 或側邊欄有手冊開啟按鈕（若 HTML 已有綁定 onclick="openManualModal()" 則直接連動）
+  if (!document.getElementById("system-manual-modal")) {
+    const modal = document.createElement("div");
+    modal.id = "system-manual-modal";
+    modal.className = "modal-overlay";
+    modal.innerHTML = `
+      <div id="system-manual-box" class="modal-box" style="width: min(85vw, 960px); max-width: 960px; max-height: 86vh; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="modal-header" style="flex-shrink: 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px;">
+          <span style="font-weight: 800; color: var(--primary);">📘 專案管理進度追蹤系統 (PMS) 功能索引與 SOP 手冊</span>
+          <button class="btn-close" onclick="closeManualModal()">×</button>
+        </div>
+        
+        <!-- 快速章節導覽列 -->
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 0; border-bottom: 1px dashed #cbd5e1; flex-shrink: 0; background: #f8fafc; padding-left: 8px; padding-right: 8px; border-radius: 6px; margin-top: 8px;">
+          <button type="button" class="action-btn" style="padding: 3px 8px; font-weight: bold;" onclick="scrollToManualSec('man-sec-1')">一、介面與檢視切換</button>
+          <button type="button" class="action-btn" style="padding: 3px 8px; font-weight: bold;" onclick="scrollToManualSec('man-sec-2')">二、開案、模板與草稿</button>
+          <button type="button" class="action-btn" style="padding: 3px 8px; font-weight: bold;" onclick="scrollToManualSec('man-sec-3')">三、子專案與簽核流程</button>
+          <button type="button" class="action-btn" style="padding: 3px 8px; font-weight: bold;" onclick="scrollToManualSec('man-sec-4')">四、甘特圖與進度回報</button>
+          <button type="button" class="action-btn" style="padding: 3px 8px; font-weight: bold;" onclick="scrollToManualSec('man-sec-5')">五、事件紀錄與週報填寫</button>
+          <button type="button" class="action-btn" style="padding: 3px 8px; font-weight: bold;" onclick="scrollToManualSec('man-sec-6')">六、通知、行事曆與權限</button>
+        </div>
+
+        <!-- 手冊捲動內文區 -->
+        <div id="system-manual-content" style="overflow-y: auto; padding: 14px 10px; line-height: 1.65; color: #1e293b; flex: 1;">
+          
+          <!-- 一、系統介面與人員檢視切換 -->
+          <div id="man-sec-1" style="margin-bottom: 22px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+            <h3 style="margin: 0 0 10px 0; color: #1d4ed8; border-left: 4px solid #2563eb; padding-left: 8px;">一、系統介面、字體縮放與人員檢視切換</h3>
+            <ol style="margin: 0; padding-left: 20px;">
+              <li><strong>全域字體縮放（小 / 中 / 大）</strong>：點擊右上角「字體」切換鈕，系統會自動等比放大所有頁面內容、表格與彈跳視窗（設定會自動記憶於瀏覽器）。</li>
+              <li><strong>人員檢視切換（主管專用）</strong>：主管級以上帳號可從左側選單依「🏢 部門分類」展開名單，切換檢視下屬的專案進度、事件紀錄與週報（切換為檢視他人時，新增表單會自動隱藏以防誤填）。點擊「回到個人專案」即可切回自己。</li>
+              <li><strong>開啟編輯模式（管理員 / 授權人員）</strong>：具備特殊編輯權限者，點擊右上角「✏️ 開啟編輯模式」後，可突破 7 天寬限期限制，直接修改或刪除歷史專案與細項。</li>
+            </ol>
+          </div>
+
+          <!-- 二、專案建立、快速模板與草稿管理 -->
+          <div id="man-sec-2" style="margin-bottom: 22px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+            <h3 style="margin: 0 0 10px 0; color: #1d4ed8; border-left: 4px solid #2563eb; padding-left: 8px;">二、建立主專案、快速模板與草稿功能</h3>
+            <ol style="margin: 0; padding-left: 20px;">
+              <li><strong>智慧工作日計算</strong>：所有日期欄位皆自動避開週末與台灣國定假日（假日於甘特圖與行事曆中以紅字標示）。輸入「開始日」與「工作天數」，系統自動推算「預計完成日」；新增下一列細項時，預設自動接續上一列的下一個工作日。</li>
+              <li><strong>專案模板快速套用</strong>：系統提供 5 組個人專屬模板（可點擊 ✏️ 自訂名稱與細項）。套用時可選擇：
+                <ul style="margin: 4px 0;">
+                  <li><strong>接續時間</strong>：保留模板設定的預設工作天數並依序順延。</li>
+                  <li><strong>自由時間</strong>：天數統一重設為 1 天，方便自由調整排程。</li>
+                </ul>
+              </li>
+              <li><strong>草稿儲存與還原</strong>：規劃專案到一半時可隨時儲存草稿（支援多份草稿清單與覆蓋更新），下次開啟開案表單時可一鍵載入繼續編輯；正式送出後，該筆對應草稿會自動清除。</li>
+              <li><strong>開放瀏覽部門</strong>：開案時勾選的部門同仁，可在「開放瀏覽」分類中唯讀查看專案進度。</li>
+            </ol>
+          </div>
+
+          <!-- 三、子專案指派、卷宗關卡與跨部門簽核 -->
+          <div id="man-sec-3" style="margin-bottom: 22px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+            <h3 style="margin: 0 0 10px 0; color: #1d4ed8; border-left: 4px solid #2563eb; padding-left: 8px;">三、子專案、卷宗簽核與跨部門協作流程</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 13px;">
+              <thead>
+                <tr style="background: #f1f5f9; text-align: left;">
+                  <th style="padding: 8px; border: 1px solid #cbd5e1; width: 26%;">情境類型</th>
+                  <th style="padding: 8px; border: 1px solid #cbd5e1;">系統自動處理與審核規則</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="padding: 8px; border: 1px solid #cbd5e1; font-weight: bold; color: #d97706;">📦 子專案與時間同步</td>
+                  <td style="padding: 8px; border: 1px solid #cbd5e1;">可將相關任務打包為「📦 子專案」並指定負責人（母列進度依實質細項工期天數加權計算）。規劃時勾選「🔄 時間同步」，追加子細項會直接複製上一筆的起訖日期。</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px; border: 1px solid #cbd5e1; font-weight: bold; color: #dc2626;">📑 卷宗人員（簽核送審）</td>
+                  <td style="padding: 8px; border: 1px solid #cbd5e1;">若子專案指派給具備「卷宗」身分之同仁（如採購部窗口），系統自動於第一列插入「<strong>簽核送審</strong>」。當該關卡完成 100% 時，後續細項自動從次一工作日重新起算，並開放採購人員 <strong>15 天</strong>細項調整期（同部門採購同仁亦可唯讀共享檢視）。</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px; border: 1px solid #cbd5e1; font-weight: bold; color: #2563eb;">👥 跨部門協作簽核</td>
+                  <td style="padding: 8px; border: 1px solid #cbd5e1;">只要勾選「需要簽核」或子專案指派給「不同部門」人員，專案送出後即進入「⏳ 簽核中」並發信通知最高主管。主管可選擇「同意指派 / 全部同意」、「重新指派」、「承接」或「退回（開案者修改後可點 🔄 重新送審）」。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 四、甘特圖操作、進度更新與暫停/回收筒 -->
+          <div id="man-sec-4" style="margin-bottom: 22px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+            <h3 style="margin: 0 0 10px 0; color: #1d4ed8; border-left: 4px solid #2563eb; padding-left: 8px;">四、專案進度更新、甘特圖操作與暫停/回收筒</h3>
+            <ol style="margin: 0; padding-left: 20px;">
+              <li><strong>KPI 狀態篩選與年份/關鍵字搜尋</strong>：上方卡片可一鍵切換「未完成」、「已完成」、「Delay」、「開放瀏覽」、「簽核中」與「🗑️ 回收筒」，並支援依年份及專案/細項關鍵字即時篩選。</li>
+              <li><strong>長名稱捲軸與滑鼠中鍵平移</strong>：
+                <ul style="margin: 4px 0;">
+                  <li>當專案或任務細項字數超過欄位寬度時，表頭下方會自動出現 <strong>50% 半透明水平捲軸</strong>，拖動可整排同步平移。</li>
+                  <li>將滑鼠移至單一過長名稱或右側甘特圖任意位置，<strong>按住滑鼠滾輪（中鍵）往右移動</strong>，畫面即會順暢向右捲動（放開中鍵停止）。</li>
+                </ul>
+              </li>
+              <li><strong>進度 % 數更新與防倒退規則</strong>：輸入框支援鍵盤上下鍵與滾輪微調（0% 與 100% 循環切換）。一般人員進度僅可遞增（不可低於已存檔進度），達 <strong>100%</strong> 即結案鎖定；若已超過預計完成日才結案，系統將強制要求填寫 Delay 原因。</li>
+              <li><strong>編輯寬限期與歷史備註修改</strong>：一般專案與細項建立後享有 <strong>7 天自由編輯期</strong>（可調整日期、順序或刪除）；進度更新備註在送出後 <strong>2 天內</strong>可點擊「✏️ 修改」。</li>
+              <li><strong>專案暫停 / 恢復與回收筒</strong>：遇外部因素無法推進可點「⏸️ 申請暫停」，經主管核准後甘特圖會繪製紅色暫停區間線；申請「▶️ 恢復執行」核准後，未完成任務時程將依實際暫停工作天數自動向後遞延。刪除專案會先移入「🗑️ 回收筒」，隨時可一鍵復原。</li>
+            </ol>
+          </div>
+
+          <!-- 五、事件紀錄與週報填寫規範 -->
+          <div id="man-sec-5" style="margin-bottom: 22px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+            <h3 style="margin: 0 0 10px 0; color: #1d4ed8; border-left: 4px solid #2563eb; padding-left: 8px;">五、事件紀錄與工作週報填寫規範</h3>
+            <ol style="margin: 0; padding-left: 20px;">
+              <li><strong>事件紀錄（臨時交辦 / 突發狀況）</strong>：支援富文本格式（粗體、底線、文字顏色與底色標記）及草稿暫存。系統依「預計工時（每天 8 小時換算）」自動推算期限，逾期未點「完成」將顯示紅色 Delay 標籤。</li>
+              <li><strong>週報填寫與項目鎖定機制</strong>：
+                <ul style="margin: 4px 0;">
+                  <li><strong>可選範圍</strong>：進度 <strong>0% ~ 99%</strong> 的進行中細項、尚未結案的事件紀錄，以及「📌 其他」皆可選取回報（選擇事件紀錄會自動帶入事件說明）。</li>
+                  <li><strong>送出即鎖定 / 刪除即解鎖</strong>：當細項或事件已達 <strong>100% 完成</strong>並於週報送出後，系統會立即鎖定該項目避免重複提報；若該週報後續被刪除（包含主管已閱後協助刪除），鎖定狀態會即時解除，恢復為可再次選擇。</li>
+                  <li><strong>平日提交提醒</strong>：週一至週四（非國定假日且隔日非休假日）提前提交週報時，需於右側勾選「請假」或填寫「其他」理由。</li>
+                  <li><strong>週報修改與主管簽閱</strong>：送出後 <strong>2 天內</strong>且任一主管尚未點選「已閱 (Noted)」前，本人可自行編輯或刪除；主管瀏覽報告時可點擊「✔️ 主管已閱 / 最高主管已閱」完成審閱。</li>
+                </ul>
+              </li>
+            </ol>
+          </div>
+
+          <!-- 六、系統通知、個人行事曆與組織架構 -->
+          <div id="man-sec-6" style="margin-bottom: 8px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+            <h3 style="margin: 0 0 10px 0; color: #1d4ed8; border-left: 4px solid #2563eb; padding-left: 8px;">六、系統通知、個人行事曆與組織架構管理</h3>
+            <ol style="margin: 0; padding-left: 20px;">
+              <li><strong>系統通知中心</strong>：左側紅點數字即時提示待處理事項（包含「子專案指派同意/拒絕」、「暫停/恢復與跨部門協作簽核」、「系統通知知悉」），下方同步保留完整歷史審核軌跡。</li>
+              <li><strong>個人行事曆</strong>：點擊任一日期可新增個人待辦事項（支援自訂文字顏色與完成勾選），國定假日與週末自動以淡紅底色標示。</li>
+              <li><strong>組織架構管理（管理員專用）</strong>：支援「組織架構圖」與「人員清單」雙模式檢視，可動態新增公司部門、建立帳號、設定直屬主管層級、勾選「開放編輯權限」或「卷宗人員」，並提供一鍵發送重設密碼信與舊資料救援功能。</li>
+            </ol>
+          </div>
+
+        </div>
+        
+        <div class="modal-actions" style="flex-shrink: 0; border-top: 1px solid #e2e8f0; padding-top: 10px; justify-content: flex-end;">
+          <button type="button" class="btn-primary" style="max-width: 110px;" onclick="closeManualModal()">關閉手冊</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+};
+
+window.openManualModal = () => {
+  if (!document.getElementById("system-manual-modal")) {
+    window.initManualModalUI();
+  }
+  const modal = document.getElementById("system-manual-modal");
+  if (modal) modal.classList.add("active");
+};
+
+window.closeManualModal = () => {
+  const modal = document.getElementById("system-manual-modal");
+  if (modal) modal.classList.remove("active");
+};
+
+window.scrollToManualSec = (secId) => {
+  const target = document.getElementById(secId);
+  const container = document.getElementById("system-manual-content");
+  if (target && container) {
+    container.scrollTo({
+      top: target.offsetTop - container.offsetTop - 8,
+      behavior: 'smooth'
+    });
+  }
+};
