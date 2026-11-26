@@ -694,6 +694,11 @@ function initDynamicUI() {
     .col-name::-webkit-scrollbar {
       display: none;
     }
+    /* 🌟 讓右側甘特圖容器填滿整個垂直高度，全區域皆可自由平移捲動 */
+    .gantt-right-panel, .gantt-right-panel-summary, .gantt-container {
+      min-height: 100%;
+      overflow-x: auto !important;
+    }
   `;
   document.head.appendChild(style);
 
@@ -916,7 +921,7 @@ function fixHeaders() {
   }
 }
 
-// 🌟 同步左右滑動整排名稱欄位（採用 translateX 平移，不影響浮動按鈕）
+// 🌟 1. 上方 50% 半透明捲軸：同步平移所有列的名稱文字（不影響浮動按鈕）
 window.syncNameColumnScroll = (trackElem, viewType) => {
   const scrollLeft = trackElem.scrollLeft;
   const selector = viewType === 'summary' 
@@ -935,7 +940,7 @@ window.syncNameColumnScroll = (trackElem, viewType) => {
   });
 };
 
-// 🌟 自動偵測超寬文字顯示上方捲軸 ＋ 綁定「按住滾輪(中鍵)左右拖曳單獨滑動」
+// 🌟 2. 偵測超寬文字顯示上方捲軸 ＋ 綁定「中鍵按下往右移，文字持續往左跑」
 window.updateNameScrollbars = () => {
   ['summary', 'detail'].forEach(viewType => {
     const headerSelector = viewType === 'summary' 
@@ -952,29 +957,34 @@ window.updateNameScrollbars = () => {
     if (!track || !spacer) return;
 
     const cells = Array.from(document.querySelectorAll(bodySelector));
+    if (cells.length === 0) {
+      track.style.display = 'none';
+      return;
+    }
+
     let maxTextWidth = 0;
     let visibleBoxWidth = 0;
 
     cells.forEach(cell => {
-      // 1. 確保外層維持 visible，讓懸浮編輯按鈕 (↑ ↓ ✏️ 🗑️) 100% 正常凸出顯示
+      // 保持 detail 欄位的 overflow: visible，讓懸浮按鈕 (↑ ↓ ✏️ 🗑️) 100% 維持原位不遮字
       if (viewType === 'detail') {
         cell.style.setProperty('overflow', 'visible', 'important');
       }
 
-      // 2. 為文字建立專屬裁切視窗 (.name-clip-box) 與可平移文字層 (.name-slide-text)
+      // 建立專屬文字裁切視窗 (.name-clip-box)
       let clipBox = cell.querySelector('.name-clip-box');
       let textSpan = cell.querySelector('.name-slide-text');
 
       if (!clipBox) {
-        // 找出原本裝文字的第一個 span（不含懸浮按鈕 div）
-        const origSpan = Array.from(cell.children).find(el => el.tagName === 'SPAN');
+        // 找出原本放文字的元素（排除懸浮按鈕 div 與 badge）
+        const origSpan = Array.from(cell.children).find(el => el.tagName === 'SPAN' && !el.style.marginLeft?.includes('auto'));
         if (origSpan) {
           clipBox = document.createElement('div');
           clipBox.className = 'name-clip-box';
           clipBox.style.cssText = 'flex: 1; min-width: 0; overflow: hidden; display: flex; align-items: center;';
           
           origSpan.classList.add('name-slide-text');
-          origSpan.style.cssText += '; display: inline-block; white-space: nowrap; overflow: visible !important; text-overflow: clip !important; transition: transform 0.05s linear; will-change: transform;';
+          origSpan.style.cssText += '; display: inline-block; white-space: nowrap; overflow: visible !important; text-overflow: clip !important; will-change: transform;';
           
           cell.insertBefore(clipBox, origSpan);
           clipBox.appendChild(origSpan);
@@ -983,71 +993,91 @@ window.updateNameScrollbars = () => {
       }
 
       if (clipBox && textSpan) {
-        const curBoxW = clipBox.clientWidth || cell.clientWidth || 200;
+        const curBoxW = clipBox.getBoundingClientRect().width || cell.getBoundingClientRect().width || 220;
         const curTextW = textSpan.scrollWidth;
         if (curBoxW > visibleBoxWidth) visibleBoxWidth = curBoxW;
         if (curTextW > maxTextWidth) maxTextWidth = curTextW;
       }
 
-      // 3. 🌟 綁定「按住滑鼠滾輪 (中鍵 button === 1) 左右滑動」單獨平移該列名稱
-      if (!cell.dataset.middleDragBound) {
-        cell.dataset.middleDragBound = 'true';
-        let isDragging = false;
-        let startX = 0;
-        let startOffset = 0;
+      // 🌟 綁定「中鍵搖桿式平移」：中鍵按下後，滑鼠往右移 -> 文字往左跑（露出右側文字）
+      if (!cell.dataset.middleJoystickBound) {
+        cell.dataset.middleJoystickBound = 'true';
+        let isAutoScrolling = false;
+        let originX = 0;
+        let currentDeltaX = 0;
+        let rafId = null;
 
-        // 攔截中鍵按下（使用 capture 階段確保優先於瀏覽器預設行為）
+        const stepScroll = () => {
+          if (!isAutoScrolling) return;
+          const tSpan = cell.querySelector('.name-slide-text');
+          const cBox = cell.querySelector('.name-clip-box');
+          if (tSpan && cBox) {
+            const maxOffset = Math.max(0, tSpan.scrollWidth - cBox.clientWidth);
+            // 死區 6px 避免手抖；滑鼠往右移 (currentDeltaX > 0) -> offset 增加 -> 文字往左跑
+            if (Math.abs(currentDeltaX) > 6 && maxOffset > 0) {
+              const speed = (currentDeltaX - Math.sign(currentDeltaX) * 6) * 0.18;
+              let curOffset = parseFloat(cell.dataset.scrollOffset || '0');
+              curOffset = Math.max(0, Math.min(maxOffset, curOffset + speed));
+              cell.dataset.scrollOffset = curOffset;
+              tSpan.style.transform = `translateX(-${curOffset}px)`;
+            }
+          }
+          rafId = requestAnimationFrame(stepScroll);
+        };
+
+        const stopAutoScroll = () => {
+          if (!isAutoScrolling) return;
+          isAutoScrolling = false;
+          if (rafId) cancelAnimationFrame(rafId);
+          document.body.style.cursor = '';
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+        };
+
+        const onMouseMove = (e) => {
+          if (!isAutoScrolling) return;
+          currentDeltaX = e.clientX - originX; // 往右為正值，往左為負值
+        };
+
+        const onMouseUp = (e) => {
+          if (e.button === 1) {
+            stopAutoScroll();
+          }
+        };
+
+        // 僅在該名稱欄位範圍內攔截中鍵，絕不影響右側甘特圖
         cell.addEventListener('mousedown', (e) => {
           if (e.button === 1) {
-            e.preventDefault();
-            e.stopPropagation();
             const tSpan = cell.querySelector('.name-slide-text');
             const cBox = cell.querySelector('.name-clip-box');
             if (!tSpan || !cBox) return;
 
-            // 只有當該列文字真的超出寬度時才啟動拖曳
-            if (tSpan.scrollWidth <= cBox.clientWidth) return;
+            e.preventDefault();
+            e.stopPropagation();
 
-            isDragging = true;
-            startX = e.clientX;
-            startOffset = parseFloat(cell.dataset.scrollOffset || '0');
-            document.body.style.cursor = 'grabbing';
+            isAutoScrolling = true;
+            originX = e.clientX;
+            currentDeltaX = 0;
+            document.body.style.cursor = 'ew-resize';
+
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+            rafId = requestAnimationFrame(stepScroll);
           }
-        }, true);
-
-        // 阻斷瀏覽器原生的中鍵輔助滾動（auxclick）
-        cell.addEventListener('auxclick', (e) => {
-          if (e.button === 1) e.preventDefault();
-        }, true);
-
-        window.addEventListener('mousemove', (e) => {
-          if (!isDragging) return;
-          e.preventDefault();
-          const tSpan = cell.querySelector('.name-slide-text');
-          const cBox = cell.querySelector('.name-clip-box');
-          if (!tSpan || !cBox) return;
-
-          const maxOffset = Math.max(0, tSpan.scrollWidth - cBox.clientWidth);
-          // 滑鼠往左拖（e.clientX 變小），文字往左捲動（offset 增加）
-          const deltaX = startX - e.clientX;
-          const nextOffset = Math.max(0, Math.min(maxOffset, startOffset + deltaX * 1.5));
-
-          cell.dataset.scrollOffset = nextOffset;
-          tSpan.style.transform = `translateX(-${nextOffset}px)`;
         });
 
-        window.addEventListener('mouseup', (e) => {
-          if (isDragging && e.button === 1) {
-            isDragging = false;
-            document.body.style.cursor = '';
+        cell.addEventListener('auxclick', (e) => {
+          if (e.button === 1) {
+            e.preventDefault();
+            e.stopPropagation();
           }
         });
       }
     });
 
-    // 4. 只要有任一列文字超出可視寬度，立刻顯示該區域的上方 50% 半透明捲軸
-    if (maxTextWidth > visibleBoxWidth + 2) {
-      spacer.style.width = (track.clientWidth + (maxTextWidth - visibleBoxWidth)) + 'px';
+    // 🌟 只要有任一列文字超出可視寬度，立刻顯示該區域的上方 50% 半透明捲軸
+    if (maxTextWidth > visibleBoxWidth + 2 && visibleBoxWidth > 0) {
+      spacer.style.width = (visibleBoxWidth + (maxTextWidth - visibleBoxWidth)) + 'px';
       track.style.display = 'block';
     } else {
       track.style.display = 'none';
